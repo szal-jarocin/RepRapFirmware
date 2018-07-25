@@ -24,6 +24,10 @@
 #include "ESP8266WiFi/WiFiInterface.h"
 #endif
 
+#if HAS_RTOSPLUSTCP_NETWORKING
+#include "RTOSPlusTCPEthernet/RTOSPlusTCPEthernetInterface.h"
+#endif
+
 #include "Platform.h"
 #include "RepRap.h"
 #include "HttpResponder.h"
@@ -37,7 +41,12 @@
 # include "Tasks.h"
 # include "RTOSIface.h"
 
+#if __LPC17xx__
+constexpr size_t NetworkStackWords = 440;
+#else
 constexpr size_t NetworkStackWords = 550;
+#endif;
+
 static Task<NetworkStackWords> networkTask;
 
 #endif
@@ -51,6 +60,8 @@ Network::Network(Platform& p) : platform(p), responders(nullptr), nextResponderT
 	interfaces[0] = nullptr;			// we set this up in Init()
 #elif defined(DUET_M)
 	interfaces[0] = new W5500Interface(p);
+#elif defined(__LPC17xx__)
+    interfaces[0] = new (AHB0) RTOSPlusTCPEthernetInterface(p);
 #else
 # error Unknown board
 #endif
@@ -58,29 +69,40 @@ Network::Network(Platform& p) : platform(p), responders(nullptr), nextResponderT
 
 // Note that Platform::Init() must be called before this to that Platform::IsDuetWiFi() returns the correct value
 void Network::Init()
-{
-	httpMutex.Create("HTTP");
+{    
+    httpMutex.Create("HTTP");
+#if NumTelnetResponders > 0
 	telnetMutex.Create("Telnet");
-
+#endif
+    
+    
 #if defined(DUET_NG)
 	interfaces[0] = (platform.IsDuetWiFi()) ? static_cast<NetworkInterface*>(new WiFiInterface(platform)) : static_cast<NetworkInterface*>(new W5500Interface(platform));
 #endif
 
 	// Create the responders
 	HttpResponder::InitStatic();
-	TelnetResponder::InitStatic();
+
+#if NumTelnetResponders > 0
+    TelnetResponder::InitStatic();
 
 	for (size_t i = 0; i < NumTelnetResponders; ++i)
 	{
 		responders = new TelnetResponder(responders);
 	}
+#endif
+    
 	for (size_t i = 0; i < NumFtpResponders; ++i)
 	{
 		responders = new FtpResponder(responders);
 	}
 	for (size_t i = 0; i < NumHttpResponders; ++i)
 	{
+#if defined(__LPC17xx__)
+        responders = new (AHB0) HttpResponder(responders);
+#else
 		responders = new HttpResponder(responders);
+#endif
 	}
 
 	strcpy(hostname, DEFAULT_HOSTNAME);
@@ -442,8 +464,10 @@ void Network::HandleHttpGCodeReply(const char *msg)
 
 void Network::HandleTelnetGCodeReply(const char *msg)
 {
+#if NumTelnetResponders > 0
 	MutexLocker lock(telnetMutex);
 	TelnetResponder::HandleGCodeReply(msg);
+#endif
 }
 
 void Network::HandleHttpGCodeReply(OutputBuffer *buf)
@@ -454,8 +478,10 @@ void Network::HandleHttpGCodeReply(OutputBuffer *buf)
 
 void Network::HandleTelnetGCodeReply(OutputBuffer *buf)
 {
+#if NumTelnetResponders > 0
 	MutexLocker lock(telnetMutex);
 	TelnetResponder::HandleGCodeReply(buf);
+#endif
 }
 
 uint32_t Network::GetHttpReplySeq()

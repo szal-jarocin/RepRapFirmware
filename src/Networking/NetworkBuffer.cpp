@@ -119,7 +119,11 @@ void NetworkBuffer::Empty()
 {
 	while (number != 0)
 	{
+#if __LPC17xx__
+        freelist = new (AHB0) NetworkBuffer(freelist);
+#else
 		freelist = new NetworkBuffer(freelist);
+#endif
 		--number;
 	}
 }

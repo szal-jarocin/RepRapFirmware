@@ -255,7 +255,7 @@ typedef uint32_t FilePosition;
 const FilePosition noFilePosition = 0xFFFFFFFF;
 
 // Interrupt priorities - must be chosen with care! 0 is the highest priority, 15 is the lowest.
-#if SAM4E || SAME70
+#if SAM4E || SAME70 || __LPC17xx__
 const uint32_t NvicPriorityWatchdog = 0;		// the secondary watchdog has the highest priority
 #endif
 

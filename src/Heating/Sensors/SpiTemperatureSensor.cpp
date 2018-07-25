@@ -15,6 +15,12 @@ SpiTemperatureSensor::SpiTemperatureSensor(unsigned int channel, const char *nam
 	device.csPolarity = false;						// active low chip select
 	device.spiMode = spiMode;
 	device.clockFrequency = clockFrequency;
+
+#if defined(__LPC17xx__)
+    device.SSPDevice = LPC_SSP0; //Use SSP0 on LPC
+#endif
+
+    
 	lastTemperature = 0.0;
 	lastResult = TemperatureError::notInitialised;
 }

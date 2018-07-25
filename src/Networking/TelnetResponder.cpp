@@ -11,6 +11,10 @@
 #include "GCodes/GCodes.h"
 #include "Platform.h"
 
+
+#if NumTelnetResponders > 0
+
+
 TelnetResponder::TelnetResponder(NetworkResponder *n) : NetworkResponder(n)
 {
 }
@@ -380,5 +384,8 @@ unsigned int TelnetResponder::numSessions = 0;
 unsigned int TelnetResponder::clientsServed = 0;
 OutputBuffer *TelnetResponder::gcodeReply = nullptr;
 Mutex TelnetResponder::gcodeReplyMutex;
+
+#endif //#if NumTelnetResponders > 0
+
 
 // End

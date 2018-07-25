@@ -18,6 +18,8 @@
 #  define PLATFORM SAME70_TEST
 # elif defined(__SAM4S8C__)
 #  define PLATFORM DuetM
+# elif defined(__LPC17xx__)
+#  define PLATFORM LPC
 # else
 #  error Unknown platform
 # endif

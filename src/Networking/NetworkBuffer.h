@@ -13,6 +13,7 @@
 
 class WiFiSocket;
 class W5500Socket;
+class RTOSPlusTCPEthernetSocket;
 
 // Network buffer class. These buffers are 2K long so that they can accept as much data as the W5500 can provide in one go.
 class NetworkBuffer
@@ -20,6 +21,7 @@ class NetworkBuffer
 public:
 	friend class WiFiSocket;
 	friend class W5500Socket;
+    friend class RTOSPlusTCPEthernetSocket;
 
 	// Release this buffer and return the next one in the chain
 	NetworkBuffer *Release();
@@ -71,13 +73,19 @@ public:
 	// Count how many buffers there are in a chain
 	static unsigned int Count(NetworkBuffer*& ptr);
 
+#if defined(__LPC17xx__)
+    // 2xMSS is size of our RX/TX buffers in +TCP
+    // BufferSize of less than 2xMSS seems to cause upload/download errors
+    static const size_t bufferSize =   3 * (568);
+#else
 	static const size_t bufferSize =
 #ifdef USE_3K_BUFFERS
 									 3 * 1024;
 #else
 									 2 * 1024;
-#endif
+#endif //end USE_3K_BUFFERS
 
+#endif
 private:
 	NetworkBuffer(NetworkBuffer *n);
 	uint8_t *Data() { return reinterpret_cast<uint8_t*>(data32); }
@@ -86,9 +94,9 @@ private:
 	NetworkBuffer *next;
 	size_t dataLength;
 	size_t readPointer;
-	// When doing unaligned transfers on the WiFi interface, up to 3 extra bytes may be returned, hence the +1 in the following
+    // When doing unaligned transfers on the WiFi interface, up to 3 extra bytes may be returned, hence the +1 in the following
 	uint32_t data32[bufferSize/sizeof(uint32_t) + 1];		// 32-bit aligned buffer so we can do direct DMA
-	static NetworkBuffer *freelist;
+    static NetworkBuffer *freelist;
 };
 
 #endif /* SRC_NETWORKING_NETWORKBUFFER_H_ */

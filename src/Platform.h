@@ -30,7 +30,13 @@ Licence: GPL
 
 #include "RepRapFirmware.h"
 #include "IoPorts.h"
-#include "DueFlashStorage.h"
+
+#ifdef __LPC17xx__
+    #include "SoftwareResetData.h"
+#else
+    #include "DueFlashStorage.h"
+#endif
+
 #include "Fan.h"
 #include "Heating/TemperatureError.h"
 #include "OutputMemory.h"
@@ -50,6 +56,8 @@ Licence: GPL
 # include "DAC/DAC084S085.h"       // SPI DAC for motor current vref
 # include "EUI48/EUI48EEPROM.h"    // SPI EUI48 mac address EEPROM
 # include "Microstepping.h"
+#elif defined(__LPC17xx__)
+# include "MCP4461/MCP4461.h"
 #endif
 
 constexpr bool FORWARDS = true;
@@ -129,6 +137,10 @@ enum class BoardType : uint8_t
 	RADDS_15 = 1
 #elif defined(__ALLIGATOR__)
 	Alligator_2 = 1
+#elif defined(__LPC17xx__)
+    AzteegX5Mini1_1 = 1,
+    ReArm1_0 = 2,
+    Smoothieboard1 = 3
 #else
 # error Unknown board
 #endif
@@ -632,6 +644,7 @@ private:
 	bool ExtruderMotorStalled(size_t extruder) const pre(extruder < MaxExtruders);
 #endif
 
+    
 	// These are the structures used to hold our non-volatile data.
 	// The SAM3X and SAM4E don't have EEPROM so we save the data to flash. This unfortunately means that it gets cleared
 	// every time we reprogram the firmware via bossa, but it can be retained when firmware updates are performed
@@ -649,8 +662,16 @@ private:
 #if SAM3XA
 		static const uint32_t nvAddress = 0;		// must be 4-byte aligned
 #endif
-		static const size_t numberOfSlots = 4;		// number of storage slots used to implement wear levelling - must fit in 512 bytes
 
+#if __LPC17xx__
+        //The LPC1768/9 doesn't have the page erase IAP command, so we have to use the whole sector
+        // the sector is 32k with a min write of 256bytes... so we will fill the entire sector before erasing it
+        
+        static const size_t numberOfSlots = 128;    // number of storage slots used to implement wear levelling
+#else
+		static const size_t numberOfSlots = 4;		// number of storage slots used to implement wear levelling - must fit in 512 bytes
+#endif
+        
 		uint16_t magic;								// the magic number, including the version
 		uint16_t resetReason;						// this records why we did a software reset, for diagnostic purposes
 		uint32_t neverUsedRam;						// the amount of never used RAM at the last abnormal software reset
@@ -679,9 +700,13 @@ private:
 
 #if SAM4E || SAM4S || SAME70
 	static_assert(SoftwareResetData::numberOfSlots * sizeof(SoftwareResetData) <= 512, "Can't fit software reset data in user signature area");
+#elif __LPC17xx__
+    static_assert(sizeof(SoftwareResetData) <= 256, "Software reset data is larger that Page size");
+    static_assert(SoftwareResetData::numberOfSlots * sizeof(SoftwareResetData) <= (32*1024), "Can't fit software reset data in allocated Flash");
 #else
 	static_assert(SoftwareResetData::numberOfSlots * sizeof(SoftwareResetData) <= FLASH_DATA_LENGTH, "NVData too large");
 #endif
+
 
 	// Logging
 	Logger *logger;
@@ -773,6 +798,8 @@ private:
 	Pin spiDacCS[MaxSpiDac];
 	DAC084S085 dacAlligator;
 	DAC084S085 dacPiggy;
+#elif defined(__LPC17xx__)
+    MCP4461 mcp4451;// works for 5561 (only volatile setting commands)
 #endif
 
 	// Z probe
@@ -1150,13 +1177,22 @@ inline float Platform::GetPressureAdvance(size_t extruder) const
 // Get the interrupt clock count
 /*static*/ inline uint32_t Platform::GetInterruptClocks()
 {
+#if __LPC17xx__
+    return STEP_TC->TC;
+#else
 	return STEP_TC->TC_CHANNEL[STEP_TC_CHAN].TC_CV;
+#endif
 }
 
 // Get the interrupt clock count, when we know that interrupts are already disabled
 /*static*/ inline uint32_t Platform::GetInterruptClocksInterruptsDisabled()
 {
+#if __LPC17xx__
+    return STEP_TC->TC;
+#else
 	return STEP_TC->TC_CHANNEL[STEP_TC_CHAN].TC_CV;
+#endif
+
 }
 
 #endif
@@ -1164,7 +1200,12 @@ inline float Platform::GetPressureAdvance(size_t extruder) const
 // Get the interrupt clock count when we only care about the lowest 16 bits. More efficient than calling GetInterruptClocks on platforms with 16-bit timers.
 /*static*/ inline uint16_t Platform::GetInterruptClocks16()
 {
+#if __LPC17xx__
+    return (uint16_t)STEP_TC->TC;
+#else
+
 	return (uint16_t)STEP_TC->TC_CHANNEL[STEP_TC_CHAN].TC_CV;
+#endif
 }
 
 // This is called by the tick ISR to get the raw Z probe reading to feed to the filter
@@ -1190,8 +1231,12 @@ inline uint16_t Platform::GetRawZProbeReading() const
 
 	case ZProbeType::e1Switch:
 		{
-			const bool b = IoPort::ReadPin(endStopPins[E0_AXIS + 1]);
-			return (b) ? 4000 : 0;
+            if(E0_AXIS+1<DRIVES){ // prevent accidental array out of bounnds on board without E1
+                const bool b = IoPort::ReadPin(endStopPins[E0_AXIS + 1]);
+                return (b) ? 4000 : 0;
+            }else{
+                return 4000;
+            }
 		}
 
 	case ZProbeType::zSwitch:
@@ -1267,7 +1312,9 @@ inline OutputBuffer *Platform::GetAuxGCodeReply()
 #if defined(SAME70_TEST_BOARD)
 	return 0;				// TODO assign step pins
 #else
+# ifndef __LPC17xx__//LPC doesnt need pinDesc
 	const PinDescription& pinDesc = g_APinDescription[STEP_PINS[driver]];
+#endif
 #if defined(DUET_NG)
 	return pinDesc.ulPin;
 #elif defined(DUET_M)
@@ -1278,6 +1325,8 @@ inline OutputBuffer *Platform::GetAuxGCodeReply()
 	return (pinDesc.pPort == PIOC) ? pinDesc.ulPin << 1 : pinDesc.ulPin;
 #elif defined(__ALLIGATOR__)
 	return pinDesc.ulPin;
+# elif defined(__LPC17xx__)
+    return (1<<STEP_PIN_PORT2_POS[driver]);
 #else
 # error Unknown board
 #endif
@@ -1308,6 +1357,15 @@ inline OutputBuffer *Platform::GetAuxGCodeReply()
 	PIOB->PIO_ODSR = driverMap;
 	PIOD->PIO_ODSR = driverMap;
 	PIOC->PIO_ODSR = driverMap;
+#elif defined(__LPC17xx__)
+    //On Azteeg X5 Mini all step pins are on Port 2
+    //On Smoothieboard all step pins are on Port 2
+    //On ReArm all step pins are on Port 2
+    
+    //using fast GPIO registers
+    LPC_GPIO2->FIOSET = driverMap;
+    
+
 #else
 # error Unknown board
 #endif
@@ -1337,6 +1395,8 @@ inline OutputBuffer *Platform::GetAuxGCodeReply()
 	PIOD->PIO_ODSR = 0;
 	PIOC->PIO_ODSR = 0;
 	PIOB->PIO_ODSR = 0;
+#elif defined(__LPC17xx__)
+    LPC_GPIO2->FIOCLR = STEP_DRIVER_MASK;
 #else
 # error Unknown board
 #endif

@@ -13,6 +13,7 @@
 #ifdef RTOS
 # include "FreeRTOS.h"
 # include "task.h"
+
 #endif
 
 const uint8_t memPattern = 0xA5;
@@ -20,10 +21,15 @@ const uint8_t memPattern = 0xA5;
 extern "C" char *sbrk(int i);
 extern char _end;
 
+
 #ifdef RTOS
 
 // The main task currently runs GCodes, so it needs to be large enough to hold the matrices used for auto calibration.
+#if __LPC17xx__
+constexpr unsigned int MainTaskStackWords = 1616;
+#else
 constexpr unsigned int MainTaskStackWords = 2040;
+#endif
 
 static Task<MainTaskStackWords> mainTask;
 static Mutex spiMutex;
@@ -54,7 +60,7 @@ extern "C" void __malloc_unlock ( struct _reent *_r )
 // Application entry point
 extern "C" void AppMain()
 {
-	// Fill the free memory with a pattern so that we can check for stack usage and memory corruption
+    // Fill the free memory with a pattern so that we can check for stack usage and memory corruption
 	char* heapend = sbrk(0);
 	register const char * stack_ptr asm ("sp");
 	while (heapend + 16 < stack_ptr)
@@ -73,8 +79,11 @@ extern "C" void AppMain()
 // Definition of RSTC_MR_KEY_PASSWD is missing in the SAM3X ASF files
 # define RSTC_MR_KEY_PASSWD (0xA5u << 24)
 #endif
+    
+#ifndef __LPC17xx__
 	RSTC->RSTC_MR = RSTC_MR_KEY_PASSWD | RSTC_MR_URSTEN;	// ignore any signal on the NRST pin for now so that the reset reason will show as Software
-
+#endif
+    
 #if USE_CACHE
 	// Enable the cache
 	struct cmcc_config g_cmcc_cfg;
@@ -84,17 +93,21 @@ extern "C" void AppMain()
 #endif
 
 #ifdef RTOS
-	// Create the startup task
-	mainTask.Create(MainTask, "MAIN", nullptr, TaskBase::SpinPriority);
-	vTaskStartScheduler();			// doesn't return
+
+    // Create the startup task
+    mainTask.Create(MainTask, "MAIN", nullptr, TaskBase::SpinPriority);
+	vTaskStartScheduler();			// doesn't return unless out of memory
+
 }
 
 extern "C" void MainTask(void *pvParameters)
 {
-	mallocMutex.Create("Malloc");
+
+    mallocMutex.Create("Malloc");
 	spiMutex.Create("SPI");
 #endif
 	reprap.Init();
+
 	for (;;)
 	{
 		reprap.Spin();
@@ -102,6 +115,17 @@ extern "C" void MainTask(void *pvParameters)
 }
 
 extern "C" uint32_t _estack;		// this is defined in the linker script
+
+#if __LPC17xx__
+    //Defined in Linker Scripts for LPC
+    extern "C" unsigned int __AHB0_block_start;
+    extern "C" unsigned int __AHB0_dyn_start;
+    extern "C" unsigned int __AHB0_end;
+
+    extern "C" unsigned long __StackLimit;
+    extern "C" unsigned long __StackTop;
+#endif
+
 
 namespace Tasks
 {
@@ -167,6 +191,8 @@ namespace Tasks
 				(char *) 0x20000000;
 #elif SAM3XA
 				(char *) 0x20070000;
+#elif __LPC17xx__
+                (char *) 0x10000000;
 #else
 # error Unsupported processor
 #endif
@@ -185,7 +211,39 @@ namespace Tasks
 			p.MessageF(mtype, "Stack ram used: %" PRIu32 " current, %" PRIu32 " maximum\n", currentStack, maxStack);
 #endif
 			p.MessageF(mtype, "Never used ram: %" PRIu32 "\n", neverUsed);
-		}
+
+#ifdef __LPC17xx__
+            //Read Combined memory from AHB0 & 1
+            
+            uint32_t ahbStaticUsed = (uint32_t)&__AHB0_dyn_start -(uint32_t)&__AHB0_block_start;
+            p.MessageF(mtype, "AHB_RAM Static ram used : %" PRIu32 "\n", ahbStaticUsed);
+            
+            uint32_t ahb0_free = (uint32_t)&__AHB0_end - (uint32_t)&__AHB0_dyn_start ;
+            uint32_t ahb0_total_used = (32*1024) - ahb0_free;
+
+            p.Message(mtype, "=== Ram Totals ===\n");
+            
+            uint32_t totalMainUsage = (uint32_t)((&_end - ramstart) + mi.uordblks + maxStack);
+            
+            p.MessageF(mtype, "Main SRAM               : %" PRIu32 "/%" PRIu32 " (%" PRIu32 " free, %" PRIu32 " never used)\n", totalMainUsage, (uint32_t)32*1024, 32*1024-totalMainUsage, neverUsed );
+            p.MessageF(mtype, "AHB SRAM                : %" PRIu32 "/%" PRIu32 " (%" PRIu32 " free)\n", ahb0_total_used, (uint32_t)32*1024, (uint32_t)ahb0_free  );
+            p.MessageF(mtype, "RTOS Dynamic Heap (AHB) : %d/%d (%d free, %d never used)\n", configTOTAL_HEAP_SIZE-xPortGetFreeHeapSize(),configTOTAL_HEAP_SIZE, xPortGetFreeHeapSize(),xPortGetMinimumEverFreeHeapSize() );
+            
+            //Print out our Special Pins Available:
+            p.MessageF(mtype, "\n=== GPIO Special Pins available === (i.e. with M42)\nLogicalPin - PhysicalPin\n");
+            for(size_t i=0; i<ARRAY_SIZE(SpecialPinMap); i++){
+                
+                if(SpecialPinMap[i] != NoPin){
+                    uint8_t portNumber =  (SpecialPinMap[i]>>5);  //Divide the pin number by 32 go get the PORT number
+                    uint8_t pinNumber  =   SpecialPinMap[i] & 0x1f;  //lower 5-bits contains the bit number of a 32bit port
+                    
+                    p.MessageF(mtype, " %d - P%d_%d %s\n", (60+i), portNumber, pinNumber, ((g_APinDescription[SpecialPinMap[i]].ulPinAttribute & PIN_ATTR_PWM)==PIN_ATTR_PWM)?"(HW PWM)":"" );
+                }
+            }
+#endif //end __LPC17xx__
+        
+        }// end memory stats scope
+        
 
 #ifdef RTOS
 		p.Message(mtype, "Tasks:");
@@ -236,7 +294,14 @@ namespace Tasks
 #ifdef RTOS
 
 static StaticTask_t xIdleTaskTCB;
-static StackType_t uxIdleTaskStack[configMINIMAL_STACK_SIZE];
+
+#if __LPC17xx__
+    static StackType_t uxIdleTaskStack[30]; //according to vTaskList only using 10 words...
+    // setting to 30 just in case, still saving 360 bytes
+#else
+    static StackType_t uxIdleTaskStack[configMINIMAL_STACK_SIZE];
+#endif
+
 
 extern "C" void vApplicationGetIdleTaskMemory( StaticTask_t **ppxIdleTaskTCBBuffer,
                                     StackType_t **ppxIdleTaskStackBuffer,
@@ -311,8 +376,16 @@ extern "C"
 	}
 
 	void WDT_Handler() __attribute__((naked));
-	void WDT_Handler()
+
+#if __LPC17xx__
+    void WDT_IRQHandler(void)
+    {
+        LPC_WDT->WDMOD &=~((uint32_t)(1<<2)); //SD::clear timout flag before resetting to prevent the Smoothie bootloader going into DFU mode
+#else
+
+    void WDT_Handler()
 	{
+#endif
 	    __asm volatile
 	    (
 	        " tst lr, #4                                                \n"		/* test bit 2 of the EXC_RETURN in LR to determine which stack was in use */
@@ -364,6 +437,9 @@ extern "C"
 	void vApplicationStackOverflowHook(TaskHandle_t pxTask, char *pcTaskName) __attribute((naked));
 	void vApplicationStackOverflowHook(TaskHandle_t pxTask, char *pcTaskName)
 	{
+        
+        debugPrintf("vApplicationStackOverflowHook() - Task: %s", pcTaskName );
+
 		// r0 = pxTask, r1 = pxTaskName
 	    __asm volatile
 	    (
@@ -383,6 +459,9 @@ extern "C"
 	void vAssertCalled(uint32_t line, const char *file) __attribute((naked));
 	void vAssertCalled(uint32_t line, const char *file)
 	{
+        
+        debugPrintf("vAssertCalled() - Line: %lu, File: %s", line, file );
+        
 	    __asm volatile
 	    (
 	    	" push {r0, r1, lr}											\n"		/* save parameters and call address */
@@ -392,6 +471,29 @@ extern "C"
 	        " handler_asrt_address_const: .word assertCalledDispatcher  \n"
 	    );
 	}
+    
+    void applicationMallocFailedCalledDispatcher(const uint32_t *pulFaultStackAddress)
+    {
+        reprap.GetPlatform().SoftwareReset((uint16_t)SoftwareResetReason::assertCalled, pulFaultStackAddress);
+    }
+
+        
+    void vApplicationMallocFailedHook( void ) __attribute((naked));
+    void vApplicationMallocFailedHook( void ) {
+
+
+        debugPrintf( "vApplicationMallocFailedHook() - Not enough memory" );
+
+        __asm volatile
+        (
+         " push {r0, r1, lr}                                            \n"        /* save parameters and call address */
+         " mov r0, sp                                                \n"
+         " ldr r2, handler_amf_address_const                        \n"
+         " bx r2                                                     \n"
+         " handler_amf_address_const: .word applicationMallocFailedCalledDispatcher  \n"
+         );
+    }
+    
 #endif
 
 }

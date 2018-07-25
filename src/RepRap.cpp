@@ -38,6 +38,9 @@ static_assert(configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY <= NvicPriorityHSMCI,
 
 static TaskHandle_t hsmciTask = nullptr;		// the task that is waiting for a HSMCI command to complete
 
+
+#ifndef __LPC17xx__
+
 // Callback function from the hsmci driver, called while it is waiting for an SD card operation to complete
 // 'stBits' is the set of bits in the HSMCI status register that the caller is interested in.
 // The caller keeps calling this function until at least one of those bits is set.
@@ -75,6 +78,8 @@ extern "C" void HSMCI_Handler()
 		hsmciTask = nullptr;
 	}
 }
+
+#endif //end ifndef __LPC17xx__
 
 #if SAME70
 extern "C" void XDMAC_handler() __attribute__ ((alias("HSMCI_Handler")));
@@ -127,11 +132,20 @@ RepRap::RepRap() : toolList(nullptr), currentTool(nullptr), lastWarningMillis(0)
 	diagnosticsDestination(MessageType::NoDestinationMessage)
 {
 	OutputBuffer::Init();
-	platform = new Platform();
-	network = new Network(*platform);
-	gCodes = new GCodes(*platform);
-	move = new Move();
-	heat = new Heat(*platform);
+#if __LPC17xx__
+    platform = new (AHB0) Platform();
+    network = new (AHB0) Network(*platform);
+    gCodes = new /*(AHB0)*/ GCodes(*platform);
+    move = new Move();
+    heat = new /*(AHB0)*/ Heat(*platform);
+#else
+    platform = new Platform();
+    network = new Network(*platform);
+    gCodes = new GCodes(*platform);
+    move = new Move();
+    heat = new Heat(*platform);
+
+#endif
 
 #if SUPPORT_ROLAND
 	roland = new Roland(*platform);
@@ -154,15 +168,16 @@ RepRap::RepRap() : toolList(nullptr), currentTool(nullptr), lastWarningMillis(0)
 
 void RepRap::Init()
 {
-	toolListMutex.Create("ToolList");
+    toolListMutex.Create("ToolList");
 	messageBoxMutex.Create("MessageBox");
 
 	platform->Init();
-	network->Init();
+    heat->Init(); //SD:: moved heat to here so network can create tasks last
+    network->Init();
 	SetName(DEFAULT_MACHINE_NAME);		// Network must be initialised before calling this because this calls SetHostName
 	gCodes->Init();
 	move->Init();
-	heat->Init();
+	
 #if SUPPORT_ROLAND
 	roland->Init();
 #endif

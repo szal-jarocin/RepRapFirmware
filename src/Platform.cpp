@@ -36,8 +36,10 @@
 #include "Libraries/Math/Isqrt.h"
 #include "Wire.h"
 
-#include "sam/drivers/tc/tc.h"
-#include "sam/drivers/hsmci/hsmci.h"
+#ifndef __LPC17xx__
+# include "sam/drivers/tc/tc.h"
+# include "sam/drivers/hsmci/hsmci.h"
+#endif
 
 #include "sd_mmc.h"
 
@@ -304,6 +306,11 @@ void Platform::Init()
 	pinMode(SpiFLASHcsPin,OUTPUT_HIGH);														// Init Spi FLASH Cs pin, not implemented, default unselected
 #endif
 
+#if defined(__LPC17xx__)
+    mcp4451.begin();
+    Microstepping::Init(); // basic class to remember the Microstepping.
+#endif
+
 	// DRIVES
 	ARRAY_INIT(endStopPins, END_STOP_PINS);
 	ARRAY_INIT(maxFeedrates, MAX_FEEDRATES);
@@ -336,11 +343,14 @@ void Platform::Init()
 		}
 	}
 
+#ifndef __LPC17xx__
 	// Motors
 	// Disable parallel writes to all pins. We re-enable them for the step pins.
 	PIOA->PIO_OWDR = 0xFFFFFFFF;
 	PIOB->PIO_OWDR = 0xFFFFFFFF;
 	PIOC->PIO_OWDR = 0xFFFFFFFF;
+#endif
+
 #ifdef PIOD
 	PIOD->PIO_OWDR = 0xFFFFFFFF;
 #endif
@@ -369,9 +379,10 @@ void Platform::Init()
 		pinMode(DIRECTION_PINS[drive], OUTPUT_LOW);
 		pinMode(ENABLE_PINS[drive], OUTPUT_HIGH);				// this is OK for the TMC2660 CS pins too
 
-		const PinDescription& pinDesc = g_APinDescription[STEP_PINS[drive]];
+#ifndef __LPC17xx__
+        const PinDescription& pinDesc = g_APinDescription[STEP_PINS[drive]];
 		pinDesc.pPort->PIO_OWER = pinDesc.ulPin;				// enable parallel writes to the step pins
-
+#endif
 		motorCurrents[drive] = 0.0;
 		motorCurrentFraction[drive] = 1.0;
 		driverState[drive] = DriverStatus::disabled;
@@ -388,6 +399,8 @@ void Platform::Init()
 #elif defined(__RADDS__) || defined(__ALLIGATOR__)
 		// I don't know whether RADDS and Alligator have hardware pullup resistors or not. I'll assume they might not.
 		setPullup(endStopPins[drive], true);
+#elif defined(__LPC17xx__)
+        //I think they have hardware pullups.
 #endif
 	}
 
@@ -633,10 +646,13 @@ void Platform::InitZProbe()
 		break;
 
 	case ZProbeType::e1Switch:
-		AnalogInEnableChannel(zProbeAdcChannel, false);
-		pinMode(zProbePin, INPUT_PULLUP);
-		pinMode(endStopPins[E0_AXIS + 1], INPUT);
-		pinMode(zProbeModulationPin, OUTPUT_LOW);		// we now set the modulation output high during probing only when using probe types 4 and higher
+        if( E0_AXIS+1 < DRIVES ) {//avoid accidental out of bounds on azteeg which doesnt have E1
+
+            AnalogInEnableChannel(zProbeAdcChannel, false);
+            pinMode(zProbePin, INPUT_PULLUP);
+            pinMode(endStopPins[E0_AXIS + 1], INPUT);
+            pinMode(zProbeModulationPin, OUTPUT_LOW);		// we now set the modulation output high during probing only when using probe types 4 and higher
+        }
 		break;
 
 	case ZProbeType::zSwitch:
@@ -858,6 +874,9 @@ bool Platform::HomingZWithProbe() const
 // Check the prerequisites for updating the main firmware. Return True if satisfied, else print a message to 'reply' and return false.
 bool Platform::CheckFirmwareUpdatePrerequisites(const StringRef& reply)
 {
+#ifndef NO_FIRMWARE_UPDATE
+
+    
 	FileStore * const firmwareFile = OpenFile(GetSysDir(), IAP_FIRMWARE_FILE, OpenMode::read);
 	if (firmwareFile == nullptr)
 	{
@@ -887,12 +906,21 @@ bool Platform::CheckFirmwareUpdatePrerequisites(const StringRef& reply)
 		return false;
 	}
 
+    
+#endif //NO_FIRMWARE_UPDATE
+
 	return true;
 }
 
 // Update the firmware. Prerequisites should be checked before calling this.
 void Platform::UpdateFirmware()
 {
+#if defined(NO_FIRMWARE_UPDATE)
+    //TODO:: LPC updating firmware just copy to SDCARD to /firmware.bin and reboot if using default smoothie bootloader
+    
+    
+#else
+
 	FileStore * const iapFile = OpenFile(GetSysDir(), IAP_UPDATE_FILE, OpenMode::read);
 	if (iapFile == nullptr)
 	{
@@ -1108,6 +1136,9 @@ void Platform::UpdateFirmware()
 	__asm volatile ("ldr r1, [r3, #4]");
 	__asm volatile ("orr r1, r1, #1");
 	__asm volatile ("bx r1");
+    
+    
+#endif //NO_FIRMWARE_UPDATE
 }
 
 // Send the beep command to the aux channel. There is no flow control on this port, so it can't block for long.
@@ -1710,10 +1741,105 @@ float Platform::AdcReadingToCpuTemperature(uint32_t adcVal) const
 
 #endif
 
+    
+#if __LPC17xx__
+    void Platform::SoftwareReset(uint16_t reason, const uint32_t *stk)
+    {
+            
+        cpu_irq_disable();                            // disable interrupts before we call any flash functions. We don't enable them again.
+        wdt_restart();                             // kick the watchdog
+        
+        if (reason == (uint16_t)SoftwareResetReason::erase)
+        {
+//            EraseAndReset();
+        }
+        else
+        {
+            if (reason != (uint16_t)SoftwareResetReason::user)
+            {
+                if (SERIAL_MAIN_DEVICE.canWrite() == 0)
+                {
+                    reason |= (uint16_t)SoftwareResetReason::inUsbOutput;    // if we are resetting because we are stuck in a Spin function, record whether we are trying to send to USB
+                }
+#if HAS_LWIP_NETWORKING
+                if (reprap.GetNetwork().InNetworkStack())
+                {
+                    reason |= (uint16_t)SoftwareResetReason::inLwipSpin;
+                }
+#endif
+                if (SERIAL_AUX_DEVICE.canWrite() == 0
+#ifdef SERIAL_AUX2_DEVICE
+                    || SERIAL_AUX2_DEVICE.canWrite() == 0
+#endif
+                    )
+                {
+                    reason |= (uint16_t)SoftwareResetReason::inAuxOutput;    // if we are resetting because we are stuck in a Spin function, record whether we are trying to send to aux
+                }
+            }
+            reason |= (uint8_t)reprap.GetSpinningModule();
+            reason |= (softwareResetDebugInfo & 0x07) << 5;
+            if (deliberateError)
+            {
+                reason |= (uint16_t)SoftwareResetReason::deliberate;
+            }
+            
+            // Record the reason for the software reset
+            // First find a free slot (wear levelling)
+            size_t slot = SoftwareResetData::numberOfSlots;
+            
+            SoftwareResetData srdBuf;
+            
+            for(uint8_t s=0; s<SoftwareResetData::numberOfSlots; s++)
+            {
+                if(LPC_IsSoftwareResetDataSlotVacant(s))
+                {
+                    slot = s;
+                    break; // found a free slot
+                }
+                else
+                {
+
+                }
+            }
+
+            if (slot == SoftwareResetData::numberOfSlots)
+            {
+                LPC_EraseSoftwareResetDataSlots(); // erase the sector
+                slot = 0;
+            }
+            
+            srdBuf.magic = SoftwareResetData::magicValue;
+            srdBuf.resetReason = reason;
+            srdBuf.when = (uint32_t)realTime;            // some compilers/libraries use 64-bit time_t
+            srdBuf.neverUsedRam = Tasks::GetNeverUsedRam();
+            srdBuf.hfsr = SCB->HFSR;
+            srdBuf.cfsr = SCB->CFSR;
+            srdBuf.icsr = SCB->ICSR;
+            srdBuf.bfar = SCB->BFAR;
+            if (stk != nullptr)
+            {
+                srdBuf.sp = reinterpret_cast<uint32_t>(stk);
+                for (size_t i = 0; i < ARRAY_SIZE(srdBuf.stack); ++i)
+                {
+                    srdBuf.stack[i] = (stk < &_estack) ? *stk : 0xFFFFFFFF;
+                    ++stk;
+                }
+            }
+            
+            // Save diagnostics data to Flash
+            LPC_WriteSoftwareResetData(slot, &srdBuf, sizeof(srdBuf));
+       }
+        
+        Reset();
+        for(;;) {}
+    }
+
+#else
 // Perform a software reset. 'stk' points to the program counter on the stack if the cause is an exception, otherwise it is nullptr.
 void Platform::SoftwareReset(uint16_t reason, const uint32_t *stk)
 {
-	cpu_irq_disable();							// disable interrupts before we call any flash functions. We don't enable them again.
+
+    cpu_irq_disable();							// disable interrupts before we call any flash functions. We don't enable them again.
 	wdt_restart(WDT);							// kick the watchdog
 
 #if SAM4E || SAME70
@@ -1814,11 +1940,15 @@ void Platform::SoftwareReset(uint16_t reason, const uint32_t *stk)
 // Definition of RSTC_MR_KEY_PASSWD is missing in the SAM3X ASF files
 # define RSTC_MR_KEY_PASSWD (0xA5u << 24)
 #endif
+    
 	RSTC->RSTC_MR = RSTC_MR_KEY_PASSWD;			// ignore any signal on the NRST pin for now so that the reset reason will show as Software
+    
 	Reset();
 	for(;;) {}
 }
 
+#endif
+    
 //*****************************************************************************************************************
 // Interrupts
 
@@ -1846,12 +1976,16 @@ static void FanInterrupt(CallbackParameter)
 
 void Platform::InitialiseInterrupts()
 {
-#if SAM4E || SAM7E
+#if SAM4E || SAM7E || __LPC17xx__
 	NVIC_SetPriority(WDT_IRQn, NvicPriorityWatchdog);			// set priority for watchdog interrupts
 #endif
 
 #ifdef RTOS
+# if __LPC17xx__
+    
+# else
 	NVIC_SetPriority(HSMCI_IRQn, NvicPriorityHSMCI);			// set priority for SD interface interrupts
+# endif
 #else
 	// Set the tick interrupt to the highest priority. We need to to monitor the heaters and kick the watchdog.
 	NVIC_SetPriority(SysTick_IRQn, NvicPrioritySystick);		// set priority for tick interrupts
@@ -1860,6 +1994,8 @@ void Platform::InitialiseInterrupts()
 #if SAM4E || SAME70
 	NVIC_SetPriority(UART0_IRQn, NvicPriorityPanelDueUart);		// set priority for UART interrupt
 	NVIC_SetPriority(UART1_IRQn, NvicPriorityWiFiUart);			// set priority for WiFi UART interrupt
+#elif __LPC17xx__
+    NVIC_SetPriority(UART0_IRQn, NvicPriorityPanelDueUart);        // set priority for UART interrupt
 #elif SAM4S
 	NVIC_SetPriority(UART1_IRQn, NvicPriorityPanelDueUart);		// set priority for UART interrupt
 #else
@@ -1870,6 +2006,30 @@ void Platform::InitialiseInterrupts()
 	NVIC_SetPriority(SERIAL_TMC_DRV_IRQn, NvicPriorityDriversSerialTMC);
 #endif
 
+    
+    
+    
+    
+    
+#if __LPC17xx__
+    
+    //LPC has 32bit timers
+    
+    //Using the same 128 divisor (as also specified in DDA)
+    //LPC Timers default to /4 -->  (SystemCoreClock/4)
+    //
+    uint32_t res = (VARIANT_MCK/128);// 1.28us for 100MHz (LPC1768) and 1.067us for 120MHz (LPC1769)
+    
+    //Start a free running Timer using Match Registers 0 and 1 to generate interrupts
+    LPC_SC->PCONP |= ((uint32_t) 1<<SBIT_PCTIM0); // Ensure the Power bit is set for the Timer
+    STEP_TC->MCR = 0; //disable all MRx interrupts
+    STEP_TC->PR   =  (getPclk(PCLK_TIMER0) / res) - 1; // Set the LPC Prescaler (i.e. TC increment every 32 TimerClock Ticks)
+    STEP_TC->TC  = 0x00;  // Restart the Timer Count
+    NVIC_SetPriority(STEP_TC_IRQN, NvicPriorityStep);        // set high priority for this IRQ; it's time-critical
+    NVIC_EnableIRQ(STEP_TC_IRQN);
+    STEP_TC->TCR  = (1 <<SBIT_CNTEN); //Start Timer
+    
+#else
 	// Timer interrupt for stepper motors
 	// The clock rate we use is a compromise. Too fast and the 64-bit square roots take a long time to execute. Too slow and we lose resolution.
 	// We choose a clock divisor of 128 which gives
@@ -1888,6 +2048,8 @@ void Platform::InitialiseInterrupts()
 	NVIC_SetPriority(STEP_TC_IRQN, NvicPriorityStep);		// set priority for this IRQ
 	NVIC_EnableIRQ(STEP_TC_IRQN);
 
+#endif
+    
 #if HAS_LWIP_NETWORKING
 	pmc_enable_periph_clk(NETWORK_TC_ID);
 # if SAME70
@@ -1915,9 +2077,16 @@ void Platform::InitialiseInterrupts()
 # endif
 #endif
 
+#if __LPC17xx__
+    //SD: Int for GPIO pins on port 0 and 2 share EINT3
+    NVIC_SetPriority(EINT3_IRQn, NvicPriorityPins);
+#else
+
 	NVIC_SetPriority(PIOA_IRQn, NvicPriorityPins);
 	NVIC_SetPriority(PIOB_IRQn, NvicPriorityPins);
 	NVIC_SetPriority(PIOC_IRQn, NvicPriorityPins);
+#endif
+    
 #ifdef ID_PIOD
 	NVIC_SetPriority(PIOD_IRQn, NvicPriorityPins);
 #endif
@@ -1931,12 +2100,18 @@ void Platform::InitialiseInterrupts()
 	NVIC_SetPriority(UDP_IRQn, NvicPriorityUSB);
 #elif SAM3XA
 	NVIC_SetPriority(UOTGHS_IRQn, NvicPriorityUSB);
+#elif __LPC17xx__
+    NVIC_SetPriority(USB_IRQn, NvicPriorityUSB);
+
 #else
 # error
 #endif
 
 #if defined(DUET_NG) || defined(DUET_M) || defined(DUET_06_085)
 	NVIC_SetPriority(I2C_IRQn, NvicPriorityTwi);
+#elif __LPC17xx__
+    NVIC_SetPriority(I2C0_IRQn, NvicPriorityTwi);
+    NVIC_SetPriority(I2C1_IRQn, NvicPriorityTwi);
 #endif
 
 	// Interrupt for 4-pin PWM fan sense line
@@ -1950,10 +2125,16 @@ void Platform::InitialiseInterrupts()
 	currentFilterNumber = 0;
 
 	// Set up the timeout of the regulator watchdog, and set up the backup watchdog if there is one
+#if __LPC17xx__
+    wdt_init(1); // set wdt to 1 second. reset the processor on a watchdog fault
+    
+#else
 	// The clock frequency for both watchdogs is 32768/128 = 256Hz
 	const uint16_t timeout = 32768/128;												// set watchdog timeout to 1 second (max allowed value is 4095 = 16 seconds)
 	wdt_init(WDT, WDT_MR_WDRSTEN, timeout, timeout);								// reset the processor on a watchdog fault
-
+#endif
+    
+    
 #if SAM4E || SAME70
 	// The RSWDT must be initialised *after* the main WDT
 	const uint16_t rsTimeout = 16384/128;											// set secondary watchdog timeout to 0.5 second (max allowed value is 4095 = 16 seconds)
@@ -2038,6 +2219,8 @@ void Platform::Diagnostics(MessageType mtype)
 
 	Message(mtype, "=== Platform ===\n");
 
+    
+#ifndef __LPC17xx__
 	// Show the up time and reason for the last reset
 	const uint32_t now = (uint32_t)(millis64()/1000u);		// get up time in seconds
 	const char* resetReasons[8] = { "power up", "backup", "watchdog", "software",
@@ -2049,39 +2232,69 @@ void Platform::Diagnostics(MessageType mtype)
 									"reset button",
 #endif
 									"?", "?", "?" };
+    
 	MessageF(mtype, "Last reset %02d:%02d:%02d ago, cause: %s\n",
 			(unsigned int)(now/3600), (unsigned int)((now % 3600)/60), (unsigned int)(now % 60),
 			resetReasons[(REG_RSTC_SR & RSTC_SR_RSTTYP_Msk) >> RSTC_SR_RSTTYP_Pos]);
 
+#endif //end ifndef __LPC17xx__
+    
 	// Show the reset code stored at the last software reset
 	{
+        
+#if __LPC17xx__
+
+        SoftwareResetData srdBuf[1];
+#else
 		SoftwareResetData srdBuf[SoftwareResetData::numberOfSlots];
 		memset(srdBuf, 0, sizeof(srdBuf));
+#endif
 		int slot = -1;
 
-#if SAM4E || SAM4S || SAME70
-		// Work around bug in ASF flash library: flash_read_user_signature calls a RAMFUNC without disabling interrupts first.
-		// This caused a crash (watchdog timeout) sometimes if we run M122 while a print is in progress
-		const irqflags_t flags = cpu_irq_save();
-		DisableCache();
-		const uint32_t rc = flash_read_user_signature(reinterpret_cast<uint32_t*>(srdBuf), sizeof(srdBuf)/sizeof(uint32_t));
-		EnableCache();
-		cpu_irq_restore(flags);
+#if __LPC17xx__
+        
+        for(int s=SoftwareResetData::numberOfSlots-1; s>=0; s--)
+        {
+            SoftwareResetData *sptr = reinterpret_cast<SoftwareResetData *>(LPC_GetSoftwareResetDataSlotPtr(s));
+            if(sptr->magic != 0xFFFF)
+            {
+                //slot = s;
+                MessageF(mtype, "Flash Slot[%d]: \n", s);
+                slot=0;// we only have 1 slot in the array, set this to zero to be compatible with existing code below
+                //copy the data into srdBuff
+                LPC_ReadSoftwareResetDataSlot(s, &srdBuf[0], sizeof(srdBuf[0]));
+                break;
 
-		if (rc == FLASH_RC_OK)
+            }
+
+        }
+        
 #else
-		DueFlashStorage::read(SoftwareResetData::nvAddress, srdBuf, sizeof(srdBuf));
-#endif
-		{
-			// Find the last slot written
-			slot = SoftwareResetData::numberOfSlots;
-			do
-			{
-				--slot;
-			}
-			while (slot >= 0 && srdBuf[slot].magic == 0xFFFF);
-		}
+        
+    #if SAM4E || SAM4S || SAME70
+            // Work around bug in ASF flash library: flash_read_user_signature calls a RAMFUNC without disabling interrupts first.
+            // This caused a crash (watchdog timeout) sometimes if we run M122 while a print is in progress
+            const irqflags_t flags = cpu_irq_save();
+            DisableCache();
+            const uint32_t rc = flash_read_user_signature(reinterpret_cast<uint32_t*>(srdBuf), sizeof(srdBuf)/sizeof(uint32_t));
+            EnableCache();
+            cpu_irq_restore(flags);
 
+            if (rc == FLASH_RC_OK)
+    #else
+            DueFlashStorage::read(SoftwareResetData::nvAddress, srdBuf, sizeof(srdBuf));
+    #endif
+            {
+                // Find the last slot written
+                slot = SoftwareResetData::numberOfSlots;
+                do
+                {
+                    --slot;
+                }
+                while (slot >= 0 && srdBuf[slot].magic == 0xFFFF);
+            }
+#endif
+        
 		if (slot >= 0 && srdBuf[slot].magic == SoftwareResetData::magicValue)
 		{
 			const uint32_t reason = srdBuf[slot].resetReason & 0xF0;
@@ -2392,6 +2605,9 @@ bool Platform::DiagnosticTest(GCodeBuffer& gb, const StringRef& reply, int d)
 		(void)*(reinterpret_cast<const volatile char*>(0x20800000));
 #elif SAM3XA
 		(void)*(reinterpret_cast<const volatile char*>(0x20200000));
+#elif __LPC17xx__
+            Message(WarningMessage, "TODO:: Skipping test on LPC");//????
+
 #else
 # error
 #endif
@@ -2937,6 +3153,22 @@ void Platform::UpdateMotorCurrent(size_t driver)
 		{
 			dacPiggy.setChannel(7-driver, current * 0.102);
 		}
+#elif defined(__LPC17xx__)
+        
+# ifndef __REARM__ //ReArm has no Current Control
+        //Current is in mA
+        uint16_t pot = (unsigned short) (current * digipotFactor / 1000);
+        if(pot > 256) pot = 255;
+        if(driver < 4){
+            mcp4451.setMCP4461Address(0x2C); //A0 and A1 Grounded. (001011 00)
+            mcp4451.setVolatileWiper(POT_WIPES[driver], pot);
+        } else {
+            mcp4451.setMCP4461Address(0x2D); //A0 Vcc, A1 Grounded. (001011 01)
+            mcp4451.setVolatileWiper(POT_WIPES[driver-4], pot);
+            
+        }
+# endif //not REARM
+
 #else
 		// otherwise we can't set the motor current
 #endif
@@ -3004,6 +3236,9 @@ bool Platform::SetDriverMicrostepping(size_t driver, unsigned int microsteps, in
 		}
 #elif defined(__ALLIGATOR__)
 		return Microstepping::Set(driver, microsteps); // no mode in Alligator board
+#elif __LPC17xx__
+        return Microstepping::Set(driver, microsteps);
+
 #else
 		// Assume only x16 microstepping supported
 		return microsteps == 16;
@@ -3047,6 +3282,10 @@ unsigned int Platform::GetDriverMicrostepping(size_t driver, bool& interpolation
 #elif defined(__ALLIGATOR__)
 	interpolation = false;
 	return Microstepping::Read(driver); // no mode, no interpolation for Alligator
+#elif __LPC17xx__
+    interpolation = false;
+    return Microstepping::Read(driver); //get the value we saved
+
 #else
 	interpolation = false;
 	return 16;
@@ -3810,6 +4049,17 @@ void Platform::SetBoardType(BoardType bt)
 		board = BoardType::RADDS_15;
 #elif defined(__ALLIGATOR__)
 		board = BoardType::Alligator_2;
+#elif defined(__LPC17xx__)
+# if defined(AZTEEGX5MINI1_1)
+        board = BoardType::AzteegX5Mini1_1;
+# elif defined(REARM1_0)
+        board = BoardType::ReArm1_0;
+# elif defined(SMOOTHIEBOARD1)
+        board = BoardType::Smoothieboard1;
+# else
+# error Undefined LPC based board
+# endif //__LPC17xx__
+
 #else
 # error Undefined board type
 #endif
@@ -3848,6 +4098,11 @@ const char* Platform::GetElectronicsString() const
 	case BoardType::RADDS_15:				return "RADDS 1.5";
 #elif defined(__ALLIGATOR__)
 	case BoardType::Alligator_2:			return "Alligator r2";
+#elif defined(__LPC17xx__)
+        case BoardType::AzteegX5Mini1_1:        return "AzteegX5 Mini v1.1";
+        case BoardType::ReArm1_0:               return "ReArm";
+        case BoardType::Smoothieboard1:          return "SmoothieBoard";
+
 #else
 # error Undefined board type
 #endif
@@ -3877,6 +4132,11 @@ const char* Platform::GetBoardString() const
 	case BoardType::RADDS_15:				return "radds15";
 #elif defined(__ALLIGATOR__)
 	case BoardType::Alligator_2:			return "alligator2";
+#elif defined(__LPC17xx__)
+        case BoardType::AzteegX5Mini1_1:        return "AzteegX5Mini1.1";
+        case BoardType::ReArm1_0:               return "ReArm";
+        case BoardType::Smoothieboard1:         return "SmoothieBoard";
+
 #else
 # error Undefined board type
 #endif
@@ -4324,6 +4584,11 @@ uint32_t Platform::Random()
 #endif
 
 // Step pulse timer interrupt
+
+#if __LPC17xx__
+    //
+    extern "C"
+#endif
 void STEP_TC_HANDLER() __attribute__ ((hot));
 
 #if SAM4S || SAME70
@@ -4373,6 +4638,33 @@ void STEP_TC_HANDLER()
 			SoftTimer::Interrupt();
 		}
 	}
+
+#elif __LPC17xx__
+    uint32_t regval = STEP_TC->IR;
+    //find which Match Register triggered the interrupt
+    if (regval & (1 << SBIT_MRI0_IFM)) //Interrupt flag for match channel 0.
+    {
+        STEP_TC->IR |= (1<<SBIT_MRI0_IFM); //clear interrupt on MR0 (setting bit will clear int)
+        STEP_TC->MCR  &= ~(1<<SBIT_MR0I); //Disable Int on MR0
+        
+# ifdef MOVE_DEBUG
+        ++numInterruptsExecuted;
+        lastInterruptTime = Platform::GetInterruptClocks();
+# endif
+        reprap.GetMove().Interrupt();                                // execute the step interrupt
+    }
+    
+    if (regval & (1 << SBIT_MRI1_IFM)) //Interrupt flag for match channel 1.
+    {
+        STEP_TC->IR |= (1<<SBIT_MRI1_IFM); //clear interrupt
+        STEP_TC->MCR  &= ~(1<<SBIT_MR1I); //Disable Int on MR1
+# ifdef SOFT_TIMER_DEBUG
+        ++numSoftTimerInterruptsExecuted;
+# endif
+        SoftTimer::Interrupt();
+    }
+//end __LPC17xx__
+    
 #else
 	uint32_t tcsr = STEP_TC->TC_CHANNEL[STEP_TC_CHAN].TC_SR;		// read the status register, which clears the status bits, and or-in any pending status bits
 	tcsr &= STEP_TC->TC_CHANNEL[STEP_TC_CHAN].TC_IMR;				// select only enabled interrupts
@@ -4435,6 +4727,10 @@ void STEP_TC_HANDLER()
 		cpu_irq_restore(flags);
 		return true;													// tell the caller to simulate an interrupt instead
 	}
+#ifdef __LPC17xx__
+    STEP_TC->MR0 = tim;
+    STEP_TC->MCR  |= (1<<SBIT_MR0I);     // Enable Int on MR0 match
+#else
 
 	STEP_TC->TC_CHANNEL[STEP_TC_CHAN].TC_RA = tim;						// set up the compare register
 
@@ -4442,6 +4738,7 @@ void STEP_TC_HANDLER()
 	// Unfortunately, this would clear any other pending interrupts from the same TC.
 	// So we don't, and the step ISR must allow for getting called prematurely.
 	STEP_TC->TC_CHANNEL[STEP_TC_CHAN].TC_IER = TC_IER_CPAS;				// enable the interrupt
+#endif
 	cpu_irq_restore(flags);
 
 #ifdef MOVE_DEBUG
@@ -4455,9 +4752,16 @@ void STEP_TC_HANDLER()
 // Make sure we get no step interrupts
 /*static*/ void Platform::DisableStepInterrupt()
 {
+#ifdef __LPC17xx__
+    STEP_TC->MCR  &= ~(1<<SBIT_MR0I); //Disable Int on MR0
+#else
+
+    
 	STEP_TC->TC_CHANNEL[STEP_TC_CHAN].TC_IDR = TC_IER_CPAS;
-#if SAM4S || SAME70
+# if SAM4S || SAME70
 	stepTimerPendingStatus &= ~TC_SR_CPAS;
+# endif
+
 #endif
 }
 
@@ -4472,12 +4776,17 @@ void STEP_TC_HANDLER()
 		return true;												// tell the caller to simulate an interrupt instead
 	}
 
+#ifdef __LPC17xx__
+    STEP_TC->MR1 = tim; //set MR1 compare register
+    STEP_TC->MCR  |= (1<<SBIT_MR1I);     // Int on MR1 match
+#else
 	STEP_TC->TC_CHANNEL[STEP_TC_CHAN].TC_RB = tim;					// set up the compare register
 
 	// We would like to clear any pending step interrupt. To do this, we must read the TC status register.
 	// Unfortunately, this would clear any other pending interrupts from the same TC.
 	// So we don't, and the timer ISR must allow for getting called prematurely.
 	STEP_TC->TC_CHANNEL[STEP_TC_CHAN].TC_IER = TC_IER_CPBS;			// enable the interrupt
+#endif
 	cpu_irq_restore(flags);
 
 #ifdef SOFT_TIMER_DEBUG
@@ -4489,10 +4798,17 @@ void STEP_TC_HANDLER()
 // Make sure we get no step interrupts
 /*static*/ void Platform::DisableSoftTimerInterrupt()
 {
-	STEP_TC->TC_CHANNEL[STEP_TC_CHAN].TC_IDR = TC_IER_CPBS;
-#if SAM4S || SAME70
+    
+#ifdef __LPC17xx__
+    STEP_TC->MCR  &= ~(1<<SBIT_MR1I); //Disable Int on MR1
+#else
+
+    STEP_TC->TC_CHANNEL[STEP_TC_CHAN].TC_IDR = TC_IER_CPBS;
+# if SAM4S || SAME70
 	stepTimerPendingStatus &= ~TC_SR_CPBS;
+# endif
 #endif
+
 }
 
 // Process a 1ms tick interrupt

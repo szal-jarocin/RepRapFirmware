@@ -30,7 +30,7 @@ const unsigned int LcdCommandDelayMicros = 72 - 24; // 72us required, less 24us 
 const unsigned int LcdDataDelayMicros = 10;			// delay between sending data bytes
 const unsigned int LcdDisplayClearDelayMillis = 3;	// 1.6ms should be enough
 
-Lcd7920::Lcd7920(uint8_t csPin)
+Lcd7920::Lcd7920(Pin csPin)
 	: currentFont(nullptr), numContinuationBytesLeft(0), textInverted(false)
 {
 	device.csPin = csPin;
