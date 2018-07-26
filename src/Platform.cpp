@@ -43,10 +43,11 @@
 
 #include "sd_mmc.h"
 
-#if defined(DUET_NG)
-# include "TMC2660.h"
-#elif defined(DUET_M)
-# include "TMC22xx.h"
+#if SUPPORT_TMC2660
+# include "StepperDrivers/TMC2660/TMC2660.h"
+#endif
+#if SUPPORT_TMC22xx
+# include "StepperDrivers/TMC22xx/TMC22xx.h"
 #endif
 
 #if HAS_WIFI_NETWORKING
@@ -107,11 +108,6 @@ constexpr uint16_t driverOverVoltageAdcReading = PowerVoltageToAdcReading(29.0);
 constexpr uint16_t driverNormalVoltageAdcReading = PowerVoltageToAdcReading(27.5);		// voltages at or below this are normal
 
 #endif
-
-static uint32_t fanInterruptCount = 0;				// accessed only in ISR, so no need to declare it volatile
-const uint32_t fanMaxInterruptCount = 32;			// number of fan interrupts that we average over
-static volatile uint32_t fanLastResetTime = 0;		// time (microseconds) at which we last reset the interrupt count, accessed inside and outside ISR
-static volatile uint32_t fanInterval = 0;			// written by ISR, read outside the ISR
 
 const float MinStepPulseTiming = 0.2;				// we assume that we always generate step high and low times at least this wide without special action
 
@@ -198,34 +194,52 @@ void Platform::Init()
 		pinMode(DiagPin, OUTPUT_LOW);				// set up diag LED for debugging and turn it off
 	}
 
-	// Deal with power first
+	// Deal with power first (we assume this doesn't depend on identifying the board type)
 	pinMode(ATX_POWER_PIN, OUTPUT_LOW);
 	deferredPowerDown = false;
 
 	SetBoardType(BoardType::Auto);
+
+#ifdef PCCB
+	// Ensure that the main LEDs are turned off.
+	// The main LED output is active, just like a heater on the Duet 2 series.
+	// The secondary LED control dims the LED via the external controller when the output is high. So both outputs must be initialised high.
+	for (size_t i = 0; i < NumLeds; ++i)
+	{
+		pinMode(LedOnPins[i], OUTPUT_HIGH);
+	}
+#endif
 
 	// Real-time clock
 	realTime = 0;
 
 	// Comms
 	baudRates[0] = MAIN_BAUD_RATE;
+#ifdef SERIAL_AUX_DEVICE
 	baudRates[1] = AUX_BAUD_RATE;
+#endif
 #ifdef SERIAL_AUX2_DEVICE
 	baudRates[2] = AUX2_BAUD_RATE;
 #endif
 	commsParams[0] = 0;
+#ifdef SERIAL_AUX_DEVICE
 	commsParams[1] = 1;							// by default we require a checksum on data from the aux port, to guard against overrun errors
+#endif
 #ifdef SERIAL_AUX2_DEVICE
 	commsParams[2] = 0;
 #endif
 
 	usbMutex.Create("USB");
+#ifdef SERIAL_AUX_DEVICE
 	auxMutex.Create("Aux");
 	auxDetected = false;
 	auxSeq = 0;
+#endif
 
 	SERIAL_MAIN_DEVICE.begin(baudRates[0]);
+#ifdef SERIAL_AUX_DEVICE
 	SERIAL_AUX_DEVICE.begin(baudRates[1]);		// this can't be done in the constructor because the Arduino port initialisation isn't complete at that point
+#endif
 #ifdef SERIAL_AUX2_DEVICE
 	SERIAL_AUX2_DEVICE.begin(baudRates[2]);
 	aux2Mutex.Create("Aux2");
@@ -451,7 +465,9 @@ void Platform::Init()
 	DuetExpansion::AdditionalOutputInit();
 
 #elif defined(DUET_M)
-	numSmartDrivers = 5;										// TODO for now we assume that additional drivers are dumb
+	numSmartDrivers = MaxSmartDrivers;							// for now we assume that expansion drivers are smart too
+#elif defined(PCCB)
+	numSmartDrivers = MaxSmartDrivers;
 #endif
 
 #if HAS_SMART_DRIVERS
@@ -474,10 +490,6 @@ void Platform::Init()
 #endif
 
 	extrusionAncilliaryPwmValue = 0.0;
-
-	ARRAY_INIT(tempSensePins, TEMP_SENSE_PINS);
-	ARRAY_INIT(heatOnPins, HEAT_ON_PINS);
-	ARRAY_INIT(spiTempSenseCsPins, SpiTempSensorCsPins);
 
 	configuredHeaters = 0;
 	for (int8_t bedHeater : DefaultBedHeaters)
@@ -505,18 +517,20 @@ void Platform::Init()
 
 	for (size_t heater = 0; heater < Heaters; heater++)
 	{
-		if (heatOnPins[heater] != NoPin)
-		{
-			pinMode(heatOnPins[heater],
+		// pinMode is safe to call when the pin is NoPin, so we don't need to check it here
+		pinMode(HEAT_ON_PINS[heater],
 #if ACTIVE_LOW_HEAT_ON
 				OUTPUT_LOW
 #else
 				OUTPUT_HIGH
 #endif
 			);
-		}
-		pinMode(tempSensePins[heater], AIN);
-		filteredAdcChannels[heater] = PinToAdcChannel(tempSensePins[heater]);	// translate the pin number to the SAM ADC channel number;
+	}
+
+	for (size_t thermistor = 0; thermistor < NumThermistorInputs; thermistor++)
+	{
+		pinMode(TEMP_SENSE_PINS[thermistor], AIN);
+		filteredAdcChannels[thermistor] = PinToAdcChannel(TEMP_SENSE_PINS[thermistor]);	// translate the pin number to the SAM ADC channel number;
 	}
 
 #if HAS_VREF_MONITOR
@@ -540,6 +554,10 @@ void Platform::Init()
 
 	// Fans
 	InitFans();
+	for (size_t i = 0; i < NumTachos; ++i)
+	{
+		tachos[i].Init(TachoPins[i]);
+	}
 
 	// Hotend configuration
 	nozzleDiameter = NOZZLE_DIAMETER;
@@ -669,7 +687,7 @@ void Platform::InitZProbe()
 int Platform::GetZProbeReading() const
 {
 	int zProbeVal = 0;			// initialised to avoid spurious compiler warning
-	if (zProbeType == ZProbeType::unfilteredDigital || (zProbeOnFilter.IsValid() && zProbeOffFilter.IsValid()))
+	if (zProbeType == ZProbeType::unfilteredDigital || zProbeType == ZProbeType::blTouch || (zProbeOnFilter.IsValid() && zProbeOffFilter.IsValid()))
 	{
 		switch (zProbeType)
 		{
@@ -679,7 +697,6 @@ int Platform::GetZProbeReading() const
 		case ZProbeType::digital:				// Switch connected to Z probe input
 		case ZProbeType::e1Switch:				// Switch connected to E1 endstop input
 		case ZProbeType::zSwitch:				// Switch connected to Z endstop input
-		case ZProbeType::blTouch:
 			zProbeVal = (int) ((zProbeOnFilter.GetSum() + zProbeOffFilter.GetSum()) / (8 * Z_PROBE_AVERAGE_READINGS));
 			break;
 
@@ -690,6 +707,7 @@ int Platform::GetZProbeReading() const
 			break;
 
 		case ZProbeType::unfilteredDigital:		// Switch connected to Z probe input, no filtering
+		case ZProbeType::blTouch:				// blTouch is now unfiltered too
 			zProbeVal = GetRawZProbeReading()/4;
 			break;
 
@@ -1150,6 +1168,7 @@ void Platform::Beep(int freq, int ms)
 // Send a short message to the aux channel. There is no flow control on this port, so it can't block for long.
 void Platform::SendAuxMessage(const char* msg)
 {
+#ifdef SERIAL_AUX_DEVICE
 	OutputBuffer *buf;
 	if (OutputBuffer::Allocate(buf))
 	{
@@ -1159,6 +1178,7 @@ void Platform::SendAuxMessage(const char* msg)
 		auxOutput.Push(buf);
 		FlushAuxMessages();
 	}
+#endif
 }
 
 void Platform::Exit()
@@ -1177,7 +1197,9 @@ void Platform::Exit()
 
 	// Close down USB and serial ports
 	SERIAL_MAIN_DEVICE.end();
+#ifdef SERIAL_AUX_DEVICE
 	SERIAL_AUX_DEVICE.end();
+#endif
 #ifdef SERIAL_AUX2_DEVICE
 	SERIAL_AUX2_DEVICE.end();
 #endif
@@ -1232,6 +1254,7 @@ void Platform::SetNetMask(uint8_t nm[])
 // Flush messages to aux, returning true if there is more to send
 bool Platform::FlushAuxMessages()
 {
+#ifdef SERIAL_AUX_DEVICE
 	// Write non-blocking data to the AUX line
 	MutexLocker lock(auxMutex);
 	OutputBuffer *auxOutputBuffer = auxOutput.GetFirstItem();
@@ -1250,6 +1273,9 @@ bool Platform::FlushAuxMessages()
 		}
 	}
 	return auxOutput.GetFirstItem() != nullptr;
+#else
+	return false;
+#endif
 }
 
 // Flush messages to USB and aux, returning true if there is more to send
@@ -1361,13 +1387,15 @@ void Platform::Spin()
 	{
 		if (currentVin < driverPowerOffAdcReading)
 		{
-			++numUnderVoltageEvents;
 			driversPowered = false;
+			++numUnderVoltageEvents;
+			lastUnderVoltageValue = currentVin;					// save this because the voltage may have changed by the time we report it
 		}
 		else if (currentVin > driverOverVoltageAdcReading)
 		{
 			driversPowered = false;
 			++numOverVoltageEvents;
+			lastOverVoltageValue = currentVin;					// save this because the voltage may have changed by the time we report it
 		}
 		else
 		{
@@ -1541,13 +1569,13 @@ void Platform::Spin()
 #if HAS_VOLTAGE_MONITOR
 			if (numOverVoltageEvents != previousOverVoltageEvents)
 			{
-				MessageF(WarningMessage, "VIN over-voltage event (%.1fV)", (double)GetCurrentPowerVoltage());
+				MessageF(WarningMessage, "VIN over-voltage event (%.1fV)", (double)AdcReadingToPowerVoltage(lastOverVoltageValue));
 				previousOverVoltageEvents = numOverVoltageEvents;
 				reported = true;
 			}
 			if (numUnderVoltageEvents != previousUnderVoltageEvents)
 			{
-				MessageF(WarningMessage, "VIN under-voltage event (%.1fV)", (double)GetCurrentPowerVoltage());
+				MessageF(WarningMessage, "VIN under-voltage event (%.1fV)", (double)AdcReadingToPowerVoltage(lastUnderVoltageValue));
 				previousUnderVoltageEvents = numUnderVoltageEvents;
 				reported = true;
 			}
@@ -1866,14 +1894,17 @@ void Platform::SoftwareReset(uint16_t reason, const uint32_t *stk)
 				reason |= (uint16_t)SoftwareResetReason::inLwipSpin;
 			}
 #endif
+
+#ifdef SERIAL_AUX_DEVICE
 			if (SERIAL_AUX_DEVICE.canWrite() == 0
-#ifdef SERIAL_AUX2_DEVICE
+# ifdef SERIAL_AUX2_DEVICE
 				|| SERIAL_AUX2_DEVICE.canWrite() == 0
-#endif
+# endif
 			   )
 			{
 				reason |= (uint16_t)SoftwareResetReason::inAuxOutput;	// if we are resetting because we are stuck in a Spin function, record whether we are trying to send to aux
 			}
+#endif
 		}
 		reason |= (uint8_t)reprap.GetSpinningModule();
 		reason |= (softwareResetDebugInfo & 0x07) << 5;
@@ -1918,6 +1949,10 @@ void Platform::SoftwareReset(uint16_t reason, const uint32_t *stk)
 		srdBuf[slot].cfsr = SCB->CFSR;
 		srdBuf[slot].icsr = SCB->ICSR;
 		srdBuf[slot].bfar = SCB->BFAR;
+#ifdef RTOS
+		srdBuf[slot].taskName = *reinterpret_cast<const uint32_t*>(pcTaskGetName(nullptr));
+#endif
+
 		if (stk != nullptr)
 		{
 			srdBuf[slot].sp = reinterpret_cast<uint32_t>(stk);
@@ -1962,18 +1997,6 @@ void NETWORK_TC_HANDLER()
 
 #endif
 
-static void FanInterrupt(CallbackParameter)
-{
-	++fanInterruptCount;
-	if (fanInterruptCount == fanMaxInterruptCount)
-	{
-		const uint32_t now = Platform::GetInterruptClocks();
-		fanInterval = now - fanLastResetTime;
-		fanLastResetTime = now;
-		fanInterruptCount = 0;
-	}
-}
-
 void Platform::InitialiseInterrupts()
 {
 #if SAM4E || SAM7E || __LPC17xx__
@@ -1991,19 +2014,25 @@ void Platform::InitialiseInterrupts()
 	NVIC_SetPriority(SysTick_IRQn, NvicPrioritySystick);		// set priority for tick interrupts
 #endif
 
-#if SAM4E || SAME70
+	// Set UART interrupt priorities
+#ifdef PCCB
+	NVIC_SetPriority(DriverUartIRQns[0], NvicPriorityDriversSerialTMC);
+	NVIC_SetPriority(DriverUartIRQns[1], NvicPriorityDriversSerialTMC);
+#else
+# if SAM4E || SAME70
 	NVIC_SetPriority(UART0_IRQn, NvicPriorityPanelDueUart);		// set priority for UART interrupt
 	NVIC_SetPriority(UART1_IRQn, NvicPriorityWiFiUart);			// set priority for WiFi UART interrupt
 #elif __LPC17xx__
     NVIC_SetPriority(UART0_IRQn, NvicPriorityPanelDueUart);        // set priority for UART interrupt
 #elif SAM4S
 	NVIC_SetPriority(UART1_IRQn, NvicPriorityPanelDueUart);		// set priority for UART interrupt
-#else
+# else
 	NVIC_SetPriority(UART_IRQn, NvicPriorityPanelDueUart);		// set priority for UART interrupt
-#endif
+# endif
 
-#if HAS_SMART_DRIVERS
-	NVIC_SetPriority(SERIAL_TMC_DRV_IRQn, NvicPriorityDriversSerialTMC);
+# if HAS_SMART_DRIVERS
+	NVIC_SetPriority(UART_TMC_DRV_IRQn, NvicPriorityDriversSerialTMC);
+# endif
 #endif
 
     
@@ -2113,12 +2142,6 @@ void Platform::InitialiseInterrupts()
     NVIC_SetPriority(I2C0_IRQn, NvicPriorityTwi);
     NVIC_SetPriority(I2C1_IRQn, NvicPriorityTwi);
 #endif
-
-	// Interrupt for 4-pin PWM fan sense line
-	if (coolingFanRpmPin != NoPin)
-	{
-		attachInterrupt(coolingFanRpmPin, FanInterrupt, INTERRUPT_MODE_FALLING, nullptr);
-	}
 
 	// Tick interrupt for ADC conversions
 	tickState = 0;
@@ -2306,7 +2329,8 @@ void Platform::Diagnostics(MessageType mtype)
 															: (reason == (uint32_t)SoftwareResetReason::otherFault) ? "Other fault"
 																: (reason == (uint32_t)SoftwareResetReason::stackOverflow) ? "Stack overflow"
 																	: (reason == (uint32_t)SoftwareResetReason::assertCalled) ? "Assertion failed"
-																		: "Unknown";
+																		: (reason == (uint32_t)SoftwareResetReason::heaterWatchdog) ? "Heat task stuck"
+																			: "Unknown";
 			String<ScratchStringLength> scratchString;
 			if (srdBuf[slot].when != 0)
 			{
@@ -2325,8 +2349,15 @@ void Platform::Diagnostics(MessageType mtype)
 								(srdBuf[slot].resetReason & (uint32_t)SoftwareResetReason::deliberate) ? "deliberate " : "",
 								reasonText, moduleName[srdBuf[slot].resetReason & 0x0F], srdBuf[slot].neverUsedRam, slot);
 			// Our format buffer is only 256 characters long, so the next 2 lines must be written separately
-			MessageF(mtype, "Software reset code 0x%04x HFSR 0x%08" PRIx32 ", CFSR 0x%08" PRIx32 ", ICSR 0x%08" PRIx32 ", BFAR 0x%08" PRIx32 ", SP 0x%08" PRIx32 "\n",
-				srdBuf[slot].resetReason, srdBuf[slot].hfsr, srdBuf[slot].cfsr, srdBuf[slot].icsr, srdBuf[slot].bfar, srdBuf[slot].sp);
+			MessageF(mtype,
+#ifdef RTOS
+					"Software reset code 0x%04x HFSR 0x%08" PRIx32 " CFSR 0x%08" PRIx32 " ICSR 0x%08" PRIx32 " BFAR 0x%08" PRIx32 " SP 0x%08" PRIx32 " Task 0x%08" PRIx32 "\n",
+					srdBuf[slot].resetReason, srdBuf[slot].hfsr, srdBuf[slot].cfsr, srdBuf[slot].icsr, srdBuf[slot].bfar, srdBuf[slot].sp, srdBuf[slot].taskName
+#else
+					"Software reset code 0x%04x HFSR 0x%08" PRIx32 " CFSR 0x%08" PRIx32 " ICSR 0x%08" PRIx32 " BFAR 0x%08" PRIx32 " SP 0x%08" PRIx32 "\n",
+					srdBuf[slot].resetReason, srdBuf[slot].hfsr, srdBuf[slot].cfsr, srdBuf[slot].icsr, srdBuf[slot].bfar, srdBuf[slot].sp
+#endif
+				);
 			if (srdBuf[slot].sp != 0xFFFFFFFF)
 			{
 				// We saved a stack dump, so print it
@@ -2358,7 +2389,7 @@ void Platform::Diagnostics(MessageType mtype)
 #endif
 
 	// Show the longest SD card write time
-	MessageF(mtype, "SD card longest block write time: %.1fms\n", (double)FileStore::GetAndClearLongestWriteTime());
+	MessageF(mtype, "SD card longest block write time: %.1fms, max retries %u\n", (double)FileStore::GetAndClearLongestWriteTime(), FileStore::GetAndClearMaxRetryCount());
 
 #if HAS_CPU_TEMP_SENSOR
 	// Show the MCU temperatures
@@ -2687,7 +2718,7 @@ void Platform::DriverCoolingFansOn(uint32_t driverChannelsMonitored)
 // Power is a fraction in [0,1]
 void Platform::SetHeater(size_t heater, float power, PwmFrequency freq)
 {
-	if (heatOnPins[heater] != NoPin)
+	if (HEAT_ON_PINS[heater] != NoPin)
 	{
 		if (freq == 0)
 		{
@@ -2699,7 +2730,7 @@ void Platform::SetHeater(size_t heater, float power, PwmFrequency freq)
 #else
 			power;
 #endif
-		IoPort::WriteAnalog(heatOnPins[heater], pwm, freq);
+		IoPort::WriteAnalog(HEAT_ON_PINS[heater], pwm, freq);
 	}
 }
 
@@ -3023,12 +3054,15 @@ void Platform::DisableDrive(size_t drive)
 	}
 }
 
-// Disable all drives
+// Disable all drives. Called from emergency stop and the tick ISR.
 void Platform::DisableAllDrives()
 {
 	for (size_t drive = 0; drive < DRIVES; drive++)
 	{
-		SetDriverCurrent(drive, 0.0, false);
+		if (!inInterrupt())		// on the Duet 06/085 we need interrupts running to send the I2C commands to set motor currents
+		{
+			SetDriverCurrent(drive, 0.0, false);
+		}
 		DisableDriver(drive);
 	}
 }
@@ -3444,16 +3478,16 @@ bool Platform::IsFanControllable(size_t fan) const
 	return fan < NUM_FANS && !fans[fan].HasMonitoredHeaters() && fans[fan].IsConfigured();
 }
 
-// Get current fan RPM
-float Platform::GetFanRPM() const
+// Return the fan's name
+const char *Platform::GetFanName(size_t fan) const
 {
-	// The ISR sets fanInterval to the number of microseconds it took to get fanMaxInterruptCount interrupts.
-	// We get 2 tacho pulses per revolution, hence 2 interrupts per revolution.
-	// However, if the fan stops then we get no interrupts and fanInterval stops getting updated.
-	// We must recognise this and return zero.
-	return (fanInterval != 0 && Platform::GetInterruptClocks() - fanLastResetTime < 3 * StepClockRate)	// if we have a reading and it is less than 3 second old
-			? (float)(3 * StepClockRate * fanMaxInterruptCount)/fanInterval		// then calculate RPM assuming 2 interrupts per rev
-			: 0.0;																// else assume fan is off or tacho not connected
+	return fan < NUM_FANS ? fans[fan].GetName() : "";
+}
+
+// Get current fan RPM
+uint32_t Platform::GetFanRPM(size_t tachoIndex) const
+{
+	return (tachoIndex < NumTachos) ? tachos[tachoIndex].GetRPM() : 0;
 }
 
 bool Platform::FansHardwareInverted(size_t fanNumber) const
@@ -3471,7 +3505,13 @@ void Platform::InitFans()
 {
 	for (size_t i = 0; i < NUM_FANS; ++i)
 	{
-		fans[i].Init(COOLING_FAN_PINS[i], FansHardwareInverted(i));
+		fans[i].Init(COOLING_FAN_PINS[i], FansHardwareInverted(i),
+#ifdef PCCB
+						(i == 3) ? 25000 : DefaultFanPwmFreq				// PCCB fan 3 has 4-wire fan connectors for Intel-spec PWM fans
+#else
+						DefaultFanPwmFreq
+#endif
+			);
 	}
 
 	if (NUM_FANS > 1)
@@ -3479,8 +3519,8 @@ void Platform::InitFans()
 #if defined(DUET_06_085)
 		// Fan 1 on the Duet 0.8.5 shares its control pin with heater 6. Set it full on to make sure the heater (if present) is off.
 		fans[1].SetPwm(1.0);												// set it full on
-#else
-		// Set fan 1 to be thermostatic by default, monitoring all heaters except the default bed and chamber heaters
+#elif defined(DUET_NG)
+		// On Duet WiFi/Ethernet we set fan 1 to be thermostatic by default, monitoring all heaters except the default bed and chamber heaters
 		Fan::HeatersMonitoredBitmap bedAndChamberHeaterMask = 0;
 		for (uint8_t bedHeater : DefaultBedHeaters)
 		{
@@ -3498,13 +3538,10 @@ void Platform::InitFans()
 		}
 		fans[1].SetHeatersMonitored(LowestNBits<Fan::HeatersMonitoredBitmap>(Heaters) & ~bedAndChamberHeaterMask);
 		fans[1].SetPwm(1.0);												// set it full on
+#elif defined(PCCB)
+		// Fan 3 needs to be set explicitly to zero PWM, otherwise it turns on because the MCU output pin isn't set low
+		fans[3].SetPwm(0.0);
 #endif
-	}
-
-	coolingFanRpmPin = COOLING_FAN_RPM_PIN;
-	if (coolingFanRpmPin != NoPin)
-	{
-		pinModeDuet(coolingFanRpmPin, INPUT_PULLUP, 1500);	// enable pullup and 1500Hz debounce filter (500Hz only worked up to 7000RPM)
 	}
 }
 
@@ -3524,6 +3561,7 @@ void Platform::GetEndStopConfiguration(size_t axis, EndStopPosition& esType, End
 
 void Platform::AppendAuxReply(const char *msg, bool rawMessage)
 {
+#ifdef SERIAL_AUX_DEVICE
 	// Discard this response if either no aux device is attached or if the response is empty
 	if (msg[0] != 0 && HaveAux())
 	{
@@ -3548,10 +3586,12 @@ void Platform::AppendAuxReply(const char *msg, bool rawMessage)
 			}
 		}
 	}
+#endif
 }
 
 void Platform::AppendAuxReply(OutputBuffer *reply, bool rawMessage)
 {
+#ifdef SERIAL_AUX_DEVICE
 	// Discard this response if either no aux device is attached or if the response is empty
 	if (reply == nullptr || reply->Length() == 0 || !HaveAux())
 	{
@@ -3580,6 +3620,9 @@ void Platform::AppendAuxReply(OutputBuffer *reply, bool rawMessage)
 			}
 		}
 	}
+#else
+	OutputBuffer::ReleaseAll(reply);
+#endif
 }
 
 // Send the specified message to the specified destinations. The Error and Warning flags have already been handled.
@@ -3902,12 +3945,11 @@ void Platform::AtxPowerOff(bool defer)
 	deferredPowerDown = defer;
 	if (!defer)
 	{
-		deferredPowerDown = false;
 		if (logger != nullptr)
 		{
 			logger->LogMessage(realTime, "Power off commanded");
 			logger->Flush(true);
-			// We don't call logger->Stop() here because we don't now whether turning off the power will work
+			// We don't call logger->Stop() here because we don't know whether turning off the power will work
 		}
 		IoPort::WriteDigital(ATX_POWER_PIN, false);
 	}
@@ -3986,16 +4028,21 @@ void Platform::ResetChannel(size_t chan)
 		SERIAL_MAIN_DEVICE.end();
 		SERIAL_MAIN_DEVICE.begin(baudRates[0]);
 		break;
+
+#ifdef SERIAL_AUX_DEVICE
 	case 1:
 		SERIAL_AUX_DEVICE.end();
 		SERIAL_AUX_DEVICE.begin(baudRates[1]);
 		break;
+#endif
+
 #ifdef SERIAL_AUX2_DEVICE
 	case 2:
 		SERIAL_AUX2_DEVICE.end();
 		SERIAL_AUX2_DEVICE.begin(baudRates[2]);
 		break;
 #endif
+
 	default:
 		break;
 	}
@@ -4049,6 +4096,8 @@ void Platform::SetBoardType(BoardType bt)
 		board = BoardType::RADDS_15;
 #elif defined(__ALLIGATOR__)
 		board = BoardType::Alligator_2;
+#elif defined(PCCB)
+        board = BoardType::PCCB_10;
 #elif defined(__LPC17xx__)
 # if defined(AZTEEGX5MINI1_1)
         board = BoardType::AzteegX5Mini1_1;
@@ -4098,11 +4147,13 @@ const char* Platform::GetElectronicsString() const
 	case BoardType::RADDS_15:				return "RADDS 1.5";
 #elif defined(__ALLIGATOR__)
 	case BoardType::Alligator_2:			return "Alligator r2";
+#elif defined(PCCB)
+	case BoardType::PCCB_10:				return "PCCB 1.0";
 #elif defined(__LPC17xx__)
         case BoardType::AzteegX5Mini1_1:        return "AzteegX5 Mini v1.1";
         case BoardType::ReArm1_0:               return "ReArm";
         case BoardType::Smoothieboard1:          return "SmoothieBoard";
-
+            
 #else
 # error Undefined board type
 #endif
@@ -4132,11 +4183,13 @@ const char* Platform::GetBoardString() const
 	case BoardType::RADDS_15:				return "radds15";
 #elif defined(__ALLIGATOR__)
 	case BoardType::Alligator_2:			return "alligator2";
+#elif defined(PCCB)
+	case BoardType::PCCB_10:				return "pccb10";
 #elif defined(__LPC17xx__)
         case BoardType::AzteegX5Mini1_1:        return "AzteegX5Mini1.1";
         case BoardType::ReArm1_0:               return "ReArm";
         case BoardType::Smoothieboard1:         return "SmoothieBoard";
-
+            
 #else
 # error Undefined board type
 #endif
@@ -4163,7 +4216,7 @@ bool Platform::GetFirmwarePin(LogicalPin logicalPin, PinAccess access, Pin& firm
 		// For safety, we don't allow a heater channel to be used for servos until the heater has been disabled
 		if (!reprap.GetHeat().IsHeaterEnabled(logicalPin - Heater0LogicalPin))
 		{
-			firmwarePin = heatOnPins[logicalPin - Heater0LogicalPin];
+			firmwarePin = HEAT_ON_PINS[logicalPin - Heater0LogicalPin];
 #if ACTIVE_LOW_HEAT_ON
 			invert = true;
 #else

@@ -26,8 +26,7 @@
 constexpr size_t TcpPlusStackWords = ( uint16_t ) ipconfigIP_TASK_STACK_SIZE_WORDS;
 static Task<TcpPlusStackWords> tcpPlusTask;
 
-constexpr size_t EmacStackWords = 180;
-#warning  default stack is 140 but we need 160+ when using debugPrintf
+constexpr size_t EmacStackWords = 74;//140; // needs to be bigger (>170) if using debufPrinf for testing
 static Task<EmacStackWords> emacTask;
 
 

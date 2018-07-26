@@ -33,6 +33,19 @@
 extern SDCard *_ffs[2]; //Defined in CoreLPC
 
 
+
+//TODO:: added from RRF, but no retries implemented yet
+static unsigned int highestSdRetriesDone = 0;
+
+unsigned int DiskioGetAndClearMaxRetryCount()
+{
+    const unsigned int ret = highestSdRetriesDone;
+    highestSdRetriesDone = 0;
+    return ret;
+}
+
+
+
 DSTATUS disk_initialize (
 	BYTE drv				/* Physical drive nmuber (0..) */
 )

@@ -28,21 +28,18 @@ const size_t NumFirmwareUpdateModules = 0;
 #define FIRMWARE_NAME "RepRapFirmware for LPC17xx based Boards"
 
 // Features definition
-#define HAS_LWIP_NETWORKING		     0
 #define HAS_CPU_TEMP_SENSOR		     0				// enabling the CPU temperature sensor disables Due pin 13 due to bug in SAM3X
 #define HAS_HIGH_SPEED_SD		     0
-#define HAS_SMART_DRIVERS		     0
+
 #define HAS_VOLTAGE_MONITOR		     0
 #define ACTIVE_LOW_HEAT_ON		     0
 
 #define HAS_RTOSPLUSTCP_NETWORKING   1
-
+#define HAS_LWIP_NETWORKING          0
 #define HAS_WIFI_NETWORKING          0
-#define HAS_STALL_DETECT             0
+
 #define HAS_VREF_MONITOR             0
 #define SUPPORT_NONLINEAR_EXTRUSION  0
-
-
 
 
 #define SUPPORT_INKJET		0					// set nonzero to support inkjet control
@@ -58,6 +55,11 @@ const size_t NumFirmwareUpdateModules = 0;
 #endif
 
 constexpr size_t NumExtraHeaterProtections = 4;
+constexpr size_t NumThermistorInputs = 2;
+constexpr size_t NumTachos = 0;
+constexpr Pin TachoPins[NumTachos] = { };
+
+
 // The physical capabilities of the machine
 
 
