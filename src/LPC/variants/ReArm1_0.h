@@ -103,7 +103,7 @@ const float THERMISTOR_SERIES_RS = 4700.0;
 
 const size_t MaxSpiTempSensors = 1;
 // Digital pins the 31855s have their select lines tied to
-const Pin SpiTempSensorCsPins[MaxSpiTempSensors] = { P0_26 };
+const Pin SpiTempSensorCsPins[MaxSpiTempSensors] = { P0_27 };
 
 
 // Digital pin number that controls the ATX power on/off
@@ -146,9 +146,9 @@ const Pin COOLING_FAN_RPM_PIN = NoPin;
 //default to supporting 2 card..... if need 1_23 then change CS no No pin
 
 const size_t NumSdCards = 2;//Note: use 2 even if only using 1 (internal) card
-const Pin SdCardDetectPins[NumSdCards] = { NoPin, /*P1_31*/NoPin };
+const Pin SdCardDetectPins[NumSdCards] = { NoPin, P1_31 };
 const Pin SdWriteProtectPins[NumSdCards] = { NoPin, NoPin };
-const Pin SdSpiCSPins[NumSdCards] = { P0_6, P1_23/*NoPin*/ };// Internal, external. If need 1_23 pin, and no ext sd card set to NoPin Note:: ("slot" 0 in CORE is configured to be LCP SSP1 to match default RRF behaviour)
+const Pin SdSpiCSPins[NumSdCards] = { P0_6, P1_23};// Internal, external. If need 1_23 pin, and no ext sd card set to NoPin Note:: ("slot" 0 in CORE is configured to be LCP SSP1 to match default RRF behaviour)
 
 
 // Definition of which pins we allow to be controlled using M42
@@ -164,15 +164,14 @@ const Pin SpecialPinMap[] =
     P1_19, //62    Servo3    5
     P1_18, //63    Servo4    4      PWM1[1]    
     //Spare Endstops
-    P1_26, //    Y-Min    14      PWM1[6] (do not use pwm)
-    P1_24, //    Z-Min     3      PWM1[5] (do not use pwm)
+    P1_26, //      Y-Min    14      PWM1[6] (do not use pwm - chan6 in use by heaters)
+    P1_24, //      X-Min     3      PWM1[5] (do not use pwm - chan5 in use by heaters)
 
     
     
-    P0_27, //    Aux1  A3/57
+    //P0_27, //    Aux1  A3/57    // Conifigured as SPI Thermocouple CS
     P0_28, //    Aux1  A4/58
     
-    //P0_26, // J2/Aux2  A9/63      //Configured for SPI Thermocouple Chip Select.
 
     
     
@@ -191,9 +190,28 @@ const Pin SpecialPinMap[] =
 //J5
     //P1_22, // J5          41
     //P1_30  // J5          37
+    //P1_21, //61    Servo2    6      PWM1[3] //overlaps with Servo2?? check me
+    //P0_26, // J2/Aux2  A9/63
 
 
 };
+
+
+//TODO:: determine pins for LCD
+//SPI LCD Common Settings (RRD Full Graphic Smart Display)
+constexpr LPC_SSP_TypeDef* LcdSpiChannel = LPC_SSP0;     //SSP0 (MISO0, MOSI0, SCK0)
+constexpr Pin LcdCSPin =       P0_16; //LCD Chip Select
+constexpr Pin LcdDCPin =       P2_6;  //DataControl Pin (A0) if none used set to NoPin
+constexpr Pin LcdBeepPin =     P1_30;
+constexpr Pin EncoderPinA =    P3_25;
+constexpr Pin EncoderPinB =    P3_26;
+constexpr Pin EncoderPinSw =   P2_11; //click
+constexpr Pin PanelButtonPin = P1_22; //Extra button on Viki and RRD Panels (reset/back etc configurable)
+
+//VIKI2.0 Specific options
+constexpr Pin VikiRedLedPin = NoPin;
+constexpr Pin VikiBlueLedPin = NoPin;
+
 
 
 #endif

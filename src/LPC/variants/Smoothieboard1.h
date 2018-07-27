@@ -145,120 +145,57 @@ const Pin COOLING_FAN_RPM_PIN = NoPin;
 // SD cards
 //sd:: Internal SD card is on SSP1
 //NOTE::: Although this is 2nd in the List, SSP1 is Configured to be Slot0 in coreNG to be compatible with RRF
-//default to supporting 2 card..... if need 0_16 then change CS no No pin
+//default to supporting 2 card..... if need 0_28 then change CS no No pin
 
 const size_t NumSdCards = 2; //
-const Pin SdCardDetectPins[NumSdCards] = { NoPin, NoPin };//TODO: 2nd cd CS pin?
+const Pin SdCardDetectPins[NumSdCards] = { NoPin, P0_27 };//TODO: 2nd cd CS pin?
 const Pin SdWriteProtectPins[NumSdCards] = { NoPin, NoPin };
-const Pin SdSpiCSPins[NumSdCards] = { P0_6, P0_16 };// Internal, external. Note:: ("slot" 0 in CORE is configured to be LCP SSP1 to match default RRF behaviour)
+const Pin SdSpiCSPins[NumSdCards] = { P0_6, P0_28 };// Internal, external. Note:: ("slot" 0 in CORE is configured to be LCP SSP1 to match default RRF behaviour)
 // Definition of which pins we allow to be controlled using M42
-// Spare pins on the Arduino Due are
-//
-//  D5 / TIOA6  / C.25
-//  D6 / PWML7  / C.24
-// ### Removed: now E0_AXIS endstop D39 / PWMH2  / C.7
-// D58 / AD3    / A.6
-// D59 / AD2    / A.4
-// ### Removed: now E6_DIR ExtV3 D66 / DAC0   / B.15
-// ### Removed: now E6_STP ExtV3 D67 / DAC1   / B.16
-// ### Removed: now E6_EN ExtV3 D68 / CANRX0 / A.1
-// ### Removed: now MSi(=3.3V) ExtV3 D69 / CANTX0 / A.0
-// D70 / SDA1   / A.17
-// D71 / SCL1   / A.18
-// D72 / RX LED / C.30
-// D73 / TX LED / A.21
-
-// M42 and M208 commands now use logical pin numbers, not firmware pin numbers.
-// This is the mapping from logical pins 60+ to firmware pin numbers
 
 
-//TODO:: default to spare pins from EXP1 and 2 (no support for LCD etc yet)
+
 
 const Pin SpecialPinMap[] =
 {
-	NoPin
+    
+    P1_24,  //XMin Endstop
+    P1_26,  //yMin Endstop
+    P0_26   //T4 (dont use AGND as GND next to it when using as a Digital Pin
+    
+    //Spare on 3&4 driver boards
+    //P1_22
+    //P1_23 LED4
+    //P4_29
+
 };
 
-//Azteeg X5 Mini 1.1 EXP1 Header (not compat with V2.0 etc etc)
 
-// P1_30        P1_22
-// P0_26        P0_25
-// P0_27(SDA)   P4_29
-// P0_28(SCL)   P2_8
-// 3.3v         GND
+//P0_17,    //SSP0(MISO)
+//P0_16,    //CS LCD
+//P0_15,    //SSP0(SCLK)
+//P0_18,    //SSP0(MOSI)
 
-//Azteeg X5 Mini 1.1 Exp2 Header
+//P0_27  // GLCD SD CardDetect
+//P0_28  // GLCD SD ChipSelect
 
-// P1_31    P3_26
-// P2_11    P3_25
-// P1_23    P0_17
-// P0_16    P2_6
-// P0_15    P0_18
-// GND      +5V
+//P3_25 // GLCD encoder A
+//P3_26 // GLCD encoder B
+//P1_30 GLCD Click button
+//P1_31 GLCD Buzzer
+//P2_11 //GLCD pause/kill/back pin button
 
 
+//SPI LCD Common Settings (RRD Full Graphic Smart Display)
+constexpr LPC_SSP_TypeDef* LcdSpiChannel = LPC_SSP0;     //SSP0 (MISO0, MOSI0, SCK0)
+constexpr Pin LcdCSPin =       P0_16; //LCD Chip Select
+constexpr Pin LcdDCPin =       NoPin;  //DataControl Pin (A0) if none used set to NoPin
+constexpr Pin LcdBeepPin =     P1_31;
+constexpr Pin EncoderPinA =    P3_25;
+constexpr Pin EncoderPinB =    P3_26;
+constexpr Pin EncoderPinSw =   P1_30; //click
+constexpr Pin PanelButtonPin = P2_11; //Extra button on Viki and RRD Panels (reset/back etc configurable)
 
-// Flash locations (may be expanded in the future)
-//const uint32_t IAP_FLASH_START = 0x000F0000;
-//const uint32_t IAP_FLASH_END = 0x000FFBFF;		// don't touch the last 1KB, it's used for NvData
 
 
-/*
-#ifdef LCD_UI
-
-// Hardware I2C support for LCD
-#define TWI_ID           ID_TWI1
-
-#define FEATURE_CONTROLLER              7
-#define UI_PAGES_DURATION            4000
-#define UI_ANIMATION                    0
-#define UI_SPEEDDEPENDENT_POSITIONING   0
-#define UI_DISABLE_AUTO_PAGESWITCH      1
-#define UI_AUTORETURN_TO_MENU_AFTER 30000
-#define UI_ENCODER_SPEED                1
-#define UI_KEY_BOUNCETIME              10
-#define UI_KEY_FIRST_REPEAT           500
-#define UI_KEY_REDUCE_REPEAT           50
-#define UI_KEY_MIN_REPEAT              50
-#define FEATURE_BEEPER                  1
-#define UI_START_SCREEN_DELAY        1000
-
-#define CASE_LIGHTS_PIN                -1
-#define SPI_PIN                        77
-#define SPI_CHAN                        0
-#define UI_HAS_KEYS                     1
-#define UI_HAS_BACK_KEY                 1
-#define UI_DISPLAY_TYPE                 1
-#define UI_DISPLAY_CHARSET              1
-#define BEEPER_TYPE                     1
-#define UI_COLS                        20
-#define UI_ROWS                         4
-#define BEEPER_PIN                     41
-#define UI_DISPLAY_RS_PIN              42
-#define UI_DISPLAY_RW_PIN              -1
-#define UI_DISPLAY_ENABLE_PIN          43
-#define UI_DISPLAY_D0_PIN              44
-#define UI_DISPLAY_D1_PIN              45
-#define UI_DISPLAY_D2_PIN              46
-#define UI_DISPLAY_D3_PIN              47
-#define UI_DISPLAY_D4_PIN              44
-#define UI_DISPLAY_D5_PIN              45
-#define UI_DISPLAY_D6_PIN              46
-#define UI_DISPLAY_D7_PIN              47
-#define UI_ENCODER_A                   52
-#define UI_ENCODER_B                   50
-#define UI_ENCODER_CLICK               48
-#define UI_RESET_PIN                   -1
-#define UI_DELAYPERCHAR                40
-#define UI_INVERT_MENU_DIRECTION        0
-#define UI_BUTTON_BACK                 71
-
-// Beeper sound definitions for short beeps during key actions and longer
-// beeps for important actions.  Parameters are the delay in microseconds
-// followed by the number of repetitions.  Values must be in range 1..255
-#define BEEPER_SHORT_SEQUENCE         2,2
-#define BEEPER_LONG_SEQUENCE          8,8
-
-#endif // LCD_UI
-*/
 #endif

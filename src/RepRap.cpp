@@ -161,7 +161,11 @@ RepRap::RepRap() : toolList(nullptr), currentTool(nullptr), lastWarningMillis(0)
 	portControl = new PortControl();
 #endif
 #if SUPPORT_12864_LCD
- 	display = new Display();
+    #if __LPC17xx__
+        display = new (AHB0) Display();
+    #else
+         display = new Display();
+    #endif
 #endif
 
 #if __LPC17xx__

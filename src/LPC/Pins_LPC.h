@@ -49,9 +49,11 @@ const size_t NumFirmwareUpdateModules = 0;
 #define SUPPORT_DHT_SENSOR	0					// set nonzero to support DHT temperature/humidity sensors
 
 
-//LCD Support
-#ifndef __MBED__
-//# define SUPPORT_12864_LCD       1
+//LCD Support with No Networking 
+#ifdef LPC_NETWORKING
+    #define SUPPORT_12864_LCD       0
+#else
+    #define SUPPORT_12864_LCD       1
 #endif
 
 constexpr size_t NumExtraHeaterProtections = 4;

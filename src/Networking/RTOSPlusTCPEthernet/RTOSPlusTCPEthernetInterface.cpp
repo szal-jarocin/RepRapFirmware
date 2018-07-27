@@ -59,7 +59,7 @@ extern "C" {
         //original call in +tcp
         //xReturn = xTaskCreate( prvIPTask, "IP-task", ( uint16_t ) ipconfigIP_TASK_STACK_SIZE_WORDS, NULL, ( UBaseType_t ) ipconfigIP_TASK_PRIORITY, &xIPTaskHandle );
 
-        tcpPlusTask.Create(pxTaskCode, "IP-task", nullptr, ( UBaseType_t ) ipconfigIP_TASK_PRIORITY);
+        tcpPlusTask.Create(pxTaskCode, "IP-task", nullptr, ( UBaseType_t ) /*ipconfigIP_TASK_PRIORITY*/TaskBase::TcpPriority);
         return tcpPlusTask.GetHandle();
     }
     
@@ -68,7 +68,7 @@ extern "C" {
         //xReturn = xTaskCreate( prvEMACHandlerTask, "EMAC", nwRX_TASK_STACK_SIZE, NULL, configMAX_PRIORITIES - 1, &xRxHanderTask );
 
         //TODO::Determine priority to run EMAC at
-        emacTask.Create(pxTaskCode, "EMAC", nullptr, /*configMAX_PRIORITIES - 1*/ 3);
+        emacTask.Create(pxTaskCode, "EMAC", nullptr, /*configMAX_PRIORITIES - 1*/ TaskBase::TcpPriority);
         //FreeRTOS_debug_printf( ( "RRfInitialiseIPTask: Creating Task for EMAC \n" ) );
         return emacTask.GetHandle();
     }

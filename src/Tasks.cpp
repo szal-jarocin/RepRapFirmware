@@ -26,7 +26,12 @@ extern char _end;
 
 // The main task currently runs GCodes, so it needs to be large enough to hold the matrices used for auto calibration.
 #if __LPC17xx__
-constexpr unsigned int MainTaskStackWords = 1616;
+    #if defined(LPC_NETWORKING)
+        constexpr unsigned int MainTaskStackWords = 1616;
+    #else
+        constexpr unsigned int MainTaskStackWords = 2040;
+    #endif
+
 #else
 constexpr unsigned int MainTaskStackWords = 2040;
 #endif

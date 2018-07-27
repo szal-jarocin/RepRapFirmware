@@ -228,7 +228,7 @@ constexpr Pin SpecialPinMap[] =
 
 
 //SPI LCD Common Settings (Viki2.0 and RRD Full Graphic Smart Display
-constexpr LPC_SSP_TypeDef* LcdSpiDevice = LPC_SSP0;     //SSP0 (MISO0, MOSI0, SCK0)
+constexpr LPC_SSP_TypeDef* LcdSpiChannel = LPC_SSP0;     //SSP0 (MISO0, MOSI0, SCK0)
 constexpr Pin LcdCSPin =       P0_16; //LCD Chip Select
 constexpr Pin LcdDCPin =       P2_6;  //DataControl Pin (A0) if none used set to NoPin
 constexpr Pin LcdBeepPin =     P0_25;

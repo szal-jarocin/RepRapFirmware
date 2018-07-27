@@ -37,6 +37,10 @@ Lcd7920::Lcd7920(Pin csPin)
 	device.csPolarity = true;						// active high chip select
 	device.spiMode = 0;
 	device.clockFrequency = SpiClockFrequency;
+    
+#if __LPC17xx__
+    device.SSPDevice = LcdSpiChannel; 
+#endif
 }
 
 void Lcd7920::Init()
