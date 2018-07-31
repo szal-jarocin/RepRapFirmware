@@ -36,10 +36,9 @@
 // We call vTaskNotifyGiveFromISR from various interrupts, so the following must be true
 static_assert(configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY <= NvicPriorityHSMCI, "configMAX_SYSCALL_INTERRUPT_PRIORITY is set too high");
 
-static TaskHandle_t hsmciTask = nullptr;		// the task that is waiting for a HSMCI command to complete
-
-
 #ifndef __LPC17xx__
+
+static TaskHandle_t hsmciTask = nullptr;		// the task that is waiting for a HSMCI command to complete
 
 // Callback function from the hsmci driver, called while it is waiting for an SD card operation to complete
 // 'stBits' is the set of bits in the HSMCI status register that the caller is interested in.
@@ -441,7 +440,7 @@ void RepRap::Diagnostics(MessageType mtype)
 	const char* const expansionName = DuetExpansion::GetExpansionBoardName();
 	platform->MessageF(mtype, (expansionName == nullptr) ? "\n" : " + %s\n", expansionName);
 #else
-	platform->MessageF(mtype, "%s version %s running on %s\n", FIRMWARE_NAME, VERSION, platform->GetElectronicsString());
+	platform->MessageF(mtype, "%s version %s running on %s at %dMhz\n", FIRMWARE_NAME, VERSION, platform->GetElectronicsString(), (int)SystemCoreClock/1000000);
 #endif
 
 #if SAM4E || SAM4S || SAME70

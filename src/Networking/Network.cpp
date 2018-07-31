@@ -42,10 +42,10 @@
 # include "RTOSIface.h"
 
 #if __LPC17xx__
-constexpr size_t NetworkStackWords = 440;
+    constexpr size_t NetworkStackWords = 440;
 #else
-constexpr size_t NetworkStackWords = 550;
-#endif;
+    constexpr size_t NetworkStackWords = 550;
+#endif
 
 static Task<NetworkStackWords> networkTask;
 

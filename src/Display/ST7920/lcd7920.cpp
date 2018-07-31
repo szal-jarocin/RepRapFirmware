@@ -39,7 +39,7 @@ Lcd7920::Lcd7920(Pin csPin)
 	device.clockFrequency = SpiClockFrequency;
     
 #if __LPC17xx__
-    device.SSPDevice = LcdSpiChannel; 
+    device.sspChannel = LcdSpiChannel; 
 #endif
 }
 

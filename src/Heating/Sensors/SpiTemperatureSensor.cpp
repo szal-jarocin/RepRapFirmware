@@ -17,7 +17,7 @@ SpiTemperatureSensor::SpiTemperatureSensor(unsigned int channel, const char *nam
 	device.clockFrequency = clockFrequency;
 
 #if defined(__LPC17xx__)
-    device.SSPDevice = LPC_SSP0; //Use SSP0 on LPC
+    device.sspChannel = TempSensorSSPChannel; //Use SSP0 on LPC
 #endif
 
     

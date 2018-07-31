@@ -107,6 +107,7 @@ constexpr float THERMISTOR_SERIES_RS = 4700.0;
 constexpr size_t MaxSpiTempSensors = 1;
 // Digital pins the 31855s have their select lines tied to
 constexpr Pin SpiTempSensorCsPins[MaxSpiTempSensors] = { NoPin };
+constexpr SSPChannel TempSensorSSPChannel = SSP0;
 
 
 // Digital pin number that controls the ATX power on/off
@@ -228,7 +229,7 @@ constexpr Pin SpecialPinMap[] =
 
 
 //SPI LCD Common Settings (Viki2.0 and RRD Full Graphic Smart Display
-constexpr LPC_SSP_TypeDef* LcdSpiChannel = LPC_SSP0;     //SSP0 (MISO0, MOSI0, SCK0)
+constexpr SSPChannel LcdSpiChannel = SSP0;     //SSP0 (MISO0, MOSI0, SCK0)
 constexpr Pin LcdCSPin =       P0_16; //LCD Chip Select
 constexpr Pin LcdDCPin =       P2_6;  //DataControl Pin (A0) if none used set to NoPin
 constexpr Pin LcdBeepPin =     P0_25;

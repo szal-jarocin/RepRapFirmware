@@ -53,7 +53,7 @@ const size_t NumFirmwareUpdateModules = 0;
 #ifdef LPC_NETWORKING
     #define SUPPORT_12864_LCD       0
 #else
-    #define SUPPORT_12864_LCD       1
+    //#define SUPPORT_12864_LCD       1
 #endif
 
 constexpr size_t NumExtraHeaterProtections = 4;
@@ -108,12 +108,13 @@ const int HighestLogicalPin = 60 + ARRAY_SIZE(SpecialPinMap) - 1;		// highest lo
 #define STEP_TC_PCLKBIT     PCLK_TIMER0
 #define STEP_TC_TIMER       TIMER0
 
-
+/*
 #define NETWORK_TC            (LPC_TIM1)
 #define NETWORK_TC_IRQN       TIMER1_IRQn
 #define NETWORK_TC_HANDLER    TIMER1_IRQHandler
 #define NETWORK_TC_PCONPBIT   SBIT_PCTIM1
 #define NETWORK_TC_PCLKBIT    PCLK_TIMER1
 #define NETWORK_TC_TIMER      TIMER1
+*/
 
 #endif
