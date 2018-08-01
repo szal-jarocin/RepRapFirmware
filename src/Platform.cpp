@@ -322,10 +322,9 @@ void Platform::Init()
 
 #if defined(__LPC17xx__)
     
-    if(HAS_DRIVER_CURRENT_CONTROL == true)
-    {
+    #if HAS_DRIVER_CURRENT_CONTROL
         mcp4451.begin();
-    }
+    #endif
     Microstepping::Init(); // basic class to remember the Microstepping.
 #endif
 
@@ -3193,21 +3192,20 @@ void Platform::UpdateMotorCurrent(size_t driver)
 		}
 #elif defined(__LPC17xx__)
         
-        if(HAS_DRIVER_CURRENT_CONTROL == true)
-        {
-            //Has digipots to set current control for drivers
-            //Current is in mA
-            uint16_t pot = (unsigned short) (current * digipotFactor / 1000);
-            if(pot > 256) pot = 255;
-            if(driver < 4){
-                mcp4451.setMCP4461Address(0x2C); //A0 and A1 Grounded. (001011 00)
-                mcp4451.setVolatileWiper(POT_WIPES[driver], pot);
-            } else {
-                mcp4451.setMCP4461Address(0x2D); //A0 Vcc, A1 Grounded. (001011 01)
-                mcp4451.setVolatileWiper(POT_WIPES[driver-4], pot);
-                
-            }
+    #if HAS_DRIVER_CURRENT_CONTROL
+        //Has digipots to set current control for drivers
+        //Current is in mA
+        uint16_t pot = (unsigned short) (current * digipotFactor / 1000);
+        if(pot > 256) pot = 255;
+        if(driver < 4){
+            mcp4451.setMCP4461Address(0x2C); //A0 and A1 Grounded. (001011 00)
+            mcp4451.setVolatileWiper(POT_WIPES[driver], pot);
+        } else {
+            mcp4451.setMCP4461Address(0x2D); //A0 Vcc, A1 Grounded. (001011 01)
+            mcp4451.setVolatileWiper(POT_WIPES[driver-4], pot);
+            
         }
+    #endif
 
 #else
 		// otherwise we can't set the motor current
