@@ -23,10 +23,10 @@
 #include "FreeRTOS_Sockets.h"
 #include "FreeRTOS_DHCP.h"
 
-constexpr size_t TcpPlusStackWords = ( uint16_t ) ipconfigIP_TASK_STACK_SIZE_WORDS;
+constexpr size_t TcpPlusStackWords = ( uint16_t ) ipconfigIP_TASK_STACK_SIZE_WORDS; // needs to be aroud 240 when debugging with debugPrintf
 static Task<TcpPlusStackWords> tcpPlusTask;
 
-constexpr size_t EmacStackWords = 74;//140; // needs to be bigger (>170) if using debufPrinf for testing
+constexpr size_t EmacStackWords = 74;/*170*/ // needs to be bigger (>=170) if using debugPrinf for testing
 static Task<EmacStackWords> emacTask;
 
 
@@ -569,7 +569,7 @@ void RTOSPlusTCPEthernetInterface::ProcessIPApplication( eIPCallbackEvent_t eNet
     //variables to hold IP information from +TCP layer (either from static assignment or DHCP)
     uint32_t ulIPAddress, ulNetMask, ulGatewayAddress, ulDNSServerAddress;
     
-    //FreeRTOS_debug_printf( ( "vApplicationIPNetworkEventHook: Event=%d \n", eNetworkEvent ) );
+    FreeRTOS_debug_printf( ( "vApplicationIPNetworkEventHook: Event=%d \n", eNetworkEvent ) );
     
     
     /* If the network has just come up...*/
@@ -630,6 +630,8 @@ void RTOSPlusTCPEthernetInterface::ProcessIPApplication( eIPCallbackEvent_t eNet
 */
 eDHCPCallbackAnswer_t RTOSPlusTCPEthernetInterface::ProcessDHCPHook( eDHCPCallbackPhase_t eDHCPPhase, uint32_t ulIPAddress )
 {
+    FreeRTOS_debug_printf( ( "Process DHCP Hook") );
+
     eDHCPCallbackAnswer_t eReturn;
     
     /* This hook is called in a couple of places during the DHCP process, as identified by the eDHCPPhase parameter. */

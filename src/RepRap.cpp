@@ -138,7 +138,7 @@ RepRap::RepRap() : toolList(nullptr), currentTool(nullptr), lastWarningMillis(0)
 #if __LPC17xx__
     platform = new (AHB0) Platform();
     network = new (AHB0) Network(*platform);
-    gCodes = new /*(AHB0)*/ GCodes(*platform);
+    gCodes = new (AHB0) GCodes(*platform);
     move = new Move();
     heat = new /*(AHB0)*/ Heat(*platform);
 #else

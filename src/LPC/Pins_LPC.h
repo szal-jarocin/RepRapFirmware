@@ -9,9 +9,6 @@
 // Azteeg X5 (and maybe others) probe endstop pin is not an ADC pin, so only Digital will be used, or select another spare ADC capable pin if need analog in
 
 
-//TEMP TESTING
-//#define NO_SOFTWARE_RESET_DATA
-//#define NO_THERMOCOUPLE_SUPPORT
 #define NO_FIRMWARE_UPDATE
 
 //TODO:: implement firmware update

@@ -77,6 +77,8 @@ constexpr Pin END_STOP_PINS[DRIVES] = { P1_24, P1_26, P1_28, NoPin}; // E stop c
 // Indices for motor current digipots (X,Y,Z,E)
 constexpr uint8_t POT_WIPES[4] = { 0, 1, 2, 3};
 constexpr float digipotFactor = 106.0; //factor for converting current to digipot value
+constexpr bool HAS_DRIVER_CURRENT_CONTROL = true; 
+
 
 // HEATERS - The bed is assumed to be the at index 0
 
