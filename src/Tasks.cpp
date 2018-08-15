@@ -224,15 +224,22 @@ namespace Tasks
             p.MessageF(mtype, "AHB_RAM Static ram used : %" PRIu32 "\n", ahbStaticUsed);
             
             uint32_t ahb0_free = (uint32_t)&__AHB0_end - (uint32_t)&__AHB0_dyn_start ;
-            uint32_t ahb0_total_used = (32*1024) - ahb0_free;
+            //uint32_t ahb0_total_used = (32*1024) - ahb0_free;
 
             p.Message(mtype, "=== Ram Totals ===\n");
             
             uint32_t totalMainUsage = (uint32_t)((&_end - ramstart) + mi.uordblks + maxStack);
             
             p.MessageF(mtype, "Main SRAM               : %" PRIu32 "/%" PRIu32 " (%" PRIu32 " free, %" PRIu32 " never used)\n", totalMainUsage, (uint32_t)32*1024, 32*1024-totalMainUsage, neverUsed );
-            p.MessageF(mtype, "AHB SRAM                : %" PRIu32 "/%" PRIu32 " (%" PRIu32 " free)\n", ahb0_total_used, (uint32_t)32*1024, (uint32_t)ahb0_free  );
-            p.MessageF(mtype, "RTOS Dynamic Heap (AHB) : %d/%d (%d free, %d never used)\n", configTOTAL_HEAP_SIZE-xPortGetFreeHeapSize(),configTOTAL_HEAP_SIZE, xPortGetFreeHeapSize(),xPortGetMinimumEverFreeHeapSize() );
+            //p.MessageF(mtype, "AHB SRAM                : %" PRIu32 "/%" PRIu32 " (%" PRIu32 " free)\n", ahb0_total_used, (uint32_t)32*1024, (uint32_t)ahb0_free  );
+            p.MessageF(mtype, "RTOS Dynamic Heap (AHB) : %ld/%ld (%d free, %d never used)\n", (ahb0_free-xPortGetFreeHeapSize()),ahb0_free, xPortGetFreeHeapSize(),xPortGetMinimumEverFreeHeapSize() );
+            
+            
+            //Print out the PWM and timers freq
+            uint16_t freqs[4];
+            GetTimerInfo(freqs);
+            p.MessageF(mtype, "\n=== LPC PWM ===\n");
+            p.MessageF(mtype, "Hardware PWM: %d Hz\nPWMTimer1: %d Hz\nPWMTimer2: %d Hz\nPWMTimer3: %d Hz\n", freqs[0], freqs[1], freqs[2], freqs[3]);
             
             //Print out our Special Pins Available:
             p.MessageF(mtype, "\n=== GPIO Special Pins available === (i.e. with M42)\nLogicalPin - PhysicalPin\n");
@@ -242,9 +249,23 @@ namespace Tasks
                     uint8_t portNumber =  (SpecialPinMap[i]>>5);  //Divide the pin number by 32 go get the PORT number
                     uint8_t pinNumber  =   SpecialPinMap[i] & 0x1f;  //lower 5-bits contains the bit number of a 32bit port
                     
-                    p.MessageF(mtype, " %d - P%d_%d %s\n", (60+i), portNumber, pinNumber, ((g_APinDescription[SpecialPinMap[i]].ulPinAttribute & PIN_ATTR_PWM)==PIN_ATTR_PWM)?"(HW PWM)":"" );
+                    p.MessageF(mtype, " %d - P%d_%d ", (60+i), portNumber, pinNumber);
+                    if(TimerPWMPinsArray[SpecialPinMap[i]])
+                    {
+                        uint8_t tim = TimerPWMPinsArray[SpecialPinMap[i]] & 0x0F;
+                        p.MessageF(mtype, "[Timer %s]", (tim&TimerPWM_1)?"1":(tim&TimerPWM_2)?"2":"3" );
+                    }
+                    else if((g_APinDescription[SpecialPinMap[i]].ulPinAttribute & PIN_ATTR_PWM)==PIN_ATTR_PWM)
+                    {
+                        p.MessageF(mtype, "[HW PWM]");
+                    }
+                    p.MessageF(mtype, "\n");
+                
                 }
             }
+            
+            
+            
 #endif //end __LPC17xx__
         
         }// end memory stats scope

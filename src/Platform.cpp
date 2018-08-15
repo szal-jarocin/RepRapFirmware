@@ -4103,16 +4103,7 @@ void Platform::SetBoardType(BoardType bt)
 #elif defined(PCCB)
         board = BoardType::PCCB_10;
 #elif defined(__LPC17xx__)
-# if defined(AZTEEGX5MINI1_1)
-        board = BoardType::AzteegX5Mini1_1;
-# elif defined(REARM1_0)
-        board = BoardType::ReArm1_0;
-# elif defined(SMOOTHIEBOARD1)
-        board = BoardType::Smoothieboard1;
-# else
-# error Undefined LPC based board
-# endif //__LPC17xx__
-
+        board = BoardType::Lpc;
 #else
 # error Undefined board type
 #endif
@@ -4154,10 +4145,7 @@ const char* Platform::GetElectronicsString() const
 #elif defined(PCCB)
 	case BoardType::PCCB_10:				return "PCCB 1.0";
 #elif defined(__LPC17xx__)
-        case BoardType::AzteegX5Mini1_1:        return "AzteegX5 Mini v1.1";
-        case BoardType::ReArm1_0:               return "ReArm";
-        case BoardType::Smoothieboard1:          return "SmoothieBoard";
-            
+    case BoardType::Lpc:                    return LPC_ELECTRONICS_STRING;
 #else
 # error Undefined board type
 #endif
@@ -4190,9 +4178,7 @@ const char* Platform::GetBoardString() const
 #elif defined(PCCB)
 	case BoardType::PCCB_10:				return "pccb10";
 #elif defined(__LPC17xx__)
-        case BoardType::AzteegX5Mini1_1:        return "AzteegX5Mini1.1";
-        case BoardType::ReArm1_0:               return "ReArm";
-        case BoardType::Smoothieboard1:         return "SmoothieBoard";
+    case BoardType::Lpc:                    return LPC_BOARD_STRING;
             
 #else
 # error Undefined board type

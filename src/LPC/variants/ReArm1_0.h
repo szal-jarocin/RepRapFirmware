@@ -16,8 +16,10 @@
 //#define IAP_FIRMWARE_FILE "RepRapFirmware-AzteegX5Mini1_1.bin"
 
 // Default board type
-#define DEFAULT_BOARD_TYPE BoardType::ReArm1_0
+#define DEFAULT_BOARD_TYPE BoardType::Lpc
 #define ELECTRONICS "ReArm v1.0"
+#define LPC_ELECTRONICS_STRING "ReArm v1.0"
+#define LPC_BOARD_STRING "Rearm1"
 
 #define REARM1_0
 
@@ -91,6 +93,41 @@ constexpr Pin TEMP_SENSE_PINS[Heaters] = HEATERS_(P0_24, P0_23, /*P0_25*/c, d, e
 
 constexpr Pin HEAT_ON_PINS[Heaters] = HEATERS_(P2_7, P2_5, /*P2.4*/c, d, e, f, g, h); // bed, h0
 
+// PWM -
+//       The Hardware PWM channels ALL share the same Frequency,
+//       we will use Hardware PWM for Hotends (on board which have the heater on a hardware PWM capable pin)
+//       So for PWM at a different frequency to the Hotend PWM (250Hz) use the Timers to generate PWM
+//       by setting the options below. If a HW PWM pin is defined below as a timer pin, it will use the timer instead of PWM
+//       except if the requested freq by RRF does not match the fixed timer freq.
+
+//       Set to {NoPin, NoPin, NoPin } if not used
+//       Below is a list of HW PWM pins. There are only 6 channels, some pins share the same channel
+//       P1_18  Channel 1
+//       P1_20  Channel 2
+//       P1_21  Channel 3
+//       P1_23  Channel 4
+//       P1_24  Channel 5
+//       P1_26  Channel 6
+//       P2_0   Channel 1
+//       P2_1   Channel 2
+//       P2_2   Channel 3
+//       P2_3   Channel 4
+//       P2_4   Channel 5
+//       P2_5   Channel 6
+//       P3_25  Channel 2
+//       P3_26  Channel 3
+
+//Smoothie: Bed (Timer1), H0 (HW PWM), Fan1 (HWPWM)
+
+#define Timer1_PWM_Frequency 10 //For Bed heaters or other slow PWM (10Hz is what RRF defaults to be compatible with SSRs)
+#define Timer2_PWM_Frequency 50 //For Servos that dont like to run at faster frequencies
+#define Timer3_PWM_Frequency 250 //For Hotends not on HW PWM
+
+#define Timer1_PWMPins {P2_7, NoPin, NoPin }
+#define Timer2_PWMPins {P1_20, P1_19 , NoPin}
+#define Timer3_PWMPins {NoPin, NoPin, NoPin}
+
+
 // Default thermistor betas
 constexpr float BED_R25 = 100000.0;
 constexpr float BED_BETA = 4066.0;
@@ -133,6 +170,12 @@ constexpr Pin COOLING_FAN_PINS[NUM_FANS] = { P2_4 }; // Fan 0 is a Hardware PWM 
 // see FanInterrupt() in Platform.cpp
 // SD:: Note: Only GPIO pins on Port0 and Port2 support this. If needed choose from spare pins (UNTESTED)
 constexpr Pin COOLING_FAN_RPM_PIN = NoPin;
+
+//Pins defined to use for external interrupt. **Must** be a pin on Port0 or Port2.
+//I.e. for Fan RPM, Filament Detection etc
+// We limit this to 3 to save memory
+#define EXTERNAL_INTERRUPT_PINS {NoPin, NoPin, NoPin}
+
 
 
 //SD: Internal SDCard is on SSP1

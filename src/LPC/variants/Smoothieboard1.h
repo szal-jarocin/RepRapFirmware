@@ -12,12 +12,12 @@
 // Currently No support For Thermocouple etc sensors, only thermistors!
 
 
-//TODO:: implement firmware update
-//#define IAP_FIRMWARE_FILE "RepRapFirmware-AzteegX5Mini1_1.bin"
-
 // Default board type
-#define DEFAULT_BOARD_TYPE BoardType::Smoothieboard1
+#define DEFAULT_BOARD_TYPE BoardType::Lpc
 #define ELECTRONICS "Smoothieboard1"
+#define LPC_ELECTRONICS_STRING "Smoothieboard1"
+#define LPC_BOARD_STRING "Smoothieboard1"
+
 
 #define SMOOTHIEBOARD1
 
@@ -89,8 +89,42 @@ constexpr Pin TEMP_SENSE_PINS[Heaters] = HEATERS_(P0_24, P0_23, P0_25, d, e, f, 
 // Heater outputs
 
 // Note: P2_5 is hardware PWM capable, P2_7 is not
-
 constexpr Pin HEAT_ON_PINS[Heaters] = HEATERS_(P2_5, P2_7, P1_23, d, e, f, g, h); // bed, h0, h1
+
+// PWM -
+//       The Hardware PWM channels ALL share the same Frequency,
+//       we will use Hardware PWM for Hotends (on board which have the heater on a hardware PWM capable pin)
+//       So for PWM at a different frequency to the Hotend PWM (250Hz) use the Timers to generate PWM
+//       by setting the options below. If a HW PWM pin is defined below as a timer pin, it will use the timer instead of PWM
+//       except if the requested freq by RRF does not match the fixed timer freq.
+
+//       Set to {NoPin, NoPin, NoPin } if not used
+//       Below is a list of HW PWM pins. There are only 6 channels, some pins share the same channel
+//       P1_18  Channel 1
+//       P1_20  Channel 2
+//       P1_21  Channel 3
+//       P1_23  Channel 4
+//       P1_24  Channel 5
+//       P1_26  Channel 6
+//       P2_0   Channel 1
+//       P2_1   Channel 2
+//       P2_2   Channel 3
+//       P2_3   Channel 4
+//       P2_4   Channel 5
+//       P2_5   Channel 6
+//       P3_25  Channel 2
+//       P3_26  Channel 3
+
+//Smoothie: Bed (Timer1), H0 (Timer3), H1 (HW PWM), Fan1 (HWPWM), Fan2(Timer3)
+
+#define Timer1_PWM_Frequency 10 //For Bed heaters or other slow PWM (10Hz is what RRF defaults to be compatible with SSRs)
+#define Timer2_PWM_Frequency 50 //For Servos that dont like to run at faster frequencies
+#define Timer3_PWM_Frequency 250 //For Hotends not on HW PWM
+
+#define Timer1_PWMPins {P2_5, NoPin, NoPin }
+#define Timer2_PWMPins {NoPin, NoPin , NoPin}
+#define Timer3_PWMPins {P2_7, P2_6, NoPin}  
+
 
 // Default thermistor betas
 constexpr float BED_R25 = 100000.0;
@@ -134,7 +168,16 @@ constexpr Pin COOLING_FAN_PINS[NUM_FANS] = { P2_4, P2_6 }; //Note: P2_6 is not h
 // Firmware will attach a FALLING interrupt to this pin
 // see FanInterrupt() in Platform.cpp
 // SD:: Note: Only GPIO pins on Port0 and Port2 support this. If needed choose from spare pins
+//      Ensure to add this pin to the EXTERNAL_INTERRUPT_PINS below too
 constexpr Pin COOLING_FAN_RPM_PIN = NoPin;
+
+
+//Pins defined to use for external interrupt. **Must** be a pin on Port0 or Port2.
+//I.e. for Fan RPM, Filament Detection etc
+// We limit this to 3 to save memory
+#define EXTERNAL_INTERRUPT_PINS {NoPin, NoPin, NoPin}
+
+
 
 
 //SD: Internal SDCard is on SSP1
@@ -151,7 +194,7 @@ constexpr Pin COOLING_FAN_RPM_PIN = NoPin;
 //default to supporting 2 card..... if need 0_28 then change CS no No pin
 
 constexpr size_t NumSdCards = 2; //
-constexpr Pin SdCardDetectPins[NumSdCards] = { NoPin, P0_27 };//TODO: 2nd cd CS pin?
+constexpr Pin SdCardDetectPins[NumSdCards] = { NoPin, P0_27 };
 constexpr Pin SdWriteProtectPins[NumSdCards] = { NoPin, NoPin };
 constexpr Pin SdSpiCSPins[NumSdCards] = { P0_6, P0_28 };// Internal, external. Note:: ("slot" 0 in CORE is configured to be LCP SSP1 to match default RRF behaviour)
 // Definition of which pins we allow to be controlled using M42
