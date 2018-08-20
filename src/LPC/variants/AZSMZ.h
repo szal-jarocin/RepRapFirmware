@@ -88,7 +88,7 @@ const Pin TEMP_SENSE_PINS[Heaters] = HEATERS_(P0_25, P0_23, /*P0_24*/c, d, e, f,
 
 // Note: P2_0 to P2_5 is hardware PWM capable, P2_7 is not
 
-const Pin HEAT_ON_PINS[Heaters] = HEATERS_(P2_5, P2_4, /*P2.7*/c, d, e, f, g, h); // bed, h0 (if using 3 heaters and using 2.7 update the fans variable below.
+const Pin HEAT_ON_PINS[Heaters] = HEATERS_(P2_5, P2_4, /*P2.7*/c, d, e, f, g, h); // bed, h0 (if using 3 heaters and using 2.7 remove 2.7 from fans variable below.
 
 // PWM -
 //       The Hardware PWM channels ALL share the same Frequency,
@@ -117,12 +117,12 @@ const Pin HEAT_ON_PINS[Heaters] = HEATERS_(P2_5, P2_4, /*P2.7*/c, d, e, f, g, h)
 //AZSMZ: Bed (Timer1), H0 (HW PWM), Fan1 (Timer3), Fan2(Timer3)
 
 #define Timer1_PWM_Frequency 10 //For Bed heaters or other slow PWM (10Hz is what RRF defaults to be compatible with SSRs)
-#define Timer2_PWM_Frequency 50 //For Servos that dont like to run at faster frequencies
+#define Timer2_PWM_Frequency 50 //For Servos
 #define Timer3_PWM_Frequency 250 //For Hotends not on HW PWM
 
-#define Timer1_PWMPins {P2_5, NoPin, NoPin }
+#define Timer1_PWMPins {P2_5, NoPin, NoPin } // Bed at 10Hz
 #define Timer2_PWMPins {NoPin, NoPin , NoPin}
-#define Timer3_PWMPins {P2_7, P0_26, NoPin}
+#define Timer3_PWMPins {P2_7, P0_26, NoPin} //H1 and Fan2 at 250Hz
 
 
 // Default thermistor betas
@@ -141,6 +141,7 @@ const float THERMISTOR_SERIES_RS = 4700.0;
 const size_t MaxSpiTempSensors = 1;
 // Digital pins the 31855s have their select lines tied to
 const Pin SpiTempSensorCsPins[MaxSpiTempSensors] = { NoPin };
+constexpr SSPChannel TempSensorSSPChannel = SSP0;
 
 
 // Digital pin number that controls the ATX power on/off
@@ -155,6 +156,8 @@ const Pin Z_PROBE_PIN = P1_29;
 
 // Digital pin number to turn the IR LED on (high) or off (low)
 const Pin Z_PROBE_MOD_PIN = NoPin;
+
+constexpr Pin DiagPin = NoPin;
 
 // Use a PWM capable pin
 const size_t NUM_FANS = 2;

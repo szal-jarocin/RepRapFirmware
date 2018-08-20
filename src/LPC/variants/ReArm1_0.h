@@ -120,11 +120,11 @@ constexpr Pin HEAT_ON_PINS[Heaters] = HEATERS_(P2_7, P2_5, /*P2.4*/c, d, e, f, g
 //Smoothie: Bed (Timer1), H0 (HW PWM), Fan1 (HWPWM)
 
 #define Timer1_PWM_Frequency 10 //For Bed heaters or other slow PWM (10Hz is what RRF defaults to be compatible with SSRs)
-#define Timer2_PWM_Frequency 50 //For Servos that dont like to run at faster frequencies
+#define Timer2_PWM_Frequency 50 //For Servos 
 #define Timer3_PWM_Frequency 250 //For Hotends not on HW PWM
 
 #define Timer1_PWMPins {P2_7, NoPin, NoPin }
-#define Timer2_PWMPins {P1_20, P1_19 , NoPin}
+#define Timer2_PWMPins {P1_20, P1_19 , P1_21} // Servo 1, 2 and 3.
 #define Timer3_PWMPins {NoPin, NoPin, NoPin}
 
 

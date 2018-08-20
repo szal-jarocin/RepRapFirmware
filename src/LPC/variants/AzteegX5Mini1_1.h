@@ -118,11 +118,11 @@ constexpr Pin HEAT_ON_PINS[Heaters] = HEATERS_(P2_7, P2_5, c, d, e, f, g, h); //
 //Azteeg: Bed (Timer1), H0 (HW PWM), Fan (HWPWM)
 
 #define Timer1_PWM_Frequency 10 //For Bed heaters or other slow PWM (10Hz is what RRF defaults to be compatible with SSRs)
-#define Timer2_PWM_Frequency 50 //For Servos that dont like to run at faster frequencies
+#define Timer2_PWM_Frequency 50 //For Servos
 #define Timer3_PWM_Frequency 250 //For Hotends not on HW PWM
 
-#define Timer1_PWMPins {P2_7, NoPin, NoPin }
-#define Timer2_PWMPins {NoPin, NoPin , NoPin}
+#define Timer1_PWMPins {P2_7,  NoPin,  NoPin}
+#define Timer2_PWMPins {P1_30, NoPin , NoPin}
 #define Timer3_PWMPins {NoPin, NoPin, NoPin}
 
 
@@ -164,7 +164,7 @@ constexpr Pin DiagPin = NoPin;
 
 // Use a PWM capable pin
 constexpr size_t NUM_FANS = 1;
-constexpr Pin COOLING_FAN_PINS[NUM_FANS] = { P2_4 }; // Fan 0 is a Hardware PWM pin
+constexpr Pin COOLING_FAN_PINS[NUM_FANS] = { P2_4 }; // Fan 0 (P2_4) is a Hardware PWM pin
 
 // Firmware will attach a FALLING interrupt to this pin
 // see FanInterrupt() in Platform.cpp

@@ -120,12 +120,12 @@ constexpr Pin HEAT_ON_PINS[Heaters] = HEATERS_(P2_5, P2_7, P1_23, d, e, f, g, h)
 //MKS SBase: Bed (Timer1), H0 (Timer3), H1 (HW PWM), Fan1 (HWPWM), Fan2(Timer3)
 
 #define Timer1_PWM_Frequency 10 //For Bed heaters or other slow PWM (10Hz is what RRF defaults to be compatible with SSRs)
-#define Timer2_PWM_Frequency 50 //For Servos that dont like to run at faster frequencies
+#define Timer2_PWM_Frequency 50 //For Servos
 #define Timer3_PWM_Frequency 250 //For Hotends not on HW PWM
 
-#define Timer1_PWMPins {P2_5, NoPin, NoPin }
+#define Timer1_PWMPins {P2_5, NoPin, NoPin } //Bed at 10Hz
 #define Timer2_PWMPins {NoPin, NoPin , NoPin}
-#define Timer3_PWMPins {P2_7, P2_6, NoPin}
+#define Timer3_PWMPins {P2_7, P2_6, NoPin}  //H0 and Fan2 at 250Hz
 
 
 // Default thermistor betas
