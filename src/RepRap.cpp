@@ -135,20 +135,20 @@ RepRap::RepRap() : toolList(nullptr), currentTool(nullptr), lastWarningMillis(0)
 	diagnosticsDestination(MessageType::NoDestinationMessage), justSentDiagnostics(false)
 {
 	OutputBuffer::Init();
-#if __LPC17xx__
-    platform = new (AHB0) Platform();
-    network = new (AHB0) Network(*platform);
-    gCodes = new (AHB0) GCodes(*platform);
-    move = new Move();
-    heat = new /*(AHB0)*/ Heat(*platform);
-#else
+//#if __LPC17xx__
+//    platform = new (AHB0) Platform();
+//    network = new (AHB0) Network(*platform);
+//    gCodes = new (AHB0) GCodes(*platform);
+//    move = new Move();
+//    heat = new /*(AHB0)*/ Heat(*platform);
+//#else
     platform = new Platform();
     network = new Network(*platform);
     gCodes = new GCodes(*platform);
     move = new Move();
     heat = new Heat(*platform);
 
-#endif
+//#endif
 
 #if SUPPORT_ROLAND
 	roland = new Roland(*platform);
@@ -160,11 +160,11 @@ RepRap::RepRap() : toolList(nullptr), currentTool(nullptr), lastWarningMillis(0)
 	portControl = new PortControl();
 #endif
 #if SUPPORT_12864_LCD
-    #if __LPC17xx__
-        display = new (AHB0) Display();
-    #else
+//    #if __LPC17xx__
+//        display = new (AHB0) Display();
+//    #else
          display = new Display();
-    #endif
+//    #endif
 #endif
 
 #if __LPC17xx__

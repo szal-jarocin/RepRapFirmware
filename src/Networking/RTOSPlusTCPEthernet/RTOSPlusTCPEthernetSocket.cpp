@@ -603,7 +603,7 @@ void RTOSPlusTCPEthernetSocket::ReceiveData()
             
             if( bReceived > 0)
             {
-                lastBuffer->dataLength += len;
+                lastBuffer->dataLength += bReceived;
                 if (reprap.Debug(moduleNetwork))
                 {
                     debugPrintf("Appended %u bytes\n", (unsigned int)bReceived);
@@ -625,11 +625,11 @@ void RTOSPlusTCPEthernetSocket::ReceiveData()
                 BaseType_t bReceived = FreeRTOS_recv( xConnectedSocket, buf->Data(),buf->SpaceLeft(), 0 );// socket, pointer to buffer, how big is the buffer, flags
                 
                 if( bReceived > 0){
-                    buf->dataLength = (size_t)len;
+                    buf->dataLength = (size_t)bReceived;
                     NetworkBuffer::AppendToList(&receivedData, buf);
                     if (reprap.Debug(moduleNetwork))
                     {
-                      debugPrintf("Received %u bytes\n", (unsigned int)len);
+                      debugPrintf("Received %u bytes\n", (unsigned int)bReceived);
                     }
                 }
                 else

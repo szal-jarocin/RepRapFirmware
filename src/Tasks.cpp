@@ -129,6 +129,8 @@ extern "C" uint32_t _estack;		// this is defined in the linker script
 
     extern "C" unsigned long __StackLimit;
     extern "C" unsigned long __StackTop;
+
+    extern "C" size_t xPortGetTotalHeapSize( void );
 #endif
 
 
@@ -232,7 +234,9 @@ namespace Tasks
             
             p.MessageF(mtype, "Main SRAM               : %" PRIu32 "/%" PRIu32 " (%" PRIu32 " free, %" PRIu32 " never used)\n", totalMainUsage, (uint32_t)32*1024, 32*1024-totalMainUsage, neverUsed );
             //p.MessageF(mtype, "AHB SRAM                : %" PRIu32 "/%" PRIu32 " (%" PRIu32 " free)\n", ahb0_total_used, (uint32_t)32*1024, (uint32_t)ahb0_free  );
-            p.MessageF(mtype, "RTOS Dynamic Heap (AHB) : %ld/%ld (%d free, %d never used)\n", (ahb0_free-xPortGetFreeHeapSize()),ahb0_free, xPortGetFreeHeapSize(),xPortGetMinimumEverFreeHeapSize() );
+            
+
+            p.MessageF(mtype, "RTOS Dynamic Heap : %ld/%ld (%d free, %d never used)\n", (xPortGetTotalHeapSize()-xPortGetFreeHeapSize()),xPortGetTotalHeapSize(), xPortGetFreeHeapSize(),xPortGetMinimumEverFreeHeapSize() );
             
             
             //Print out the PWM and timers freq
