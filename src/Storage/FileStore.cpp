@@ -6,6 +6,7 @@
 #include "Platform.h"
 #include "RepRap.h"
 #include "Libraries/Fatfs/diskio.h"
+#include "Movement/StepTimer.h"
 
 uint32_t FileStore::longestWriteTime = 0;
 
@@ -103,7 +104,7 @@ bool FileStore::Open(const char* directory, const char* fileName, OpenMode mode)
 		// It is up to the caller to report an error if necessary.
 		if (reprap.Debug(modulePlatform))
 		{
-			reprap.GetPlatform().MessageF(ErrorMessage, "Can't open %s to %s, error code %d\n", location.c_str(), (writing) ? "write" : "read", (int)openReturn);
+			reprap.GetPlatform().MessageF(WarningMessage, "Failed to open %s to %s, error code %d\n", location.c_str(), (writing) ? "write" : "read", (int)openReturn);
 		}
 		return false;
 	}
@@ -335,10 +336,10 @@ int FileStore::ReadLine(char* buf, size_t nBytes)
 
 FRESULT FileStore::Store(const char *s, size_t len, size_t *bytesWritten)
 {
-	uint32_t time = Platform::GetInterruptClocks();
+	uint32_t time = StepTimer::GetInterruptClocks();
 	crc.Update(s, len);
 	const FRESULT writeStatus = f_write(&file, s, len, bytesWritten);
-	time = Platform::GetInterruptClocks() - time;
+	time = StepTimer::GetInterruptClocks() - time;
 	if (time > longestWriteTime)
 	{
 		longestWriteTime = time;
@@ -472,7 +473,7 @@ bool FileStore::Truncate()
 // Return the file write time in milliseconds, and clear it
 float FileStore::GetAndClearLongestWriteTime()
 {
-	const float ret = (float)longestWriteTime * StepClocksToMillis;
+	const float ret = (float)longestWriteTime * StepTimer::StepClocksToMillis;
 	longestWriteTime = 0;
 	return ret;
 }

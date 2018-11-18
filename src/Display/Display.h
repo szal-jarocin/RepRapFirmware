@@ -19,9 +19,8 @@ public:
 	Display();
 
 	void Init();
-	void Start();
 	GCodeResult Configure(GCodeBuffer& gb, const StringRef& reply);
-	void Spin(bool full);
+	void Spin();
 	void Exit();
 	void Beep(unsigned int frequency, unsigned int milliseconds);
 	void SuccessBeep();
@@ -35,7 +34,7 @@ private:
 	Menu menu;
 	uint32_t whenBeepStarted;
 	uint32_t beepLength;
-	bool present;
+	bool present;					// true if we have processed M918
 	bool beepActive;
 	bool updatingFirmware;
 };

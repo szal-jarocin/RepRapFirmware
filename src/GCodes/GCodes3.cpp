@@ -14,9 +14,20 @@
 #include "RepRap.h"
 #include "Tools/Tool.h"
 #include "PrintMonitor.h"
+#include "Tasks.h"
 
 #if HAS_WIFI_NETWORKING
 # include "FirmwareUpdater.h"
+#endif
+
+#if SUPPORT_TMC2660
+# include "Movement/StepperDrivers/TMC2660.h"
+#endif
+#if SUPPORT_TMC22xx
+# include "Movement/StepperDrivers/TMC22xx.h"
+#endif
+#if SUPPORT_TMC51xx
+# include "Movement/StepperDrivers/TMC51xx.h"
 #endif
 
 #include "Wire.h"
@@ -107,6 +118,7 @@ GCodeResult GCodes::SavePosition(GCodeBuffer& gb,const  StringRef& reply)
 	if (sParam < ARRAY_SIZE(numberedRestorePoints))
 	{
 		SavePosition(numberedRestorePoints[sParam], gb);
+		numberedRestorePoints[sParam].toolNumber = reprap.GetCurrentToolNumber();
 		return GCodeResult::ok;
 	}
 
@@ -213,45 +225,42 @@ GCodeResult GCodes::OffsetAxes(GCodeBuffer& gb, const StringRef& reply)
 // Set workspace coordinates
 GCodeResult GCodes::GetSetWorkplaceCoordinates(GCodeBuffer& gb, const StringRef& reply, bool compute)
 {
-	if (gb.Seen('P'))
+	const uint32_t cs = (gb.Seen('P')) ? gb.GetIValue() : currentCoordinateSystem + 1;
+	if (cs > 0 && cs <= NumCoordinateSystems)
 	{
-		const uint32_t cs = gb.GetIValue();
-		if (cs > 0 && cs <= NumCoordinateSystems)
+		bool seen = false;
+		for (size_t axis = 0; axis < numVisibleAxes; axis++)
 		{
-			bool seen = false;
+			if (gb.Seen(axisLetters[axis]))
+			{
+				const float coord = gb.GetFValue() * distanceScale;
+				if (!seen)
+				{
+					if (!LockMovementAndWaitForStandstill(gb))						// make sure the user coordinates are stable and up to date
+					{
+						return GCodeResult::notFinished;
+					}
+					seen = true;
+				}
+				workplaceCoordinates[cs - 1][axis] = (compute)
+													? currentUserPosition[axis] - coord + workplaceCoordinates[currentCoordinateSystem][axis]
+														: coord;
+			}
+		}
+
+		if (seen)
+		{
+			ToolOffsetInverseTransform(moveBuffer.coords, currentUserPosition);		// update user coordinates in case we are using the workspace we just changed
+		}
+		else
+		{
+			reply.printf("Origin of workplace %" PRIu32 ":", cs);
 			for (size_t axis = 0; axis < numVisibleAxes; axis++)
 			{
-				if (gb.Seen(axisLetters[axis]))
-				{
-					const float coord = gb.GetFValue() * distanceScale;
-					if (!seen)
-					{
-						if (!LockMovementAndWaitForStandstill(gb))						// make sure the user coordinates are stable and up to date
-						{
-							return GCodeResult::notFinished;
-						}
-						seen = true;
-					}
-					workplaceCoordinates[cs - 1][axis] = (compute)
-														? currentUserPosition[axis] - coord + workplaceCoordinates[currentCoordinateSystem][axis]
-															: coord;
-				}
+				reply.catf(" %c%.2f", axisLetters[axis], (double)(workplaceCoordinates[cs - 1][axis]/distanceScale));
 			}
-
-			if (seen)
-			{
-				ToolOffsetInverseTransform(moveBuffer.coords, currentUserPosition);		// update user coordinates in case we are using the workspace we just changed
-			}
-			else
-			{
-				reply.printf("Origin of workplace %" PRIu32 ":", cs);
-				for (size_t axis = 0; axis < numVisibleAxes; axis++)
-				{
-					reply.catf(" %c%.2f", axisLetters[axis], (double)(workplaceCoordinates[cs - 1][axis]/distanceScale));
-				}
-			}
-			return GCodeResult::ok;
 		}
+		return GCodeResult::ok;
 	}
 
 	return GCodeResult::badOrMissingParameter;
@@ -262,18 +271,12 @@ GCodeResult GCodes::GetSetWorkplaceCoordinates(GCodeBuffer& gb, const StringRef&
 // Define the probing grid, called when we see an M557 command
 GCodeResult GCodes::DefineGrid(GCodeBuffer& gb, const StringRef &reply)
 {
-	if (gb.Seen('P'))
-	{
-		reply.copy("Error: M557 P parameter is no longer supported. Use a bed.g file instead.\n");
-		return GCodeResult::error;
-	}
-
 	if (!LockMovement(gb))							// to ensure that probing is not already in progress
 	{
 		return GCodeResult::notFinished;
 	}
 
-	bool seenX = false, seenY = false, seenR = false, seenS = false;
+	bool seenX = false, seenY = false, seenR = false, seenP = false, seenS = false;
 	float xValues[2];
 	float yValues[2];
 	float spacings[2] = { DefaultGridSpacing, DefaultGridSpacing };
@@ -286,9 +289,18 @@ GCodeResult GCodes::DefineGrid(GCodeBuffer& gb, const StringRef &reply)
 	{
 		return GCodeResult::error;
 	}
-	if (gb.TryGetFloatArray('S', 2, spacings, reply, seenS, true))
+
+	uint32_t numPoints[2];
+	if (gb.TryGetUIArray('P', 2, numPoints, reply, seenP, true))
 	{
 		return GCodeResult::error;
+	}
+	if (!seenP)
+	{
+		if (gb.TryGetFloatArray('S', 2, spacings, reply, seenS, true))
+		{
+			return GCodeResult::error;
+		}
 	}
 
 	float radius = -1.0;
@@ -317,20 +329,54 @@ GCodeResult GCodes::DefineGrid(GCodeBuffer& gb, const StringRef &reply)
 
 	if (!seenX && !seenR)
 	{
-		// Must have given just the S parameter
+		// Must have given just the S or P parameter
 		reply.copy("specify at least radius or X,Y ranges in M577");
 		return GCodeResult::error;
 	}
 
-	if (!seenX)
+	if (seenX)
 	{
-		if (radius > 0)
+		// Seen both X and Y
+		if (seenP)
 		{
-			const float effectiveXRadius = floorf((radius - 0.1)/spacings[0]) * spacings[0];
+			if (spacings[0] >= 2 && xValues[1] > xValues[0])
+			{
+				spacings[0] = (xValues[1] - xValues[0])/(numPoints[0] - 1);
+			}
+			if (spacings[1] >= 2 && yValues[1] > yValues[0])
+			{
+				spacings[1] = (yValues[1] - yValues[0])/(numPoints[1] - 1);
+			}
+		}
+	}
+	else
+	{
+		// Seen R
+		if (radius > 0.0)
+		{
+			float effectiveXRadius;
+			if (seenP && numPoints[0] >= 2)
+			{
+				effectiveXRadius = radius - 0.1;
+				spacings[0] = (2 * effectiveXRadius)/(numPoints[0] - 1);
+			}
+			else
+			{
+				effectiveXRadius = floorf((radius - 0.1)/spacings[0]) * spacings[0];
+			}
 			xValues[0] = -effectiveXRadius;
 			xValues[1] =  effectiveXRadius + 0.1;
 
-			const float effectiveYRadius = floorf((radius - 0.1)/spacings[1]) * spacings[1];
+			float effectiveYRadius;
+			if (seenP && numPoints[1] >= 2)
+			{
+				effectiveYRadius = radius - 0.1;
+				spacings[1] = (2 * effectiveYRadius)/(numPoints[1] - 1);
+			}
+			else
+			{
+				effectiveYRadius = floorf((radius - 0.1)/spacings[1]) * spacings[1];
+			}
 			yValues[0] = -effectiveYRadius;
 			yValues[1] =  effectiveYRadius + 0.1;
 		}
@@ -421,61 +467,92 @@ GCodeResult GCodes::ChangeSimulationMode(GCodeBuffer& gb, const StringRef &reply
 // Handle M558
 GCodeResult GCodes::SetOrReportZProbe(GCodeBuffer& gb, const StringRef &reply)
 {
-	bool seenType = false, seenParam = false;
+	bool seen = false;
 
 	// We must get and set the Z probe type first before setting the dive height etc., because different probe types may have different parameters
+	uint32_t requestedChannel = 0;
 	if (gb.Seen('P'))		// probe type
 	{
-		platform.SetZProbeType(gb.GetIValue());
-		seenType = true;
-		DoDwellTime(gb, 100);				// delay a little to allow the averaging filters to accumulate data from the new source
+		seen = true;
+		uint32_t requestedType = gb.GetUIValue();
+		switch (requestedType)
+		{
+		case (uint32_t)ZProbeType::endstopSwitch:
+			requestedChannel = E0_AXIS;						// default channel if no C parameter present
+			break;
+
+		case (uint32_t)ZProbeType::e1Switch_obsolete:
+			requestedChannel = E0_AXIS + 1;
+			requestedType = (uint32_t)ZProbeType::endstopSwitch;
+			break;
+
+		case (uint32_t)ZProbeType::zSwitch_obsolete:
+			requestedChannel = Z_AXIS;
+			requestedType = (uint32_t)ZProbeType::endstopSwitch;
+			break;
+
+		default:
+			break;
+		}
+		platform.SetZProbeType(requestedType);
+		DoDwellTime(gb, 100);								// delay a little to allow the averaging filters to accumulate data from the new source
+	}
+
+	// Do the input channel next so that 'seen' will be true only if the type and/or the channel has been specified
+	if (gb.Seen('C'))										// input channel
+	{
+		requestedChannel = gb.GetUIValue();
+		seen = true;
 	}
 
 	ZProbe params = platform.GetCurrentZProbeParameters();
-	gb.TryGetFValue('H', params.diveHeight, seenParam);		// dive height
+	if (seen)												// if seen P and/or C
+	{
+		params.inputChannel = requestedChannel;				// set the input to the default one for this type or the requested one
+	}
 
-	if (gb.Seen('F'))		// feed rate i.e. probing speed
+	gb.TryGetFValue('H', params.diveHeight, seen);			// dive height
+	if (gb.Seen('F'))										// feed rate i.e. probing speed
 	{
 		params.probeSpeed = gb.GetFValue() * SecondsToMinutes;
-		seenParam = true;
+		seen = true;
 	}
 
 	if (gb.Seen('T'))		// travel speed to probe point
 	{
 		params.travelSpeed = gb.GetFValue() * SecondsToMinutes;
-		seenParam = true;
+		seen = true;
 	}
 
 	if (gb.Seen('I'))
 	{
 		params.invertReading = (gb.GetIValue() != 0);
-		seenParam = true;
+		seen = true;
 	}
 
 	if (gb.Seen('B'))
 	{
 		params.turnHeatersOff = (gb.GetIValue() == 1);
-		seenParam = true;
+		seen = true;
 	}
 
-	gb.TryGetFValue('R', params.recoveryTime, seenParam);	// Z probe recovery time
-	gb.TryGetFValue('S', params.tolerance, seenParam);		// tolerance when multi-tapping
+	gb.TryGetFValue('R', params.recoveryTime, seen);		// Z probe recovery time
+	gb.TryGetFValue('S', params.tolerance, seen);			// tolerance when multi-tapping
 
 	if (gb.Seen('A'))
 	{
 		params.maxTaps = gb.GetUIValue();
-		seenParam = true;
+		seen = true;
 	}
 
-	if (seenParam)
+	if (seen)
 	{
 		platform.SetZProbeParameters(platform.GetZProbeType(), params);
 	}
-
-	if (!(seenType || seenParam))
+	else
 	{
-		reply.printf("Z Probe type %u, invert %s, dive height %.1fmm, probe speed %dmm/min, travel speed %dmm/min, recovery time %.2f sec, heaters %s, max taps %u, max diff %.2f",
-						(unsigned int)platform.GetZProbeType(), (params.invertReading) ? "yes" : "no", (double)params.diveHeight,
+		reply.printf("Z Probe type %u, input %u, invert %s, dive height %.1fmm, probe speed %dmm/min, travel speed %dmm/min, recovery time %.2f sec, heaters %s, max taps %u, max diff %.2f",
+						(unsigned int)platform.GetZProbeType(), params.inputChannel, (params.invertReading) ? "yes" : "no", (double)params.diveHeight,
 						(int)(params.probeSpeed * MinutesToSeconds), (int)(params.travelSpeed * MinutesToSeconds),
 						(double)params.recoveryTime,
 						(params.turnHeatersOff) ? "suspended" : "normal",
@@ -597,7 +674,7 @@ GCodeResult GCodes::DoDriveMapping(GCodeBuffer& gb, const StringRef& reply)
 		return GCodeResult::notFinished;
 	}
 
-	bool seen = false, badDrive = false;
+	bool seen = false;
 	const char *lettersToTry = "XYZUVWABC";
 	char c;
 	while ((c = *lettersToTry) != 0)
@@ -615,19 +692,7 @@ GCodeResult GCodes::DoDriveMapping(GCodeBuffer& gb, const StringRef& reply)
 			config.numDrivers = numValues;
 			for (size_t i = 0; i < numValues; ++i)
 			{
-				if (drivers[i] >= DRIVES)
-				{
-					badDrive = true;
-				}
-				else
-				{
-					config.driverNumbers[i] = (uint8_t)drivers[i];
-				}
-			}
-
-			if (badDrive)
-			{
-				break;
+				config.driverNumbers[i] = (uint8_t)min<uint32_t>(drivers[i], 255);
 			}
 
 			// Find the drive number allocated to this axis, or allocate a new one if necessary
@@ -648,9 +713,9 @@ GCodeResult GCodes::DoDriveMapping(GCodeBuffer& gb, const StringRef& reply)
 				}
 				reprap.GetMove().SetNewPosition(moveBuffer.coords, true);	// tell the Move system where any new axes are
 				platform.SetAxisDriversConfig(drive, config);
-				if (numTotalAxes + numExtruders > DRIVES)
+				if (numTotalAxes + numExtruders > MaxTotalDrivers)
 				{
-					numExtruders = DRIVES - numTotalAxes;		// if we added axes, we may have fewer extruders now
+					numExtruders = MaxTotalDrivers - numTotalAxes;		// if we added axes, we may have fewer extruders now
 				}
 			}
 		}
@@ -660,68 +725,57 @@ GCodeResult GCodes::DoDriveMapping(GCodeBuffer& gb, const StringRef& reply)
 	if (gb.Seen(extrudeLetter))
 	{
 		seen = true;
-		size_t numValues = DRIVES - numTotalAxes;
+		size_t numValues = MaxTotalDrivers - numTotalAxes;
 		uint32_t drivers[MaxExtruders];
 		gb.GetUnsignedArray(drivers, numValues, false);
 		numExtruders = numValues;
 		for (size_t i = 0; i < numValues; ++i)
 		{
-			if (drivers[i] >= DRIVES)
-			{
-				badDrive = true;
-			}
-			else
-			{
-				platform.SetExtruderDriver(i, (uint8_t)drivers[i]);
-			}
+			platform.SetExtruderDriver(i, (uint8_t)min<uint32_t>(drivers[i], 255));
 		}
 	}
 
-	if (badDrive)
+	if (gb.Seen('P'))
 	{
-		reply.copy("Invalid driver number");
-		return GCodeResult::error;
+		seen = true;
+		const int nva = gb.GetIValue();
+		if (nva >= (int)MinAxes && (unsigned int)nva <= numTotalAxes)
+		{
+			numVisibleAxes = (size_t)nva;
+		}
+		else
+		{
+			reply.copy("Invalid number of visible axes");
+			return GCodeResult::error;
+		}
+	}
+
+	if (seen)
+	{
+		UpdateCurrentUserPosition();			// make sure that any new visible axes are up to date
 	}
 	else
 	{
-		if (gb.Seen('P'))
+		reply.copy("Driver assignments:");
+		for (size_t drive = 0; drive < numTotalAxes; ++ drive)
 		{
-			seen = true;
-			const int nva = gb.GetIValue();
-			if (nva >= (int)MinAxes && (unsigned int)nva <= numTotalAxes)
-			{
-				numVisibleAxes = (size_t)nva;
-			}
-			else
-			{
-				reply.copy("Invalid number of visible axes");
-				return GCodeResult::error;
-			}
-		}
-
-		if (!seen)
-		{
-			reply.copy("Driver assignments:");
-			for (size_t drive = 0; drive < numTotalAxes; ++ drive)
-			{
-				reply.cat(' ');
-				const AxisDriversConfig& axisConfig = platform.GetAxisDriversConfig(drive);
-				char c = axisLetters[drive];
-				for (size_t i = 0; i < axisConfig.numDrivers; ++i)
-				{
-					reply.catf("%c%u", c, axisConfig.driverNumbers[i]);
-					c = ':';
-				}
-			}
 			reply.cat(' ');
-			char c = extrudeLetter;
-			for (size_t extruder = 0; extruder < numExtruders; ++extruder)
+			const AxisDriversConfig& axisConfig = platform.GetAxisDriversConfig(drive);
+			char c = axisLetters[drive];
+			for (size_t i = 0; i < axisConfig.numDrivers; ++i)
 			{
-				reply.catf("%c%u", c, platform.GetExtruderDriver(extruder));
+				reply.catf("%c%u", c, axisConfig.driverNumbers[i]);
 				c = ':';
 			}
-			reply.catf(", %u axes visible", numVisibleAxes);
 		}
+		reply.cat(' ');
+		char c = extrudeLetter;
+		for (size_t extruder = 0; extruder < numExtruders; ++extruder)
+		{
+			reply.catf("%c%u", c, platform.GetExtruderDriver(extruder));
+			c = ':';
+		}
+		reply.catf(", %u axes visible", numVisibleAxes);
 	}
 
 	return GCodeResult::ok;
@@ -747,7 +801,7 @@ GCodeResult GCodes::ProbeTool(GCodeBuffer& gb, const StringRef& reply)
 		{
 			// Get parameters first and check them
 			const int endStopToUse = gb.Seen('E') ? gb.GetIValue() : -1;
-			if (endStopToUse > (int)DRIVES)
+			if (endStopToUse > (int)NumEndstops)
 			{
 				reply.copy("Invalid endstop number");
 				return GCodeResult::error;
@@ -788,7 +842,7 @@ GCodeResult GCodes::ProbeTool(GCodeBuffer& gb, const StringRef& reply)
 			}
 
 			// Zero every extruder drive
-			for (size_t drive = numTotalAxes; drive < DRIVES; drive++)
+			for (size_t drive = numTotalAxes; drive < MaxTotalDrivers; drive++)
 			{
 				moveBuffer.coords[drive] = 0.0;
 			}
@@ -937,33 +991,68 @@ GCodeResult GCodes::UpdateFirmware(GCodeBuffer& gb, const StringRef &reply)
 	return GCodeResult::ok;
 }
 
-// Handle M260
+// Handle M260 - send and possibly receive via I2C
 GCodeResult GCodes::SendI2c(GCodeBuffer& gb, const StringRef &reply)
 {
 #if defined(I2C_IFACE)
 	if (gb.Seen('A'))
 	{
-		uint32_t address = gb.GetUIValue();
+		const uint32_t address = gb.GetUIValueMaybeHex();
+		uint32_t numToReceive = 0;
+		bool seenR;
+		gb.TryGetUIValue('R', numToReceive, seenR);
+		int32_t values[MaxI2cBytes];
+		size_t numToSend;
 		if (gb.Seen('B'))
 		{
-			int32_t values[MaxI2cBytes];
-			size_t numValues = MaxI2cBytes;
-			gb.GetIntArray(values, numValues, false);
-			if (numValues != 0)
+			numToSend = MaxI2cBytes;
+			gb.GetIntArray(values, numToSend, false);		//TODO allow hex values
+		}
+		else
+		{
+			numToSend = 0;
+		}
+
+		if (numToSend + numToReceive != 0)
+		{
+			if (numToSend + numToReceive > MaxI2cBytes)
 			{
-				platform.InitI2c();
-				I2C_IFACE.beginTransmission((int)address);
-				for (size_t i = 0; i < numValues; ++i)
-				{
-					I2C_IFACE.write((uint8_t)values[i]);
-				}
-				if (I2C_IFACE.endTransmission() == 0)
-				{
-					return GCodeResult::ok;
-				}
+				numToReceive = MaxI2cBytes - numToSend;
+			}
+			uint8_t bValues[MaxI2cBytes];
+			for (size_t i = 0; i < numToSend; ++i)
+			{
+				bValues[i] = (uint8_t)values[i];
+			}
+
+			platform.InitI2c();
+			size_t bytesTransferred;
+			{
+				MutexLocker lock(Tasks::GetI2CMutex());
+				bytesTransferred = I2C_IFACE.Transfer(address, bValues, numToSend, numToReceive);
+			}
+
+			if (bytesTransferred < numToSend)
+			{
 				reply.copy("I2C transmission error");
 				return GCodeResult::error;
 			}
+			else if (numToReceive != 0)
+			{
+				reply.copy("Received");
+				if (bytesTransferred == numToSend)
+				{
+					reply.cat(" nothing");
+				}
+				else
+				{
+					for (size_t i = numToSend; i < bytesTransferred; ++i)
+					{
+						reply.catf(" %02x", bValues[i]);
+					}
+				}
+			}
+			return (bytesTransferred == numToSend + numToReceive) ? GCodeResult::ok : GCodeResult::error;
 		}
 	}
 
@@ -980,27 +1069,35 @@ GCodeResult GCodes::ReceiveI2c(GCodeBuffer& gb, const StringRef &reply)
 #if defined(I2C_IFACE)
 	if (gb.Seen('A'))
 	{
-		uint32_t address = gb.GetUIValue();
+		const uint32_t address = gb.GetUIValueMaybeHex();
 		if (gb.Seen('B'))
 		{
-			uint32_t numBytes = gb.GetUIValue();
+			const uint32_t numBytes = gb.GetUIValue();
 			if (numBytes > 0 && numBytes <= MaxI2cBytes)
 			{
 				platform.InitI2c();
-				I2C_IFACE.requestFrom(address, numBytes);
-				reply.copy("Received");
-				const uint32_t now = millis();
-				do
-				{
-					if (I2C_IFACE.available() != 0)
-					{
-						const unsigned int b = I2C_IFACE.read() & 0x00FF;
-						reply.catf(" %02x", b);
-						--numBytes;
-					}
-				} while (numBytes != 0 && now - millis() < 3);
 
-				return GCodeResult::ok;
+				uint8_t bValues[MaxI2cBytes];
+				size_t bytesRead;
+				{
+					MutexLocker lock(Tasks::GetI2CMutex());
+					bytesRead = I2C_IFACE.Transfer(address, bValues, 0, numBytes);
+				}
+
+				reply.copy("Received");
+				if (bytesRead == 0)
+				{
+					reply.cat(" nothing");
+				}
+				else
+				{
+					for (size_t i = 0; i < bytesRead; ++i)
+					{
+						reply.catf(" %02x", bValues[i]);
+					}
+				}
+
+				return (bytesRead == numBytes) ? GCodeResult::ok : GCodeResult::error;
 			}
 		}
 	}
@@ -1010,6 +1107,288 @@ GCodeResult GCodes::ReceiveI2c(GCodeBuffer& gb, const StringRef &reply)
 	reply.copy("I2C not available");
 	return GCodeResult::error;
 #endif
+}
+
+// Deal with M569
+GCodeResult GCodes::ConfigureDriver(GCodeBuffer& gb,const  StringRef& reply)
+{
+	if (gb.Seen('P'))
+	{
+		const size_t drive = gb.GetIValue();
+		if (drive < MaxTotalDrivers)
+		{
+			bool seen = false;
+			if (gb.Seen('S'))
+			{
+				if (!LockMovementAndWaitForStandstill(gb))
+				{
+					return GCodeResult::notFinished;
+				}
+				seen = true;
+				platform.SetDirectionValue(drive, gb.GetIValue() != 0);
+			}
+			if (gb.Seen('R'))
+			{
+				if (!LockMovementAndWaitForStandstill(gb))
+				{
+					return GCodeResult::notFinished;
+				}
+				seen = true;
+				platform.SetEnableValue(drive, (int8_t)gb.GetIValue());
+			}
+			if (gb.Seen('T'))
+			{
+				seen = true;
+				float timings[4];
+				size_t numTimings = ARRAY_SIZE(timings);
+				gb.GetFloatArray(timings, numTimings, true);
+				if (numTimings != ARRAY_SIZE(timings))
+				{
+					reply.copy("bad timing parameter");
+					return GCodeResult::error;
+				}
+				platform.SetDriverStepTiming(drive, timings);
+			}
+
+#if HAS_SMART_DRIVERS
+			{
+				uint32_t val;
+				if (gb.TryGetUIValue('D', val, seen))	// set driver mode
+				{
+					if (!SmartDrivers::SetDriverMode(drive, val))
+					{
+						reply.printf("Driver %u does not support mode '%s'", drive, TranslateDriverMode(val));
+						return GCodeResult::error;
+					}
+				}
+
+				if (gb.TryGetUIValueMaybeHex('C', val, seen))		// set chopper control register
+				{
+					if (!SmartDrivers::SetRegister(drive, SmartDriverRegister::chopperControl, val))
+					{
+						reply.printf("Bad ccr for driver %u", drive);
+						return GCodeResult::error;
+					}
+				}
+
+				if (gb.TryGetUIValue('F', val, seen))		// set off time
+				{
+					if (!SmartDrivers::SetRegister(drive, SmartDriverRegister::toff, val))
+					{
+						reply.printf("Bad off time for driver %u", drive);
+						return GCodeResult::error;
+					}
+				}
+
+				if (gb.TryGetUIValue('B', val, seen))		// set blanking time
+				{
+					if (!SmartDrivers::SetRegister(drive, SmartDriverRegister::tblank, val))
+					{
+						reply.printf("Bad blanking time for driver %u", drive);
+						return GCodeResult::error;
+					}
+				}
+
+				if (gb.TryGetUIValue('V', val, seen))		// set microstep interval for changing from stealthChop to spreadCycle
+				{
+					if (!SmartDrivers::SetRegister(drive, SmartDriverRegister::tpwmthrs, val))
+					{
+						reply.printf("Bad mode change microstep interval for driver %u", drive);
+						return GCodeResult::error;
+					}
+				}
+
+#if SUPPORT_TMC51xx
+				if (gb.TryGetUIValue('H', val, seen))		// set microstep interval for changing from stealthChop to spreadCycle
+				{
+					if (!SmartDrivers::SetRegister(drive, SmartDriverRegister::thigh, val))
+					{
+						reply.printf("Bad high speed microstep interval for driver %u", drive);
+						return GCodeResult::error;
+					}
+				}
+#endif
+			}
+
+			if (gb.Seen('Y'))								// set spread cycle hysteresis
+			{
+				seen = true;
+				uint32_t hvalues[3];
+				size_t numHvalues = 3;
+				gb.GetUnsignedArray(hvalues, numHvalues, false);
+				if (numHvalues == 2 || numHvalues == 3)
+				{
+					// There is a constraint on the sum of HSTRT and HEND, so set HSTART then HEND then HSTART again because one may go up and the other down
+					(void)SmartDrivers::SetRegister(drive, SmartDriverRegister::hstart, hvalues[0]);
+					bool ok = SmartDrivers::SetRegister(drive, SmartDriverRegister::hend, hvalues[1]);
+					if (ok)
+					{
+						ok = SmartDrivers::SetRegister(drive, SmartDriverRegister::hstart, hvalues[0]);
+					}
+					if (ok && numHvalues == 3)
+					{
+						ok = SmartDrivers::SetRegister(drive, SmartDriverRegister::hdec, hvalues[2]);
+					}
+					if (!ok)
+					{
+						reply.printf("Bad hysteresis setting for driver %u", drive);
+						return GCodeResult::error;
+					}
+				}
+				else
+				{
+					reply.copy("Expected 2 or 3 H values");
+					return GCodeResult::error;
+				}
+			}
+#endif
+			if (!seen)
+			{
+				reply.printf("Drive %u runs %s, active %s enable, step timing ",
+							drive,
+							(platform.GetDirectionValue(drive)) ? "forwards" : "in reverse",
+							(platform.GetEnableValue(drive)) ? "high" : "low");
+							float timings[4];
+							const bool isSlowDriver = platform.GetDriverStepTiming(drive, timings);
+							if (isSlowDriver)
+							{
+								reply.catf("%.1f:%.1f:%.1f:%.1fus", (double)timings[0], (double)timings[1], (double)timings[2], (double)timings[3]);
+							}
+							else
+							{
+								reply.cat("fast");
+							}
+#if HAS_SMART_DRIVERS
+				if (drive < platform.GetNumSmartDrivers())
+				{
+					reply.catf(", mode %s, ccr 0x%05" PRIx32 ", toff %" PRIu32 ", tblank %" PRIu32 ", hstart/hend/hdec %" PRIu32 "/%" PRIu32 "/%" PRIu32,
+							TranslateDriverMode(SmartDrivers::GetDriverMode(drive)),
+							SmartDrivers::GetRegister(drive, SmartDriverRegister::chopperControl),
+							SmartDrivers::GetRegister(drive, SmartDriverRegister::toff),
+							SmartDrivers::GetRegister(drive, SmartDriverRegister::tblank),
+							SmartDrivers::GetRegister(drive, SmartDriverRegister::hstart),
+							SmartDrivers::GetRegister(drive, SmartDriverRegister::hend),
+							SmartDrivers::GetRegister(drive, SmartDriverRegister::hdec)
+						);
+
+#if SUPPORT_TMC2660
+					{
+						const uint32_t mstepPos = SmartDrivers::GetRegister(drive, SmartDriverRegister::mstepPos);
+						if (mstepPos < 1024)
+						{
+							reply.catf(", pos %" PRIu32, mstepPos);
+						}
+						else
+						{
+							reply.cat(", pos unknown");
+						}
+					}
+#endif
+
+#if SUPPORT_TMC22xx || SUPPORT_TMC51xx
+					{
+						const uint32_t tpwmthrs = SmartDrivers::GetRegister(drive, SmartDriverRegister::tpwmthrs);
+						const uint32_t axis = SmartDrivers::GetAxisNumber(drive);
+						bool bdummy;
+						const float mmPerSec = (12000000.0 * platform.GetDriverMicrostepping(drive, bdummy))/(256 * tpwmthrs * platform.DriveStepsPerUnit(axis));
+						reply.catf(", tpwmthrs %" PRIu32 " (%.1f mm/sec)", tpwmthrs, (double)mmPerSec);
+					}
+#endif
+
+#if SUPPORT_TMC51xx
+					{
+						const uint32_t thigh = SmartDrivers::GetRegister(drive, SmartDriverRegister::thigh);
+						const uint32_t axis = SmartDrivers::GetAxisNumber(drive);
+						bool bdummy;
+						const float mmPerSec = (12000000.0 * platform.GetDriverMicrostepping(drive, bdummy))/(256 * thigh * platform.DriveStepsPerUnit(axis));
+						reply.catf(", thigh %" PRIu32 " (%.1f mm/sec)", thigh, (double)mmPerSec);
+					}
+#endif
+				}
+#endif
+			}
+		}
+	}
+	return GCodeResult::ok;
+}
+
+// Set the heater model (M307)
+GCodeResult GCodes::SetHeaterModel(GCodeBuffer& gb, const StringRef& reply)
+{
+	if (gb.Seen('H'))
+	{
+		const unsigned int heater = gb.GetUIValue();
+		if (heater < NumHeaters)
+		{
+			const FopDt& model = reprap.GetHeat().GetHeaterModel(heater);
+			bool seen = false;
+			float gain = model.GetGain(),
+				tc = model.GetTimeConstant(),
+				td = model.GetDeadTime(),
+				maxPwm = model.GetMaxPwm(),
+				voltage = model.GetVoltage();
+			uint32_t freq = model.GetPwmFrequency();
+			int32_t dontUsePid = model.UsePid() ? 0 : 1;
+			int32_t inversionParameter = 0;
+
+			gb.TryGetFValue('A', gain, seen);
+			gb.TryGetFValue('C', tc, seen);
+			gb.TryGetFValue('D', td, seen);
+			gb.TryGetIValue('B', dontUsePid, seen);
+			gb.TryGetFValue('S', maxPwm, seen);
+			gb.TryGetFValue('V', voltage, seen);
+			gb.TryGetIValue('I', inversionParameter, seen);
+			gb.TryGetUIValue('F', freq, seen);
+
+			if (seen)
+			{
+				const bool inverseTemperatureControl = (inversionParameter == 1 || inversionParameter == 3);
+				if (!reprap.GetHeat().SetHeaterModel(heater, gain, tc, td, maxPwm, voltage,
+														dontUsePid == 0, inverseTemperatureControl, (uint16_t)min<uint32_t>(freq, MaxHeaterPwmFrequency)))
+				{
+					reply.copy("bad model parameters");
+					return GCodeResult::error;
+				}
+
+				const bool invertedPwmSignal = (inversionParameter == 2 || inversionParameter == 3);
+				reprap.GetHeat().SetHeaterSignalInverted(heater, invertedPwmSignal);
+			}
+			else if (!model.IsEnabled())
+			{
+				reply.printf("Heater %u is disabled", heater);
+			}
+			else
+			{
+				const char* mode = (!model.UsePid()) ? "bang-bang"
+									: (model.ArePidParametersOverridden()) ? "custom PID"
+										: "PID";
+				const bool pwmSignalInverted = reprap.GetHeat().IsHeaterSignalInverted(heater);
+				const char* const inverted = model.IsInverted()
+										? (pwmSignalInverted ? "PWM signal and temperature control" : "temperature control")
+										: (pwmSignalInverted ? "PWM signal" : "no");
+
+				reply.printf("Heater %u model: gain %.1f, time constant %.1f, dead time %.1f, max PWM %.2f, calibration voltage %.1f, mode %s, inverted %s, frequency ",
+						heater, (double)model.GetGain(), (double)model.GetTimeConstant(), (double)model.GetDeadTime(), (double)model.GetMaxPwm(), (double)model.GetVoltage(), mode, inverted);
+				if (model.GetPwmFrequency() == 0)
+				{
+					reply.cat("default");
+				}
+				else
+				{
+					reply.catf("%uHz", model.GetPwmFrequency());
+				}
+				if (model.UsePid())
+				{
+					// When reporting the PID parameters, we scale them by 255 for compatibility with older firmware and other firmware
+					M301PidParameters params = model.GetM301PidParameters(false);
+					reply.catf("\nComputed PID parameters for setpoint change: P%.1f, I%.3f, D%.1f", (double)params.kP, (double)params.kI, (double)params.kD);
+					params = model.GetM301PidParameters(true);
+					reply.catf("\nComputed PID parameters for load change: P%.1f, I%.3f, D%.1f", (double)params.kP, (double)params.kI, (double)params.kD);
+				}
+			}
+		}
+	}
+	return GCodeResult::ok;
 }
 
 // End

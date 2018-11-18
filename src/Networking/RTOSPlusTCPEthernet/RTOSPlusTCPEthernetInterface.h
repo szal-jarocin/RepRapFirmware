@@ -53,7 +53,10 @@ public:
 	bool IsWiFiInterface() const override { return false; }
 
 	void UpdateHostname(const char *name) override { }
-	const uint8_t *GetIPAddress() const override { return ipAddress; }
+	//const uint8_t *GetIPAddress() const override { return ipAddress; }
+    IPAddress GetIPAddress() const override { return ipAddress; }
+    void SetIPAddress(IPAddress p_ip, IPAddress p_netmask, IPAddress p_gateway) override;
+
 	void SetMacAddress(const uint8_t mac[]) override;
 	const uint8_t *GetMacAddress() const override { return macAddress; }
 
@@ -111,9 +114,12 @@ private:
 	bool activated;
 	bool usingDhcp;
 
-	uint8_t ipAddress[4];
-	uint8_t netmask[4];
-	uint8_t gateway[4];
+//    uint8_t ipAddress[4];
+//    uint8_t netmask[4];
+//    uint8_t gateway[4];
+    IPAddress ipAddress;
+    IPAddress netmask;
+    IPAddress gateway;
     uint8_t dnsServerAddress[4];
 	uint8_t macAddress[6];
 };

@@ -191,8 +191,35 @@ const char * const moduleName[] =
 	"DuetExpansion",
 	"FilamentSensors",
 	"WiFi",
+	"Display",
 	"none"
 };
+
+// class MillisTimer members
+
+// Start or restart the timer
+void MillisTimer::Start()
+{
+	whenStarted = millis();
+	running = true;
+}
+
+// Check whether the timer is running and a timeout has expired, but don't stop it
+bool MillisTimer::Check(uint32_t timeoutMillis) const
+{
+	return running && millis() - whenStarted >= timeoutMillis;
+}
+
+// Check whether a timeout has expired and stop the timer if it has, else leave it running if it was running
+bool MillisTimer::CheckAndStop(uint32_t timeoutMillis)
+{
+	const bool ret = Check(timeoutMillis);
+	if (ret)
+	{
+		running = false;
+	}
+	return ret;
+}
 
 //*************************************************************************************************
 
@@ -265,14 +292,14 @@ int StringContains(const char* string, const char* match)
 	int i = 0;
 	int count = 0;
 
-	while(string[i])
+	while (string[i] != 0)
 	{
 		if (string[i++] == match[count])
 		{
 			count++;
-			if (!match[count])
+			if (match[count] == 0)
 			{
-				return i;
+				return i - count;
 			}
 		}
 		else
@@ -317,6 +344,16 @@ void ListDrivers(const StringRef& str, DriversBitmap drivers)
 		}
 		drivers >>= 1;
 	}
+}
+
+// Convert a PWM that is possibly in the old style 0..255 to be in the range 0.0..1.0
+float ConvertOldStylePwm(float v)
+{
+	if (v > 1.0)
+	{
+		v = v/255.0;
+	}
+	return constrain<float>(v, 0.0, 1.0);
 }
 
 // End

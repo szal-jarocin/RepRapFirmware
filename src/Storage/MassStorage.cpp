@@ -2,7 +2,6 @@
 #include "Platform.h"
 #include "RepRap.h"
 #include "sd_mmc.h"
-#include "RTOSIface.h"
 
 // A note on using mutexes:
 // Each SD card volume has its own mutex. There is also one for the file table, and one for the find first/find next buffer.
@@ -269,7 +268,7 @@ bool MassStorage::FindNext(FileInfo &file_info)
 	return true;
 }
 
-// Quit searching for files. Needed to avoid hanging on to the mutex.
+// Quit searching for files. Needed to avoid hanging on to the mutex. Safe to call even if the caller doesn't hold the mutex.
 void MassStorage::AbandonFindNext()
 {
 	if (dirMutex.GetHolder() == RTOSIface::GetCurrentTask())
@@ -707,7 +706,7 @@ void MassStorage::Spin()
 		{
 			if (fil.closeRequested)
 			{
-				// We cannot do this in ISRs, so do it here
+				// We could not close this file in an ISR, so do it here
 				fil.Close();
 			}
 		}

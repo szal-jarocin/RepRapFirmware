@@ -26,16 +26,19 @@
 
 // The physical capabilities of the machine
 
-// The number of drives in the machine, including X, Y, and Z plus extruder drives
-constexpr size_t DRIVES = 5;
-
-// Initialization macro used in statements needing to initialize values in arrays of size DRIVES.  E.g.,
-// max_feed_rates[DRIVES] = {DRIVES_(1, 1, 1, 1, 1, 1, 1, 1, 1, 1)}
+constexpr size_t DRIVES = 5; // The number of drives in the machine, including X, Y, and Z plus extruder drives
 #define DRIVES_(a,b,c,d,e,f,g,h,i,j,k,l) { a,b,c,d,e }
 
-// The number of heaters in the machine
-// 0 is the heated bed even if there isn't one.
-constexpr size_t Heaters = 3; //Smoothie (Bed + H1 + H2)
+
+constexpr size_t NumDirectDrivers = DRIVES;                // The maximum number of drives supported by the electronics
+constexpr size_t MaxTotalDrivers = NumDirectDrivers;
+constexpr size_t MaxSmartDrivers = 0;                // The maximum number of smart drivers
+
+
+constexpr size_t NumEndstops = 3;                    // The number of inputs we have for endstops, filament sensors etc.
+constexpr size_t NumHeaters = 3;                    // The number of heaters in the machine; 0 is the heated bed even if there isn't one
+constexpr size_t NumThermistorInputs = 3;
+
 
 // Initialization macro used in statements needing to initialize values in arrays of size HEATERS.  E.g.,
 #define HEATERS_(a,b,c,d,e,f,g,h) { a,b,c }
@@ -61,14 +64,13 @@ constexpr Pin DIRECTION_PINS[DRIVES] =          { P0_5,  P0_11, P0_20, P0_22,  P
 
 
 // Endstops
-// Note: RepRapFirmware only as a single endstop per axis
-//       gcode defines if it is a max ("high end") or min ("low end")
-//       endstop.  gcode also sets if it is active HIGH or LOW
-//
+// RepRapFirmware only as a single endstop per axis
+// gcode defines if it is a max ("high end") or min ("low end") endstop.  gcode also sets if it is active HIGH or LOW
+
 
 //Smoothie has 6 Endstops (RRF only supports 3, We will use the MAX endstops) (and Z_Min for the Probe)
-//                                    X      Y      Z     E0      E1
-constexpr Pin END_STOP_PINS[DRIVES] = { P1_25, P1_27, P1_29, NoPin, NoPin}; // E stop could be mapped to a spare endstop pin if needed...
+//                                            X      Y      Z
+constexpr Pin END_STOP_PINS[NumEndstops] = { P1_25, P1_27, P1_29}; // E stop could be mapped to a spare endstop pin if needed...
 
 
 //Smoothie uses MCP4451
@@ -80,16 +82,9 @@ constexpr float digipotFactor = 113.33; //factor for converting current to digip
 
 
 // HEATERS - The bed is assumed to be the at index 0
-
-// Analogue pin numbers
-//                                            Bed    H1     H2
-constexpr Pin TEMP_SENSE_PINS[Heaters] = HEATERS_(P0_24, P0_23, P0_25, d, e, f, g, h);
-
-
-// Heater outputs
-
-// Note: P2_5 is hardware PWM capable, P2_7 is not
-constexpr Pin HEAT_ON_PINS[Heaters] = HEATERS_(P2_5, P2_7, P1_23, d, e, f, g, h); // bed, h0, h1
+//                                                     Bed    H1     H2
+constexpr Pin TEMP_SENSE_PINS[NumThermistorInputs] = {P0_24, P0_23, P0_25};
+constexpr Pin HEAT_ON_PINS[NumHeaters] = {P2_5, P2_7, P1_23};
 
 // PWM -
 //       The Hardware PWM channels ALL share the same Frequency,
@@ -128,10 +123,10 @@ constexpr Pin HEAT_ON_PINS[Heaters] = HEATERS_(P2_5, P2_7, P1_23, d, e, f, g, h)
 
 // Default thermistor betas
 constexpr float BED_R25 = 100000.0;
-constexpr float BED_BETA = 4066.0;
+constexpr float BED_BETA = 3988.0;
 constexpr float BED_SHC = 0.0;
 constexpr float EXT_R25 = 100000.0;
-constexpr float EXT_BETA = 4066.0;
+constexpr float EXT_BETA = 4388.0;
 constexpr float EXT_SHC = 0.0;
 
 // Thermistor series resistor value in Ohms
@@ -156,8 +151,9 @@ constexpr Pin ATX_POWER_PIN = NoPin;
 constexpr Pin Z_PROBE_PIN = P1_28;
 
 // Digital pin number to turn the IR LED on (high) or off (low)
+constexpr Pin Z_PROBE_MOD_PIN06 = NoPin;                                        // Digital pin number to turn the IR LED on (high) or off (low) on Duet v0.6 and v1.0 (PB21)
+constexpr Pin Z_PROBE_MOD_PIN07 = NoPin;                                        // Digital pin number to turn the IR LED on (high) or off (low) on Duet v0.7 and v0.8.5 (PC10)
 constexpr Pin Z_PROBE_MOD_PIN = NoPin;
-
 constexpr Pin DiagPin = NoPin;
 
 
@@ -207,7 +203,7 @@ constexpr Pin SpecialPinMap[] =
     
     P1_24,  //XMin Endstop
     P1_26,  //yMin Endstop
-    P0_26   //T4 (dont use AGND as GND next to it when using as a Digital Pin
+    P0_26   //T4 (dont use AGND as a normal GND next to it when using as a Digital Pin
     
     //Spare on 3&4 driver boards
     //P1_22

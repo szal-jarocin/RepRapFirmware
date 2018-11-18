@@ -16,6 +16,10 @@
 
 #endif
 
+#if USE_CACHE
+# include "cmcc/cmcc.h"
+#endif
+
 const uint8_t memPattern = 0xA5;
 
 extern "C" char *sbrk(int i);
@@ -25,20 +29,41 @@ extern char _end;
 #ifdef RTOS
 
 // The main task currently runs GCodes, so it needs to be large enough to hold the matrices used for auto calibration.
-#if __LPC17xx__
-    #if defined(LPC_NETWORKING)
-        constexpr unsigned int MainTaskStackWords = 1616;
-    #else
-        constexpr unsigned int MainTaskStackWords = 2040;
-    #endif
-
+// The timer and idle tasks currently never do I/O, so they can be much smaller.
+#if defined(LPC_NETWORKING)
+    constexpr unsigned int MainTaskStackWords = 1616;
 #else
-constexpr unsigned int MainTaskStackWords = 2040;
+    constexpr unsigned int MainTaskStackWords = 2040;
 #endif
+constexpr unsigned int IdleTaskStackWords = 60;
 
+static Task<IdleTaskStackWords> idleTask;
 static Task<MainTaskStackWords> mainTask;
+
 static Mutex spiMutex;
+static Mutex i2cMutex;
 static Mutex mallocMutex;
+
+extern "C" void vApplicationGetIdleTaskMemory(StaticTask_t **ppxIdleTaskTCBBuffer, StackType_t **ppxIdleTaskStackBuffer, uint32_t *pulIdleTaskStackSize)
+{
+	*ppxIdleTaskTCBBuffer = idleTask.GetTaskMemory();
+	*ppxIdleTaskStackBuffer = idleTask.GetStackBase();
+	*pulIdleTaskStackSize = idleTask.GetStackSize();
+}
+
+#if configUSE_TIMERS
+
+constexpr unsigned int TimerTaskStackWords = 60;
+static Task<TimerTaskStackWords> timerTask;
+
+extern "C" void vApplicationGetTimerTaskMemory(StaticTask_t **ppxTimerTaskTCBBuffer, StackType_t **ppxTimerTaskStackBuffer, uint32_t *pulTimerTaskStackSize)
+{
+    *ppxTimerTaskTCBBuffer = timerTask.GetTaskMemory();
+    *ppxTimerTaskStackBuffer = timerTask.GetStackBase();
+    *pulTimerTaskStackSize = timerTask.GetStackSize();
+}
+
+#endif
 
 extern "C" void MainTask(void * pvParameters);
 
@@ -91,18 +116,23 @@ extern "C" void AppMain()
     
 #if USE_CACHE
 	// Enable the cache
-	struct cmcc_config g_cmcc_cfg;
+	cmcc_config g_cmcc_cfg;
 	cmcc_get_config_defaults(&g_cmcc_cfg);
 	cmcc_init(CMCC, &g_cmcc_cfg);
 	EnableCache();
 #endif
 
 #ifdef RTOS
+	// Add the FreeRTOS internal tasks to the task list
+	idleTask.AddToList();
 
-    // Create the startup task
-    mainTask.Create(MainTask, "MAIN", nullptr, TaskBase::SpinPriority);
-	vTaskStartScheduler();			// doesn't return unless out of memory
+#if configUSE_TIMERS
+	timerTask.AddToList();
+#endif
 
+	// Create the startup task
+	mainTask.Create(MainTask, "MAIN", nullptr, TaskBase::SpinPriority);
+	vTaskStartScheduler();			// doesn't return
 }
 
 extern "C" void MainTask(void *pvParameters)
@@ -110,6 +140,7 @@ extern "C" void MainTask(void *pvParameters)
 
     mallocMutex.Create("Malloc");
 	spiMutex.Create("SPI");
+	i2cMutex.Create("I2C");
 #endif
 	reprap.Init();
 
@@ -232,7 +263,7 @@ namespace Tasks
             
             uint32_t totalMainUsage = (uint32_t)((&_end - ramstart) + mi.uordblks + maxStack);
             
-            p.MessageF(mtype, "Main SRAM               : %" PRIu32 "/%" PRIu32 " (%" PRIu32 " free, %" PRIu32 " never used)\n", totalMainUsage, (uint32_t)32*1024, 32*1024-totalMainUsage, neverUsed );
+            p.MessageF(mtype, "Main SRAM         : %" PRIu32 "/%" PRIu32 " (%" PRIu32 " free, %" PRIu32 " never used)\n", totalMainUsage, (uint32_t)32*1024, 32*1024-totalMainUsage, neverUsed );
             //p.MessageF(mtype, "AHB SRAM                : %" PRIu32 "/%" PRIu32 " (%" PRIu32 " free)\n", ahb0_total_used, (uint32_t)32*1024, (uint32_t)ahb0_free  );
             
 
@@ -311,61 +342,24 @@ namespace Tasks
 		return nullptr;
 #endif
 	}
-}
 
+	const Mutex *GetI2CMutex()
+	{
 #ifdef RTOS
-
-static StaticTask_t xIdleTaskTCB;
-
-#if __LPC17xx__
-    static StackType_t uxIdleTaskStack[30]; //according to vTaskList only using 10 words...
-    // setting to 30 just in case, still saving 360 bytes
+		return &i2cMutex;
 #else
-    static StackType_t uxIdleTaskStack[configMINIMAL_STACK_SIZE];
+		return nullptr;
 #endif
-
-
-extern "C" void vApplicationGetIdleTaskMemory( StaticTask_t **ppxIdleTaskTCBBuffer,
-                                    StackType_t **ppxIdleTaskStackBuffer,
-                                    uint32_t *pulIdleTaskStackSize )
-{
-    /* Pass out a pointer to the StaticTask_t structure in which the Idle task's state will be stored. */
-    *ppxIdleTaskTCBBuffer = &xIdleTaskTCB;
-
-    /* Pass out the array that will be used as the Idle task's stack. */
-    *ppxIdleTaskStackBuffer = uxIdleTaskStack;
-
-    /* Pass out the size of the array pointed to by *ppxIdleTaskStackBuffer. */
-    *pulIdleTaskStackSize = ARRAY_SIZE(uxIdleTaskStack);
+	}
 }
-
-static StaticTask_t xTimerTaskTCB;
-static StackType_t uxTimerTaskStack[configTIMER_TASK_STACK_DEPTH];
-
-extern "C" void vApplicationGetTimerTaskMemory( StaticTask_t **ppxTimerTaskTCBBuffer,
-                                     StackType_t **ppxTimerTaskStackBuffer,
-                                     uint32_t *pulTimerTaskStackSize )
-{
-    /* Pass out a pointer to the StaticTask_t structure in which the Timer task's state will be stored. */
-    *ppxTimerTaskTCBBuffer = &xTimerTaskTCB;
-
-    /* Pass out the array that will be used as the Timer task's stack. */
-    *ppxTimerTaskStackBuffer = uxTimerTaskStack;
-
-    /* Pass out the size of the array pointed to by *ppxTimerTaskStackBuffer. */
-    *pulTimerTaskStackSize = ARRAY_SIZE(uxTimerTaskStack);
-}
-
-#endif
 
 // Exception handlers
 extern "C"
 {
-	// This intercepts the 1ms system tick. It must return 'false', otherwise the Arduino core tick handler will be bypassed.
-	int sysTickHook()
+	// This intercepts the 1ms system tick
+	void sysTickHook()
 	{
 		reprap.Tick();
-		return 0;
 	}
 
 	// Exception handlers

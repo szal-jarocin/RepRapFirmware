@@ -22,8 +22,9 @@ Licence: GPL
 #define REPRAP_H
 
 #include "RepRapFirmware.h"
+#include "ObjectModel/ObjectModel.h"
 #include "MessageType.h"
-#include "RTOSIface.h"
+#include "RTOSIface/RTOSIface.h"
 
 enum class ResponseSource
 {
@@ -32,7 +33,7 @@ enum class ResponseSource
 	Generic
 };
 
-class RepRap
+class RepRap INHERIT_OBJECT_MODEL
 {
 public:
 	RepRap();
@@ -120,6 +121,9 @@ public:
 #ifdef RTOS
 	void KickHeatTaskWatchdog() { heatTaskIdleTicks = 0; }
 #endif
+
+protected:
+	DECLARE_OBJECT_MODEL
 
 private:
 	static void EncodeString(StringRef& response, const char* src, size_t spaceToLeave, bool allowControlChars = false, char prefix = 0);

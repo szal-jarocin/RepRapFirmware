@@ -13,7 +13,7 @@
 #include "HttpResponder.h"
 #include "FtpResponder.h"
 #include "TelnetResponder.h"
-#include "Libraries/General/IP4String.h"
+#include "General/IP4String.h"
 
 #include <FreeRTOS.h>
 #include "task.h"
@@ -22,6 +22,7 @@
 
 #include "FreeRTOS_Sockets.h"
 #include "FreeRTOS_DHCP.h"
+#include "RTOSIface.h"
 
 constexpr size_t TcpPlusStackWords = ( uint16_t ) ipconfigIP_TASK_STACK_SIZE_WORDS; // needs to be aroud 240 when debugging with debugPrintf
 static Task<TcpPlusStackWords> tcpPlusTask;
@@ -43,7 +44,7 @@ inline void convert32bitIPAddress(uint32_t &ulIPAddress, uint8_t ip[])
     
 }
 
-
+int f = TaskBase::TcpPriority;
 
 RTOSPlusTCPEthernetInterface *rtosTCPEtherInterfacePtr; //pointer to the clas instance so we can call from the c hooks
 
@@ -323,7 +324,7 @@ void RTOSPlusTCPEthernetInterface::Exit()
 // Get the network state into the reply buffer, returning true if there is some sort of error
 GCodeResult RTOSPlusTCPEthernetInterface::GetNetworkState(const StringRef& reply)
 {
-	const uint8_t * const config_ip = platform.GetIPAddress();
+	IPAddress config_ip = platform.GetIPAddress();
 	const int enableState = EnableState();
 	reply.printf("Network is %s, configured IP address: %s, actual IP address: %s",
 			(enableState == 0) ? "disabled" : "enabled",
@@ -365,7 +366,12 @@ void RTOSPlusTCPEthernetInterface::Start()
     ucMACAddress[5] = macAddress[5];
 
     
-    BaseType_t ret = FreeRTOS_IPInit( ipAddress, netmask, gateway, dnsServerAddress, macAddress );
+    uint8_t ip[4], nm[4], gw[4];
+    ipAddress.UnpackV4(ip);
+    netmask.UnpackV4(nm);
+    gateway.UnpackV4(gw);
+    
+    BaseType_t ret = FreeRTOS_IPInit( ip, nm, gw, dnsServerAddress, macAddress );
     if(ret == pdFALSE){
         FreeRTOS_debug_printf( ( "Failed to start IP") );
         state = NetworkState::disabled;
@@ -513,12 +519,20 @@ int RTOSPlusTCPEthernetInterface::EnableState() const
 	return (state == NetworkState::disabled) ? 0 : 1;
 }
 
-void RTOSPlusTCPEthernetInterface::SetIPAddress(const uint8_t p_ipAddress[], const uint8_t p_netmask[], const uint8_t p_gateway[])
+//void RTOSPlusTCPEthernetInterface::SetIPAddress(const uint8_t p_ipAddress[], const uint8_t p_netmask[], const uint8_t p_gateway[])
+//{
+//    memcpy(ipAddress, p_ipAddress, sizeof(ipAddress));
+//    memcpy(netmask, p_netmask, sizeof(netmask));
+//    memcpy(gateway, p_gateway, sizeof(gateway));
+//}
+
+void RTOSPlusTCPEthernetInterface::SetIPAddress(IPAddress p_ip, IPAddress p_netmask, IPAddress p_gateway)
 {
-	memcpy(ipAddress, p_ipAddress, sizeof(ipAddress));
-	memcpy(netmask, p_netmask, sizeof(netmask));
-	memcpy(gateway, p_gateway, sizeof(gateway));
+    ipAddress = p_ip;
+    netmask = p_netmask;
+    gateway = p_gateway;
 }
+
 
 void RTOSPlusTCPEthernetInterface::OpenDataPort(Port port)
 {
@@ -604,9 +618,14 @@ void RTOSPlusTCPEthernetInterface::ProcessIPApplication( eIPCallbackEvent_t eNet
         else
         {
             //update the class private vars with the values we got from +tcp
-            convert32bitIPAddress(ulIPAddress, ipAddress);
-            convert32bitIPAddress(ulNetMask, netmask);
-            convert32bitIPAddress(ulGatewayAddress, gateway);
+            //convert32bitIPAddress(ulIPAddress, ipAddress);
+            //convert32bitIPAddress(ulNetMask, netmask);
+            //convert32bitIPAddress(ulGatewayAddress, gateway);
+            
+            ipAddress.SetV4LittleEndian(ulIPAddress);
+            netmask.SetV4LittleEndian(ulNetMask);
+            gateway.SetV4LittleEndian(ulGatewayAddress);
+            
             convert32bitIPAddress(ulDNSServerAddress, dnsServerAddress);
 
             state = NetworkState::connected; //set connected state (we have IP address)
@@ -651,7 +670,7 @@ eDHCPCallbackAnswer_t RTOSPlusTCPEthernetInterface::ProcessDHCPHook( eDHCPCallba
              */
             
             
-            if(ipAddress[0] == 0 && ipAddress[1] == 0 && ipAddress[2] == 0 && ipAddress[3] == 0)
+            if(ipAddress.GetV4LittleEndian() == 0)
             {
                 eReturn = eDHCPContinue; //use DHCP
             }
