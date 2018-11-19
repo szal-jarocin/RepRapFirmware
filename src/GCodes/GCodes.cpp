@@ -1371,7 +1371,7 @@ void GCodes::RunStateMachine(GCodeBuffer& gb, const StringRef& reply)
 			}
 			else
 			{
-				tool->SetOffset(Z_AXIS, tool->GetOffset(Z_AXIS) - g30zHeightError, true);
+				tool->SetOffset(Z_AXIS, -g30zHeightError, true);
 				ToolOffsetInverseTransform(moveBuffer.coords, currentUserPosition);		// update user coordinates to reflect the new tool offset
 			}
 		}
