@@ -34,9 +34,14 @@ constexpr size_t DRIVES = 4;
 // max_feed_rates[DRIVES] = {DRIVES_(1, 1, 1, 1, 1, 1, 1, 1, 1, 1)}
 #define DRIVES_(a,b,c,d,e,f,g,h,i,j,k,l) { a,b,c,d }
 
-// The number of heaters in the machine
-// 0 is the heated bed even if there isn't one.
-constexpr size_t Heaters = 2; //Azteeg X5 Mini (Bed + Hotend)
+constexpr size_t NumDirectDrivers = DRIVES;                // The maximum number of drives supported by the electronics
+constexpr size_t MaxTotalDrivers = NumDirectDrivers;
+constexpr size_t MaxSmartDrivers = 0;                // The maximum number of smart drivers
+
+
+constexpr size_t NumEndstops = 3;                    // The number of inputs we have for endstops, filament sensors etc.
+constexpr size_t NumHeaters = 2;                    // The number of heaters in the machine; 0 is the heated bed even if there isn't one
+constexpr size_t NumThermistorInputs = 2;
 
 // Initialization macro used in statements needing to initialize values in arrays of size HEATERS.  E.g.,
 #define HEATERS_(a,b,c,d,e,f,g,h) { a,b }
@@ -68,7 +73,7 @@ constexpr Pin DIRECTION_PINS[DRIVES] =          { P0_11, P0_20, P0_22, P0_5};
 //
 
 //Azteeg X5 Mini has 3 Endstops and one Probe
-constexpr Pin END_STOP_PINS[DRIVES] = { P1_24, P1_26, P1_28, NoPin}; // E stop could be mapped to a spare pin if needed...
+constexpr Pin END_STOP_PINS[NumEndstops] = { P1_24, P1_26, P1_28};
 
 
 //Azteeg X5MiniV1.1 uses MCP4451-103
@@ -83,14 +88,14 @@ constexpr float digipotFactor = 106.0; //factor for converting current to digipo
 
 // Analogue pin numbers
 //                                            Bed     Hotend
-constexpr Pin TEMP_SENSE_PINS[Heaters] = HEATERS_(P0_23, P0_24, c, d, e, f, g, h);
+constexpr Pin TEMP_SENSE_PINS[NumThermistorInputs] = {P0_23, P0_24};
 
 
 // Heater outputs
 
 // Note: P2_5 is hardware PWM capable, P2_7 is not
 
-constexpr Pin HEAT_ON_PINS[Heaters] = HEATERS_(P2_7, P2_5, c, d, e, f, g, h); // bed, h0
+constexpr Pin HEAT_ON_PINS[NumHeaters] = {P2_7, P2_5}; // bed, h0
 // PWM -
 //       The Hardware PWM channels ALL share the same Frequency,
 //       we will use Hardware PWM for Hotends (on board which have the heater on a hardware PWM capable pin)
@@ -129,10 +134,10 @@ constexpr Pin HEAT_ON_PINS[Heaters] = HEATERS_(P2_7, P2_5, c, d, e, f, g, h); //
 
 // Default thermistor betas
 constexpr float BED_R25 = 100000.0;
-constexpr float BED_BETA = 4066.0;
+constexpr float BED_BETA = 3988.0;
 constexpr float BED_SHC = 0.0;
 constexpr float EXT_R25 = 100000.0;
-constexpr float EXT_BETA = 4066.0;
+constexpr float EXT_BETA = 4388.0;
 constexpr float EXT_SHC = 0.0;
 
 // Thermistor series resistor value in Ohms

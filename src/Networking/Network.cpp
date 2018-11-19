@@ -58,7 +58,7 @@ Network::Network(Platform& p) : platform(p), responders(nullptr), nextResponderT
 #elif defined(DUET_M)
 	interfaces[0] = new W5500Interface(p);
 #elif defined(__LPC17xx__)
-    interfaces[0] = new (AHB0) RTOSPlusTCPEthernetInterface(p);
+    interfaces[0] = new RTOSPlusTCPEthernetInterface(p);
 #else
 # error Unknown board
 #endif
@@ -119,11 +119,7 @@ void Network::Init()
 	}
 	for (size_t i = 0; i < NumHttpResponders; ++i)
 	{
-#if defined(__LPC17xx__)
-        responders = new (AHB0) HttpResponder(responders);
-#else
 		responders = new HttpResponder(responders);
-#endif
 	}
 
 	SafeStrncpy(hostname, DEFAULT_HOSTNAME, ARRAY_SIZE(hostname));

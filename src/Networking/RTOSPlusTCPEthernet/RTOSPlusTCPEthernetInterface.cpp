@@ -44,10 +44,7 @@ inline void convert32bitIPAddress(uint32_t &ulIPAddress, uint8_t ip[])
     
 }
 
-int f = TaskBase::TcpPriority;
-
 RTOSPlusTCPEthernetInterface *rtosTCPEtherInterfacePtr; //pointer to the clas instance so we can call from the c hooks
-
 
 extern "C" {
     

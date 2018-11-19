@@ -191,20 +191,12 @@ RepRap::RepRap() : toolList(nullptr), currentTool(nullptr), lastWarningMillis(0)
 	diagnosticsDestination(MessageType::NoDestinationMessage), justSentDiagnostics(false)
 {
 	OutputBuffer::Init();
-//#if __LPC17xx__
-//    platform = new (AHB0) Platform();
-//    network = new (AHB0) Network(*platform);
-//    gCodes = new (AHB0) GCodes(*platform);
-//    move = new Move();
-//    heat = new /*(AHB0)*/ Heat(*platform);
-//#else
+    
     platform = new Platform();
     network = new Network(*platform);
     gCodes = new GCodes(*platform);
     move = new Move();
     heat = new Heat(*platform);
-
-//#endif
 
 #if SUPPORT_ROLAND
 	roland = new Roland(*platform);
@@ -216,20 +208,12 @@ RepRap::RepRap() : toolList(nullptr), currentTool(nullptr), lastWarningMillis(0)
 	portControl = new PortControl();
 #endif
 #if SUPPORT_12864_LCD
-//    #if __LPC17xx__
-//        display = new (AHB0) Display();
-//    #else
          display = new Display();
-//    #endif
 #endif
 
-#if __LPC17xx__
-	printMonitor = new (AHB0) PrintMonitor(*platform, *gCodes);
-#else
     printMonitor = new PrintMonitor(*platform, *gCodes);
-#endif
 
-	SetPassword(DEFAULT_PASSWORD);
+    SetPassword(DEFAULT_PASSWORD);
 	message[0] = 0;
 }
 
@@ -239,7 +223,7 @@ void RepRap::Init()
 	messageBoxMutex.Create("MessageBox");
 
 	platform->Init();
-    heat->Init(); //SD:: moved heat to here so network can create tasks last
+    heat->Init(); //SD:: moved heat to here cause network with RTOP+TCP creates extra tasks
     network->Init();
 	SetName(DEFAULT_MACHINE_NAME);		// Network must be initialised before calling this because this calls SetHostName
 	gCodes->Init();
