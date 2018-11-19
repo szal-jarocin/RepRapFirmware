@@ -27,8 +27,6 @@
 // The physical capabilities of the machine
 
 constexpr size_t DRIVES = 5; // The number of drives in the machine, including X, Y, and Z plus extruder drives
-#define DRIVES_(a,b,c,d,e,f,g,h,i,j,k,l) { a,b,c,d,e }
-
 
 constexpr size_t NumDirectDrivers = DRIVES;                // The maximum number of drives supported by the electronics
 constexpr size_t MaxTotalDrivers = NumDirectDrivers;
@@ -39,14 +37,8 @@ constexpr size_t NumEndstops = 3;                    // The number of inputs we 
 constexpr size_t NumHeaters = 3;                    // The number of heaters in the machine; 0 is the heated bed even if there isn't one
 constexpr size_t NumThermistorInputs = 3;
 
-
-// Initialization macro used in statements needing to initialize values in arrays of size HEATERS.  E.g.,
-#define HEATERS_(a,b,c,d,e,f,g,h) { a,b,c }
-
 constexpr size_t MinAxes = 3;						// The minimum and default number of axes
 constexpr size_t MaxAxes = 5;						// The maximum number of movement axes in the machine, usually just X, Y and Z, <= DRIVES
-// Initialization macro used in statements needing to initialize values in arrays of size MAX_AXES
-#define AXES_(a,b,c,d,e,f,g,h,i) { a,b,c,d,e }
 
 constexpr size_t MaxExtruders = DRIVES - MinAxes;	// The maximum number of extruders
 constexpr size_t MaxDriversPerAxis = 2;				// The maximum number of stepper drivers assigned to one axis
@@ -132,13 +124,10 @@ constexpr float EXT_SHC = 0.0;
 // Thermistor series resistor value in Ohms
 constexpr float THERMISTOR_SERIES_RS = 4700.0;
 
-
-//???
 constexpr size_t MaxSpiTempSensors = 1;
 // Digital pins the 31855s have their select lines tied to
 constexpr Pin SpiTempSensorCsPins[MaxSpiTempSensors] = { NoPin };
 constexpr SSPChannel TempSensorSSPChannel = SSP0;
-
 
 // Digital pin number that controls the ATX power on/off
 constexpr Pin ATX_POWER_PIN = NoPin;

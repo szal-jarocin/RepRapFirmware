@@ -251,24 +251,13 @@ namespace Tasks
 			p.MessageF(mtype, "Never used ram: %" PRIu32 "\n", neverUsed);
 
 #ifdef __LPC17xx__
-            //Read Combined memory from AHB0 & 1
-            
-            uint32_t ahbStaticUsed = (uint32_t)&__AHB0_dyn_start -(uint32_t)&__AHB0_block_start;
+            const uint32_t ahbStaticUsed = (uint32_t)&__AHB0_dyn_start -(uint32_t)&__AHB0_block_start;
+            const uint32_t totalMainUsage = (uint32_t)((&_end - ramstart) + mi.uordblks + maxStack);
+
             p.MessageF(mtype, "AHB_RAM Static ram used : %" PRIu32 "\n", ahbStaticUsed);
-            
-            uint32_t ahb0_free = (uint32_t)&__AHB0_end - (uint32_t)&__AHB0_dyn_start ;
-            //uint32_t ahb0_total_used = (32*1024) - ahb0_free;
-
             p.Message(mtype, "=== Ram Totals ===\n");
-            
-            uint32_t totalMainUsage = (uint32_t)((&_end - ramstart) + mi.uordblks + maxStack);
-            
             p.MessageF(mtype, "Main SRAM         : %" PRIu32 "/%" PRIu32 " (%" PRIu32 " free, %" PRIu32 " never used)\n", totalMainUsage, (uint32_t)32*1024, 32*1024-totalMainUsage, neverUsed );
-            //p.MessageF(mtype, "AHB SRAM                : %" PRIu32 "/%" PRIu32 " (%" PRIu32 " free)\n", ahb0_total_used, (uint32_t)32*1024, (uint32_t)ahb0_free  );
-            
-
-            p.MessageF(mtype, "RTOS Dynamic Heap : %ld/%ld (%d free, %d never used)\n", (xPortGetTotalHeapSize()-xPortGetFreeHeapSize()),xPortGetTotalHeapSize(), xPortGetFreeHeapSize(),xPortGetMinimumEverFreeHeapSize() );
-            
+            p.MessageF(mtype, "RTOS Dynamic Heap : %" PRIi32 "/%" PRIu32 " (%d free, %d never used)\n", (uint32_t)(xPortGetTotalHeapSize()-xPortGetFreeHeapSize()),(uint32_t)xPortGetTotalHeapSize(), xPortGetFreeHeapSize(),xPortGetMinimumEverFreeHeapSize() );
             
             //Print out the PWM and timers freq
             uint16_t freqs[4];
@@ -298,9 +287,6 @@ namespace Tasks
                 
                 }
             }
-            
-            
-            
 #endif //end __LPC17xx__
         
         }// end memory stats scope

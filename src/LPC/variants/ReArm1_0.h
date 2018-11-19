@@ -4,16 +4,14 @@
 
 //Config for ReArm v1.0
 
+//Config is for the popular Bed+Extruder+Cooling Fan setup
+
 
 //NOTES:
 // Filament detector pin and Fan RPM pin must be on a spare pin on Port0 or Port2 only (UNTESTED)
 // Azteeg X5 (and maybe others) probe endstop pin is not an ADC pin, so only Digital is supported, or select another spare ADC capable pin
-// Note. ADC inputs are NOT 5V tolerant
-// Currently No support For Thermocouple etc sensors, only thermistors!
+// Note: ADC inputs are NOT 5V tolerant!
 
-
-//TODO:: implement firmware update
-//#define IAP_FIRMWARE_FILE "RepRapFirmware-AzteegX5Mini1_1.bin"
 
 // Default board type
 #define DEFAULT_BOARD_TYPE BoardType::Lpc
@@ -30,21 +28,12 @@
 // The number of drives in the machine, including X, Y, and Z plus extruder drives
 constexpr size_t DRIVES = 5;
 
-// Initialization macro used in statements needing to initialize values in arrays of size DRIVES.  E.g.,
-// max_feed_rates[DRIVES] = {DRIVES_(1, 1, 1, 1, 1, 1, 1, 1, 1, 1)}
-#define DRIVES_(a,b,c,d,e,f,g,h,i,j,k,l) { a,b,c,d,e }
-
-// The number of heaters in the machine
-// 0 is the heated bed even if there isn't one.
-constexpr size_t Heaters = 2; //ReArm (Bed + Hotend1) // set to 3 if using 2nd heater and update macro below, and  Tempsense and heat pins below and remove(chance to another) cooling fan pin too
-
-// Initialization macro used in statements needing to initialize values in arrays of size HEATERS.  E.g.,
-#define HEATERS_(a,b,c,d,e,f,g,h) { a,b }
+constexpr size_t NumEndstops = 3;                    // The number of inputs we have for endstops, filament sensors etc.
+constexpr size_t NumHeaters = 2;                    // The number of heaters in the machine; 0 is the heated bed even if there isn't one // set to 3 if using 2nd extruder
+constexpr size_t NumThermistorInputs = 2;           //Set to 3 if using 2nd extruder
 
 constexpr size_t MinAxes = 3;						// The minimum and default number of axes
 constexpr size_t MaxAxes = 5;						// The maximum number of movement axes in the machine, usually just X, Y and Z, <= DRIVES
-// Initialization macro used in statements needing to initialize values in arrays of size MAX_AXES
-#define AXES_(a,b,c,d,e,f,g,h,i) { a,b,c,d,e }
 
 constexpr size_t MaxExtruders = DRIVES - MinAxes;	// The maximum number of extruders
 constexpr size_t MaxDriversPerAxis = 2;				// The maximum number of stepper drivers assigned to one axis
@@ -69,29 +58,18 @@ constexpr Pin DIRECTION_PINS[DRIVES] =          { P0_11, P0_20, P0_22, P0_5,  P2
 
 //RE-Arm has 6 endstops. We will assume MAX endstops headers are used, leaving P1_24, 1_26 free for other purposes. 1_29 (Z-min used for probe)
 
-constexpr Pin END_STOP_PINS[DRIVES] = { P1_25, P1_27, P1_28, NoPin, NoPin}; // E stop could be mapped to a spare pin if needed...
+constexpr Pin END_STOP_PINS[NumEndstops] = { P1_25, P1_27, P1_28 };
 
 
 //RaArm has no current control for drivers.
-
-// Indices for motor current digipots (X,Y,Z,E1, E2)
-//const uint8_t POT_WIPES[5] = { 0, 1, 2, 3, 0};
-//const float digipotFactor = 106.0; //factor for converting current to digipot value
 #define HAS_DRIVER_CURRENT_CONTROL 0
 
 
 // HEATERS - The bed is assumed to be the at index 0
 
-// Analogue pin numbers
-//                                            Bed    H1
-constexpr Pin TEMP_SENSE_PINS[Heaters] = HEATERS_(P0_24, P0_23, /*P0_25*/c, d, e, f, g, h);
-
-
-// Heater outputs
-
-// Note: P2_0 to P2_5 is hardware PWM capable, P2_7 is not
-
-constexpr Pin HEAT_ON_PINS[Heaters] = HEATERS_(P2_7, P2_5, /*P2.4*/c, d, e, f, g, h); // bed, h0
+//                                                     Bed    H1
+constexpr Pin TEMP_SENSE_PINS[NumThermistorInputs] = {P0_24, P0_23 /*,P0_25*/};
+constexpr Pin HEAT_ON_PINS[NumHeaters] = {P2_7, P2_5, /*P2.4*/};
 
 // PWM -
 //       The Hardware PWM channels ALL share the same Frequency,
@@ -130,10 +108,10 @@ constexpr Pin HEAT_ON_PINS[Heaters] = HEATERS_(P2_7, P2_5, /*P2.4*/c, d, e, f, g
 
 // Default thermistor betas
 constexpr float BED_R25 = 100000.0;
-constexpr float BED_BETA = 4066.0;
+constexpr float BED_BETA = 3988.0;
 constexpr float BED_SHC = 0.0;
 constexpr float EXT_R25 = 100000.0;
-constexpr float EXT_BETA = 4066.0;
+constexpr float EXT_BETA = 4388.0;
 constexpr float EXT_SHC = 0.0;
 
 // Thermistor series resistor value in Ohms
@@ -150,15 +128,11 @@ constexpr SSPChannel TempSensorSSPChannel = SSP0;
 constexpr Pin ATX_POWER_PIN = NoPin;
 
 // Z Probe pin
-// Must be an ADC capable pin.  Can be any of the ARM's A/D capable
-// pins even a non-Arduino pin.
-
-//Note: Azteeg X5 uses pin P1_29 which is NOT an ADC pin. Use a spare if need Analog in, else use digital options for probe
+//Note: ReArm uses pin P1_29 which is NOT an ADC pin. Use a spare if need Analog in, else use digital options for probe
 constexpr Pin Z_PROBE_PIN = P1_29;
 
 // Digital pin number to turn the IR LED on (high) or off (low)
 constexpr Pin Z_PROBE_MOD_PIN = NoPin;
-
 constexpr Pin DiagPin = NoPin;
 
 
@@ -168,7 +142,7 @@ constexpr Pin COOLING_FAN_PINS[NUM_FANS] = { P2_4 }; // Fan 0 is a Hardware PWM 
 
 // Firmware will attach a FALLING interrupt to this pin
 // see FanInterrupt() in Platform.cpp
-// SD:: Note: Only GPIO pins on Port0 and Port2 support this. If needed choose from spare pins (UNTESTED)
+// SD:: Note: Only GPIO pins on Port0 and Port2 support this. If needed choose from spare pins
 constexpr Pin COOLING_FAN_RPM_PIN = NoPin;
 
 //Pins defined to use for external interrupt. **Must** be a pin on Port0 or Port2.
@@ -182,7 +156,7 @@ constexpr Pin COOLING_FAN_RPM_PIN = NoPin;
 //    MOSI, MISO, SCLK, CS
 //    P0_9, P0_8, P0_7, P0_6
 
-//SD:: 2nd SDCard can be connected to SSP0
+//SD: 2nd SDCard can be connected to SSP0
 //    MOSI, MISO, SCLK
 //    P0_18 P0_17 P0_15
 
@@ -213,14 +187,9 @@ constexpr Pin SpecialPinMap[] =
     P1_26, //      Y-Min    14      PWM1[6] (do not use pwm - chan6 in use by heaters)
     P1_24, //      X-Min     3      PWM1[5] (do not use pwm - chan5 in use by heaters)
 
-    
-    
     //P0_27, //    Aux1  A3/57    // Conifigured as SPI Thermocouple CS
     P0_28, //    Aux1  A4/58
-    
 
-    
-    
 //J3
     //P0_15, // J3                  SCLK
     //P0_16, // J3

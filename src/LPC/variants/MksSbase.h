@@ -31,19 +31,20 @@ constexpr size_t DRIVES = 5;
 
 // Initialization macro used in statements needing to initialize values in arrays of size DRIVES.  E.g.,
 // max_feed_rates[DRIVES] = {DRIVES_(1, 1, 1, 1, 1, 1, 1, 1, 1, 1)}
-#define DRIVES_(a,b,c,d,e,f,g,h,i,j,k,l) { a,b,c,d,e }
+//#define DRIVES_(a,b,c,d,e,f,g,h,i,j,k,l) { a,b,c,d,e }
 
-// The number of heaters in the machine
-// 0 is the heated bed even if there isn't one.
-constexpr size_t Heaters = 3; //Smoothie (Bed + H1 + H2)
+constexpr size_t NumDirectDrivers = DRIVES;                // The maximum number of drives supported by the electronics
+constexpr size_t MaxTotalDrivers = NumDirectDrivers;
+constexpr size_t MaxSmartDrivers = 0;                // The maximum number of smart drivers
 
-// Initialization macro used in statements needing to initialize values in arrays of size HEATERS.  E.g.,
-#define HEATERS_(a,b,c,d,e,f,g,h) { a,b,c }
+
+constexpr size_t NumEndstops = 3;                    // The number of inputs we have for endstops, filament sensors etc.
+constexpr size_t NumHeaters = 3;                    // The number of heaters in the machine; 0 is the heated bed even if there isn't one
+constexpr size_t NumThermistorInputs = 3;
+
 
 constexpr size_t MinAxes = 3;						// The minimum and default number of axes
 constexpr size_t MaxAxes = 5;						// The maximum number of movement axes in the machine, usually just X, Y and Z, <= DRIVES
-// Initialization macro used in statements needing to initialize values in arrays of size MAX_AXES
-#define AXES_(a,b,c,d,e,f,g,h,i) { a,b,c,d,e }
 
 constexpr size_t MaxExtruders = DRIVES - MinAxes;	// The maximum number of extruders
 constexpr size_t MaxDriversPerAxis = 2;				// The maximum number of stepper drivers assigned to one axis
@@ -67,8 +68,8 @@ constexpr Pin DIRECTION_PINS[DRIVES] =          { P0_5,  P0_11, P0_20, P0_22,  P
 //
 
 //Smoothie has 6 Endstops (RRF only supports 3, We will use the MAX endstops) (and Z_Min for the Probe)
-//                                    X      Y      Z     E0      E1
-constexpr Pin END_STOP_PINS[DRIVES] = { P1_25, P1_27, P1_29, NoPin, NoPin}; // E stop could be mapped to a spare endstop pin if needed...
+//                                    X      Y      Z
+constexpr Pin END_STOP_PINS[NumEndstops] = { P1_25, P1_27, P1_29 }; // E stop could be mapped to a spare endstop pin if needed...
 
 
 //Smoothie uses MCP4451
@@ -84,14 +85,8 @@ constexpr float digipotFactor = 113.33; //factor for converting current to digip
 
 // Analogue pin numbers
 //                                            Bed    H1     H2
-constexpr Pin TEMP_SENSE_PINS[Heaters] = HEATERS_(P0_24, P0_23, P0_25, d, e, f, g, h);
-
-
-// Heater outputs
-
-// Note: P2_5 is hardware PWM capable, P2_7 is not
-
-constexpr Pin HEAT_ON_PINS[Heaters] = HEATERS_(P2_5, P2_7, P1_23, d, e, f, g, h); // bed, h0, h1
+constexpr Pin TEMP_SENSE_PINS[NumThermistorInputs] = {P0_24, P0_23, P0_25};
+constexpr Pin HEAT_ON_PINS[NumHeaters] = {P2_5, P2_7, P1_23}; // bed, h0, h1
 
 // PWM -
 //       The Hardware PWM channels ALL share the same Frequency,
@@ -130,10 +125,10 @@ constexpr Pin HEAT_ON_PINS[Heaters] = HEATERS_(P2_5, P2_7, P1_23, d, e, f, g, h)
 
 // Default thermistor betas
 constexpr float BED_R25 = 100000.0;
-constexpr float BED_BETA = 4066.0;
+constexpr float BED_BETA = 3988.0;
 constexpr float BED_SHC = 0.0;
 constexpr float EXT_R25 = 100000.0;
-constexpr float EXT_BETA = 4066.0;
+constexpr float EXT_BETA = 4388.0;
 constexpr float EXT_SHC = 0.0;
 
 // Thermistor series resistor value in Ohms

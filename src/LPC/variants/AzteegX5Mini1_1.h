@@ -30,10 +30,6 @@
 // The number of drives in the machine, including X, Y, and Z plus extruder drives
 constexpr size_t DRIVES = 4;
 
-// Initialization macro used in statements needing to initialize values in arrays of size DRIVES.  E.g.,
-// max_feed_rates[DRIVES] = {DRIVES_(1, 1, 1, 1, 1, 1, 1, 1, 1, 1)}
-#define DRIVES_(a,b,c,d,e,f,g,h,i,j,k,l) { a,b,c,d }
-
 constexpr size_t NumDirectDrivers = DRIVES;                // The maximum number of drives supported by the electronics
 constexpr size_t MaxTotalDrivers = NumDirectDrivers;
 constexpr size_t MaxSmartDrivers = 0;                // The maximum number of smart drivers
@@ -43,13 +39,8 @@ constexpr size_t NumEndstops = 3;                    // The number of inputs we 
 constexpr size_t NumHeaters = 2;                    // The number of heaters in the machine; 0 is the heated bed even if there isn't one
 constexpr size_t NumThermistorInputs = 2;
 
-// Initialization macro used in statements needing to initialize values in arrays of size HEATERS.  E.g.,
-#define HEATERS_(a,b,c,d,e,f,g,h) { a,b }
-
 constexpr size_t MinAxes = 3;						// The minimum and default number of axes
 constexpr size_t MaxAxes = 4;						// The maximum number of movement axes in the machine, usually just X, Y and Z, <= DRIVES
-// Initialization macro used in statements needing to initialize values in arrays of size MAX_AXES
-#define AXES_(a,b,c,d,e,f,g,h,i) { a,b,c,d }
 
 constexpr size_t MaxExtruders = DRIVES - MinAxes;	// The maximum number of extruders
 constexpr size_t MaxDriversPerAxis = 2;				// The maximum number of stepper drivers assigned to one axis
@@ -89,13 +80,8 @@ constexpr float digipotFactor = 106.0; //factor for converting current to digipo
 // Analogue pin numbers
 //                                            Bed     Hotend
 constexpr Pin TEMP_SENSE_PINS[NumThermistorInputs] = {P0_23, P0_24};
-
-
-// Heater outputs
-
-// Note: P2_5 is hardware PWM capable, P2_7 is not
-
 constexpr Pin HEAT_ON_PINS[NumHeaters] = {P2_7, P2_5}; // bed, h0
+
 // PWM -
 //       The Hardware PWM channels ALL share the same Frequency,
 //       we will use Hardware PWM for Hotends (on board which have the heater on a hardware PWM capable pin)
@@ -144,12 +130,10 @@ constexpr float EXT_SHC = 0.0;
 constexpr float THERMISTOR_SERIES_RS = 4700.0;
 
 
-//???
 constexpr size_t MaxSpiTempSensors = 1;
 // Digital pins the 31855s have their select lines tied to
 constexpr Pin SpiTempSensorCsPins[MaxSpiTempSensors] = { NoPin };
 constexpr SSPChannel TempSensorSSPChannel = SSP0;
-
 
 // Digital pin number that controls the ATX power on/off
 constexpr Pin ATX_POWER_PIN = NoPin;
@@ -160,12 +144,8 @@ constexpr Pin ATX_POWER_PIN = NoPin;
 
 //Note: Azteeg X5 uses pin P1_29 which is NOT an ADC pin. Use a spare if need Analog in, else use digital options for probe
 constexpr Pin Z_PROBE_PIN = P1_29;
-
-// Digital pin number to turn the IR LED on (high) or off (low)
-constexpr Pin Z_PROBE_MOD_PIN = NoPin;
-
+constexpr Pin Z_PROBE_MOD_PIN = NoPin; // Digital pin number to turn the IR LED on (high) or off (low)
 constexpr Pin DiagPin = NoPin;
-
 
 // Use a PWM capable pin
 constexpr size_t NUM_FANS = 1;
@@ -205,12 +185,10 @@ constexpr Pin SdSpiCSPins[NumSdCards] = { P0_6, P1_23 };// Internal, external. N
 
 // M42 and M208 commands now use logical pin numbers, not firmware pin numbers.
 // This is the mapping from logical pins 60+ to firmware pin numbers
-
-
 constexpr Pin SpecialPinMap[] =
 {
 
-    //Exp1
+//Exp1
     P1_30,
     //P1_22,   // Viki_Btn (red button)
     P0_26,
@@ -222,7 +200,7 @@ constexpr Pin SpecialPinMap[] =
     //(3.3v)
     //(GND)
     
-    //Exp2 (used for Viki2.0 LCD default)
+//Exp2 (used for Viki2.0 LCD default)
     //P1_31,    //Viki_SD Card Detect
     //P3_26,    //Viki_EncB
     //P2_11,    //Viki_Btn (wheel click button)
@@ -254,11 +232,6 @@ constexpr Pin SpecialPinMap[] =
 // P0_15    P0_18
 // GND      +5V
 
-
-
-// Flash locations (may be expanded in the future)
-//const uint32_t IAP_FLASH_START = 0x000F0000;
-//const uint32_t IAP_FLASH_END = 0x000FFBFF;		// don't touch the last 1KB, it's used for NvData
 
 
 //Viki2.0 Controller
