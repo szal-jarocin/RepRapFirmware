@@ -21,7 +21,8 @@
 
 #define SMOOTHIEBOARD1
 
-
+//120MHz CPU
+#define VARIANT_MCK 120000000
 
 
 // The physical capabilities of the machine

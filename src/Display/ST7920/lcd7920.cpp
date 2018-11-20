@@ -9,7 +9,11 @@
 
 #include "lcd7920.h"
 
+#ifdef __LPC17xx__
+const uint32_t SpiClockFrequency = 1000000;            //SD: 2MHz doest work on my RepRapDiscount Full Graphic LCD (minimum clock cycle time for ST7920 is 400ns @ Vdd=4.5V, min. clock width 200ns high and 20ns low)
+#else
 const uint32_t SpiClockFrequency = 2000000;			// 2.0MHz (minimum clock cycle time for ST7920 is 400ns @ Vdd=4.5V, min. clock width 200ns high and 20ns low)
+#endif
 
 // LCD basic instructions. These all take 72us to execute except LcdDisplayClear, which takes 1.6ms
 const uint8_t LcdDisplayClear = 0x01;

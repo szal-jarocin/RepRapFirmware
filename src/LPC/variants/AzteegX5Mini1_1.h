@@ -21,6 +21,8 @@
 
 
 #define AZTEEGX5MINI1_1
+//120MHz CPU
+#define VARIANT_MCK 120000000
 
 
 

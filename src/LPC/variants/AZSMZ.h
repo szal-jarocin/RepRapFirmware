@@ -19,6 +19,8 @@
 #define LPC_BOARD_STRING "Azsmzmini1"
 
 #define AZSMZ
+//120MHz CPU
+#define VARIANT_MCK 120000000
 
 
 
@@ -26,6 +28,10 @@
 
 // The number of drives in the machine, including X, Y, and Z plus extruder drives
 const size_t DRIVES = 5;
+
+constexpr size_t NumDirectDrivers = DRIVES;                // The maximum number of drives supported by the electronics
+constexpr size_t MaxTotalDrivers = NumDirectDrivers;
+constexpr size_t MaxSmartDrivers = 0;                // The maximum number of smart drivers
 
 
 constexpr size_t NumEndstops = 3;                    // The number of inputs we have for endstops, filament sensors etc.
@@ -66,7 +72,7 @@ const Pin END_STOP_PINS[NumEndstops] = { P1_24, P1_26, P1_28 };
 // HEATERS - The bed is assumed to be the at index 0
 //                                            Bed    H1
 const Pin TEMP_SENSE_PINS[NumThermistorInputs] = { P0_25, P0_23 };
-const Pin HEAT_ON_PINS[NumHeaters] = { P2_5, P2_4 }
+const Pin HEAT_ON_PINS[NumHeaters] = { P2_5, P2_4 };
 
 // PWM -
 //       The Hardware PWM channels ALL share the same Frequency,

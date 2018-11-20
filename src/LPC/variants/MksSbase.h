@@ -21,6 +21,8 @@
 
 #define MKSSBASE
 
+//100MHz CPU
+#define VARIANT_MCK 100000000
 
 
 

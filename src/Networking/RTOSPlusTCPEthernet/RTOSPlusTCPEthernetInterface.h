@@ -63,7 +63,9 @@ public:
 	void OpenDataPort(Port port) override;
 	void TerminateDataPort() override;
     
-    
+protected:
+    DECLARE_OBJECT_MODEL
+
     
 private:
 	enum class NetworkState

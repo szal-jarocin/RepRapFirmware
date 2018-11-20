@@ -20,6 +20,8 @@
 #define LPC_BOARD_STRING "Rearm1"
 
 #define REARM1_0
+//100MHz CPU
+#define VARIANT_MCK 100000000
 
 
 
@@ -27,6 +29,10 @@
 
 // The number of drives in the machine, including X, Y, and Z plus extruder drives
 constexpr size_t DRIVES = 5;
+
+constexpr size_t NumDirectDrivers = DRIVES;                // The maximum number of drives supported by the electronics
+constexpr size_t MaxTotalDrivers = NumDirectDrivers;
+constexpr size_t MaxSmartDrivers = 0;                // The maximum number of smart drivers
 
 constexpr size_t NumEndstops = 3;                    // The number of inputs we have for endstops, filament sensors etc.
 constexpr size_t NumHeaters = 2;                    // The number of heaters in the machine; 0 is the heated bed even if there isn't one // set to 3 if using 2nd extruder
@@ -69,7 +75,7 @@ constexpr Pin END_STOP_PINS[NumEndstops] = { P1_25, P1_27, P1_28 };
 
 //                                                     Bed    H1
 constexpr Pin TEMP_SENSE_PINS[NumThermistorInputs] = {P0_24, P0_23 /*,P0_25*/};
-constexpr Pin HEAT_ON_PINS[NumHeaters] = {P2_7, P2_5, /*P2.4*/};
+constexpr Pin HEAT_ON_PINS[NumHeaters] = {P2_7, P2_5 /*,P2.4*/};
 
 // PWM -
 //       The Hardware PWM channels ALL share the same Frequency,
