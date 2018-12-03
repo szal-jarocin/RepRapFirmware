@@ -40,7 +40,7 @@
 #ifdef RTOS
 
 #if __LPC17xx__
-constexpr size_t NetworkStackWords = 440;
+constexpr size_t NetworkStackWords = 470;
 #else
 constexpr size_t NetworkStackWords = 550;
 #endif
