@@ -1,13 +1,12 @@
 // Driver for 128x64 graphical LCD with ST7920 controller
 // D Crocker, Escher Technologies Ltd.
 
-#include "RepRapFirmware.h"
-#include "Pins.h"
-#include "Tasks.h"
+#include "lcd7920.h"
 
 #if SUPPORT_12864_LCD
 
-#include "lcd7920.h"
+#include "Pins.h"
+#include "Tasks.h"
 
 #ifdef __LPC17xx__
 const uint32_t SpiClockFrequency = 1000000;            //SD: 2MHz doest work on my RepRapDiscount Full Graphic LCD (minimum clock cycle time for ST7920 is 400ns @ Vdd=4.5V, min. clock width 200ns high and 20ns low)

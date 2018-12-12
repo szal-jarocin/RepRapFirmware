@@ -17,6 +17,7 @@
 
 
 #include "RepRapFirmware.h"
+#include "RepRap.h"
 #include "Tasks.h"
 
 
@@ -76,6 +77,11 @@ DRESULT disk_read (
 {
     MutexLocker lock(Tasks::GetSpiMutex());
     
+    if (reprap.Debug(moduleStorage))
+    {
+        debugPrintf("Read %u %u %lu\n", drv, count, sector);
+    }
+    
 	FFSDEBUG("disk_read(sector %d, count %d) on drv [%d]\n", sector, count, drv);
 	for(unsigned int s=sector; s<sector+count; s++) {
 		FFSDEBUG(" disk_read(sector %d)\n", s);
@@ -97,6 +103,11 @@ DRESULT disk_write (
 )
 {
     MutexLocker lock(Tasks::GetSpiMutex());
+    
+    if (reprap.Debug(moduleStorage))
+    {
+        debugPrintf("Write %u %u %lu\n", drv, count, sector);
+    }
     
 	FFSDEBUG("disk_write(sector %d, count %d) on drv [%d]\n", sector, count, drv);
 	for(unsigned int s=sector; s<sector+count; s++) {

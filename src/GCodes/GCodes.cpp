@@ -146,7 +146,7 @@ void GCodes::Init()
 	Reset();
 
 	distanceScale = 1.0;
-	arcSegmentLength = DefaultArcSegmentLength;
+	arcSegmentLength = MinArcSegmentLength;
 	virtualExtruderPosition = rawExtruderTotal = 0.0;
 	for (size_t extruder = 0; extruder < MaxExtruders; extruder++)
 	{
@@ -546,7 +546,7 @@ void GCodes::RunStateMachine(GCodeBuffer& gb, const StringRef& reply)
 		}
 		else
 		{
-			String<PASSWORD_LENGTH> nextHomingFileName;
+			String<RepRapPasswordLength> nextHomingFileName;
 			AxesBitmap mustHomeFirst = reprap.GetMove().GetKinematics().GetHomingFileName(toBeHomed, axesHomed, numVisibleAxes, nextHomingFileName.GetRef());
 			if (mustHomeFirst != 0)
 			{

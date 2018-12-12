@@ -26,7 +26,7 @@ const size_t NumFirmwareUpdateModules = 0;
 #define FIRMWARE_NAME "RepRapFirmware for LPC176[8/9] based Boards"
 
 
-#define SUPPORT_OBJECT_MODEL         1
+#define SUPPORT_OBJECT_MODEL         0
 // Features definition
 #define HAS_CPU_TEMP_SENSOR		     0				// enabling the CPU temperature sensor disables Due pin 13 due to bug in SAM3X
 #define HAS_HIGH_SPEED_SD		     0

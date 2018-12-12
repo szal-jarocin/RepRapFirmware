@@ -623,11 +623,11 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply)
 					do {
 						if (encapsulateList)
 						{
-							outBuf->catf("%c%s%c%c", FILE_LIST_BRACKET, fileInfo.fileName, FILE_LIST_BRACKET, FILE_LIST_SEPARATOR);
+							outBuf->catf("%c%s%c%c", FILE_LIST_BRACKET, fileInfo.fileName.c_str(), FILE_LIST_BRACKET, FILE_LIST_SEPARATOR);
 						}
 						else
 						{
-							outBuf->catf("%s\n", fileInfo.fileName);
+							outBuf->catf("%s\n", fileInfo.fileName.c_str());
 						}
 					} while (platform.GetMassStorage()->FindNext(fileInfo));
 
@@ -2755,7 +2755,7 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply)
 
 	case 550: // Set/report machine name
 		{
-			String<MACHINE_NAME_LENGTH> name;
+			String<MachineNameLength> name;
 			bool seen = false;
 			gb.TryGetPossiblyQuotedString('P', name.GetRef(), seen);
 			if (seen)
@@ -2771,7 +2771,7 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply)
 
 	case 551: // Set password (no option to report it)
 		{
-			String<PASSWORD_LENGTH> password;
+			String<RepRapPasswordLength> password;
 			bool seen = false;
 			gb.TryGetPossiblyQuotedString('P', password.GetRef(), seen);
 			if (seen)
