@@ -3631,7 +3631,12 @@ void Platform::AppendAuxReply(const char *msg, bool rawMessage)
 	if (msg[0] != 0 && HaveAux())
 	{
 		MutexLocker lock(auxMutex);
-		if (rawMessage)
+		if (rawMessage
+#ifdef NO_PANELDUE
+            //force to output to serial instead of storing
+            || true
+#endif
+            )
 		{
 			// Raw responses are sent directly to the AUX device
 			OutputBuffer *buf;
@@ -3665,7 +3670,12 @@ void Platform::AppendAuxReply(OutputBuffer *reply, bool rawMessage)
 	else
 	{
 		MutexLocker lock(auxMutex);
-		if (rawMessage)
+		if (rawMessage
+#ifdef NO_PANELDUE
+            //force to output to serial instead of storing
+            || true
+#endif
+            )
 		{
 			// JSON responses are always sent directly to the AUX device
 			// For big responses it makes sense to write big chunks of data in portions. Store this data here

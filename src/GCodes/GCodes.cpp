@@ -3769,7 +3769,11 @@ void GCodes::HandleReply(GCodeBuffer& gb, GCodeResult rslt, const char* reply)
 		return;
 	}
 
-	const Compatibility c = (&gb == serialGCode || &gb == telnetGCode) ? platform.Emulating() : Compatibility::me;
+	const Compatibility c = (&gb == serialGCode || &gb == telnetGCode
+#ifdef NO_PANELDUE
+                             || &gb == auxGCode
+#endif
+                             ) ? platform.Emulating() : Compatibility::me;
 	const MessageType type = gb.GetResponseMessageType();
 	const char* const response = (gb.GetCommandLetter() == 'M' && gb.GetCommandNumber() == 998) ? "rs " : "ok";
 	const char* emulationType = nullptr;
@@ -3838,14 +3842,19 @@ void GCodes::HandleReply(GCodeBuffer& gb, OutputBuffer *reply)
 		return;
 	}
 
+#ifndef NO_PANELDUE
 	// Second UART device, e.g. dc42's PanelDue. Do NOT use emulation for this one!
 	if (&gb == auxGCode)
 	{
 		platform.AppendAuxReply(reply, (*reply)[0] == '{');
 		return;
 	}
-
-	const Compatibility c = (&gb == serialGCode || &gb == telnetGCode) ? platform.Emulating() : Compatibility::me;
+#endif
+	const Compatibility c = (&gb == serialGCode || &gb == telnetGCode
+#ifdef NO_PANELDUE
+                             || &gb == auxGCode
+#endif
+                             ) ? platform.Emulating() : Compatibility::me;
 	const MessageType type = gb.GetResponseMessageType();
 	const char* const response = (gb.GetCommandLetter() == 'M' && gb.GetCommandNumber() == 998) ? "rs " : "ok";
 	const char* emulationType = nullptr;

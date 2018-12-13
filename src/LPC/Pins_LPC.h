@@ -41,6 +41,8 @@ const size_t NumFirmwareUpdateModules = 0;
 #define HAS_VREF_MONITOR             0
 #define SUPPORT_NONLINEAR_EXTRUSION  0
 
+#define NO_PANELDUE                  1 
+
 
 #define SUPPORT_INKJET		0					// set nonzero to support inkjet control
 #define SUPPORT_ROLAND		0					// set nonzero to support Roland mill
@@ -50,7 +52,7 @@ const size_t NumFirmwareUpdateModules = 0;
 
 
 //LCD Support with No Networking 
-#ifdef LPC_NETWORKING
+#if defined(LPC_NETWORKING) || defined(ESP_NETWORKING)
     #define SUPPORT_12864_LCD       0
 #else
     #define SUPPORT_12864_LCD       1
@@ -75,8 +77,8 @@ constexpr Pin TachoPins[NumTachos] = {  };
 #elif defined(__MKSBASE__)
 # include "variants/MksSbase.h"
 #elif defined(__MBED__)
-//Only used for debugging just use smoothie for now
-# include "variants/Smoothieboard1.h"
+//Only used for debugging
+# include "variants/MBed.h"
 #else
 # error "Unknown LPC Variant"
 #endif
@@ -90,6 +92,7 @@ constexpr size_t NUM_SERIAL_CHANNELS = 2;
 #else
 #define SERIAL_MAIN_DEVICE Serial //USB
 #define SERIAL_AUX_DEVICE Serial0 //TX0/RX0
+
 #endif
 
 
