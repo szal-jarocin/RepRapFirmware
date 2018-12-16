@@ -16,8 +16,8 @@
 
 #if SAM4S || SAME70
 // Static data used by step ISR
-volatile uint32_t stepTimerPendingStatus = 0;	// for holding status bits that we have read (and therefore cleared) but haven't serviced yet
-volatile uint32_t stepTimerHighWord = 0;		// upper 16 bits of step timer
+static volatile uint32_t stepTimerPendingStatus = 0;	// for holding status bits that we have read (and therefore cleared) but haven't serviced yet
+static volatile uint32_t stepTimerHighWord = 0;			// upper 16 bits of step timer
 #endif
 
 namespace StepTimer
@@ -84,6 +84,19 @@ namespace StepTimer
 		}
 		return (lowWord & 0x0000FFFF) | highWord;
 	}
+
+#else
+
+	// Get the interrupt clock count. Despite the name, on these processors we don't need to disable interrupts before calling this.
+	uint32_t GetInterruptClocksInterruptsDisabled()
+	{
+#if __LPC17xx__
+        return STEP_TC->TC;
+#else
+		return STEP_TC->TC_CHANNEL[STEP_TC_CHAN].TC_CV;
+#endif
+	}
+    
 
 #endif
 
