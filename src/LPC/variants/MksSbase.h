@@ -24,16 +24,18 @@
 //100MHz CPU
 #define VARIANT_MCK 100000000
 
+constexpr Pin LED1 = P1_18;
+constexpr Pin LED2 = P1_19;
+constexpr Pin LED3 = P1_20;
+constexpr Pin LED4 = P1_21;
+
+constexpr Pin LED_PLAY = LED1; //No Play LED, use LED1
 
 
 // The physical capabilities of the machine
 
 // The number of drives in the machine, including X, Y, and Z plus extruder drives
 constexpr size_t DRIVES = 5;
-
-// Initialization macro used in statements needing to initialize values in arrays of size DRIVES.  E.g.,
-// max_feed_rates[DRIVES] = {DRIVES_(1, 1, 1, 1, 1, 1, 1, 1, 1, 1)}
-//#define DRIVES_(a,b,c,d,e,f,g,h,i,j,k,l) { a,b,c,d,e }
 
 constexpr size_t NumDirectDrivers = DRIVES;                // The maximum number of drives supported by the electronics
 constexpr size_t MaxTotalDrivers = NumDirectDrivers;

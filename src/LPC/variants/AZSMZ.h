@@ -22,6 +22,14 @@
 //120MHz CPU
 #define VARIANT_MCK 120000000
 
+constexpr Pin LED1 = P1_18;
+constexpr Pin LED2 = P1_19;
+constexpr Pin LED3 = P1_20;
+constexpr Pin LED4 = P1_21;
+
+constexpr Pin LED_PLAY = LED1; //No Play LED, use LED1
+
+
 
 
 // The physical capabilities of the machine

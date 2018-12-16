@@ -23,6 +23,14 @@
 //100MHz CPU
 #define VARIANT_MCK 100000000
 
+//ReArm doesnt have LED1-4
+constexpr Pin LED1 = NoPin;
+constexpr Pin LED2 = NoPin;
+constexpr Pin LED3 = NoPin;
+constexpr Pin LED4 = NoPin;
+
+constexpr Pin LED_PLAY = P4_28;
+
 
 
 // The physical capabilities of the machine

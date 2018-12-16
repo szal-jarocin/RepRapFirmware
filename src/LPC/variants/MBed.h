@@ -24,6 +24,14 @@
 //100MHz CPU
 #define VARIANT_MCK 100000000
 
+//LEDs (Left to right) P1.18, P1.20, P1.21 and P1.23
+constexpr Pin LED1 = P1_18;
+constexpr Pin LED2 = P1_20;
+constexpr Pin LED3 = P1_21;
+constexpr Pin LED4 = NoPin; //P1_23;
+
+constexpr Pin LED_PLAY = LED1;
+
 
 // The physical capabilities of the machine
 

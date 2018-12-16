@@ -112,6 +112,13 @@ extern "C" void AppMain()
     
 #ifndef __LPC17xx__
 	RSTC->RSTC_MR = RSTC_MR_KEY_PASSWD | RSTC_MR_URSTEN;	// ignore any signal on the NRST pin for now so that the reset reason will show as Software
+#else
+    //Setup LEDs, start off
+    pinMode(LED_PLAY, OUTPUT_LOW);
+    pinMode(LED1, OUTPUT_LOW);
+    pinMode(LED2, OUTPUT_LOW);
+    pinMode(LED3, OUTPUT_LOW);
+    pinMode(LED4, OUTPUT_LOW);
 #endif
     
 #if USE_CACHE
@@ -162,6 +169,8 @@ extern "C" uint32_t _estack;		// this is defined in the linker script
     extern "C" unsigned long __StackTop;
 
     extern "C" size_t xPortGetTotalHeapSize( void );
+
+    volatile uint8_t sysTickLed = 0;;
 #endif
 
 
@@ -346,6 +355,15 @@ extern "C"
 	void sysTickHook()
 	{
 		reprap.Tick();
+#ifdef __LPC17xx__
+        //blink the PLAY_LED to indicate systick is running
+        sysTickLed++;//uint8_t let it wrap around
+        if(sysTickLed == 255){ 
+            const bool state = GPIO_PinRead(LED_PLAY);
+            GPIO_PinWrite(LED_PLAY, !state);
+        }
+#endif
+        
 	}
 
 	// Exception handlers
@@ -440,7 +458,7 @@ extern "C"
 	void vApplicationStackOverflowHook(TaskHandle_t pxTask, char *pcTaskName)
 	{
         
-        debugPrintf("vApplicationStackOverflowHook() - Task: %s", pcTaskName );
+        //debugPrintf("vApplicationStackOverflowHook() - Task: %s", pcTaskName );
 
 		// r0 = pxTask, r1 = pxTaskName
 	    __asm volatile
@@ -462,7 +480,7 @@ extern "C"
 	void vAssertCalled(uint32_t line, const char *file)
 	{
         
-        debugPrintf("vAssertCalled() - Line: %lu, File: %s", line, file );
+        //debugPrintf("vAssertCalled() - Line: %lu, File: %s", line, file );
         
 	    __asm volatile
 	    (
@@ -484,7 +502,7 @@ extern "C"
     void vApplicationMallocFailedHook( void ) {
 
 
-        debugPrintf( "vApplicationMallocFailedHook() - Not enough memory" );
+        //debugPrintf( "vApplicationMallocFailedHook() - Not enough memory" );
 
         __asm volatile
         (
