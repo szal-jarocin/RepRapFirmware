@@ -30,7 +30,11 @@ extern char _end;
 
 // The main task currently runs GCodes, so it needs to be large enough to hold the matrices used for auto calibration.
 // The timer and idle tasks currently never do I/O, so they can be much smaller.
+#if defined(LPC_NETWORKING)
+constexpr unsigned int MainTaskStackWords = 1600-424; 
+#else
 constexpr unsigned int MainTaskStackWords = 1600;
+#endif
 constexpr unsigned int IdleTaskStackWords = 60;
 
 static Task<IdleTaskStackWords> idleTask;
@@ -241,6 +245,7 @@ namespace Tasks
 #endif
 			p.MessageF(mtype, "Static ram: %d\n", &_end - ramstart);
 
+        
 			const struct mallinfo mi = mallinfo();
 			p.MessageF(mtype, "Dynamic ram: %d of which %d recycled\n", mi.uordblks, mi.fordblks);
 

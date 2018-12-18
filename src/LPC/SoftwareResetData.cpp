@@ -10,8 +10,9 @@
  On LPC17xx we will save SoftwareReset Data to the final sector. The last sector is 32K in size.
  Data must be written in 256 or 512 or 1024 or 4096 bytes.
 
- We will use the Last 1024 Bytes of the final sector (4 slots of software reset data). Just be sure
- not to erase the whole Sector and use Page Erase.
+ The LPC1768/9 doesn't have the page erase IAP command, so we have to use the whole sector
+ with a min write of 256bytes = 128 slots...
+
  */
 
 

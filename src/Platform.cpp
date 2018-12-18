@@ -1922,6 +1922,9 @@ float Platform::AdcReadingToCpuTemperature(uint32_t adcVal) const
             LPC_WriteSoftwareResetData(slot, &srdBuf, sizeof(srdBuf));
        }
         
+        //clear bits in reset reasons in RSID
+        LPC_SC->RSID = 0x3F;
+        
         Reset();
         for(;;) {}
     }
@@ -2246,10 +2249,11 @@ void Platform::Diagnostics(MessageType mtype)
 
 	Message(mtype, "=== Platform ===\n");
 
-#ifndef __LPC17xx__
 	// Show the up time and reason for the last reset
 	const uint32_t now = (uint32_t)(millis64()/1000u);		// get up time in seconds
-	const char* resetReasons[8] = { "power up", "backup", "watchdog", "software",
+#ifndef __LPC17xx__
+
+    const char* resetReasons[8] = { "power up", "backup", "watchdog", "software",
 # ifdef DUET_NG
 	// On the SAM4E a watchdog reset may be reported as a user reset because of the capacitor on the NRST pin.
 	// The SAM4S is the same but the Duet M has a diode in the reset circuit to avoid this problem.
@@ -2267,6 +2271,20 @@ void Platform::Diagnostics(MessageType mtype)
 	// Show the reset code stored at the last software reset
 	{
 #if __LPC17xx__
+        //Reset Reason
+        MessageF(mtype, "Last reset %02d:%02d:%02d ago, cause: ",
+                 (unsigned int)(now/3600), (unsigned int)((now % 3600)/60), (unsigned int)(now % 60));
+        
+        if(LPC_SC->RSID & RSID_POR) MessageF(mtype, "[power up]");
+        if(LPC_SC->RSID & RSID_EXTR) MessageF(mtype, "[reset button]");
+        if(LPC_SC->RSID & RSID_WDTR) MessageF(mtype, "[watchdog]");
+        if(LPC_SC->RSID & RSID_BODR) MessageF(mtype, "[brownout]");
+        if(LPC_SC->RSID & RSID_SYSRESET) MessageF(mtype, "[software]");
+        if(LPC_SC->RSID & RSID_LOCKUP) MessageF(mtype, "[lockup]");
+        
+        MessageF(mtype, "\n");
+        
+        
 		SoftwareResetData srdBuf[1];
 		int slot = -1;
 
@@ -3703,6 +3721,10 @@ void Platform::AppendAuxReply(OutputBuffer *reply, bool rawMessage)
 // Send the specified message to the specified destinations. The Error and Warning flags have already been handled.
 void Platform::RawMessage(MessageType type, const char *message)
 {
+    
+#warning TODO:: Temporary Workaround
+    if(inInterrupt()) return; //discard message if within an interrupt
+    
 	// Deal with logging
 	if ((type & LogMessage) != 0 && logger != nullptr)
 	{
