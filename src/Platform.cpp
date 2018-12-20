@@ -890,9 +890,37 @@ bool Platform::HomingZWithProbe() const
 // Check the prerequisites for updating the main firmware. Return True if satisfied, else print a message to 'reply' and return false.
 bool Platform::CheckFirmwareUpdatePrerequisites(const StringRef& reply)
 {
-#ifndef NO_FIRMWARE_UPDATE
+#ifdef __LPC17xx__
+
+#ifndef LPC_NETWORKING
+    reply.printf("To update firmware download firmware-%s.bin to the sdcard as /firmware.bin and reset", LPC_BOARD_STRING);
+    return false;
+#endif
+    
+    
+    FileStore * const firmwareFile = OpenFile(GetSysDir(), FIRMWARE_FILE, OpenMode::read);
+    if (firmwareFile == nullptr)
+    {
+        reply.printf("Firmware binary \"%s\" not found", FIRMWARE_FILE);
+        return false;
+    }
+
+    // Check that the binary looks sensible. The first word is the initial stack pointer, which should be the top of RAM.
+    const uint32_t initialStackPointer = 0x10008000 - 32; //top 32bytes are reserved in linkerscript as IAP needs it
+
+    uint32_t firstDword;
+    bool ok = firmwareFile->Read(reinterpret_cast<char*>(&firstDword), sizeof(firstDword)) == (int)sizeof(firstDword);
+    firmwareFile->Close();
+    if (!ok || firstDword != initialStackPointer)
+    {
+        reply.printf("Firmware binary \"%s\" is not valid for this electronics", FIRMWARE_FILE);
+        return false;
+    }
 
     
+    
+#else
+
 	FileStore * const firmwareFile = OpenFile(GetSysDir(), IAP_FIRMWARE_FILE, OpenMode::read);
 	if (firmwareFile == nullptr)
 	{
@@ -923,7 +951,7 @@ bool Platform::CheckFirmwareUpdatePrerequisites(const StringRef& reply)
 	}
 
     
-#endif //NO_FIRMWARE_UPDATE
+#endif
 
 	return true;
 }
@@ -931,8 +959,23 @@ bool Platform::CheckFirmwareUpdatePrerequisites(const StringRef& reply)
 // Update the firmware. Prerequisites should be checked before calling this.
 void Platform::UpdateFirmware()
 {
-#if defined(NO_FIRMWARE_UPDATE)
-    //TODO:: LPC updating firmware just copy to SDCARD to /firmware.bin and reboot if using default smoothie bootloader
+#if __LPC17xx__
+
+#if LPC_NETWORKING
+    //DWC will upload firmware to 0:/sys/ we need to move to 0:/sys/firmware.bin and reboot
+
+    String<MaxFilenameLength> location;
+    MassStorage::CombineName(location.GetRef(), GetSysDir(), FIRMWARE_FILE);
+
+    if(!GetMassStorage()->Rename(location.c_str(), "0:/firmware.bin"))
+    {
+        //failed to rename
+        MessageF(FirmwareUpdateMessage, "Failed to move firmware file.\n");
+        return;
+    }
+    
+    SoftwareReset((uint16_t)SoftwareResetReason::user); // Reboot
+#endif
     
     
 #else
@@ -1154,7 +1197,7 @@ void Platform::UpdateFirmware()
 	__asm volatile ("bx r1");
     
     
-#endif //NO_FIRMWARE_UPDATE
+#endif
 }
 
 // Send the beep command to the aux channel. There is no flow control on this port, so it can't block for long.
@@ -3724,10 +3767,6 @@ void Platform::AppendAuxReply(OutputBuffer *reply, bool rawMessage)
 // Send the specified message to the specified destinations. The Error and Warning flags have already been handled.
 void Platform::RawMessage(MessageType type, const char *message)
 {
-    
-#warning TODO:: Temporary Workaround
-    if(inInterrupt()) return; //discard message if within an interrupt
-    
 	// Deal with logging
 	if ((type & LogMessage) != 0 && logger != nullptr)
 	{

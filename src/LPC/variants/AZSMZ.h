@@ -16,7 +16,7 @@
 #define DEFAULT_BOARD_TYPE BoardType::Lpc
 #define ELECTRONICS "AZSMZ Mini"
 #define LPC_ELECTRONICS_STRING "AZSMZ Mini"
-#define LPC_BOARD_STRING "Azsmzmini1"
+#define LPC_BOARD_STRING "AZSMZ"
 
 #define AZSMZ
 //120MHz CPU

@@ -17,7 +17,12 @@
 #define DEFAULT_BOARD_TYPE BoardType::Lpc
 #define ELECTRONICS "ReArm v1.0"
 #define LPC_ELECTRONICS_STRING "ReArm v1.0"
-#define LPC_BOARD_STRING "Rearm1"
+#define LPC_BOARD_STRING "REARM"
+
+//Firmware for networking version only. Non-networking firmware will need to be manually copied to Sdcard
+#define FIRMWARE_FILE "firmware-REARM-NETWORK.bin"
+
+
 
 #define REARM1_0
 //100MHz CPU

@@ -5,14 +5,7 @@
 
 #include "Microstepping.h"
 
-//NOTES:
-// Filament detector pin and Fan RPM pin must be on a spare pin on Port0 or Port2 only (Untested)
-// Azteeg X5 (and maybe others) probe endstop pin is not an ADC pin, so only Digital will be used, or select another spare ADC capable pin if need analog in
 
-
-#define NO_FIRMWARE_UPDATE
-
-//TODO:: implement firmware update
 const size_t NumFirmwareUpdateModules = 0;
 
 #ifndef UNUSED
@@ -74,7 +67,7 @@ constexpr Pin TachoPins[NumTachos] = {  };
 # include "variants/ReArm1_0.h"
 #elif defined(__AZSMZ__)
 # include "variants/AZSMZ.h"
-#elif defined(__MKSBASE__)
+#elif defined(__MKSSBASE__)
 # include "variants/MksSbase.h"
 #elif defined(__MBED__)
 //Only used for debugging

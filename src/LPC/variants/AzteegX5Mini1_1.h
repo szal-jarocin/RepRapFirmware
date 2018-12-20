@@ -16,7 +16,7 @@
 #define DEFAULT_BOARD_TYPE BoardType::Lpc
 #define ELECTRONICS "AzteegX5Mini1_1"
 #define LPC_ELECTRONICS_STRING "AzteegX5Mini1_1"
-#define LPC_BOARD_STRING "Azteegx5mini1_1"
+#define LPC_BOARD_STRING "AZTEEGX5MINI"
 
 
 

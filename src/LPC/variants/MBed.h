@@ -18,6 +18,8 @@
 #define LPC_ELECTRONICS_STRING "MBED"
 #define LPC_BOARD_STRING "MBED"
 
+//Firmware for networking version only. Non-networking firmware will need to be manually copied to Sdcard
+#define FIRMWARE_FILE "firmware-MBED-NETWORK.bin"
 
 #define MBED
 

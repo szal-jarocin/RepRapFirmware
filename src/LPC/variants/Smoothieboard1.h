@@ -16,7 +16,10 @@
 #define DEFAULT_BOARD_TYPE BoardType::Lpc
 #define ELECTRONICS "Smoothieboard1"
 #define LPC_ELECTRONICS_STRING "Smoothieboard1"
-#define LPC_BOARD_STRING "Smoothieboard1"
+#define LPC_BOARD_STRING "SMOOTHIEBOARD"
+
+//Firmware for networking version only. Non-networking firmware will need to be manually copied to Sdcard
+#define FIRMWARE_FILE "firmware-SMOOTHIEBOARD-NETWORK.bin"
 
 
 #define SMOOTHIEBOARD1

@@ -16,7 +16,11 @@
 #define DEFAULT_BOARD_TYPE BoardType::Lpc
 #define ELECTRONICS "MKS SBase"
 #define LPC_ELECTRONICS_STRING "MKS SBase"
-#define LPC_BOARD_STRING "mkssbase"
+#define LPC_BOARD_STRING "MKSSBASE"
+
+
+//Firmware for networking version only. Non-networking firmware will need to be manually copied to Sdcard
+#define FIRMWARE_FILE "firmware-MKSBASE-NETWORK.bin"
 
 
 #define MKSSBASE
