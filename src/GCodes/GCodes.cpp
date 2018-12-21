@@ -87,8 +87,12 @@ GCodes::GCodes(Platform& p) :
 #if HAS_NETWORKING
 	httpInput = new NetworkGCodeInput;
 	httpGCode = new GCodeBuffer("http", HttpMessage, false);
+#if LPC_NETWORKING
+    telnetGCode = nullptr;
+#else
 	telnetInput = new NetworkGCodeInput;
 	telnetGCode = new GCodeBuffer("telnet", TelnetMessage, true);
+#endif
 #else
 	httpGCode = telnetGCode = nullptr;
 #endif
