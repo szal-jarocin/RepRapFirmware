@@ -325,7 +325,7 @@ constexpr size_t MaxI2cBytes = 32;						// max bytes in M260 or M261 command
 # if defined (ESP_NETWORKING)
     constexpr size_t MAX_FILES = 10;                        // Must be large enough to handle the max number of simultaneous web requests + files being printed
 #else
-    constexpr size_t MAX_FILES = 3;                        // Must be large enough to handle the max number of simultaneous web requests + files being printed
+    constexpr size_t MAX_FILES = 4;                        // Must be large enough to handle the max number of simultaneous web requests + files being printed
 
 #endif
 
