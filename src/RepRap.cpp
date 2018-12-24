@@ -471,7 +471,14 @@ void RepRap::Spin()
 	}
 	else
 	{
-		const uint32_t dt = StepTimer::GetInterruptClocks() - lastTime;
+		const uint32_t now = StepTimer::GetInterruptClocks();
+		const uint32_t dt = now - lastTime;
+#if 0 //DEBUG
+		if (dt > 1000000)
+		{
+			platform->MessageF(ErrorMessage, "dt %" PRIu32 " now %08" PRIx32 " last %08" PRIx32 "\n", dt, now, lastTime);
+		}
+#endif
 		if (dt < fastLoop)
 		{
 			fastLoop = dt;
@@ -2044,7 +2051,7 @@ bool RepRap::GetFileInfoResponse(const char *filename, OutputBuffer *&response, 
 	if (filename != nullptr && filename[0] != 0)
 	{
 		GCodeFileInfo info;
-		if (!platform->GetMassStorage()->GetFileInfo(GCODE_DIR, filename, info, quitEarly))
+		if (!platform->GetMassStorage()->GetFileInfo(platform->GetGCodeDir(), filename, info, quitEarly))
 		{
 			// This may take a few runs...
 			return false;
@@ -2191,12 +2198,10 @@ char RepRap::GetStatusCharacter() const
 #endif
 			: (gCodes->IsPausing()) 									? 'D'	// Pausing / Decelerating
 			: (gCodes->IsResuming()) 									? 'R'	// Resuming
-			: (gCodes->IsDoingToolChange())								? 'T'	// Changing tool
 			: (gCodes->IsPaused()) 										? 'S'	// Paused / Stopped
-			: (printMonitor->IsPrinting())
-			  ? ((gCodes->IsSimulating())								? 'M'	// Simulating
-			  :															  'P'	// Printing
-				)
+			: (printMonitor->IsPrinting() && gCodes->IsSimulating())	? 'M'	// Simulating
+			: (printMonitor->IsPrinting())							  	? 'P'	// Printing
+			: (gCodes->IsDoingToolChange())								? 'T'	// Changing tool
 			: (gCodes->DoingFileMacro() || !move->NoLiveMovement()) 	? 'B'	// Busy
 			:															  'I';	// Idle
 }
