@@ -895,9 +895,7 @@ bool Platform::CheckFirmwareUpdatePrerequisites(const StringRef& reply)
 #ifndef LPC_NETWORKING
     reply.printf("To update firmware download firmware-%s.bin to the sdcard as /firmware.bin and reset", LPC_BOARD_STRING);
     return false;
-#endif
-    
-    
+#else
     FileStore * const firmwareFile = OpenFile(GetSysDir(), FIRMWARE_FILE, OpenMode::read);
     if (firmwareFile == nullptr)
     {
@@ -916,7 +914,7 @@ bool Platform::CheckFirmwareUpdatePrerequisites(const StringRef& reply)
         reply.printf("Firmware binary \"%s\" is not valid for this electronics", FIRMWARE_FILE);
         return false;
     }
-
+#endif
     
     
 #else
