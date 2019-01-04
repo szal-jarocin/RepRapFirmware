@@ -3,7 +3,7 @@
 
 
 //Config for MKS SBase
-
+//based on: https://github.com/makerbase-mks/MKS-SBASE/blob/master/English/config/config.txt
 
 //NOTES:
 // Filament detector pin and Fan RPM pin must be on a spare pin on Port0 or Port2 only (UNTESTED)
@@ -92,9 +92,9 @@ constexpr float digipotFactor = 113.33; //factor for converting current to digip
 // HEATERS - The bed is assumed to be the at index 0
 
 // Analogue pin numbers
-//                                            Bed    H1     H2
-constexpr Pin TEMP_SENSE_PINS[NumThermistorInputs] = {P0_24, P0_23, P0_25};
-constexpr Pin HEAT_ON_PINS[NumHeaters] = {P2_5, P2_7, P1_23}; // bed, h0, h1
+//                                                      Bed    H0     H1
+constexpr Pin TEMP_SENSE_PINS[NumThermistorInputs] = {P0_23, P0_24, P0_25};
+constexpr Pin HEAT_ON_PINS[NumHeaters] = {P2_5, P2_7, P2_6}; // bed, h0, h1
 
 // PWM -
 //       The Hardware PWM channels ALL share the same Frequency,
@@ -120,7 +120,7 @@ constexpr Pin HEAT_ON_PINS[NumHeaters] = {P2_5, P2_7, P1_23}; // bed, h0, h1
 //       P3_25  Channel 2
 //       P3_26  Channel 3
 
-//MKS SBase: Bed (Timer1), H0 (Timer3), H1 (HW PWM), Fan1 (HWPWM), Fan2(Timer3)
+//MKS SBase: Bed (Timer1), H0 (Timer3), H1 (Timer3), Fan1 (HWPWM),
 
 #define Timer1_PWM_Frequency 10 //For Bed heaters or other slow PWM (10Hz is what RRF defaults to be compatible with SSRs)
 #define Timer2_PWM_Frequency 50 //For Servos
@@ -128,7 +128,7 @@ constexpr Pin HEAT_ON_PINS[NumHeaters] = {P2_5, P2_7, P1_23}; // bed, h0, h1
 
 #define Timer1_PWMPins {P2_5, NoPin, NoPin } //Bed at 10Hz
 #define Timer2_PWMPins {NoPin, NoPin , NoPin}
-#define Timer3_PWMPins {P2_7, P2_6, NoPin}  //H0 and Fan2 at 250Hz
+#define Timer3_PWMPins {P2_7, P2_6, NoPin}  //H0 and H1 at 250Hz
 
 
 // Default thermistor betas
@@ -167,8 +167,8 @@ constexpr Pin DiagPin = NoPin;
 
 
 // Use a PWM capable pin
-constexpr size_t NUM_FANS = 2;
-constexpr Pin COOLING_FAN_PINS[NUM_FANS] = { P2_4, P2_6 }; //Note: P2_6 is not hardware PWMable!!
+constexpr size_t NUM_FANS = 1;
+constexpr Pin COOLING_FAN_PINS[NUM_FANS] = { P2_4 };
 
 //Pins defined to use for external interrupt. **Must** be a pin on Port0 or Port2.
 //I.e. for Fan RPM, Filament Detection etc

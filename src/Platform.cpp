@@ -960,7 +960,7 @@ void Platform::UpdateFirmware()
 #if __LPC17xx__
 
 #if LPC_NETWORKING
-    //DWC will upload firmware to 0:/sys/ we need to move to 0:/sys/firmware.bin and reboot
+    //DWC will upload firmware to 0:/sys/ we need to move to 0:/firmware.bin and reboot
 
     String<MaxFilenameLength> location;
     MassStorage::CombineName(location.GetRef(), GetSysDir(), FIRMWARE_FILE);
