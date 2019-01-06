@@ -44,6 +44,9 @@ const size_t NumFirmwareUpdateModules = 0;
 #define SUPPORT_DHT_SENSOR	0					// set nonzero to support DHT temperature/humidity sensors
 
 
+#define ENABLE_TELNET 0
+#define ENABLE_FTP    0
+
 //LCD Support with No Networking 
 #if defined(LPC_NETWORKING) || defined(ESP_NETWORKING)
     #define SUPPORT_12864_LCD       0

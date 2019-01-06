@@ -245,12 +245,12 @@ void RTOSPlusTCPEthernetSocket::ReInit()
 		receivedData = receivedData->Release();
 	}
 
-    //create server socket, or check if it was closed for some reason and attemp reopen
+    //create server socket, or check if it was closed for some reason and attempt reopen
     xListeningSocket = RTOSPlusTCPEthernetServerSocket::Instance()->GetServerSocket(localPort, protocol);
     if( xListeningSocket != nullptr )
     {
         state = SocketState::listening;
-        isTerminated = false;
+        //isTerminated = false;
 
     }
     else
@@ -259,12 +259,12 @@ void RTOSPlusTCPEthernetSocket::ReInit()
         FreeRTOS_debug_printf( ( "+TCPSocket::ReInit() Failed to create socket"  ) );
 
         state = SocketState::disabled;
-        isTerminated = true;
+        //isTerminated = true;
 
     }
     
-	persistConnection = true;
-	isSending = false;
+	//persistConnection = true;
+	//isSending = false;
 }
 
 // Close a connection when the last packet has been sent
@@ -309,7 +309,7 @@ void RTOSPlusTCPEthernetSocket::Terminate()
         FreeRTOS_closesocket( xConnectedSocket );
         xConnectedSocket = nullptr;
         
-		isTerminated = true;
+		//isTerminated = true;
         state = SocketState::inactive;
 
 	}
@@ -390,22 +390,18 @@ void RTOSPlusTCPEthernetSocket::Poll(bool full)
             {
                 //check for client connections
                 
-                
                 if(xConnectedSocket == nullptr || FreeRTOS_issocketconnected(xConnectedSocket) == pdFALSE )
                 {
-                    //connected socket is not open, look to see if we can connect to a client
-                    
-                        //attempt to accept a connection.
-                    //TODO:::: move these if needed to class privates
+                    //socket exists but not open, attempt to connect to client
                     struct freertos_sockaddr xClient;
                     socklen_t xSize = sizeof( xClient );
                     
-                    //server is setup with no delay, so we will poll the accept for client in the queue
+                    //socket is setup in non-blocking mode, so we will poll the accept for next client in the queue
+                    //if there is no client, FreeRTOS_accept will return false.
                     xConnectedSocket = FreeRTOS_accept( xListeningSocket, &xClient, &xSize );
                     
                     if(FreeRTOS_issocketconnected(xConnectedSocket) == pdTRUE)
                     {
-                        FreeRTOS_debug_printf( ( "Client Connected!\n\n" ) );
                         whenConnected = millis();
 
                         //TODO:: do we need the remote port for any other RRF functions????
@@ -416,6 +412,7 @@ void RTOSPlusTCPEthernetSocket::Poll(bool full)
                     {
                         // no clients waiting to connect
                         // nothing else to do
+                        return;
                     }
                     
                 }
@@ -427,12 +424,18 @@ void RTOSPlusTCPEthernetSocket::Poll(bool full)
                     //check socket to see if its closed before we got to initialise everything
                     if( isSocketClosing(xConnectedSocket) == true || hasSocketGracefullyClosed(xConnectedSocket) == true )
                     {
-                        //FreeRTOS_debug_printf( ( "Socket closed while setting up!\n\n" ) );
                         state = SocketState::closing;
+                        if (reprap.Debug(moduleNetwork))
+                        {
+                            
+                            debugPrintf("Socket closed while setting up on Skt: %d\n", socketNum);
+                        }
+
                     }
                     else
                     {
                         //we accepted a client, but didnt get a Responder during the last pass.
+                        //will try again below
                     }
                 }
                 
@@ -444,19 +447,15 @@ void RTOSPlusTCPEthernetSocket::Poll(bool full)
                     
                     if (reprap.GetNetwork().FindResponder(this, protocol))
                     {
-                        //FreeRTOS_debug_printf( ( "Found Responder \n\n" ) );
                         state = SocketState::connected;
-                        sendOutstanding = false;
+                        //sendOutstanding = false;
                     }
                     else if (millis() - whenConnected >= FindResponderTimeout)
                     {
                         if (reprap.Debug(moduleNetwork))
                         {
-                            debugPrintf("Timed out waiting for resonder for port %u\n", localPort);
+                            debugPrintf("Timed out waiting for resonder on skt %d for port %u\n", socketNum, localPort);
                         }
-                        
-                        
-                        FreeRTOS_debug_printf( ( "Responder Timed out\n\n" ) );
                         
                         Close(); // close the socket
                         //Terminate();
@@ -491,20 +490,18 @@ void RTOSPlusTCPEthernetSocket::Poll(bool full)
                 }
                 else
                 {
-                    
-                    FreeRTOS_debug_printf( ( "Socket Error\n\n" ) );
+                    if (reprap.Debug(moduleNetwork))
+                    {
+                        
+                        debugPrintf("Unknown error on Skt: %d\n", socketNum);
+                    }
                     //some sort of socket error?
 
                     //TODO::; probably this should call Terminate ????
                     
                     ReceiveData(); //last check of receive buffers??
                     state = SocketState::closing;
-
-                    
                 }
-                
-                
-                
             } break;
                 
             case SocketState::clientDisconnecting:
@@ -516,14 +513,10 @@ void RTOSPlusTCPEthernetSocket::Poll(bool full)
                 
                 BaseType_t rxlen = FreeRTOS_rx_size( xConnectedSocket ); //bytes not received from buffers
                 if( rxlen > 0 ){
-                    //FreeRTOS_debug_printf( ( "SocketState:clientDisconnecting but receiving last bits of data \n\n" ) );
                     ReceiveData();
                 }
                 else
                 {
-                    
-                    //FreeRTOS_debug_printf( ( "SocketState:clientDisconnecting. All data received. Closing socket gragefully! \n\n" ) );
-
                     if (protocol == FtpDataProtocol)
                     {
                         localPort = 0;                    // don't re-listen automatically
@@ -532,39 +525,26 @@ void RTOSPlusTCPEthernetSocket::Poll(bool full)
                     //Send Shutdown request and gracefully shutdown
                     FreeRTOS_shutdown( xConnectedSocket, FREERTOS_SHUT_RDWR );
                     state = SocketState::closing;
-
-
                 }
-                
-                
-                
-                
             } break;
                 
             case SocketState::closing:
             {
 
                 //debugSocketStatus(xConnectedSocket);
-
                 FreeRTOS_closesocket( xConnectedSocket ); //close the socket
                 xConnectedSocket = nullptr;
-                FreeRTOS_debug_printf( ( "SocketState:Socket closed \n\n" ) );
                 ReInit();
                 
             } break;
-                
-//            case SocketState::aborted:
-//                break;
 
             default:
                 break;
 
-                
-        }
-        
+        } //end switch
     }
-
 }
+
 
 
 void RTOSPlusTCPEthernetSocket::CheckSocketError(BaseType_t val){
@@ -575,7 +555,12 @@ void RTOSPlusTCPEthernetSocket::CheckSocketError(BaseType_t val){
 
     if( ( val < 0 ) && ( val != -pdFREERTOS_ERRNO_EWOULDBLOCK ) )
     {
-        FreeRTOS_debug_printf( ( "SocketError: Closing connected client socket!\n\n" ) );
+        if (reprap.Debug(moduleNetwork))
+        {
+            
+            debugPrintf("SocketError on Skt: %d Closing Connection\n", socketNum);
+        }
+
         DiscardReceivedData();
         //we need to close the client socket (but not the server socket)
         FreeRTOS_closesocket( xConnectedSocket );
@@ -617,8 +602,6 @@ void RTOSPlusTCPEthernetSocket::ReceiveData()
 		}
 		else if (NetworkBuffer::Count(receivedData) < MaxBuffersPerSocket)
 		{
-            
-            
             NetworkBuffer * const buf = NetworkBuffer::Allocate();
             if (buf != nullptr)
             {
@@ -640,16 +623,13 @@ void RTOSPlusTCPEthernetSocket::ReceiveData()
 		}
 		else
         {
-            debugPrintf("no buffer\n");
+            if (reprap.Debug(moduleNetwork))
+            {
+                debugPrintf("No buffer available to receive data on skt:%d\n", socketNum);
+            }
         }
  
 	}
-    else
-    {
-        
-    }
-
-
 }
 
 // Discard any received data for this transaction. The mutex is already owned.
@@ -669,51 +649,63 @@ size_t RTOSPlusTCPEthernetSocket::Send(const uint8_t *data, size_t length)
 	if (CanSend() && length != 0 )
 	{
 		// Check for previous send complete
-		if (isSending)									// are we already sending?
+		//if (isSending)									// are we already sending?
+        if(FreeRTOS_tx_space(xConnectedSocket) <= 0) // is there space ?
 		{
             
             BaseType_t ret = FreeRTOS_tx_size(xConnectedSocket);
             
             if(ret > 0){
                 //still sending
+                if (reprap.Debug(moduleNetwork))
+                {
+                    debugPrintf("Still Sending on Skt: %d\n", socketNum);
+                }
+
                 return 0;
             } else if(ret == 0) {
                 //empty
-                isSending = false;
-               // FreeRTOS_debug_printf( ( "+TCPSocket::Send() Finished Sending previous pkt\n" ) );
             } else {
                 //Error
-                FreeRTOS_debug_printf( ( "+TCPSocket::Send() Error\n" ) );
-                isSending = false;
-                
+                if (reprap.Debug(moduleNetwork))
+                {
+                    
+                    debugPrintf("Send error on Skt: %d\n", socketNum);
+                }
                 CheckSocketError(ret);
                 
                 return 0;
             }
 		}
-
-        if (!sendOutstanding)
+        
+        //fill up the remaining TX buffer
+        BaseType_t txSpace = FreeRTOS_tx_space(xConnectedSocket);
+        if (length >  (uint16_t) txSpace)
         {
-
-            BaseType_t txSpace = FreeRTOS_tx_space(xConnectedSocket);
-            if (length >  (uint16_t) txSpace)
+            length = (uint16_t) txSpace;
+        }
+        
+        BaseType_t ret = FreeRTOS_send( xConnectedSocket, data, length, 0 );
+        if( (ret < 0) && ( ret != -pdFREERTOS_ERRNO_EWOULDBLOCK ))
+        {
+            if (reprap.Debug(moduleNetwork))
             {
-                length = (uint16_t) txSpace;
+                debugPrintf("Send error on Skt: %d Err Code: %d\n", socketNum,(int16_t )ret );
             }
-            
-            BaseType_t ret = FreeRTOS_send( xConnectedSocket, data, length, 0 );
-            if( (ret < 0) && ( ret != -pdFREERTOS_ERRNO_EWOULDBLOCK ))
+            return 0; // Error code
+        }
+        else
+        {
+            if (reprap.Debug(moduleNetwork))
             {
-                FreeRTOS_debug_printf( ( "+TCPSocket::Send() ErrorCode: %d \n", (uint16_t )ret ) );
-                return 0; // Error code
+                debugPrintf("Queued %d bytes on Skt: %d\n", (int16_t )ret, socketNum );
             }
-            
-            sendOutstanding = true;
-
-        } // if(!sendOutstanding)
+        }
+        
+        length = (size_t) ret; //ret holds how much data we actually were able to send
         
         Send();
-        
+
 		return length;
 	}
 	return 0;
@@ -723,18 +715,24 @@ size_t RTOSPlusTCPEthernetSocket::Send(const uint8_t *data, size_t length)
 void RTOSPlusTCPEthernetSocket::Send()
 {
 	MutexLocker lock(interface->interfaceMutex);
-    if (CanSend() && sendOutstanding)
+    if (CanSend() /*&& sendOutstanding*/)
     {
 
         //small timeout so we dont block Network task polling
         uint8_t timeout = 10; // TODO:: 10ms is probably too long to wait??
         while(FreeRTOS_tx_size(xConnectedSocket) > 0){
-            if(timeout <= 0) break;// timed out
+            if(timeout <= 0){
+                // timed out
+                if (reprap.Debug(moduleNetwork))
+                {
+                        debugPrintf("Qeued data still not sent on Skt: %d \n",socketNum );
+                }
+
+                break;
+            }
             vTaskDelay(1);
             timeout -= 1;
         }
-        isSending = true;
-        sendOutstanding = false;
     }
 }
 

@@ -11,6 +11,10 @@
 #include "RepRapFirmware.h"
 #include "NetworkDefs.h"
 
+#if defined(__LPC17xx__)
+# include "RTOSPlusTCPEthernetInterface.h"
+#endif
+
 class WiFiSocket;
 class W5500Socket;
 class RTOSPlusTCPEthernetSocket;
@@ -74,9 +78,7 @@ public:
 	static unsigned int Count(NetworkBuffer*& ptr);
 
 #if defined(__LPC17xx__)
-    // 2xMSS is size of our RX/TX buffers in +TCP
-    // BufferSize of less than 2xMSS seems to cause upload/download errors
-    static const size_t bufferSize =   3 * (568);
+    static const size_t bufferSize =   1 * ipconfigTCP_MSS;
 #else
 	static const size_t bufferSize =
 #ifdef USE_3K_BUFFERS
@@ -95,7 +97,11 @@ private:
 	size_t dataLength;
 	size_t readPointer;
     // When doing unaligned transfers on the WiFi interface, up to 3 extra bytes may be returned, hence the +1 in the following
+#if defined(__LPC17xx__)
+    uint8_t data32[bufferSize];
+#else
 	uint32_t data32[bufferSize/sizeof(uint32_t) + 1];		// 32-bit aligned buffer so we can do direct DMA
+#endif
     static NetworkBuffer *freelist;
 };
 

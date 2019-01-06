@@ -5,6 +5,9 @@
  *      Authors: David and Christian
  */
 
+
+#if ENABLE_FTP
+
 #include "FtpResponder.h"
 #include "Socket.h"
 #include "Network.h"
@@ -900,3 +903,4 @@ void FtpResponder::CloseDataPort()
 }
 
 // End
+#endif

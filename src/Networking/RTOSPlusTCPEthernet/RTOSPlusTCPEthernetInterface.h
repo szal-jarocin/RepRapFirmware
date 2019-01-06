@@ -18,15 +18,25 @@ class RTOSPlusTCPEthernetSocket;
 
 
 #if __LPC17xx__
-const size_t NumHttpSockets = 1;				// sockets 0-3 are for HTTP
+const size_t NumHttpSockets = 2;				// sockets 0-3 are for HTTP
 #else
 const size_t NumHttpSockets = 4;                // sockets 0-3 are for HTTP
 #endif
 const SocketNumber FtpSocketNumber = 4;
 const SocketNumber FtpDataSocketNumber = 5;		// TODO can we allocate this dynamically when required, to allow more http sockets most of the time?
 const SocketNumber TelnetSocketNumber = 6;
-const size_t NumRTOSPlusTCPEthernetTcpSockets = 7;
 const SocketNumber DhcpSocketNumber = 7;		// TODO can we allocate this dynamically when required, to allow more http sockets most of the time?
+
+const size_t NumRTOSPlusTCPEthernetTcpSockets = NumHttpSockets
+#if ENABLE_TELNET
+                    + 1
+#endif
+#if ENABLE_FTP
+                    + 2 //ftp + ftpdata ports
+#endif
+; //end of NumRTOSPlusTCPEthernetTcpSockets
+
+
 
 class Platform;
 

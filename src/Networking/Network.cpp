@@ -92,8 +92,8 @@ DEFINE_GET_OBJECT_MODEL_TABLE(Network)
 void Network::Init()
 {    
     httpMutex.Create("HTTP");
-#if NumTelnetResponders > 0
-	telnetMutex.Create("Telnet");
+#if ENABLE_TELNET
+    telnetMutex.Create("Telnet");
 #endif
     
     
@@ -104,7 +104,7 @@ void Network::Init()
 	// Create the responders
 	HttpResponder::InitStatic();
 
-#if NumTelnetResponders > 0
+#if ENABLE_TELNET
     TelnetResponder::InitStatic();
 
 	for (size_t i = 0; i < NumTelnetResponders; ++i)
@@ -112,11 +112,12 @@ void Network::Init()
 		responders = new TelnetResponder(responders);
 	}
 #endif
-    
+#if ENABLE_FTP
 	for (size_t i = 0; i < NumFtpResponders; ++i)
 	{
 		responders = new FtpResponder(responders);
 	}
+#endif
 	for (size_t i = 0; i < NumHttpResponders; ++i)
 	{
 		responders = new HttpResponder(responders);
@@ -486,7 +487,7 @@ void Network::HandleHttpGCodeReply(const char *msg)
 
 void Network::HandleTelnetGCodeReply(const char *msg)
 {
-#if NumTelnetResponders > 0
+#if ENABLE_TELNET
 	MutexLocker lock(telnetMutex);
 	TelnetResponder::HandleGCodeReply(msg);
 #endif
@@ -500,7 +501,7 @@ void Network::HandleHttpGCodeReply(OutputBuffer *buf)
 
 void Network::HandleTelnetGCodeReply(OutputBuffer *buf)
 {
-#if NumTelnetResponders > 0
+#if ENABLE_TELNET
 	MutexLocker lock(telnetMutex);
 	TelnetResponder::HandleGCodeReply(buf);
 #endif

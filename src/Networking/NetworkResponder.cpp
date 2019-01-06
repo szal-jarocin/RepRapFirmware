@@ -125,7 +125,9 @@ void NetworkResponder::SendData()
 			}
 
 			fileBuffer->Taken(sent);
-			if (sent < remaining)
+			//if (sent < remaining)
+            //SD:: Modified as it was getting stuck in the while loop sending large files and not servicing the other sockets
+            if(fileBuffer->IsEmpty()) //all the file buffer was sent, return to allow other sockets etc to be polled
 			{
 				return;
 			}

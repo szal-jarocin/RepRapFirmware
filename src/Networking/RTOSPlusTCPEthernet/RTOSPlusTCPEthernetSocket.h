@@ -44,11 +44,7 @@ private:
 
 	NetworkBuffer *receivedData;						// List of buffers holding received data
 	uint32_t whenConnected;
-	bool persistConnection;								// Do we expect this connection to stay alive?
-	bool isTerminated;									// Will be true if the connection has gone down unexpectedly (TCP RST)
 	SocketNumber socketNum;								// The RTOSPlusTCPEthernet socket number we are using
-	bool sendOutstanding;								// True if we have written data to the socket but not flushed it
-	bool isSending;										// True if we have written data to the RTOSPlusTCPEthernet to send and have not yet seen success or timeout
 
 //TCP+
     Socket_t xListeningSocket;  // server socket 

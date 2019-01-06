@@ -41,10 +41,8 @@ RTOSPlusTCPEthernetServerSocket::RTOSPlusTCPEthernetServerSocket()
 // Initialise a TCP socket
 Socket_t RTOSPlusTCPEthernetServerSocket::GetServerSocket(Port serverPort, NetworkProtocol p)
 {
-    //uint8_t maxClients = 1; //default to only 1
     static const TickType_t xReceiveTimeOut = 1; // time (in ticks) to wait for FreeRTOS_accept .. portMax_DELAY would wait indefinetly (block until client connection)
     static const TickType_t xSendTimeOut = 1;
-
 
     struct freertos_sockaddr xBindAddress;
     BaseType_t maxClients = 1; //max number of simultaneous connections allowed
@@ -101,11 +99,12 @@ Socket_t RTOSPlusTCPEthernetServerSocket::GetServerSocket(Port serverPort, Netwo
         //This is not related to the size of the packets or the sliding window, it only sets the size of the buffer.
         //Buff size should be multiples of MSS
         
-        uint32_t rxtxbufferSize = 2*ipconfigTCP_MSS; //SD:: usig 2x MSS for rx and tx buffers
+        uint32_t txbufferSize = 1*ipconfigTCP_MSS;
+        uint32_t rxbufferSize = 1*ipconfigTCP_MSS;
         
         //set the Buffer size for RX and TX,
-        FreeRTOS_setsockopt( protocolServerSockets[p], 0, FREERTOS_SO_RCVBUF, ( void * ) &rxtxbufferSize, sizeof( rxtxbufferSize ) );
-        FreeRTOS_setsockopt( protocolServerSockets[p], 0, FREERTOS_SO_SNDBUF, ( void * ) &rxtxbufferSize, sizeof( rxtxbufferSize ) );
+        FreeRTOS_setsockopt( protocolServerSockets[p], 0, FREERTOS_SO_RCVBUF, ( void * ) &rxbufferSize, sizeof( rxbufferSize ) );
+        FreeRTOS_setsockopt( protocolServerSockets[p], 0, FREERTOS_SO_SNDBUF, ( void * ) &txbufferSize, sizeof( txbufferSize ) );
         
         
         //FREERTOS_SO_TCP_CONN_HANDLER - Install a callback for (dis) connection events. Supply pointer to 'F_TCP_UDP_Handler_t'
@@ -122,7 +121,7 @@ Socket_t RTOSPlusTCPEthernetServerSocket::GetServerSocket(Port serverPort, Netwo
         
         //Configure the socket reuse
         //If reuse is False (default) then the connecting sockect(s) will make a copy of the socket for simultaneous connected clients
-        //else the same socket will be used at the accept socket and when closed, must be recreated ahain
+        //else the same socket will be used at the accept socket and when closed, must be recreated again
         //
         FreeRTOS_setsockopt( protocolServerSockets[p], 0, FREERTOS_SO_REUSE_LISTEN_SOCKET, &reuseSocket, sizeof( reuseSocket ) );
         

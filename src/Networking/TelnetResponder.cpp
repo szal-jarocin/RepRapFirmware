@@ -12,7 +12,7 @@
 #include "Platform.h"
 
 
-#if NumTelnetResponders > 0
+#if ENABLE_TELNET
 
 
 TelnetResponder::TelnetResponder(NetworkResponder *n) : NetworkResponder(n)
