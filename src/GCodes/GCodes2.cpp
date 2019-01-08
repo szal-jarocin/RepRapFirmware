@@ -3446,7 +3446,11 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply)
 
 	case 581: // Configure external trigger
 	case 582: // Check external trigger
+#if __LPC17xx__
+        reply.printf("M581/M582 not supported on LPC port");
+#else
 		result = CheckOrConfigureTrigger(gb, reply, code);
+#endif
 		break;
 
 	case 584: // Set axis/extruder to stepper driver(s) mapping

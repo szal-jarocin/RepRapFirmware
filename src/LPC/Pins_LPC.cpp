@@ -20,4 +20,3 @@ extern const Pin ExternalInterruptPins[MaxExtInterrupts] = EXTERNAL_INTERRUPT_PI
 
 extern const uint8_t ExternalInterruptPinsPort0Array[32] = { EXTINTREP(32, 0) };
 extern const uint8_t ExternalInterruptPinsPort2Array[32] = { EXTINTREP(32, 2) };
-

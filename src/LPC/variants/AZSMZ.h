@@ -71,8 +71,7 @@ const Pin DIRECTION_PINS[DRIVES] =          { P0_5, P0_11, P0_20, P0_22,  P2_13}
 //       endstop.  gcode also sets if it is active HIGH or LOW
 //
 
-//RE-Arm has 6 endstops. We will assume MAX endstops headers are used, leaving P1_24, 1_26 free for other purposes. 1_29 (Z-min used for probe)
-
+//AZSMZ has X,Y,Z,Probe
 const Pin END_STOP_PINS[NumEndstops] = { P1_24, P1_26, P1_28 };
 
 #define HAS_DRIVER_CURRENT_CONTROL 0

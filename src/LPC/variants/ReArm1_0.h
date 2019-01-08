@@ -47,7 +47,7 @@ constexpr size_t NumDirectDrivers = DRIVES;                // The maximum number
 constexpr size_t MaxTotalDrivers = NumDirectDrivers;
 constexpr size_t MaxSmartDrivers = 0;                // The maximum number of smart drivers
 
-constexpr size_t NumEndstops = 3;                    // The number of inputs we have for endstops, filament sensors etc.
+constexpr size_t NumEndstops = 6;                    // The number of inputs we have for endstops, filament sensors etc.
 constexpr size_t NumHeaters = 2;                    // The number of heaters in the machine; 0 is the heated bed even if there isn't one // set to 3 if using 2nd extruder
 constexpr size_t NumThermistorInputs = 2;           //Set to 3 if using 2nd extruder
 
@@ -70,14 +70,28 @@ constexpr Pin DIRECTION_PINS[DRIVES] =          { P0_11, P0_20, P0_22, P0_5,  P2
 
 
 // Endstops
-// Note: RepRapFirmware only as a single endstop per axis
-//       gcode defines if it is a max ("high end") or min ("low end")
-//       endstop.  gcode also sets if it is active HIGH or LOW
-//
+// RepRapFirmware only as a single endstop per axis
+// gcode defines if it is a max ("high end") or min ("low end") endstop.  gcode also sets if it is active HIGH or LOW
 
-//RE-Arm has 6 endstops. We will assume MAX endstops headers are used, leaving P1_24, 1_26 free for other purposes. 1_29 (Z-min used for probe)
 
-constexpr Pin END_STOP_PINS[NumEndstops] = { P1_25, P1_27, P1_28 };
+//ReArm has 6 Endstops (Note schematic says Zmin is 1.29 and ZMax is 1.28 which is opposite to smoothieboard)
+//                                          Xmin    Ymin  Zmin   Xmax   Ymax   Zmax
+//                          RRF C Index     0       1     2      3      4      5
+constexpr Pin END_STOP_PINS[NumEndstops] = {P1_24, P1_26, P1_29, P1_25, P1_27, P1_28};
+#define LPC_MAX_MIN_ENDSTOPS 1
+// Z Probe pin
+// Default: Probe will be selected from an EndStop Pin (which are digital input only)
+// Needs to be an ADC for certain modes, if needed then a spare A/D capable pin should be used and set Z_PROBE_PIN below.
+// Must be an ADC capable pin.  Can be any of the ARM's A/D capable
+// pins even a non-Arduino pin.
+
+//Note: default to NoPin for Probe.
+constexpr Pin Z_PROBE_PIN = NoPin;
+// Digital pin number to turn the IR LED on (high) or off (low)
+constexpr Pin Z_PROBE_MOD_PIN06 = NoPin;                                        // Digital pin number to turn the IR LED on (high) or off (low) on Duet v0.6 and v1.0 (PB21)
+constexpr Pin Z_PROBE_MOD_PIN07 = NoPin;                                        // Digital pin number to turn the IR LED on (high) or off (low) on Duet v0.7 and v0.8.5 (PC10)
+constexpr Pin Z_PROBE_MOD_PIN =   NoPin;
+
 
 
 //RaArm has no current control for drivers.
@@ -145,13 +159,6 @@ constexpr SSPChannel TempSensorSSPChannel = SSP0;
 
 // Digital pin number that controls the ATX power on/off
 constexpr Pin ATX_POWER_PIN = NoPin;
-
-// Z Probe pin
-//Note: ReArm uses pin P1_29 which is NOT an ADC pin. Use a spare if need Analog in, else use digital options for probe
-constexpr Pin Z_PROBE_PIN = P1_29;
-
-// Digital pin number to turn the IR LED on (high) or off (low)
-constexpr Pin Z_PROBE_MOD_PIN = NoPin;
 constexpr Pin DiagPin = NoPin;
 
 
@@ -202,10 +209,6 @@ constexpr Pin SpecialPinMap[] =
     P1_21, //61    Servo2    6      PWM1[3]
     P1_19, //62    Servo3    5
     P1_18, //63    Servo4    4      PWM1[1]    
-    //Spare Endstops
-    P1_26, //      Y-Min    14      PWM1[6] (do not use pwm - chan6 in use by heaters)
-    P1_24, //      X-Min     3      PWM1[5] (do not use pwm - chan5 in use by heaters)
-
     //P0_27, //    Aux1  A3/57    // Conifigured as SPI Thermocouple CS
     P0_28, //    Aux1  A4/58
 

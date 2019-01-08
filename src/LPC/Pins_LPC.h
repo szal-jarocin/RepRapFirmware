@@ -34,7 +34,6 @@ const size_t NumFirmwareUpdateModules = 0;
 #define HAS_VREF_MONITOR             0
 #define SUPPORT_NONLINEAR_EXTRUSION  0
 
-#define NO_PANELDUE                  1 
 
 
 #define SUPPORT_INKJET		0					// set nonzero to support inkjet control
@@ -46,6 +45,7 @@ const size_t NumFirmwareUpdateModules = 0;
 
 #define ENABLE_TELNET 0
 #define ENABLE_FTP    0
+#define NO_PANELDUE                  1
 
 //LCD Support with No Networking 
 #if defined(LPC_NETWORKING) || defined(ESP_NETWORKING)

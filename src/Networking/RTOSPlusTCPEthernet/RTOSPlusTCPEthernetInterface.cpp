@@ -245,11 +245,15 @@ void RTOSPlusTCPEthernetInterface::StartProtocol(NetworkProtocol protocol)
 		break;
 
 	case FtpProtocol:
+#if ENABLE_FTP
 		sockets[FtpSocketNumber]->Init(FtpSocketNumber, portNumbers[protocol], protocol);
+#endif
 		break;
 
 	case TelnetProtocol:
+#if ENABLE_TELNET
 		sockets[TelnetSocketNumber]->Init(TelnetSocketNumber, portNumbers[protocol], protocol);
+#endif
 		break;
 
 	default:
@@ -271,12 +275,16 @@ void RTOSPlusTCPEthernetInterface::ShutdownProtocol(NetworkProtocol protocol)
 		break;
 
 	case FtpProtocol:
+#if ENABLE_FTP
 		sockets[FtpSocketNumber]->TerminateAndDisable();
 		sockets[FtpDataSocketNumber]->TerminateAndDisable();
+#endif
 		break;
 
 	case TelnetProtocol:
+#if ENABLE_TELNET
 		sockets[TelnetSocketNumber]->TerminateAndDisable();
+#endif
 		break;
 
 	default:
@@ -553,7 +561,9 @@ void RTOSPlusTCPEthernetInterface::SetIPAddress(IPAddress p_ip, IPAddress p_netm
 
 void RTOSPlusTCPEthernetInterface::OpenDataPort(Port port)
 {
+#if ENABLE_FTP
 	sockets[FtpDataSocketNumber]->Init(FtpDataSocketNumber, port, FtpDataProtocol);
+#endif
 }
 
 // Close FTP data port and purge associated resources

@@ -13,7 +13,7 @@
 // LPC Microstepping static class
 
 
-uint8_t microstepping[ DRIVES ];
+uint8_t microstepping[ NumDirectDrivers ];
 
 void Microstepping::Init() {
     //nothing to do
@@ -23,7 +23,7 @@ void Microstepping::Init() {
 bool Microstepping::Set(uint8_t drive, uint8_t value) {
 
 	// Do not exceed the maximum value
-	if ( drive >= (DRIVES) )
+	if ( drive >= (NumDirectDrivers) )
 	{
 		return false;
 	}
@@ -40,7 +40,7 @@ bool Microstepping::Set(uint8_t drive, uint8_t value) {
 uint8_t Microstepping::Read( uint8_t drive ) {
 
 	// Do not exceed the maximum value
-	if ( drive < (DRIVES) )
+	if ( drive < (NumDirectDrivers) )
 	{
 		return ( microstepping[drive] );
 	}
