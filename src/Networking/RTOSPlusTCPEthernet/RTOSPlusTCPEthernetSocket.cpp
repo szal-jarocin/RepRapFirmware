@@ -688,11 +688,13 @@ size_t RTOSPlusTCPEthernetSocket::Send(const uint8_t *data, size_t length)
         BaseType_t ret = FreeRTOS_send( xConnectedSocket, data, length, 0 );
         if( (ret < 0) && ( ret != -pdFREERTOS_ERRNO_EWOULDBLOCK ))
         {
+            //Error on socket
             if (reprap.Debug(moduleNetwork))
             {
                 debugPrintf("Send error on Skt: %d Err Code: %d\n", socketNum,(int16_t )ret );
             }
-            return 0; // Error code
+            Terminate(); // close the conenction
+            return 0;
         }
         else
         {
@@ -704,7 +706,7 @@ size_t RTOSPlusTCPEthernetSocket::Send(const uint8_t *data, size_t length)
         
         length = (size_t) ret; //ret holds how much data we actually were able to send
         
-        Send();
+        //Send();
 
 		return length;
 	}

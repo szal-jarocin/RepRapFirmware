@@ -63,6 +63,12 @@
 # include "Display/Display.h"
 #endif
 
+
+#if __LPC17xx__
+# include "LPC/BoardConfig.h"
+#endif
+
+
 #include <climits>
 
 extern uint32_t _estack;			// defined in the linker script
@@ -173,14 +179,6 @@ Platform::Platform() :
 // Initialise the Platform. Note: this is the first module to be initialised, so don't call other modules from here!
 void Platform::Init()
 {
-	if (DiagPin != NoPin)
-	{
-		pinMode(DiagPin, OUTPUT_LOW);				// set up diag LED for debugging and turn it off
-	}
-
-	// Deal with power first (we assume this doesn't depend on identifying the board type)
-	pinMode(ATX_POWER_PIN, OUTPUT_LOW);
-	deferredPowerDown = false;
 
 	SetBoardType(BoardType::Auto);
 
@@ -243,6 +241,26 @@ void Platform::Init()
 	}
 
 	massStorage->Init();
+
+#if __LPC17xx__
+
+    //Load HW pin assignments from sdcard
+    BoardConfig::Init();
+
+    if(StatusLEDPin != NoPin)
+    {
+        pinMode(StatusLEDPin, OUTPUT_LOW);
+    }
+#endif
+    
+    if (DiagPin != NoPin)
+    {
+        pinMode(DiagPin, OUTPUT_LOW);                // set up diag LED for debugging and turn it off
+    }
+    
+    // Deal with power first (we assume this doesn't depend on identifying the board type)
+    pinMode(ATX_POWER_PIN, OUTPUT_LOW);
+    deferredPowerDown = false;
 
 	ipAddress = DefaultIpAddress;
 	netMask = DefaultNetMask;
@@ -315,10 +333,10 @@ void Platform::Init()
 #endif
 
 #if defined(__LPC17xx__)
-# if HAS_DRIVER_CURRENT_CONTROL
-	mcp4451.begin();
-# endif
-	Microstepping::Init(); // basic class to remember the Microstepping.
+    
+	if(hasDriverCurrentControl == true) mcp4451.begin();
+
+    Microstepping::Init(); // basic class to remember the Microstepping.
 #endif
 
 	ARRAY_INIT(endStopPins, END_STOP_PINS);
@@ -3336,21 +3354,22 @@ void Platform::UpdateMotorCurrent(size_t driver)
 		}
 #elif defined(__LPC17xx__)
 
-# if HAS_DRIVER_CURRENT_CONTROL
-		//Has digipots to set current control for drivers
-		//Current is in mA
-		uint16_t pot = (unsigned short) (current * digipotFactor / 1000);
-		if (driver < 4)
-		{
-			mcp4451.setMCP4461Address(0x2C); //A0 and A1 Grounded. (001011 00)
-			mcp4451.setVolatileWiper(POT_WIPES[driver], pot);
-		}
-		else
-		{
-			mcp4451.setMCP4461Address(0x2D); //A0 Vcc, A1 Grounded. (001011 01)
-			mcp4451.setVolatileWiper(POT_WIPES[driver-4], pot);
-		}
-# endif
+        if(hasDriverCurrentControl == true)
+        {
+            //Has digipots to set current control for drivers
+            //Current is in mA
+            uint16_t pot = (unsigned short) (current * digipotFactor / 1000);
+            if (driver < 4)
+            {
+                mcp4451.setMCP4461Address(0x2C); //A0 and A1 Grounded. (001011 00)
+                mcp4451.setVolatileWiper(POT_WIPES[driver], pot);
+            }
+            else
+            {
+                mcp4451.setMCP4461Address(0x2D); //A0 Vcc, A1 Grounded. (001011 01)
+                mcp4451.setVolatileWiper(POT_WIPES[driver-4], pot);
+            }
+        }
 
 #else
 		// otherwise we can't set the motor current

@@ -35,12 +35,14 @@ namespace StepTimer
 		//LPC has 32bit timers
 		//Using the same 128 divisor (as also specified in DDA)
 		//LPC Timers default to /4 -->  (SystemCoreClock/4)
-		const uint32_t res = (VARIANT_MCK/128);						// 1.28us for 100MHz (LPC1768) and 1.067us for 120MHz (LPC1769)
+		//const uint32_t res = (VARIANT_MCK/128);						// 1.28us for 100MHz (LPC1768) and 1.067us for 120MHz (LPC1769)
 
+        
+        
 		//Start a free running Timer using Match Registers 0 and 1 to generate interrupts
 		LPC_SC->PCONP |= ((uint32_t) 1<<SBIT_PCTIM0);				// Ensure the Power bit is set for the Timer
 		STEP_TC->MCR = 0;											// disable all MRx interrupts
-		STEP_TC->PR   =  (getPclk(PCLK_TIMER0) / res) - 1;			// Set the LPC Prescaler (i.e. TC increment every 32 TimerClock Ticks)
+		STEP_TC->PR   =  (getPclk(PCLK_TIMER0) / StepClockRate) - 1;			// Set the LPC Prescaler (i.e. TC increment every 32 TimerClock Ticks)
 		STEP_TC->TC  = 0x00;  										// Restart the Timer Count
 		NVIC_SetPriority(STEP_TC_IRQN, NvicPriorityStep);			// set high priority for this IRQ; it's time-critical
 		NVIC_EnableIRQ(STEP_TC_IRQN);

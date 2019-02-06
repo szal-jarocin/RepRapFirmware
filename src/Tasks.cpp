@@ -113,12 +113,7 @@ extern "C" void AppMain()
 #ifndef __LPC17xx__
 	RSTC->RSTC_MR = RSTC_MR_KEY_PASSWD | RSTC_MR_URSTEN;	// ignore any signal on the NRST pin for now so that the reset reason will show as Software
 #else
-    //Setup LEDs, start off
-    pinMode(LED_PLAY, OUTPUT_LOW);
-    pinMode(LED1, OUTPUT_LOW);
-    pinMode(LED2, OUTPUT_LOW);
-    pinMode(LED3, OUTPUT_LOW);
-    pinMode(LED4, OUTPUT_LOW);
+    //
 #endif
     
 #if USE_CACHE
@@ -284,10 +279,11 @@ namespace Tasks
                     uint8_t pinNumber  =   SpecialPinMap[i] & 0x1f;  //lower 5-bits contains the bit number of a 32bit port
                     
                     p.MessageF(mtype, " %d - P%d_%d ", (60+i), portNumber, pinNumber);
-                    if(TimerPWMPinsArray[SpecialPinMap[i]])
+                    //if(TimerPWMPinsArray[SpecialPinMap[i]])
+                    if((pinsOnATimer[portNumber] & pinNumber))
                     {
-                        uint8_t tim = TimerPWMPinsArray[SpecialPinMap[i]] & 0x0F;
-                        p.MessageF(mtype, "[Timer %s]", (tim&TimerPWM_1)?"1":(tim&TimerPWM_2)?"2":"3" );
+                        //uint8_t tim = TimerPWMPinsArray[SpecialPinMap[i]] & 0x0F;
+                        p.MessageF(mtype, "[Timer]");//, (tim&TimerPWM_1)?"1":(tim&TimerPWM_2)?"2":"3" );
                     }
                     else if((g_APinDescription[SpecialPinMap[i]].ulPinAttribute & PIN_ATTR_PWM)==PIN_ATTR_PWM)
                     {
@@ -357,11 +353,14 @@ extern "C"
 	{
 		reprap.Tick();
 #ifdef __LPC17xx__
-        //blink the PLAY_LED to indicate systick is running
-        sysTickLed++;//uint8_t let it wrap around
-        if(sysTickLed == 255){ 
-            const bool state = GPIO_PinRead(LED_PLAY);
-            GPIO_PinWrite(LED_PLAY, !state);
+        if(StatusLEDPin != NoPin){
+            //blink the StatusLED to indicate systick is running
+            sysTickLed++;//uint8_t let it wrap around
+            if(sysTickLed == 255){
+                const bool state = GPIO_PinRead(StatusLEDPin);
+                GPIO_PinWrite(StatusLEDPin, !state);
+                
+            }
         }
 #endif
         

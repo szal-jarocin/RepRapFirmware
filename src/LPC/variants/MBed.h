@@ -172,7 +172,7 @@ constexpr Pin COOLING_FAN_RPM_PIN = NoPin;
 //Pins defined to use for external interrupt. **Must** be a pin on Port0 or Port2.
 //I.e. for Fan RPM, Filament Detection etc
 // We limit this to 3 to save memory
-#define EXTERNAL_INTERRUPT_PINS {NoPin, NoPin, NoPin}
+#define EXTERNAL_INTERRUPT_PINS {ESPDataReadyPin, NoPin, NoPin}
 
 
 //Internal SDCard is on SSP1
@@ -226,14 +226,14 @@ constexpr Pin SpecialPinMap[] =
 
 
 //SPI LCD Common Settings (RRD Full Graphic Smart Display)
-constexpr SSPChannel LcdSpiChannel = SSP0;     //SSP0 (MISO0, MOSI0, SCK0)
-constexpr Pin LcdCSPin =       P0_16; //LCD Chip Select
-constexpr Pin LcdDCPin =       NoPin;  //DataControl Pin (A0) if none used set to NoPin
-constexpr Pin LcdBeepPin =     P1_31;
-constexpr Pin EncoderPinA =    P3_25;
-constexpr Pin EncoderPinB =    P3_26;
-constexpr Pin EncoderPinSw =   P1_30; //click
-constexpr Pin PanelButtonPin = P2_11; //Extra button on Viki and RRD Panels (reset/back etc configurable)
+//constexpr SSPChannel LcdSpiChannel = SSP0;     //SSP0 (MISO0, MOSI0, SCK0)
+//constexpr Pin LcdCSPin =       P0_16; //LCD Chip Select
+//constexpr Pin LcdDCPin =       NoPin;  //DataControl Pin (A0) if none used set to NoPin
+//constexpr Pin LcdBeepPin =     P1_31;
+//constexpr Pin EncoderPinA =    P3_25;
+//constexpr Pin EncoderPinB =    P3_26;
+//constexpr Pin EncoderPinSw =   P1_30; //click
+//constexpr Pin PanelButtonPin = P2_11; //Extra button on Viki and RRD Panels (reset/back etc configurable)
 
 
 

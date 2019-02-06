@@ -19,6 +19,7 @@
 #include "task.h"
 #include "FreeRTOS_IP.h"
 #include "FreeRTOS_IP_Private.h"
+#include "NetworkBufferManagement.h"
 
 #include "FreeRTOS_Sockets.h"
 #include "FreeRTOS_DHCP.h"
@@ -123,7 +124,7 @@ RTOSPlusTCPEthernetInterface::RTOSPlusTCPEthernetInterface(Platform& p)
 {
     //setup our pointer to access our class methods from the +TCP "C" callbacks
     rtosTCPEtherInterfacePtr = this;
-    
+        
 	// Create the sockets
 	for (RTOSPlusTCPEthernetSocket*& skt : sockets)
 	{
@@ -512,6 +513,15 @@ void RTOSPlusTCPEthernetInterface::Diagnostics(MessageType mtype)
             
             break;
     }
+    
+#if( ipconfigCHECK_IP_QUEUE_SPACE != 0 )
+    platform.MessageF(mtype, "Network Buffers: %lu lowest: %lu\n", uxGetNumberOfFreeNetworkBuffers(), uxGetMinimumFreeNetworkBuffers() );
+    //Print out the minimum IP Queue space left since boot
+    platform.MessageF(mtype, "Lowest IP Event Queue: %lu of %d\n", uxGetMinimumIPQueueSpace(), ipconfigEVENT_QUEUE_LENGTH );
+    
+#endif
+    
+    
 }
 
 // Enable or disable the network
@@ -664,7 +674,6 @@ void RTOSPlusTCPEthernetInterface::ProcessIPApplication( eIPCallbackEvent_t eNet
         
         //FreeRTOS_debug_printf( ( "Application Hook: NetDown\r\n" ) );
         state = NetworkState::establishingLink; //back to establishing link
-        
     }
 
 }

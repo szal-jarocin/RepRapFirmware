@@ -1254,7 +1254,8 @@ inline OutputBuffer *Platform::GetAuxGCodeReply()
 #elif defined(__ALLIGATOR__)
 	return pinDesc.ulPin;
 # elif defined(__LPC17xx__)
-	return 1u << STEP_PIN_PORT2_POS[driver];
+	//return 1u << STEP_PIN_PORT2_POS[driver];
+    return 1u << (STEP_PINS[driver] & 0x1f); //lower 5-bits contains the bit number of a 32bit port;
 #else
 # error Unknown board
 #endif
@@ -1283,10 +1284,8 @@ inline OutputBuffer *Platform::GetAuxGCodeReply()
 	PIOD->PIO_ODSR = driverMap;
 	PIOC->PIO_ODSR = driverMap;
 #elif defined(__LPC17xx__)
-	//On Azteeg X5 Mini all step pins are on Port 2
-	//On Smoothieboard all step pins are on Port 2
-	//On ReArm all step pins are on Port 2
-	LPC_GPIO2->FIOSET = driverMap;
+    //Pins should all be on Port 2
+    LPC_GPIO2->FIOSET = driverMap;
 #else
 # error Unknown board
 #endif

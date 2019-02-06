@@ -43,7 +43,7 @@ constexpr size_t MaxTotalDrivers = NumDirectDrivers;
 constexpr size_t MaxSmartDrivers = 0;                // The maximum number of smart drivers
 
 
-constexpr size_t NumEndstops = 3;                    // The number of inputs we have for endstops, filament sensors etc.
+constexpr size_t NumEndstops = 4;                    // The number of inputs we have for endstops, filament sensors etc.
 constexpr size_t NumHeaters = 2;                    // The number of heaters in the machine; 0 is the heated bed even if there isn't one
 constexpr size_t NumThermistorInputs = 2;
 
@@ -72,7 +72,7 @@ constexpr Pin DIRECTION_PINS[DRIVES] =          { P0_11, P0_20, P0_22, P0_5};
 //
 
 //Azteeg X5 Mini has 3 Endstops and one Probe
-constexpr Pin END_STOP_PINS[NumEndstops] = { P1_24, P1_26, P1_28};
+constexpr Pin END_STOP_PINS[NumEndstops] = { P1_24, P1_26, P1_28, P1_29};
 
 
 //Azteeg X5MiniV1.1 uses MCP4451-103

@@ -12,7 +12,11 @@
 
 namespace StepTimer
 {
+#if __LPC17xx__
+    constexpr uint32_t StepClockRate = 1000000;                         // 1MHz for both 1768 and 1769
+#else
 	constexpr uint32_t StepClockRate = VARIANT_MCK/128;					// just under 1MHz
+#endif
 	constexpr uint64_t StepClockRateSquared = (uint64_t)StepClockRate * StepClockRate;
 	constexpr float StepClocksToMillis = 1000.0/(float)StepClockRate;
 	constexpr uint32_t MinInterruptInterval = 6;						// 12 clocks is about 6us
