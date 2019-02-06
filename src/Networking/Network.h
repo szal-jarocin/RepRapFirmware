@@ -24,7 +24,6 @@ const size_t NumNetworkInterfaces = 1;
 #endif
 
 #if defined(__LPC17xx__)
-//Only 1 http responder as we are tight on memory .
 const size_t NumHttpResponders = 2;        // the number of concurrent HTTP requests we can process
 const size_t NumFtpResponders = 0;        // the number of concurrent FTP sessions we support
 const size_t NumTelnetResponders = 0;    // the number of concurrent Telnet sessions we support
@@ -33,8 +32,6 @@ const size_t NumHttpResponders = 4;		// the number of concurrent HTTP requests w
 const size_t NumFtpResponders = 1;		// the number of concurrent FTP sessions we support
 const size_t NumTelnetResponders = 2;	// the number of concurrent Telnet sessions we support
 #endif
-
-
 
 // Forward declarations
 class NetworkResponder;
@@ -104,9 +101,10 @@ private:
 	NetworkResponder *responders;
 	NetworkResponder *nextResponderToPoll;
 
-    Mutex httpMutex;
-
-    Mutex telnetMutex;
+	Mutex httpMutex;
+#if SUPPORT_TELNET
+	Mutex telnetMutex;
+#endif
 
 	uint32_t fastLoop, slowLoop;
 

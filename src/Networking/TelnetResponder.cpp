@@ -6,13 +6,15 @@
  */
 
 #include "TelnetResponder.h"
+
+#if SUPPORT_TELNET
+
 #include "Socket.h"
 #include "OutputMemory.h"
 #include "GCodes/GCodes.h"
 #include "Platform.h"
 
 
-#if ENABLE_TELNET
 
 
 TelnetResponder::TelnetResponder(NetworkResponder *n) : NetworkResponder(n)
@@ -385,7 +387,6 @@ unsigned int TelnetResponder::clientsServed = 0;
 OutputBuffer *TelnetResponder::gcodeReply = nullptr;
 Mutex TelnetResponder::gcodeReplyMutex;
 
-#endif //#if NumTelnetResponders > 0
-
+#endif
 
 // End

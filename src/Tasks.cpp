@@ -31,10 +31,11 @@ extern char _end;
 // The main task currently runs GCodes, so it needs to be large enough to hold the matrices used for auto calibration.
 // The timer and idle tasks currently never do I/O, so they can be much smaller.
 #if defined(LPC_NETWORKING)
-constexpr unsigned int MainTaskStackWords = 1600-424; 
+constexpr unsigned int MainTaskStackWords = 1600-424;
 #else
 constexpr unsigned int MainTaskStackWords = 1600;
 #endif
+
 constexpr unsigned int IdleTaskStackWords = 60;
 
 static Task<IdleTaskStackWords> idleTask;
@@ -102,20 +103,19 @@ extern "C" void AppMain()
 	// We could also trap unaligned memory access, if we change the gcc options to not generate code that uses unaligned memory access.
 	SCB->CCR |= SCB_CCR_DIV_0_TRP_Msk;
 
+#ifdef __LPC17xx__
+
+#else
 	// When doing a software reset, we disable the NRST input (User reset) to prevent the negative-going pulse that gets generated on it
 	// being held in the capacitor and changing the reset reason from Software to User. So enable it again here. We hope that the reset signal
 	// will have gone away by now.
-#ifndef RSTC_MR_KEY_PASSWD
+# ifndef RSTC_MR_KEY_PASSWD
 // Definition of RSTC_MR_KEY_PASSWD is missing in the SAM3X ASF files
-# define RSTC_MR_KEY_PASSWD (0xA5u << 24)
-#endif
-    
-#ifndef __LPC17xx__
+#  define RSTC_MR_KEY_PASSWD (0xA5u << 24)
+# endif
 	RSTC->RSTC_MR = RSTC_MR_KEY_PASSWD | RSTC_MR_URSTEN;	// ignore any signal on the NRST pin for now so that the reset reason will show as Software
-#else
-    //
 #endif
-    
+
 #if USE_CACHE
 	// Enable the cache
 	cmcc_config g_cmcc_cfg;
@@ -155,19 +155,18 @@ extern "C" void MainTask(void *pvParameters)
 extern "C" uint32_t _estack;		// this is defined in the linker script
 
 #if __LPC17xx__
-    //Defined in Linker Scripts for LPC
-    extern "C" unsigned int __AHB0_block_start;
-    extern "C" unsigned int __AHB0_dyn_start;
-    extern "C" unsigned int __AHB0_end;
+	// These are defined in Linker Scripts for LPC
+	extern "C" unsigned int __AHB0_block_start;
+	extern "C" unsigned int __AHB0_dyn_start;
+	extern "C" unsigned int __AHB0_end;
 
-    extern "C" unsigned long __StackLimit;
-    extern "C" unsigned long __StackTop;
+	extern "C" unsigned long __StackLimit;
+	extern "C" unsigned long __StackTop;
 
-    extern "C" size_t xPortGetTotalHeapSize( void );
+	extern "C" size_t xPortGetTotalHeapSize( void );
 
-    volatile uint8_t sysTickLed = 0;;
+	volatile uint8_t sysTickLed = 0;
 #endif
-
 
 namespace Tasks
 {
@@ -234,7 +233,7 @@ namespace Tasks
 #elif SAM3XA
 				(char *) 0x20070000;
 #elif __LPC17xx__
-                (char *) 0x10000000;
+				(char *) 0x10000000;
 #else
 # error Unsupported processor
 #endif
@@ -256,47 +255,46 @@ namespace Tasks
 			p.MessageF(mtype, "Never used ram: %" PRIu32 "\n", neverUsed);
 
 #ifdef __LPC17xx__
-            const uint32_t ahbStaticUsed = (uint32_t)&__AHB0_dyn_start -(uint32_t)&__AHB0_block_start;
-            const uint32_t totalMainUsage = (uint32_t)((&_end - ramstart) + mi.uordblks + maxStack);
+			const uint32_t ahbStaticUsed = (uint32_t)&__AHB0_dyn_start -(uint32_t)&__AHB0_block_start;
+			const uint32_t totalMainUsage = (uint32_t)((&_end - ramstart) + mi.uordblks + maxStack);
 
-            p.MessageF(mtype, "AHB_RAM Static ram used : %" PRIu32 "\n", ahbStaticUsed);
-            p.Message(mtype, "=== Ram Totals ===\n");
-            p.MessageF(mtype, "Main SRAM         : %" PRIu32 "/%" PRIu32 " (%" PRIu32 " free, %" PRIu32 " never used)\n", totalMainUsage, (uint32_t)32*1024, 32*1024-totalMainUsage, neverUsed );
-            p.MessageF(mtype, "RTOS Dynamic Heap : %" PRIi32 "/%" PRIu32 " (%d free, %d never used)\n", (uint32_t)(xPortGetTotalHeapSize()-xPortGetFreeHeapSize()),(uint32_t)xPortGetTotalHeapSize(), xPortGetFreeHeapSize(),xPortGetMinimumEverFreeHeapSize() );
-            
-            //Print out the PWM and timers freq
-            uint16_t freqs[4];
-            GetTimerInfo(freqs);
-            p.MessageF(mtype, "\n=== LPC PWM ===\n");
-            p.MessageF(mtype, "Hardware PWM: %d Hz\nPWMTimer1: %d Hz\nPWMTimer2: %d Hz\nPWMTimer3: %d Hz\n", freqs[0], freqs[1], freqs[2], freqs[3]);
-            
-            //Print out our Special Pins Available:
-            p.MessageF(mtype, "\n=== GPIO Special Pins available === (i.e. with M42)\nLogicalPin - PhysicalPin\n");
-            for(size_t i=0; i<ARRAY_SIZE(SpecialPinMap); i++){
-                
-                if(SpecialPinMap[i] != NoPin){
-                    uint8_t portNumber =  (SpecialPinMap[i]>>5);  //Divide the pin number by 32 go get the PORT number
-                    uint8_t pinNumber  =   SpecialPinMap[i] & 0x1f;  //lower 5-bits contains the bit number of a 32bit port
-                    
-                    p.MessageF(mtype, " %d - P%d_%d ", (60+i), portNumber, pinNumber);
-                    //if(TimerPWMPinsArray[SpecialPinMap[i]])
+			p.MessageF(mtype, "AHB_RAM Static ram used : %" PRIu32 "\n", ahbStaticUsed);
+			p.Message(mtype, "=== Ram Totals ===\n");
+			p.MessageF(mtype, "Main SRAM         : %" PRIu32 "/%" PRIu32 " (%" PRIu32 " free, %" PRIu32 " never used)\n", totalMainUsage, (uint32_t)32*1024, 32*1024-totalMainUsage, neverUsed );
+			p.MessageF(mtype, "RTOS Dynamic Heap : %" PRIi32 "/%" PRIu32 " (%d free, %d never used)\n", (uint32_t)(xPortGetTotalHeapSize()-xPortGetFreeHeapSize()),(uint32_t)xPortGetTotalHeapSize(), xPortGetFreeHeapSize(),xPortGetMinimumEverFreeHeapSize() );
+
+			//Print out the PWM and timers freq
+			uint16_t freqs[4];
+			GetTimerInfo(freqs);
+			p.MessageF(mtype, "\n=== LPC PWM ===\n");
+			p.MessageF(mtype, "Hardware PWM: %d Hz\nPWMTimer1: %d Hz\nPWMTimer2: %d Hz\nPWMTimer3: %d Hz\n", freqs[0], freqs[1], freqs[2], freqs[3]);
+
+			//Print out our Special Pins Available:
+			p.MessageF(mtype, "\n=== GPIO Special Pins available === (i.e. with M42)\nLogicalPin - PhysicalPin\n");
+			for (size_t i=0; i<ARRAY_SIZE(SpecialPinMap); i++)
+			{
+				if (SpecialPinMap[i] != NoPin)
+				{
+					const uint8_t portNumber =  (SpecialPinMap[i]>>5);		// Divide the pin number by 32 go get the PORT number
+					const uint8_t pinNumber  =   SpecialPinMap[i] & 0x1f;	// lower 5-bits contains the bit number of a 32bit port
+
+					p.MessageF(mtype, " %d - P%d_%d ", (60+i), portNumber, pinNumber);
+					//if (TimerPWMPinsArray[SpecialPinMap[i]])
                     if((pinsOnATimer[portNumber] & pinNumber))
-                    {
-                        //uint8_t tim = TimerPWMPinsArray[SpecialPinMap[i]] & 0x0F;
+					{
+						//const uint8_t tim = TimerPWMPinsArray[SpecialPinMap[i]] & 0x0F;
                         p.MessageF(mtype, "[Timer]");//, (tim&TimerPWM_1)?"1":(tim&TimerPWM_2)?"2":"3" );
-                    }
-                    else if((g_APinDescription[SpecialPinMap[i]].ulPinAttribute & PIN_ATTR_PWM)==PIN_ATTR_PWM)
-                    {
-                        p.MessageF(mtype, "[HW PWM]");
-                    }
-                    p.MessageF(mtype, "\n");
-                
-                }
-            }
+					}
+					else if ((g_APinDescription[SpecialPinMap[i]].ulPinAttribute & PIN_ATTR_PWM)==PIN_ATTR_PWM)
+					{
+						p.MessageF(mtype, "[HW PWM]");
+					}
+					p.MessageF(mtype, "\n");
+				}
+			}
 #endif //end __LPC17xx__
-        
-        }// end memory stats scope
-        
+
+		}	// end memory stats scope
 
 #ifdef RTOS
 		p.Message(mtype, "Tasks:");
@@ -352,30 +350,31 @@ extern "C"
 	void sysTickHook()
 	{
 		reprap.Tick();
+
 #ifdef __LPC17xx__
+		//blink the PLAY_LED to indicate systick is running
         if(StatusLEDPin != NoPin){
-            //blink the StatusLED to indicate systick is running
-            sysTickLed++;//uint8_t let it wrap around
-            if(sysTickLed == 255){
+            sysTickLed++;						//uint8_t let it wrap around
+            if (sysTickLed == 255)
+            {
                 const bool state = GPIO_PinRead(StatusLEDPin);
                 GPIO_PinWrite(StatusLEDPin, !state);
-                
             }
         }
 #endif
-        
 	}
 
 	// Exception handlers
 	// By default the Usage Fault, Bus Fault and Memory Management fault handlers are not enabled,
 	// so they escalate to a Hard Fault and we don't need to provide separate exception handlers for them.
+	void hardFaultDispatcher(const uint32_t *pulFaultStackAddress) __attribute((noreturn));
 	void hardFaultDispatcher(const uint32_t *pulFaultStackAddress)
 	{
 	    reprap.GetPlatform().SoftwareReset((uint16_t)SoftwareResetReason::hardFault, pulFaultStackAddress + 5);
 	}
 
 	// The fault handler implementation calls a function called hardFaultDispatcher()
-	void HardFault_Handler() __attribute__((naked));
+	void HardFault_Handler() __attribute__((naked, noreturn));
 	void HardFault_Handler()
 	{
 	    __asm volatile
@@ -390,20 +389,20 @@ extern "C"
 	    );
 	}
 
+	void wdtFaultDispatcher(const uint32_t *pulFaultStackAddress) __attribute((noreturn));
 	void wdtFaultDispatcher(const uint32_t *pulFaultStackAddress)
 	{
 	    reprap.GetPlatform().SoftwareReset((uint16_t)SoftwareResetReason::wdtFault, pulFaultStackAddress + 5);
 	}
 
-	void WDT_Handler() __attribute__((naked));
-
 #if __LPC17xx__
+    void WDT_IRQHandler() __attribute__((naked, noreturn));
     void WDT_IRQHandler(void)
     {
-        LPC_WDT->WDMOD &=~((uint32_t)(1<<2)); //SD::clear timout flag before resetting to prevent the Smoothie bootloader going into DFU mode
+    	LPC_WDT->WDMOD &=~((uint32_t)(1<<2)); //SD::clear timout flag before resetting to prevent the Smoothie bootloader going into DFU mode
 #else
-
-    void WDT_Handler()
+    void WDT_Handler() __attribute__((naked, noreturn));
+	void WDT_Handler()
 	{
 #endif
 	    __asm volatile
@@ -418,6 +417,7 @@ extern "C"
 	    );
 	}
 
+	void otherFaultDispatcher(const uint32_t *pulFaultStackAddress) __attribute((noreturn));
 	void otherFaultDispatcher(const uint32_t *pulFaultStackAddress)
 	{
 	    reprap.GetPlatform().SoftwareReset((uint16_t)SoftwareResetReason::otherFault, pulFaultStackAddress + 5);
@@ -425,7 +425,7 @@ extern "C"
 
 	// 2017-05-25: A user is getting 'otherFault' reports, so now we do a stack dump for those too.
 	// The fault handler implementation calls a function called otherFaultDispatcher()
-	void OtherFault_Handler() __attribute__((naked));
+	void OtherFault_Handler() __attribute__((naked, noreturn));
 	void OtherFault_Handler()
 	{
 	    __asm volatile
@@ -445,16 +445,17 @@ extern "C"
 	void NMI_Handler        () { reprap.GetPlatform().SoftwareReset((uint16_t)SoftwareResetReason::NMI); }
 	void UsageFault_Handler () { reprap.GetPlatform().SoftwareReset((uint16_t)SoftwareResetReason::usageFault); }
 
-	void DebugMon_Handler   () __attribute__ ((alias("OtherFault_Handler")));
+	void DebugMon_Handler   () __attribute__ ((noreturn,alias("OtherFault_Handler")));
 
 #ifdef RTOS
 	// FreeRTOS hooks that we need to provide
+	void stackOverflowDispatcher(const uint32_t *pulFaultStackAddress, char* pcTaskName) __attribute((noreturn));
 	void stackOverflowDispatcher(const uint32_t *pulFaultStackAddress, char* pcTaskName)
 	{
 	    reprap.GetPlatform().SoftwareReset((uint16_t)SoftwareResetReason::stackOverflow, pulFaultStackAddress);
 	}
 
-	void vApplicationStackOverflowHook(TaskHandle_t pxTask, char *pcTaskName) __attribute((naked));
+	void vApplicationStackOverflowHook(TaskHandle_t pxTask, char *pcTaskName) __attribute((naked, noreturn));
 	void vApplicationStackOverflowHook(TaskHandle_t pxTask, char *pcTaskName)
 	{
         
@@ -470,13 +471,15 @@ extern "C"
 	        " handler_sovf_address_const: .word stackOverflowDispatcher \n"
 	    );
 	}
+#endif
 
+	void assertCalledDispatcher(const uint32_t *pulFaultStackAddress) __attribute((noreturn));
 	void assertCalledDispatcher(const uint32_t *pulFaultStackAddress)
 	{
 	    reprap.GetPlatform().SoftwareReset((uint16_t)SoftwareResetReason::assertCalled, pulFaultStackAddress);
 	}
 
-	void vAssertCalled(uint32_t line, const char *file) __attribute((naked));
+	void vAssertCalled(uint32_t line, const char *file) __attribute((naked, noreturn));
 	void vAssertCalled(uint32_t line, const char *file)
 	{
         
@@ -491,31 +494,33 @@ extern "C"
 	        " handler_asrt_address_const: .word assertCalledDispatcher  \n"
 	    );
 	}
-    
-    void applicationMallocFailedCalledDispatcher(const uint32_t *pulFaultStackAddress)
-    {
-        reprap.GetPlatform().SoftwareReset((uint16_t)SoftwareResetReason::assertCalled, pulFaultStackAddress);
-    }
 
-        
-    void vApplicationMallocFailedHook( void ) __attribute((naked));
-    void vApplicationMallocFailedHook( void ) {
+#if __LPC17xx__
+	void applicationMallocFailedCalledDispatcher(const uint32_t *pulFaultStackAddress)
+	{
+		reprap.GetPlatform().SoftwareReset((uint16_t)SoftwareResetReason::assertCalled, pulFaultStackAddress);
+	}
 
-
-        //debugPrintf( "vApplicationMallocFailedHook() - Not enough memory" );
-
-        __asm volatile
-        (
-         " push {r0, r1, lr}                                            \n"        /* save parameters and call address */
-         " mov r0, sp                                                \n"
-         " ldr r2, handler_amf_address_const                        \n"
-         " bx r2                                                     \n"
-         " handler_amf_address_const: .word applicationMallocFailedCalledDispatcher  \n"
-         );
-    }
-    
+	void vApplicationMallocFailedHook( void ) __attribute((naked));
+	void vApplicationMallocFailedHook( void )
+	{
+		 __asm volatile
+		(
+			" push {r0, r1, lr}											\n"        /* save parameters and call address */
+			" mov r0, sp												\n"
+			" ldr r2, handler_amf_address_const							\n"
+			" bx r2														\n"
+			" handler_amf_address_const: .word applicationMallocFailedCalledDispatcher  \n"
+		 );
+	}
 #endif
 
+}	// end extern "C"
+
+namespace std
+{
+	// We need to define this function in order to use lambda functions with captures
+	void __throw_bad_function_call() { vAssertCalled(__LINE__, __FILE__); }
 }
 
 // End

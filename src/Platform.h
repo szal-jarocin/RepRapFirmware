@@ -215,6 +215,7 @@ enum class DiagnosticTestType : int
 	TimeSquareRoot = 102,			// do a timing test on the square root function
 	TimeSinCos = 103,				// do a timing test on the trig functions
 	TimeSDWrite = 104,				// do a write timing test on the SD card
+	PrintObjectSizes = 105,			// print the sizes of various objects
 
 	TestWatchdog = 1001,			// test that we get a watchdog reset if the tick interrupt stops
 	TestSpinLockup = 1002,			// test that we get a software reset if a Spin() function takes too long
@@ -329,7 +330,7 @@ public:
 	GCodeResult DiagnosticTest(GCodeBuffer& gb, const StringRef& reply, int d);
 	void LogError(ErrorCode e) { errorCodeBits |= (uint32_t)e; }
 
-	void SoftwareReset(uint16_t reason, const uint32_t *stk = nullptr);
+	void SoftwareReset(uint16_t reason, const uint32_t *stk = nullptr) __attribute((noreturn));
 	bool AtxPower() const;
 	void AtxPowerOn();
 	void AtxPowerOff(bool defer);
@@ -427,7 +428,7 @@ public:
 	float DriveStepsPerUnit(size_t axisOrExtruder) const;
 	const float *GetDriveStepsPerUnit() const
 		{ return driveStepsPerUnit; }
-	void SetDriveStepsPerUnit(size_t axisOrExtruder, float value);
+	void SetDriveStepsPerUnit(size_t axisOrExtruder, float value, uint32_t microstepping);
 	float Acceleration(size_t axisOrExtruder) const;
 	const float* Accelerations() const;
 	void SetAcceleration(size_t axisOrExtruder, float value);
@@ -476,7 +477,7 @@ public:
 
 	// Z probe
 	void SetZProbeDefaults();
-	float ZProbeStopHeight();
+	float GetZProbeStopHeight() const;
 	float GetZProbeDiveHeight() const;
 	float GetZProbeStartingHeight();
 	float GetZProbeTravelSpeed() const;
@@ -495,7 +496,7 @@ public:
 	void SetZProbeModState(bool b) const;
 
 	// Heat and temperature
-	float GetZProbeTemperature();							// Get our best estimate of the Z probe temperature
+	float GetZProbeTemperature() const;						// Get our best estimate of the Z probe temperature
 
 	volatile ThermistorAveragingFilter& GetAdcFilter(size_t channel)
 	pre(channel < ARRAY_SIZE(adcFilters))
@@ -985,11 +986,6 @@ inline const char* Platform::GetDefaultFile() const
 inline float Platform::DriveStepsPerUnit(size_t drive) const
 {
 	return driveStepsPerUnit[drive];
-}
-
-inline void Platform::SetDriveStepsPerUnit(size_t drive, float value)
-{
-	driveStepsPerUnit[drive] = max<float>(value, 1.0);	// don't allow zero or negative
 }
 
 inline float Platform::Acceleration(size_t drive) const

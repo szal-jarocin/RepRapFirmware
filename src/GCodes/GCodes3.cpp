@@ -166,7 +166,7 @@ GCodeResult GCodes::SetPositions(GCodeBuffer& gb)
 	if (axesIncluded != 0)
 	{
 		ToolOffsetTransform(currentUserPosition, moveBuffer.coords);
-		if (reprap.GetMove().GetKinematics().LimitPosition(moveBuffer.coords, numVisibleAxes, LowestNBits<AxesBitmap>(numVisibleAxes), false))	// pretend that all axes are homed
+		if (reprap.GetMove().GetKinematics().LimitPosition(moveBuffer.coords, nullptr, numVisibleAxes, LowestNBits<AxesBitmap>(numVisibleAxes), false, limitAxes))	// pretend that all axes are homed
 		{
 			ToolOffsetInverseTransform(moveBuffer.coords, currentUserPosition);		// make sure the limits are reflected in the user position
 		}
@@ -857,6 +857,12 @@ GCodeResult GCodes::ProbeTool(GCodeBuffer& gb, const StringRef& reply)
 			{
 				moveBuffer.endStopsToCheck = UseSpecialEndstop;
 				SetBit(moveBuffer.endStopsToCheck, endStopToUse);
+
+				if (gb.Seen('L') && gb.GetIValue() == 0)
+				{
+					// By default custom endstops are active-high when triggered, so allow this to be inverted
+					moveBuffer.endStopsToCheck |= ActiveLowEndstop;
+				}
 			}
 			moveBuffer.xAxes = DefaultXAxisMapping;
 			moveBuffer.yAxes = DefaultYAxisMapping;
@@ -1424,6 +1430,16 @@ GCodeResult GCodes::SetHeaterModel(GCodeBuffer& gb, const StringRef& reply)
 		}
 	}
 	return GCodeResult::ok;
+}
+
+// Change a live extrusion factor
+void GCodes::ChangeExtrusionFactor(unsigned int extruder, float factor)
+{
+	if (segmentsLeft != 0 && !moveBuffer.isFirmwareRetraction)
+	{
+		moveBuffer.coords[extruder + numTotalAxes] *= factor/extrusionFactors[extruder];	// last move not gone, so update it
+	}
+	extrusionFactors[extruder] = factor;
 }
 
 // End

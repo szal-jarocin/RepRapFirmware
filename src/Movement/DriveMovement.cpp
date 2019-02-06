@@ -55,8 +55,8 @@ DriveMovement::DriveMovement(DriveMovement *next) : nextDM(next)
 
 // Non static members
 
-// Prepare this DM for a Cartesian axis move
-void DriveMovement::PrepareCartesianAxis(const DDA& dda, const PrepParams& params)
+// Prepare this DM for a Cartesian axis move, returning true if there are steps to do
+bool DriveMovement::PrepareCartesianAxis(const DDA& dda, const PrepParams& params)
 {
 	const float stepsPerMm = (float)totalSteps/dda.totalDistance;
 	mp.cart.twoCsquaredTimesMmPerStepDivA = roundU64((double)(StepTimer::StepClockRateSquared * 2)/((double)stepsPerMm * (double)dda.acceleration));
@@ -85,16 +85,24 @@ void DriveMovement::PrepareCartesianAxis(const DDA& dda, const PrepParams& param
 	// No reverse phase
 	reverseStartStep = totalSteps + 1;
 	mp.cart.fourMaxStepDistanceMinusTwoDistanceToStopTimesCsquaredDivD = 0;
+
+	// Prepare for the first step
+	nextStep = 0;
+	nextStepTime = 0;
+	stepInterval = 999999;							// initialise to a large value so that we will calculate the time for just one step
+	stepsTillRecalc = 0;							// so that we don't skip the calculation
+	isDelta = false;
+	return CalcNextStepTimeCartesian(dda, false);
 }
 
-// Prepare this DM for a Delta axis move
-void DriveMovement::PrepareDeltaAxis(const DDA& dda, const PrepParams& params)
+// Prepare this DM for a Delta axis move, returning true if there are steps to do
+bool DriveMovement::PrepareDeltaAxis(const DDA& dda, const PrepParams& params)
 {
 	const float stepsPerMm = reprap.GetPlatform().DriveStepsPerUnit(drive);
 	const float A = params.initialX - params.dparams->GetTowerX(drive);
 	const float B = params.initialY - params.dparams->GetTowerY(drive);
 	const float aAplusbB = A * dda.directionVector[X_AXIS] + B * dda.directionVector[Y_AXIS];
-	const float dSquaredMinusAsquaredMinusBsquared = params.diagonalSquared - fsquare(A) - fsquare(B);
+	const float dSquaredMinusAsquaredMinusBsquared = params.dparams->GetDiagonalSquared(drive) - fsquare(A) - fsquare(B);
 	const float h0MinusZ0 = sqrtf(dSquaredMinusAsquaredMinusBsquared);
 	mp.delta.hmz0sK = roundS32(h0MinusZ0 * stepsPerMm * DriveMovement::K2);
 	mp.delta.minusAaPlusBbTimesKs = -roundS32(aAplusbB * stepsPerMm * DriveMovement::K2);
@@ -113,7 +121,7 @@ void DriveMovement::PrepareDeltaAxis(const DDA& dda, const PrepParams& params)
 	{
 		// The distance to reversal is the solution to a quadratic equation. One root corresponds to the carriages being below the bed,
 		// the other root corresponds to the carriages being above the bed.
-		const float drev = ((dda.directionVector[Z_AXIS] * sqrtf(params.a2b2D2 - fsquare(A * dda.directionVector[Y_AXIS] - B * dda.directionVector[X_AXIS])))
+		const float drev = ((dda.directionVector[Z_AXIS] * sqrtf(params.a2plusb2 * params.dparams->GetDiagonalSquared(drive) - fsquare(A * dda.directionVector[Y_AXIS] - B * dda.directionVector[X_AXIS])))
 							- aAplusbB)/params.a2plusb2;
 		if (drev > 0.0 && drev < dda.totalDistance)		// if the reversal point is within range
 		{
@@ -168,10 +176,18 @@ void DriveMovement::PrepareDeltaAxis(const DDA& dda, const PrepParams& params)
 		mp.delta.decelStartDsK = roundU32(params.decelStartDistance * stepsPerMm * K2);
 		twoDistanceToStopTimesCsquaredDivD = isquare64(params.topSpeedTimesCdivD) + roundU64((params.decelStartDistance * (StepTimer::StepClockRateSquared * 2))/dda.deceleration);
 	}
+
+	// Prepare for the first step
+	nextStep = 0;
+	nextStepTime = 0;
+	stepInterval = 999999;							// initialise to a large value so that we will calculate the time for just one step
+	stepsTillRecalc = 0;							// so that we don't skip the calculation
+	isDelta = true;
+	return CalcNextStepTimeDelta(dda, false);
 }
 
-// Prepare this DM for an extruder move
-void DriveMovement::PrepareExtruder(const DDA& dda, const PrepParams& params, float& extrusionPending, float speedChange, bool doCompensation)
+// Prepare this DM for an extruder move, returning true if there are steps to do
+bool DriveMovement::PrepareExtruder(const DDA& dda, const PrepParams& params, float& extrusionPending, float speedChange, bool doCompensation)
 {
 	// Calculate the requested extrusion amount and a few other things
 	float dv = dda.directionVector[drive];
@@ -289,10 +305,20 @@ void DriveMovement::PrepareExtruder(const DDA& dda, const PrepParams& params, fl
 			mp.cart.fourMaxStepDistanceMinusTwoDistanceToStopTimesCsquaredDivD = 0;
 		}
 	}
+
+	// Prepare for the first step
+	nextStep = 0;
+	nextStepTime = 0;
+	stepInterval = 999999;							// initialise to a large value so that we will calculate the time for just one step
+	stepsTillRecalc = 0;							// so that we don't skip the calculation
+	isDelta = false;
+	return CalcNextStepTimeCartesian(dda, false);
 }
 
-void DriveMovement::DebugPrint(char c, bool isDeltaMovement) const
+void DriveMovement::DebugPrint() const
 {
+	const size_t totalAxes = reprap.GetGCodes().GetTotalAxes();
+	char c = (drive < totalAxes) ? reprap.GetGCodes().GetAxisLetters()[drive] : (char)('0' + (drive - totalAxes));
 	if (state != DMState::idle)
 	{
 		debugPrintf("DM%c%s dir=%c steps=%" PRIu32 " next=%" PRIu32 " rev=%" PRIu32 " interval=%" PRIu32
@@ -300,7 +326,7 @@ void DriveMovement::DebugPrint(char c, bool isDeltaMovement) const
 					c, (state == DMState::stepError) ? " ERR:" : ":", (direction) ? 'F' : 'B', totalSteps, nextStep, reverseStartStep, stepInterval,
 					twoDistanceToStopTimesCsquaredDivD);
 
-		if (isDeltaMovement)
+		if (isDelta)
 		{
 			debugPrintf("hmz0sK=%" PRIi32 " minusAaPlusBbTimesKs=%" PRIi32 " dSquaredMinusAsquaredMinusBsquared=%" PRId64 "\n"
 						"2c2mmsda=%" PRIu64 "2c2mmsdd=%" PRIu64 " asdsk=%" PRIu32 " dsdsk=%" PRIu32 " mmstcdts=%" PRIu32 "\n",
@@ -550,9 +576,9 @@ pre(nextStep < totalSteps; stepsTillRecalc == 0)
 }
 
 // Reduce the speed of this movement. Called to reduce the homing speed when we detect we are near the endstop for a drive.
-void DriveMovement::ReduceSpeed(const DDA& dda, uint32_t inverseSpeedFactor)
+void DriveMovement::ReduceSpeed(uint32_t inverseSpeedFactor)
 {
-	if (dda.isDeltaMovement && drive < DELTA_AXES)
+	if (isDelta)
 	{
 		// Force the linear motion phase
 		mp.delta.accelStopDsK = 0;

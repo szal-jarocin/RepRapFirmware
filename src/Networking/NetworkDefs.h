@@ -37,10 +37,11 @@ constexpr Port DefaultPortNumbers[NumProtocols] = { DefaultHttpPort, DefaultFtpP
 constexpr const char * ProtocolNames[NumProtocols] = { "HTTP", "FTP", "TELNET" };
 
 #if defined(__LPC17xx__)
-const size_t NetworkBufferCount = 2;            // number of MSS sized buffers
+const size_t NetworkBufferCount = 2;				// number of MSS sized buffers
 #else
 constexpr size_t NetworkBufferCount = 6;			// number of 2K network buffers
 #endif
+
 constexpr size_t SsidBufferLength = 32;				// maximum characters in an SSID
 
 #endif /* SRC_NETWORKING_NETWORKDEFS_H_ */

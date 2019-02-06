@@ -53,7 +53,7 @@ namespace StepTimer
 #if __LPC17xx__
         return (uint16_t)STEP_TC->TC;
 #else
-		return (uint16_t)STEP_TC->TC_CHANNEL[STEP_TC_CHAN].TC_CV;
+        return (uint16_t)STEP_TC->TC_CHANNEL[STEP_TC_CHAN].TC_CV;
 #endif
 	}
 

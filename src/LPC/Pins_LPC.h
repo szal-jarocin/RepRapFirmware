@@ -42,8 +42,8 @@ const size_t NumFirmwareUpdateModules = 0;
 #define SUPPORT_IOBITS		         0					// set to support P parameter in G0/G1 commands
 #define SUPPORT_DHT_SENSOR	         0					// set nonzero to support DHT temperature/humidity sensors
 
-#define ENABLE_TELNET                0
-#define ENABLE_FTP                   0
+#define SUPPORT_TELNE                0
+#define SUPPORT_FT                   0
 #define NO_PANELDUE                  1
 
 //LCD Support disabled in networking builds
