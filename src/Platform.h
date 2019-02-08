@@ -216,7 +216,10 @@ enum class DiagnosticTestType : int
 	TimeSinCos = 103,				// do a timing test on the trig functions
 	TimeSDWrite = 104,				// do a write timing test on the SD card
 	PrintObjectSizes = 105,			// print the sizes of various objects
-
+#ifdef __LPC17xx__
+    PrintBoardConfiguration = 200,    //Prints out all pin/values loaded from SDCard to configure board
+#endif
+    
 	TestWatchdog = 1001,			// test that we get a watchdog reset if the tick interrupt stops
 	TestSpinLockup = 1002,			// test that we get a software reset if a Spin() function takes too long
 	TestSerialBlock = 1003,			// test what happens when we write a blocking message via debugPrintf()

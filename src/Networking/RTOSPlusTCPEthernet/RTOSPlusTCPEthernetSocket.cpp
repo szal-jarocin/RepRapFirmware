@@ -25,7 +25,7 @@
 // Socket class
 
 const unsigned int MaxBuffersPerSocket = 1;
-
+const unsigned int SocketShutdownTimeoutMillis = 50;//how long to wait before we force close the socket after last send
 
 //function to check socket: (requires FreeRTOS_IP_Private.h)
 //would be better to have each "socket" in its own task and use commands as documented
@@ -532,9 +532,24 @@ void RTOSPlusTCPEthernetSocket::Poll(bool full)
             {
 
                 //debugSocketStatus(xConnectedSocket);
-                FreeRTOS_closesocket( xConnectedSocket ); //close the socket
-                xConnectedSocket = nullptr;
-                ReInit();
+                whenConnected = millis(); // reuse whenConnected to have a shutdown timeout
+
+                /* Wait for the socket to disconnect gracefully (indicated by FreeRTOS_recv()
+                returning a FREERTOS_EINVAL error) before closing the socket. */
+                uint8_t tmp;
+                if( FreeRTOS_recv( xConnectedSocket, &tmp, 1, 0 ) < 0 ||  (millis() - whenConnected) >= SocketShutdownTimeoutMillis)
+                {
+                    if (reprap.Debug(moduleNetwork))
+                    {
+                        debugPrintf("Waited %ld ms for Graceful Shutdown\n", (millis() - whenConnected));
+                    }
+
+                    FreeRTOS_closesocket( xConnectedSocket ); //close the socket
+                    xConnectedSocket = nullptr;
+                    ReInit();
+                } else {
+                }
+                
                 
             } break;
 
@@ -705,9 +720,7 @@ size_t RTOSPlusTCPEthernetSocket::Send(const uint8_t *data, size_t length)
         }
         
         length = (size_t) ret; //ret holds how much data we actually were able to send
-        
-        //Send();
-
+    
 		return length;
 	}
 	return 0;
@@ -716,26 +729,7 @@ size_t RTOSPlusTCPEthernetSocket::Send(const uint8_t *data, size_t length)
 // wait for the interface to send the outstanding data
 void RTOSPlusTCPEthernetSocket::Send()
 {
-	MutexLocker lock(interface->interfaceMutex);
-    if (CanSend() /*&& sendOutstanding*/)
-    {
-
-        //small timeout so we dont block Network task polling
-        uint8_t timeout = 10; // TODO:: 10ms is probably too long to wait??
-        while(FreeRTOS_tx_size(xConnectedSocket) > 0){
-            if(timeout <= 0){
-                // timed out
-                if (reprap.Debug(moduleNetwork))
-                {
-                        debugPrintf("Qeued data still not sent on Skt: %d \n",socketNum );
-                }
-
-                break;
-            }
-            vTaskDelay(1);
-            timeout -= 1;
-        }
-    }
 }
+
 
 // End

@@ -52,8 +52,7 @@ static const pinConfig_t singleValueConfigs[]=
     {"lcd.encoderPinSw", &EncoderPinSw, svPinType},
     {"lcd.panelButtonPin", &PanelButtonPin, svPinType},
 
-    {"leds.statusLed", &StatusLEDPin, svPinType},
-    {"leds.diagLed", &DiagPin, svPinType},
+    {"leds.diagnostic", &DiagPin, svPinType},
     
     {"zProbe.pin", &Z_PROBE_PIN, svPinType},
     {"zProbe.modulationPin", &Z_PROBE_MOD_PIN, svPinType},
@@ -63,13 +62,13 @@ static const pinConfig_t singleValueConfigs[]=
     {"steppers.hasDriverCurrentControl", &hasDriverCurrentControl, svBoolType},
     {"steppers.digipotFactor", &digipotFactor, svFloatType},
     
-    {"slowPWM.frequencyHz", &Timer1Frequency, svUint16Type},
-    {"fastPWM.frequencyHz", &Timer3Frequency, svUint16Type},
     {"externalSDCard.csPin", &SdSpiCSPins[1], svPinType},
     {"externalSDCard.cardDetectPin", &SdCardDetectPins[1], svPinType},
     {"externalSDCard.spiFrequencyHz", &ExternalSDCardFrequency, svUint32Type},
 
-    
+    {"lpc.slowPWM.frequencyHz", &Timer1Frequency, svUint16Type},
+    {"lpc.fastPWM.frequencyHz", &Timer3Frequency, svUint16Type},
+
     
 
 
@@ -90,10 +89,10 @@ static const pinConfigArray_t pinArrayConfigs[] =
     {"fan.pins", COOLING_FAN_PINS, &NUM_FANS},
     {"fan.tachoPins", TachoPins, &NumTachos},
     {"specialPinMap", SpecialPinMap, &MaxNumberSpecialPins},
-    {"externalInterruptPins", ExternalInterruptPins, &MaxExtIntEntries},
-    {"slowPWM.pins", Timer1PWMPins, &MaxTimerEntries},
-    {"servoPins", Timer2PWMPins, &MaxTimerEntries},
-    {"fastPWM.pins", Timer3PWMPins, &MaxTimerEntries},
+    {"lpc.externalInterruptPins", ExternalInterruptPins, &MaxExtIntEntries},
+    {"lpc.slowPWM.pins", Timer1PWMPins, &MaxTimerEntries},
+    {"lpc.servoPins", Timer2PWMPins, &MaxTimerEntries},
+    {"lpc.fastPWM.pins", Timer3PWMPins, &MaxTimerEntries},
 };
 
 
@@ -175,26 +174,17 @@ void BoardConfig::Init() {
 
         //Configure the HW Timers
         ConfigureTimerForPWM(0, Timer1Frequency); //Timer1 is channel 0
-        ConfigureTimerForPWM(1, 50); //Setup Servos for 50Hz. Timer2 is channel 1
+        ConfigureTimerForPWM(1, 50);              //Setup Servos for 50Hz. Timer2 is channel 1
         ConfigureTimerForPWM(2, Timer3Frequency); //Timer3 is channel 2
 
-        
+
+        //Configure the External SDCard
         if(SdSpiCSPins[1] != NoPin)
         {
             //set the CSPin and the frequency for the External SDCard
             sd_mmc_reinit_slot(1, SdSpiCSPins[1], ExternalSDCardFrequency);
         }
-
-
-        
-
-        //TODO::::::::TESTING ONLY
-        Diagnostics(UsbMessage);
-        
-        
     }
-    
-    
 }
 
 
@@ -227,7 +217,7 @@ void BoardConfig::Diagnostics(MessageType mtype)
 {
 
     
-    reprap.GetPlatform().MessageF(mtype, "== Configurable Pin Assignments ==\n");
+    reprap.GetPlatform().MessageF(mtype, "== Configurable Board Settings ==\n");
 
     
     //Pin Array Configs
@@ -385,12 +375,13 @@ bool BoardConfig::GetConfigKeys(FileStore *configFile){
                                         //should be at first char of value now
                                         const char *valuePtr = line+pos;
 
-                                        //read until end condition - space,comma,} null ,etc
-                                        while(pos < maxLineLength && line[pos] != 0 && !isSpaceOrTab(line[pos]) && line[pos] != ',' && line[pos] != '}'){
+                                        //read until end condition - space,comma,}  or null / # ;
+                                        while(pos < maxLineLength && line[pos] != 0 && !isSpaceOrTab(line[pos]) && line[pos] != ',' && line[pos] != '}' && line[pos] != '/' && line[pos] != '#' && line[pos] != ';'){
                                             pos++;
                                         }
 
-                                        if(line[pos] != '}' && (line[pos] == 0 || pos == maxLineLength))
+                                        //see if we ended due to comment, ;, or null
+                                        if(pos == maxLineLength || line[pos] == 0 || line[pos] == '/' || line[pos] == '#' || line[pos]==';')
                                         {
                                             debugPrintf("Error: Array ended without Closing Brace?\n");
                                             searching = false;
@@ -398,7 +389,7 @@ bool BoardConfig::GetConfigKeys(FileStore *configFile){
                                         }
 
                                         //check if there is a closing brace after value without any whitespace, before it gets overwritten with a null
-                                        if(pos < maxLineLength && line[pos] == '}')
+                                        if(line[pos] == '}')
                                         {
                                             closedSuccessfully = true;
                                         }

@@ -515,9 +515,18 @@ void RTOSPlusTCPEthernetInterface::Diagnostics(MessageType mtype)
     }
     
 #if( ipconfigCHECK_IP_QUEUE_SPACE != 0 )
-    platform.MessageF(mtype, "Network Buffers: %lu lowest: %lu\n", uxGetNumberOfFreeNetworkBuffers(), uxGetMinimumFreeNetworkBuffers() );
+    //platform.MessageF(mtype, "NetBuffers: %lu lowest: %lu\n", uxGetNumberOfFreeNetworkBuffers(), uxGetMinimumFreeNetworkBuffers() );
     //Print out the minimum IP Queue space left since boot
     platform.MessageF(mtype, "Lowest IP Event Queue: %lu of %d\n", uxGetMinimumIPQueueSpace(), ipconfigEVENT_QUEUE_LENGTH );
+    
+    //defined in driver for debugging
+    extern uint32_t numRXIntOverrunErrors; //hardware producted overrun error
+    extern uint32_t numRXPacketErrors; //Packet in error, CRC/len/etc mismatch etc
+    extern uint32_t numDroppedPacketsDueToNoBuffer;
+    
+    platform.MessageF(mtype, "EthDrv: RX IntOverrun Errors:%lu\n", numRXIntOverrunErrors);
+    platform.MessageF(mtype, "EthDrv: Eth Packets in Error:%lu\n",  numRXPacketErrors);
+    platform.MessageF(mtype, "EthDrv: Dropped packets (no buffer):%lu\n",  numDroppedPacketsDueToNoBuffer );
     
 #endif
     

@@ -164,8 +164,6 @@ extern "C" uint32_t _estack;		// this is defined in the linker script
 	extern "C" unsigned long __StackTop;
 
 	extern "C" size_t xPortGetTotalHeapSize( void );
-
-	volatile uint8_t sysTickLed = 0;
 #endif
 
 namespace Tasks
@@ -255,43 +253,20 @@ namespace Tasks
 			p.MessageF(mtype, "Never used ram: %" PRIu32 "\n", neverUsed);
 
 #ifdef __LPC17xx__
-			const uint32_t ahbStaticUsed = (uint32_t)&__AHB0_dyn_start -(uint32_t)&__AHB0_block_start;
+			//const uint32_t ahbStaticUsed = (uint32_t)&__AHB0_dyn_start -(uint32_t)&__AHB0_block_start;
 			const uint32_t totalMainUsage = (uint32_t)((&_end - ramstart) + mi.uordblks + maxStack);
 
-			p.MessageF(mtype, "AHB_RAM Static ram used : %" PRIu32 "\n", ahbStaticUsed);
-			p.Message(mtype, "=== Ram Totals ===\n");
+			//p.MessageF(mtype, "AHB_RAM Static ram used : %" PRIu32 "\n", ahbStaticUsed);
+			//p.Message(mtype, "=== Ram Totals ===\n");
 			p.MessageF(mtype, "Main SRAM         : %" PRIu32 "/%" PRIu32 " (%" PRIu32 " free, %" PRIu32 " never used)\n", totalMainUsage, (uint32_t)32*1024, 32*1024-totalMainUsage, neverUsed );
-			p.MessageF(mtype, "RTOS Dynamic Heap : %" PRIi32 "/%" PRIu32 " (%d free, %d never used)\n", (uint32_t)(xPortGetTotalHeapSize()-xPortGetFreeHeapSize()),(uint32_t)xPortGetTotalHeapSize(), xPortGetFreeHeapSize(),xPortGetMinimumEverFreeHeapSize() );
+			p.MessageF(mtype, "RTOS Dynamic Heap : %" PRIi32 "/%" PRIu32 " (%d free, %d never used)", (uint32_t)(xPortGetTotalHeapSize()-xPortGetFreeHeapSize()),(uint32_t)xPortGetTotalHeapSize(), xPortGetFreeHeapSize(),xPortGetMinimumEverFreeHeapSize() );
 
 			//Print out the PWM and timers freq
 			uint16_t freqs[4];
 			GetTimerInfo(freqs);
 			p.MessageF(mtype, "\n=== LPC PWM ===\n");
-			p.MessageF(mtype, "Hardware PWM: %d Hz\nPWMTimer1: %d Hz\nPWMTimer2: %d Hz\nPWMTimer3: %d Hz\n", freqs[0], freqs[1], freqs[2], freqs[3]);
+			p.MessageF(mtype, "HWPWM:%dHz T1:%dHz T2:%dHz T3:%dHz\n", freqs[0], freqs[1], freqs[2], freqs[3]);
 
-			//Print out our Special Pins Available:
-			p.MessageF(mtype, "\n=== GPIO Special Pins available === (i.e. with M42)\nLogicalPin - PhysicalPin\n");
-			for (size_t i=0; i<ARRAY_SIZE(SpecialPinMap); i++)
-			{
-				if (SpecialPinMap[i] != NoPin)
-				{
-					const uint8_t portNumber =  (SpecialPinMap[i]>>5);		// Divide the pin number by 32 go get the PORT number
-					const uint8_t pinNumber  =   SpecialPinMap[i] & 0x1f;	// lower 5-bits contains the bit number of a 32bit port
-
-					p.MessageF(mtype, " %d - P%d_%d ", (60+i), portNumber, pinNumber);
-					//if (TimerPWMPinsArray[SpecialPinMap[i]])
-                    if((pinsOnATimer[portNumber] & pinNumber))
-					{
-						//const uint8_t tim = TimerPWMPinsArray[SpecialPinMap[i]] & 0x0F;
-                        p.MessageF(mtype, "[Timer]");//, (tim&TimerPWM_1)?"1":(tim&TimerPWM_2)?"2":"3" );
-					}
-					else if ((g_APinDescription[SpecialPinMap[i]].ulPinAttribute & PIN_ATTR_PWM)==PIN_ATTR_PWM)
-					{
-						p.MessageF(mtype, "[HW PWM]");
-					}
-					p.MessageF(mtype, "\n");
-				}
-			}
 #endif //end __LPC17xx__
 
 		}	// end memory stats scope
@@ -350,18 +325,6 @@ extern "C"
 	void sysTickHook()
 	{
 		reprap.Tick();
-
-#ifdef __LPC17xx__
-		//blink the PLAY_LED to indicate systick is running
-        if(StatusLEDPin != NoPin){
-            sysTickLed++;						//uint8_t let it wrap around
-            if (sysTickLed == 255)
-            {
-                const bool state = GPIO_PinRead(StatusLEDPin);
-                GPIO_PinWrite(StatusLEDPin, !state);
-            }
-        }
-#endif
 	}
 
 	// Exception handlers

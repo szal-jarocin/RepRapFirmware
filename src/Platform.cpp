@@ -868,24 +868,6 @@ void Platform::SetZProbeParameters(ZProbeType probeType, const ZProbe& params)
 		switchZProbeParameters = params;
 		break;
 	}
-    
-#warning ***Temporary Endstop/Probe Support***
-#if LPC_MAX_MIN_ENDSTOPS
-    //change probe Pin to the Endstop Requested, and treat P4 C? as P5 (ZProbeType::digital) from now on
-    //this is cause we updated the endstops array to be able to select between Min/Max and if the max
-    //endstop is selected it will update the array so selecting the min for probe would be the wrong mapping....
-    //TODO:: this is temporary until the new Endstop configuration is available in v2.03
-    
-    //update Probe Pin from Params
-    if( (params.inputChannel < NumEndstops) && (probeType == ZProbeType::endstopSwitch) ){
-        irZProbeParameters = params; //update the params for P5
-        zProbePin = END_STOP_PINS[params.inputChannel]; //change the pin zProbe uses to the selected EndStop.
-        SetZProbeType((unsigned int)ZProbeType::digital); //Reinit the Z probe, and Change to P5
-        //debugPrintf("Probe is now P5 and set to Pin %d.%d\n", zProbePin >> 5, zProbePin & 0x1f );
-    }
-#endif
-
-    
 }
 
 // Program the Z probe
@@ -1430,7 +1412,7 @@ void Platform::Spin()
 		return;
 	}
 
-#ifdef DUET3
+#if defined(DUET3) || defined(__LPC17xx__)
 	// Blink the LED
 	{
 		static uint32_t lastTime = 0;
@@ -2836,6 +2818,12 @@ GCodeResult Platform::DiagnosticTest(GCodeBuffer& gb, const StringRef& reply, in
 		break;
 #endif
 
+#ifdef __LPC17xx__
+    case (int)DiagnosticTestType::PrintBoardConfiguration:
+        BoardConfig::Diagnostics(gb.GetResponseMessageType());
+        break;
+#endif
+            
 	default:
 		break;
 	}
@@ -3738,23 +3726,6 @@ void Platform::InitFans()
 
 void Platform::SetEndStopConfiguration(size_t axis, EndStopPosition esPos, EndStopInputType inputType)
 {
-#warning **Temporary Endstop support**
-#if LPC_MAX_MIN_ENDSTOPS
-    if(axis <= 2 ) //x,y,z
-    {
-        if( esPos == EndStopPosition::lowEndStop || esPos == EndStopPosition::highEndStop ){
-            //change the axis endstop pin to map to the [min] or [max] pin based on the setting
-            const uint8_t index = (uint8_t)axis + (uint8_t)((esPos == EndStopPosition::lowEndStop)?0:3);
-            endStopPins[axis] = END_STOP_PINS[ index ];
-            //debugPrintf("LPC Endstop for %c set to LPC Pin %d.%d\n", reprap.GetGCodes().GetAxisLetters()[axis], endStopPins[axis] >> 5, endStopPins[axis] & 0x1f );
-        } else if (esPos == EndStopPosition::noEndStop) {
-            //Reset mapping back to default
-            endStopPins[axis] = END_STOP_PINS[ axis ];
-        }
-         
-    }
-#endif
-
     endStopPos[axis] = esPos;
 	endStopInputType[axis] = inputType;
 }

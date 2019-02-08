@@ -75,43 +75,6 @@ Socket_t RTOSPlusTCPEthernetServerSocket::GetServerSocket(Port serverPort, Netwo
     
     if(protocolServerSockets[p] != FREERTOS_INVALID_SOCKET ){
         
-        
-        //TCP Settings
-        
-        /* If ipconfigUSE_TCP_WIN is set to 1 and FREERTOS_SO_WIN_PROPERTIES is to
-         be used with FreeRTOS_setsockopt() to change the sliding window size from
-         its default then do it here! (see the FreeRTOS_setsockopt() documentation. */
-        
-        //Sliding Window (must be enabled in Config)
-        /* Declare an xWinProperties structure. */
-        // xWinProperties_t  xWinProps;
-        //    /* Clear the struct, just in case it will get extended in the future. */
-        //    memset( &xWinProps, '\0', sizeof( xWinProps ) );
-        //    /* Fill in the required buffer and window sizes. */
-        //    xWinProps.lTxBufSize = 2 * ipconfigTCP_MSS; // Unit: bytes
-        //    xWinProps.lTxWinSize = 2; // Unit: MSS
-        //    xWinProps.lRxBufSize = 2 * ipconfigTCP_MSS; // Unit: bytes  two or more
-        //    xWinProps.lRxWinSize = 2; // Unit: MSS
-        //    FreeRTOS_setsockopt( xListeningSocket, 0, FREERTOS_SO_WIN_PROPERTIES, ( void * ) &xWinProps, sizeof( xWinProps ) );
-        
-        /* If FREERTOS_SO_RCVBUF or FREERTOS_SO_SNDBUF are to be used with FreeRTOS_setsockopt() to change the buffer sizes
-         from their default then do it here!.  (see the FreeRTOS_setsockopt() documentation. */
-        //This is not related to the size of the packets or the sliding window, it only sets the size of the buffer.
-        //Buff size should be multiples of MSS
-        
-        uint32_t txbufferSize = 1*ipconfigTCP_MSS;
-        uint32_t rxbufferSize = 1*ipconfigTCP_MSS;
-        
-        //set the Buffer size for RX and TX,
-        FreeRTOS_setsockopt( protocolServerSockets[p], 0, FREERTOS_SO_RCVBUF, ( void * ) &rxbufferSize, sizeof( rxbufferSize ) );
-        FreeRTOS_setsockopt( protocolServerSockets[p], 0, FREERTOS_SO_SNDBUF, ( void * ) &txbufferSize, sizeof( txbufferSize ) );
-        
-        
-        //FREERTOS_SO_TCP_CONN_HANDLER - Install a callback for (dis) connection events. Supply pointer to 'F_TCP_UDP_Handler_t'
-        //FREERTOS_SO_TCP_RECV_HANDLER - Install a callback for receiving TCP data. Supply pointer to 'F_TCP_UDP_Handler_t'
-        //FREERTOS_SO_TCP_SENT_HANDLER - Install a callback for sending TCP data. Supply pointer to 'F_TCP_UDP_Handler_t'
-        
-        
         /* Set a time out so accept() will just wait for a connection. portMAX_DELAY will wait indefinetly */
         // set to a 1 tick... accept a connection if waiting or continue (non-blocking) - receive
         // set to 1 tick ... read from socket and wait 1 tick for data before continuing

@@ -31,7 +31,6 @@ const size_t NumFirmwareUpdateModules = 0;
 #define HAS_HIGH_SPEED_SD		     0
 #define HAS_VOLTAGE_MONITOR		     0
 #define ACTIVE_LOW_HEAT_ON		     0
-#define HAS_RTOSPLUSTCP_NETWORKING   1
 #define HAS_LWIP_NETWORKING          0
 #define HAS_WIFI_NETWORKING          0
 #define HAS_VREF_MONITOR             0
@@ -47,10 +46,12 @@ const size_t NumFirmwareUpdateModules = 0;
 #define NO_PANELDUE                  1
 
 //LCD Support disabled in networking builds
-#if defined(LPC_NETWORKING) || defined(ESP_NETWORKING)
-    #define SUPPORT_12864_LCD       0
+#if defined(LPC_NETWORKING)
+    #define HAS_RTOSPLUSTCP_NETWORKING   1
+    #define SUPPORT_12864_LCD            0
 #else
-    #define SUPPORT_12864_LCD       1
+    #define HAS_RTOSPLUSTCP_NETWORKING   0
+#define SUPPORT_12864_LCD            1
 #endif
 
 constexpr size_t NumExtraHeaterProtections = 4;
@@ -90,10 +91,6 @@ constexpr uint8_t POT_WIPES[5] = { 0, 1, 2, 3, 0};
 
 //endstops
 extern Pin END_STOP_PINS[NumEndstops];
-
-
-#define LPC_MAX_MIN_ENDSTOPS 1
-
 
 extern Pin Z_PROBE_PIN; // Z Probe pin
 extern Pin Z_PROBE_MOD_PIN; // Digital pin number to turn the IR LED on (high) or off (low)
@@ -148,7 +145,7 @@ extern uint32_t ExternalSDCardFrequency;
 constexpr size_t MaxNumberSpecialPins = 10;
 extern Pin SpecialPinMap[MaxNumberSpecialPins];
 
-
+constexpr uint32_t LcdSpiClockFrequency = 2000000;    // 2.0MHz
 constexpr SSPChannel LcdSpiChannel = SSP0;
 extern Pin LcdCSPin;
 extern Pin LcdDCPin;
