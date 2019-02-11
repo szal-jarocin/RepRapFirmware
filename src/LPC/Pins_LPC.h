@@ -22,8 +22,7 @@ const size_t NumFirmwareUpdateModules = 0;
 #define LPC_ELECTRONICS_STRING "LPC176x"
 #define LPC_BOARD_STRING "LPC176x"
 
-//Firmware for networking version only. Non-networking firmware will need to be manually copied to Sdcard
-#define FIRMWARE_FILE "firmware-NETWORK.bin"
+#define FIRMWARE_FILE "firmware-.bin"
 
 // Features definition
 #define SUPPORT_OBJECT_MODEL         1
@@ -45,13 +44,13 @@ const size_t NumFirmwareUpdateModules = 0;
 #define SUPPORT_FT                   0
 #define NO_PANELDUE                  1
 
-//LCD Support disabled in networking builds
+
 #if defined(LPC_NETWORKING)
     #define HAS_RTOSPLUSTCP_NETWORKING   1
-    #define SUPPORT_12864_LCD            0
+    #define SUPPORT_12864_LCD            1
 #else
     #define HAS_RTOSPLUSTCP_NETWORKING   0
-#define SUPPORT_12864_LCD            1
+    #define SUPPORT_12864_LCD            1
 #endif
 
 constexpr size_t NumExtraHeaterProtections = 4;
@@ -82,8 +81,10 @@ extern Pin ENABLE_PINS[NumDirectDrivers];
 extern Pin STEP_PINS[NumDirectDrivers];
 extern Pin DIRECTION_PINS[NumDirectDrivers];
 extern uint32_t STEP_DRIVER_MASK; // Mask for parallel write to all steppers on port 2 (calculated in firmware)
+extern bool hasStepPinsOnDifferentPorts;
 extern bool hasDriverCurrentControl;
 extern float digipotFactor;
+
 //Smoothie uses MCP4451 for current control
 // Indices for motor current digipots (X,Y,Z,E) - E is on 2nd digipot chip
 constexpr uint8_t POT_WIPES[5] = { 0, 1, 2, 3, 0};
@@ -139,6 +140,7 @@ extern Pin SdCardDetectPins[NumSdCards];
 constexpr Pin SdWriteProtectPins[NumSdCards] = { NoPin, NoPin }; //unused on LPC boards
 extern Pin SdSpiCSPins[NumSdCards];
 extern uint32_t ExternalSDCardFrequency;
+extern uint32_t InternalSDCardFrequency;
 
 
 // Definition of which pins we allow to be controlled using M42 etc

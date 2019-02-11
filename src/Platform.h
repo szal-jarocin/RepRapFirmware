@@ -1254,6 +1254,11 @@ inline OutputBuffer *Platform::GetAuxGCodeReply()
 	return pinDesc.ulPin;
 # elif defined(__LPC17xx__)
 	//return 1u << STEP_PIN_PORT2_POS[driver];
+    if(STEP_PINS[driver] == NoPin ) return 0;
+    if(hasStepPinsOnDifferentPorts == true ){
+        //with flexible config just treat these pins one by one instead of parallel writes for now. Using driver pos in bitmap
+        return 1u << driver ;
+    }
     return 1u << (STEP_PINS[driver] & 0x1f); //lower 5-bits contains the bit number of a 32bit port;
 #else
 # error Unknown board
@@ -1283,8 +1288,19 @@ inline OutputBuffer *Platform::GetAuxGCodeReply()
 	PIOD->PIO_ODSR = driverMap;
 	PIOC->PIO_ODSR = driverMap;
 #elif defined(__LPC17xx__)
-    //Pins should all be on Port 2
-    LPC_GPIO2->FIOSET = driverMap;
+    if(hasStepPinsOnDifferentPorts == true ){
+        //with flexibleconfig just treat these pins one by one instead of parallel writes for now. Using driver pos in bitmap
+        uint8_t pos=0;
+        while (driverMap!=0 && pos < MaxTotalDrivers){
+            if(driverMap & 0x01) GPIO_PinWrite(STEP_PINS[pos], 1); //set high
+            driverMap = driverMap >> 1;
+            pos++;
+        }
+        
+    } else {
+        //pins all on port 2
+        LPC_GPIO2->FIOSET = driverMap;
+    }
 #else
 # error Unknown board
 #endif
@@ -1313,7 +1329,16 @@ inline OutputBuffer *Platform::GetAuxGCodeReply()
 	PIOC->PIO_ODSR = 0;
 	PIOB->PIO_ODSR = 0;
 #elif defined(__LPC17xx__)
-	LPC_GPIO2->FIOCLR = STEP_DRIVER_MASK;
+    if(hasStepPinsOnDifferentPorts == true ){
+        //with flexibleconfig just treat these pins one by one instead of parallel writes for now.
+        for(size_t d=0; d<MaxTotalDrivers; d++){
+            GPIO_PinWrite(STEP_PINS[d], 0); //set high
+        }
+    }
+    else
+    {
+        LPC_GPIO2->FIOCLR = STEP_DRIVER_MASK;
+    }
 #else
 # error Unknown board
 #endif

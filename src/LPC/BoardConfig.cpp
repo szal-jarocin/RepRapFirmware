@@ -19,83 +19,66 @@
 
 #include "Platform.h"
 
-enum singleValueType{
-    svPinType = 0,
-    svBoolType,
-    svUint8Type,
-    svUint16Type,
-    svUint32Type,
-    svFloatType,
-};
-
-struct pinConfig_t{
+struct boardConfigEntry_t{
     const char* key;
     void *variable;
-    singleValueType type;
-};
-
-struct pinConfigArray_t{
-    const char* key;
-    Pin *pins; //array of pins
     const size_t *maxArrayEntries;
+    configValueType type;
 };
 
 
-
-static const pinConfig_t singleValueConfigs[]=
+static const boardConfigEntry_t boardConfigs[]=
 {
-    {"lcd.lcdCSPin", &LcdCSPin, svPinType},
-    {"lcd.lcdDCPin", &LcdDCPin, svPinType},
-    {"lcd.lcdBeepPin", &LcdBeepPin, svPinType},
-    {"lcd.encoderPinA", &EncoderPinA, svPinType},
-    {"lcd.encoderPinB", &EncoderPinB, svPinType},
-    {"lcd.encoderPinSw", &EncoderPinSw, svPinType},
-    {"lcd.panelButtonPin", &PanelButtonPin, svPinType},
 
-    {"leds.diagnostic", &DiagPin, svPinType},
-    
-    {"zProbe.pin", &Z_PROBE_PIN, svPinType},
-    {"zProbe.modulationPin", &Z_PROBE_MOD_PIN, svPinType},
+    {"leds.diagnostic", &DiagPin, nullptr, cvPinType},
+    {"lpc.internalSDCard.spiFrequencyHz", &InternalSDCardFrequency, nullptr, cvUint32Type},
 
-    {"atxPowerPin", &ATX_POWER_PIN, svPinType},
-
-    {"steppers.hasDriverCurrentControl", &hasDriverCurrentControl, svBoolType},
-    {"steppers.digipotFactor", &digipotFactor, svFloatType},
-    
-    {"externalSDCard.csPin", &SdSpiCSPins[1], svPinType},
-    {"externalSDCard.cardDetectPin", &SdCardDetectPins[1], svPinType},
-    {"externalSDCard.spiFrequencyHz", &ExternalSDCardFrequency, svUint32Type},
-
-    {"lpc.slowPWM.frequencyHz", &Timer1Frequency, svUint16Type},
-    {"lpc.fastPWM.frequencyHz", &Timer3Frequency, svUint16Type},
+    {"stepper.enablePins", ENABLE_PINS, &MaxTotalDrivers, cvPinType},
+    {"stepper.stepPins", STEP_PINS, &MaxTotalDrivers, cvPinType},
+    {"stepper.directionPins", DIRECTION_PINS, &MaxTotalDrivers, cvPinType},
+    {"stepper.hasDriverCurrentControl", &hasDriverCurrentControl, nullptr, cvBoolType},
+    {"stepper.digipotFactor", &digipotFactor, nullptr, cvFloatType},
 
     
+    {"endstop.pins", END_STOP_PINS, &NumEndstops, cvPinType},
+    {"zProbe.pin", &Z_PROBE_PIN, nullptr, cvPinType},
+    {"zProbe.modulationPin", &Z_PROBE_MOD_PIN, nullptr, cvPinType},
 
+    {"heat.tempSensePins", TEMP_SENSE_PINS, &NumThermistorInputs, cvPinType},
+    {"heat.heatOnPins", HEAT_ON_PINS, &NumHeaters, cvPinType},
+    {"heat.spiTempSensorCSPins", SpiTempSensorCsPins, &MaxSpiTempSensors, cvPinType},
+    
+    {"fan.pins", COOLING_FAN_PINS, &NUM_FANS, cvPinType},
+    {"fan.tachoPins", TachoPins, &NumTachos, cvPinType},
+    
+    {"atxPowerPin", &ATX_POWER_PIN, nullptr, cvPinType},
+
+    
+    {"lpc.slowPWM.frequencyHz", &Timer1Frequency, nullptr, cvUint16Type},
+    {"lpc.slowPWM.pins", Timer1PWMPins, &MaxTimerEntries, cvPinType},
+
+    {"lpc.fastPWM.frequencyHz", &Timer3Frequency, nullptr, cvUint16Type},
+    {"lpc.fastPWM.pins", Timer3PWMPins, &MaxTimerEntries, cvPinType},
+
+    {"lpc.servoPins", Timer2PWMPins, &MaxTimerEntries, cvPinType},
+
+    {"specialPinMap", SpecialPinMap, &MaxNumberSpecialPins, cvPinType},
+    {"lpc.externalInterruptPins", ExternalInterruptPins, &MaxExtIntEntries, cvPinType},
+    
+    {"externalSDCard.csPin", &SdSpiCSPins[1], nullptr, cvPinType},
+    {"externalSDCard.cardDetectPin", &SdCardDetectPins[1], nullptr, cvPinType},
+    {"lpc.externalSDCard.spiFrequencyHz", &ExternalSDCardFrequency, nullptr, cvUint32Type},
+
+    
+    {"lcd.lcdCSPin", &LcdCSPin, nullptr, cvPinType},
+    {"lcd.lcdBeepPin", &LcdBeepPin, nullptr, cvPinType},
+    {"lcd.encoderPinA", &EncoderPinA, nullptr, cvPinType},
+    {"lcd.encoderPinB", &EncoderPinB, nullptr, cvPinType},
+    {"lcd.encoderPinSw", &EncoderPinSw, nullptr, cvPinType},
+    {"lcd.lcdDCPin", &LcdDCPin, nullptr, cvPinType},
+    {"lcd.panelButtonPin", &PanelButtonPin, nullptr, cvPinType},
 
 };
-
-
-
-
-static const pinConfigArray_t pinArrayConfigs[] =
-{
-    {"stepper.enablePins", ENABLE_PINS, &MaxTotalDrivers},
-    {"stepper.stepPins", STEP_PINS, &MaxTotalDrivers},
-    {"stepper.directionPins", DIRECTION_PINS, &MaxTotalDrivers},
-    {"endstop.pins", END_STOP_PINS, &NumEndstops},
-    {"heat.tempSensePins", TEMP_SENSE_PINS, &NumThermistorInputs},
-    {"heat.heatOnPins", HEAT_ON_PINS, &NumHeaters},
-    {"heat.spiTempSensorCSPins", SpiTempSensorCsPins, &MaxSpiTempSensors},
-    {"fan.pins", COOLING_FAN_PINS, &NUM_FANS},
-    {"fan.tachoPins", TachoPins, &NumTachos},
-    {"specialPinMap", SpecialPinMap, &MaxNumberSpecialPins},
-    {"lpc.externalInterruptPins", ExternalInterruptPins, &MaxExtIntEntries},
-    {"lpc.slowPWM.pins", Timer1PWMPins, &MaxTimerEntries},
-    {"lpc.servoPins", Timer2PWMPins, &MaxTimerEntries},
-    {"lpc.fastPWM.pins", Timer3PWMPins, &MaxTimerEntries},
-};
-
-
 
 
 static inline bool isSpaceOrTab(char c)
@@ -152,25 +135,32 @@ void BoardConfig::Init() {
         //uint32_t time = millis();
         BoardConfig::GetConfigKeys(configFile);
         configFile->Close();
+        
         //time = millis() - time;
         //reprap.GetPlatform().MessageF(UsbMessage, "Took %ld ms to load config\n", time );
 
         
         //Calculate STEP_DRIVER_MASK (used for parallel writes)
+        STEP_DRIVER_MASK = 0;
         for(size_t i=0; i<MaxTotalDrivers; i++)
         {
             //It is assumed all pins will be on Port 2
             const Pin stepPin = STEP_PINS[i];
-            STEP_DRIVER_MASK = 0;
-            if( (stepPin >> 5) == 2) // divide by 32 to get port number
+            if( stepPin != NoPin && (stepPin >> 5) == 2) // divide by 32 to get port number
             {
                 STEP_DRIVER_MASK |= (1 << (stepPin & 0x1f)); //this is a bitmask of all the stepper pins on Port2 used for Parallel Writes
             }
             else
             {
-                if(stepPin != NoPin) debugPrintf("Error: Step Pin %d not on Port2\n", stepPin);
+                if(stepPin != NoPin)
+                {
+                    hasStepPinsOnDifferentPorts = true;
+                    // will use a basic mapping for stepping instead of parallel port writes.....
+                    reprap.GetPlatform().MessageF(UsbMessage, "Step pins are on different ports. Pins will not be written in parallel.\n" );
+                }
             }
         }
+        
 
         //Configure the HW Timers
         ConfigureTimerForPWM(0, Timer1Frequency); //Timer1 is channel 0
@@ -178,12 +168,23 @@ void BoardConfig::Init() {
         ConfigureTimerForPWM(2, Timer3Frequency); //Timer3 is channel 2
 
 
+        //Internal SDCard SPI Frequency
+        sd_mmc_reinit_slot(0, SdSpiCSPins[0], InternalSDCardFrequency);
+        
         //Configure the External SDCard
         if(SdSpiCSPins[1] != NoPin)
         {
             //set the CSPin and the frequency for the External SDCard
             sd_mmc_reinit_slot(1, SdSpiCSPins[1], ExternalSDCardFrequency);
         }
+        
+        //Init Extra pins from LCD (not used anywhere yet)
+        //make sure to init ButtonPin as input incase user presses button
+        if(PanelButtonPin != NoPin) pinMode(PanelButtonPin, INPUT);
+        if(LcdDCPin != NoPin) pinMode(LcdDCPin, OUTPUT_HIGH);
+        
+
+        
     }
 }
 
@@ -213,6 +214,44 @@ Pin BoardConfig::StringToPin(const char *strvalue){
 
 
 
+void BoardConfig::PrintValue(MessageType mtype, configValueType configType, void *variable)
+{
+    switch(configType){
+        case cvPinType:
+            {
+                Pin pin = *(Pin *)(variable);
+                if(pin == NoPin)
+                {
+                    reprap.GetPlatform().MessageF(mtype, "NoPin ");
+                }
+                else
+                {
+                    reprap.GetPlatform().MessageF(mtype, "%d.%d ", (pin >> 5), (pin & 0x1F) );
+                }
+            }
+            break;
+        case cvBoolType:
+            reprap.GetPlatform().MessageF(mtype, "%s ", (*(bool *)(variable) == true)?"true":"false" );
+            break;
+        case cvFloatType:
+            reprap.GetPlatform().MessageF(mtype, "%.2f ",  (double) *(float *)(variable) );
+            break;
+        case cvUint8Type:
+            reprap.GetPlatform().MessageF(mtype, "%u ",  *(uint8_t *)(variable) );
+            break;
+        case cvUint16Type:
+            reprap.GetPlatform().MessageF(mtype, "%d ",  *(uint16_t *)(variable) );
+            break;
+        case cvUint32Type:
+            reprap.GetPlatform().MessageF(mtype, "%lu ",  *(uint32_t *)(variable) );
+            break;
+        default:{
+            
+        }
+    }
+}
+
+
 void BoardConfig::Diagnostics(MessageType mtype)
 {
 
@@ -221,71 +260,100 @@ void BoardConfig::Diagnostics(MessageType mtype)
 
     
     //Pin Array Configs
-    const size_t numConfigs = ARRAY_SIZE(pinArrayConfigs);
+    const size_t numConfigs = ARRAY_SIZE(boardConfigs);
     for(size_t i=0; i<numConfigs; i++)
     {
-        pinConfigArray_t next = pinArrayConfigs[i];
-        reprap.GetPlatform().MessageF(mtype, "%s = [ ", next.key );
-        for(size_t p=0; p<*(next.maxArrayEntries); p++)
+        boardConfigEntry_t next = boardConfigs[i];
+
+        reprap.GetPlatform().MessageF(mtype, "%s = ", next.key );
+        if(next.maxArrayEntries != nullptr)
         {
-            Pin pin = next.pins[p];
-            if(pin == NoPin)
+            reprap.GetPlatform().MessageF(mtype, "[ ");
+            for(size_t p=0; p<*(next.maxArrayEntries); p++)
             {
-                reprap.GetPlatform().MessageF(mtype, "NoPin ");
-            }
-            else
-            {
-                reprap.GetPlatform().MessageF(mtype, "%d.%d ", (pin >> 5), (pin & 0x1F) );
-            }
-        }
-        reprap.GetPlatform().MessageF(mtype, "]\n");
-    }
-    
-    //single pin values
-    const size_t numSingleConfigs = ARRAY_SIZE(singleValueConfigs);
-    for(size_t i=0; i<numSingleConfigs; i++)
-    {
-        pinConfig_t next = singleValueConfigs[i];
-        
-        reprap.GetPlatform().MessageF(mtype, "%s =  ", next.key);
-        
-        switch(next.type){
-            case svPinType:
-                {
-                    Pin pin = *(Pin *)(next.variable);
-                    if(pin == NoPin)
-                    {
-                        reprap.GetPlatform().MessageF(mtype, "NoPin\n");
-                    }
-                    else
-                    {
-                        reprap.GetPlatform().MessageF(mtype, "%d.%d\n", (pin >> 5), (pin & 0x1F) );
-                    }
+                //TODO:: handle other values
+                if(next.type == cvPinType){
+                    BoardConfig::PrintValue(mtype, next.type, (void *)&((Pin *)(next.variable))[p]);
                 }
-                break;
-                
-            case svBoolType:
-                reprap.GetPlatform().MessageF(mtype, "%s\n", (*(bool *)(next.variable) == true)?"true":"false" );
-                break;
-                
-            case svFloatType:
-                reprap.GetPlatform().MessageF(mtype, "%.2f\n",  (double) *(float *)(next.variable) );
-                break;
-            case svUint8Type:
-                reprap.GetPlatform().MessageF(mtype, "%u\n",  *(uint8_t *)(next.variable) );
-                break;
-            case svUint16Type:
-                reprap.GetPlatform().MessageF(mtype, "%d\n",  *(uint16_t *)(next.variable) );
-                break;
-            case svUint32Type:
-                reprap.GetPlatform().MessageF(mtype, "%lu\n",  *(uint32_t *)(next.variable) );
-                break;
-            default:{
-                
             }
+            reprap.GetPlatform().MessageF(mtype, "]\n");
+        }
+        else
+        {
+            BoardConfig::PrintValue(mtype, next.type, next.variable);
+            reprap.GetPlatform().MessageF(mtype, "\n");
+
         }
     }
 }
+
+
+
+
+                  
+void BoardConfig::SetValueFromString(configValueType type, void *variable, const char *valuePtr)
+{
+    switch(type)
+    {
+        case cvPinType:
+            *(Pin *)(variable) = StringToPin(valuePtr);
+            break;
+            
+        case cvBoolType:
+            {
+                bool res = false;
+                
+                if(strlen(valuePtr) == 1){
+                    //check for 0 or 1
+                    if(valuePtr[0] == '1') res = true;
+                        }
+                else if(strlen(valuePtr) == 4 && StringEqualsIgnoreCase(valuePtr, "true"))
+                {
+                    res = true;
+                }
+                *(bool *)(variable) = res;
+            }
+            break;
+            
+        case cvFloatType:
+            {
+                const char *ptr = nullptr;
+                *(float *)(variable) = SafeStrtof(valuePtr, &ptr);
+            }
+            break;
+        case cvUint8Type:
+            {
+                const char *ptr = nullptr;
+                uint8_t val = SafeStrtoul(valuePtr, &ptr, 10);
+                if(val < 0) val = 0;
+                if(val > 0xFF) val = 0xFF;
+                
+                *(uint8_t *)(variable) = val;
+            }
+            break;
+        case cvUint16Type:
+            {
+                const char *ptr = nullptr;
+                uint16_t val = SafeStrtoul(valuePtr, &ptr, 10);
+                if(val < 0) val = 0;
+                if(val > 0xFFFF) val = 0xFFFF;
+                
+                *(uint16_t *)(variable) = val;
+                    
+            }
+            break;
+        case cvUint32Type:
+            {
+                const char *ptr = nullptr;
+                *(uint32_t *)(variable) = SafeStrtoul(valuePtr, &ptr, 10);
+            }
+            break;
+        default:
+            debugPrintf("Unhandled ValueType\n");
+    }
+}
+
+
 
 bool BoardConfig::GetConfigKeys(FileStore *configFile){
 
@@ -320,16 +388,21 @@ bool BoardConfig::GetConfigKeys(FileStore *configFile){
                 if(pos < len && line[pos] == '{'){
                     pos++; //skip the {
 
-                    //Array (only Pin arrays are implemented
-                    const size_t numConfigs = ARRAY_SIZE(pinArrayConfigs);
+                    //Array of Values:
+                    //TODO:: only Pin arrays are currently implemented
+                    
+                    const size_t numConfigs = ARRAY_SIZE(boardConfigs);
                     for(size_t i=0; i<numConfigs; i++)
                     {
-                        pinConfigArray_t next = pinArrayConfigs[i];
-                        if(StringEqualsIgnoreCase(key, next.key)){
+                        boardConfigEntry_t next = boardConfigs[i];
+                        //Currently only handles Arrays of Pins
+                        if(next.maxArrayEntries != nullptr /*&& next.type == cvPinType*/ && StringEqualsIgnoreCase(key, next.key)){
                             //match
 
-                            //create a temp array to read into. Only copys the arrays into the final destination when we know the array is properly defined
+                            //create a temp array to read into. Only copy the array entries into the final destination when we know the array is properly defined
                             const size_t maxArraySize = *next.maxArrayEntries;
+                            
+                            //Pin Array Type
                             Pin readArray[maxArraySize];
 
                             //eat whitespace
@@ -402,6 +475,10 @@ bool BoardConfig::GetConfigKeys(FileStore *configFile){
                                         if(arrIdx >= 0 && arrIdx<maxArraySize)
                                         {
                                             readArray[arrIdx] = StringToPin(valuePtr);
+                                            
+                                            //TODO:: HANDLE OTHER VALUE TYPES??
+                                            
+
                                         }
                                     }
 
@@ -414,7 +491,7 @@ bool BoardConfig::GetConfigKeys(FileStore *configFile){
                                             //All values read successfully, copy temp array into Final destination
                                             //dest array may be larger, dont overrite the default values
                                             for(size_t i=0; i<(arrIdx+1); i++ ){
-                                                next.pins[i] = readArray[i];
+                                                ((Pin *)(next.variable))[i] = readArray[i];
                                             }
                                             //Success!
                                             searching = false;
@@ -458,67 +535,15 @@ bool BoardConfig::GetConfigKeys(FileStore *configFile){
                         line[pos] = 0; // null terminate the string
 
                         //debugPrintf(" = %s\n", valuePtr);
-
-                        const size_t numConfigs = ARRAY_SIZE(singleValueConfigs);
-                        for(size_t i=0; i<numConfigs; i++){
-                            pinConfig_t next = singleValueConfigs[i];
-                            if(StringEqualsIgnoreCase(key, next.key)){
+                        const size_t numConfigs = ARRAY_SIZE(boardConfigs);
+                        for(size_t i=0; i<numConfigs; i++)
+                        {
+                            boardConfigEntry_t next = boardConfigs[i];
+                            //Single Value config entries have nullptr for maxArrayEntries
+                            if(next.maxArrayEntries == nullptr && StringEqualsIgnoreCase(key, next.key))
+                            {
                                 //match
-                                switch(next.type){
-                                    case svPinType:
-                                        *(Pin *)(next.variable) = StringToPin(valuePtr);
-                                        break;
-
-                                    case svBoolType:{
-                                        bool res = false;
-
-                                        if(strlen(valuePtr) == 1){
-                                            //check for 0 or 1
-                                            if(valuePtr[0] == '1') res = true;
-                                        }
-                                        else if(strlen(valuePtr) == 4 && StringEqualsIgnoreCase(valuePtr, "true"))
-                                        {
-                                            res = true;
-                                        }
-                                        *(bool *)(next.variable) = res;
-                                    }
-                                        break;
-
-                                    case svFloatType:{
-                                        const char *ptr = nullptr;
-                                        *(float *)(next.variable) = SafeStrtof(valuePtr, &ptr);
-                                    }
-                                        break;
-                                    case svUint8Type:{
-                                        const char *ptr = nullptr;
-                                        uint8_t val = SafeStrtoul(valuePtr, &ptr, 10);
-                                        if(val < 0) val = 0;
-                                        if(val > 0xFF) val = 0xFF;
-
-                                        *(uint8_t *)(next.variable) = val;
-                                    }
-                                        break;
-                                    case svUint16Type:{
-                                        const char *ptr = nullptr;
-                                        uint16_t val = SafeStrtoul(valuePtr, &ptr, 10);
-                                        if(val < 0) val = 0;
-                                        if(val > 0xFFFF) val = 0xFFFF;
-
-                                        *(uint16_t *)(next.variable) = val;
-
-                                    }
-                                        break;
-                                    case svUint32Type:{
-                                        const char *ptr = nullptr;
-                                        *(uint32_t *)(next.variable) = SafeStrtoul(valuePtr, &ptr, 10);
-                                    }
-                                        break;
-                                    default:{
-
-                                        debugPrintf("Unhandled SingleValueType\n");
-
-                                    }
-                                }
+                                BoardConfig::SetValueFromString(next.type, next.variable, valuePtr);
                             }
                         }
                     }

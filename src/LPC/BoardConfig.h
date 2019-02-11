@@ -14,6 +14,17 @@
 #include "Storage/FileStore.h"
 #include "RepRap.h"
 
+
+enum configValueType{
+    cvPinType = 0,
+    cvBoolType,
+    cvUint8Type,
+    cvUint16Type,
+    cvUint32Type,
+    cvFloatType,
+};
+
+
 class Platform; //fwd decl
 
 class BoardConfig {
@@ -22,14 +33,14 @@ public:
     static void Init();
 
     static void Diagnostics(MessageType mtype);
-
     static Pin StringToPin(const char *strvalue);
 
 private:
     BoardConfig();
     static bool GetConfigKeys(FileStore *configFile );
-        
-    
-    Platform *platform;                                            // The instance of the RepRap hardware class
+    static void SetValueFromString(configValueType type, void *variable, const char *valuePtr);
+    static void PrintValue(MessageType mtype, configValueType configType, void *variable);
+
 };
+
 #endif /* BOARDCONFIG_H_ */

@@ -1,0 +1,123 @@
+//Config file to define Hardware Pins LPC Boards.
+//Note: Each line should be less than 120 characters.
+//    : Unwanted options can be commented out or set to NoPin. Lines commented out will get default values
+//    : for pins the default is NoPin.
+//    : Values for Arrays need to be contained within { and }
+//    : Comments can be defined with // or # (comments are not supported inside arrays)
+//    : Each config entry must be all on a single line.
+
+//Config for BIQU SKR v1.1 (using config setting from Rob Mendon)
+
+
+//LED blinks to indicate Platform is spinning or other diagnostic
+//Comment out or set to NoPin if not wanted.
+leds.diagnostic = NoPin; //RRF Diagnostics Pin
+
+	
+//                      Drive       0     1     2     3      4 
+//                    Typically     X     Y     Z     E0     E1
+stepper.enablePins =               { 4.28, 2.0, 0.19, 2.12, 0.10};
+stepper.stepPins =                 { 0.4,  2.1, 0.20, 0.11, 0.1};    
+stepper.directionPins =            { 0.5,  2.2, 0.21, 2.13, 0.0};
+stepper.hasDriverCurrentControl = false; //digipot current control
+stepper.digipotFactor = 113.33; //factor for converting current to digipot value
+
+
+//Pins aren't on Port2 like most of the other LPC Boards
+//There is also a clash between 2.1 and 0.1 when generating the driver bitmask for RRF
+//To be configurable, this is entered here manually
+//Calculate the shift for each pin to create the driver bitmaks in: Platform.h: CalcDriverBitmap
+stepper.stepPinManualDriverBitmaskShift = { 4, 1, 20, 11, 1 }
+
+
+
+//RRF equiv     X     Y     Z     E0    E1    E2
+//RRF C Index   0     1     2     3     4     5
+//              Xmin  Ymin  Zmin  Xmax  Ymax  Zmax
+endstop.pins = {1.29, 1.27, 1.25, 1.28, 1.26, 1.24};
+
+// Z Probe pin
+// Probe pin can be NoPin and select from an "EndStop Pin" (which are digital input)
+// using the C parameter of M558. 
+// Note: Expected to be an ADC pin for certain modes, if needed then a spare A/D capable pin
+// should be used and set zProbe.pin below. Beware that pins configured for ADC are **NOT** 5V tolerant
+zProbe.pin = NoPin;
+zProbe.modulationPin = NoPin
+    
+    
+//                    Bed   E0    E1
+heat.tempSensePins = {0.23, 0.24, 0.25}; //Max of 3 entries
+heat.heatOnPins =    {2.5,  2.7,  2.4}; //Max of 3 entries
+heat.spiTempSensorCSPins = { }
+        
+// Fan PWM pins. If not assigned pin does not support HWPwm, or HWPWM not running at desired fan RPM, 
+// then also add to Timers array below
+// Current maximum of 2 fans supported
+fan.pins = {2.3};
+
+// Pins used for Fan RPM measurement. Needs to be on Port 0 or Port 2.
+// Note: This pin must also appear in the externalInterruptPins below to enable the interrupt
+// Array of pins, currently limited to 1 pin on LPC
+fan.tachoPins = { NoPin };
+ 
+atxPowerPin = NoPin;
+        
+        
+// **PWM on LPC**. 
+// There are a number of HW PWM pins on the LPC, however, they all share the same frequency.
+// RRF makes use of different frequencies so to support that, 3 HW Timers are also configured to perform
+// PWM. This also allows the use of any GPIO pin to support PWM. To use the Timers, add the pins
+// to the slowPWM, fastPWM and servoPins arrays below.  Each timer can support up to 3 Pins and 
+// they all also share the same frequency.
+// servoPins run at 50Hz. Fast/Slow PWM Frequency can be changed below.
+                
+lpc.slowPWM.pins = {2.5}; 
+lpc.slowPWM.frequencyHz = 10; //10Hz (for Bed PWM)
+
+lpc.fastPWM.pins = {2.7, 2.4};
+lpc.fastPWM.frequencyHz = 250; //250Hz (for Hotend/Fan PWM)
+
+// Note: Also add servo Pins to the SpecialPinMap Below so they get assigned a logical pin number
+lpc.servoPins = {1.24, 1.26};
+
+
+lpc.externalInterruptPins = {}; //Max of 3 pins for Ext Interrupts. Must be on Port 0 or Port 2.
+
+
+//Pins in the specialPinMap will have "logical pin numbers" 60-69 in RRF (max 10 special pins)
+//Array of any Servo/Extra/spare pins that can be controlled by M42 and M280
+specialPinMap = {1.24, 1.26};
+
+
+
+//**SPI Devices**
+    
+// SPI devices should be connected to using SSP0:
+//    MOSI, MISO, SCLK
+//    0.18  0.17  0.15
+
+
+//Only supports 1 External SDCard
+externalSDCard.csPin         = 1.23;
+externalSDCard.cardDetectPin = 1.31;
+lpc.externalSDCard.spiFrequencyHz  = 4000000;
+
+
+//LCD Pins (only ST9720 SPI currently supported)
+lcd.lcdCSPin =       0.16; //LCD Chip Select
+lcd.lcdBeepPin =     1.30;
+lcd.encoderPinA =    3.26;
+lcd.encoderPinB =    3.25;
+lcd.encoderPinSw =   2.11; //click
+lcd.lcdDCPin =       0.18;  //DataControl Pin (A0) if none used set to NoPin
+lcd.panelButtonPin = NoPin; //Extra button on Viki and RRD Panels (reset/back etc configurable)
+    
+
+
+//EXPERIMENTAL
+lpc.internalSDCard.spiFrequencyHz  = 10000000;
+
+
+
+
+

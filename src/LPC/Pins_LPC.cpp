@@ -31,6 +31,8 @@ Pin SdCardDetectPins[NumSdCards] = { NoPin, NoPin };
 Pin SdSpiCSPins[NumSdCards] = { P0_6, NoPin };// Internal, external. Note:: ("slot" 0 in CORE is configured to be LCP SSP1 to match default RRF behaviour)
 uint32_t ExternalSDCardFrequency = 2000000; //default to 2MHz
 
+uint32_t InternalSDCardFrequency = 10000000; //default to 10MHz
+
 Pin SpecialPinMap[MaxNumberSpecialPins] = { NoPin, NoPin, NoPin, NoPin, NoPin, NoPin, NoPin, NoPin, NoPin, NoPin };
 
 
@@ -58,11 +60,7 @@ Pin DIRECTION_PINS[NumDirectDrivers]  = {NoPin, NoPin, NoPin, NoPin, NoPin};
 //uint8_t STEP_PIN_PORT2_POS[NumDirectDrivers] = {0,0,0,0,0}; //SD: Used for calculating bitmap for stepping drivers (this is position of the pins on the port)
 uint32_t STEP_DRIVER_MASK = 0; //SD: mask of the step pins on Port 2 used for writing to step pins in parallel
 
-
-
-//TODO:: change DEFINE to bool (UPDATE IN PLATFORM.CPP FROM TYPEDEF)
-
-
+bool hasStepPinsOnDifferentPorts = false; //for boards that don't have all step pins on port2
 
 bool hasDriverCurrentControl = false;
 float digipotFactor = 113.33; //factor for converting current to digipot value
