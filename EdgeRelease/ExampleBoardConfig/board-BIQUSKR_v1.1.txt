@@ -22,15 +22,6 @@ stepper.directionPins =            { 0.5,  2.2, 0.21, 2.13, 0.0};
 stepper.hasDriverCurrentControl = false; //digipot current control
 stepper.digipotFactor = 113.33; //factor for converting current to digipot value
 
-
-//Pins aren't on Port2 like most of the other LPC Boards
-//There is also a clash between 2.1 and 0.1 when generating the driver bitmask for RRF
-//To be configurable, this is entered here manually
-//Calculate the shift for each pin to create the driver bitmaks in: Platform.h: CalcDriverBitmap
-stepper.stepPinManualDriverBitmaskShift = { 4, 1, 20, 11, 1 }
-
-
-
 //RRF equiv     X     Y     Z     E0    E1    E2
 //RRF C Index   0     1     2     3     4     5
 //              Xmin  Ymin  Zmin  Xmax  Ymax  Zmax

@@ -1296,7 +1296,6 @@ inline OutputBuffer *Platform::GetAuxGCodeReply()
             driverMap = driverMap >> 1;
             pos++;
         }
-        
     } else {
         //pins all on port 2
         LPC_GPIO2->FIOSET = driverMap;
@@ -1332,7 +1331,7 @@ inline OutputBuffer *Platform::GetAuxGCodeReply()
     if(hasStepPinsOnDifferentPorts == true ){
         //with flexibleconfig just treat these pins one by one instead of parallel writes for now.
         for(size_t d=0; d<MaxTotalDrivers; d++){
-            GPIO_PinWrite(STEP_PINS[d], 0); //set high
+            GPIO_PinWrite(STEP_PINS[d], 0); //set low
         }
     }
     else
