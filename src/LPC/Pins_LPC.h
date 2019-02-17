@@ -76,6 +76,10 @@ constexpr size_t MaxAxes = 5;                        // The maximum number of mo
 constexpr size_t MaxExtruders = NumDirectDrivers - MinAxes;    // The maximum number of extruders
 constexpr size_t MaxDriversPerAxis = 2;                // The maximum number of stepper drivers assigned to one axis
 
+constexpr size_t MaxHeatersPerTool = 2;
+constexpr size_t MaxExtrudersPerTool = 2;
+
+
 //Steppers
 extern Pin ENABLE_PINS[NumDirectDrivers];
 extern Pin STEP_PINS[NumDirectDrivers];
