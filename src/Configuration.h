@@ -272,7 +272,7 @@ constexpr size_t OUTPUT_BUFFER_COUNT = 16;			    // How many OutputBuffer instan
 constexpr size_t RESERVED_OUTPUT_BUFFERS = 2;			// Number of reserved output buffers after long responses
 #elif __LPC17xx__
 constexpr uint16_t OUTPUT_BUFFER_SIZE = 256;            // How many bytes does each OutputBuffer hold?
-constexpr size_t OUTPUT_BUFFER_COUNT = 15;              // How many OutputBuffer instances do we have?
+constexpr size_t OUTPUT_BUFFER_COUNT = 16;              // How many OutputBuffer instances do we have?
 constexpr size_t RESERVED_OUTPUT_BUFFERS = 4;           // Number of reserved output buffers after long responses. Must be enough for an HTTP header
 #else
 # error

@@ -1070,12 +1070,6 @@ OutputBuffer *RepRap::GetStatusResponse(uint8_t type, ResponseSource source)
 				response->catf("%" PRIu32, platform->GetFanRPM(0));
 			}
 		}
-#ifdef __LPC17xx__
-        else {
-            //DWC seems to expect fanRPM so lets send 0 to keep it happy
-            response->cat(",\"fanRPM\":0");
-        }
-#endif
 		response->cat('}');		// end sensors
 	}
 
