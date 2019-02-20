@@ -126,13 +126,9 @@ private:
 	bool activated;
 	bool usingDhcp;
 
-//    uint8_t ipAddress[4];
-//    uint8_t netmask[4];
-//    uint8_t gateway[4];
     IPAddress ipAddress;
     IPAddress netmask;
     IPAddress gateway;
-    uint8_t dnsServerAddress[4];
 	uint8_t macAddress[6];
 };
 

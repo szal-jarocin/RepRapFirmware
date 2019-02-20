@@ -19,6 +19,7 @@
 #include "task.h"
 #include "FreeRTOS_IP.h"
 #include "FreeRTOS_IP_Private.h"
+#include "NetworkBufferManagement.h"
 
 #include "FreeRTOS_Sockets.h"
 #include "FreeRTOS_DHCP.h"
@@ -31,43 +32,21 @@ constexpr size_t EmacStackWords = 74+30;/*170*/ // needs to be bigger (>=170) if
 static Task<EmacStackWords> emacTask;
 
 
-
-//convert the 32bit ipaddress to array
-
-inline void convert32bitIPAddress(uint32_t &ulIPAddress, uint8_t ip[])
-{
-    ip[0] = ((unsigned) ((ulIPAddress) & 0xffUL));
-    ip[1] = ((unsigned) (((ulIPAddress) >> 8 ) & 0xffUL));
-    ip[2] = ((unsigned) (((ulIPAddress) >> 16 ) & 0xffUL));
-    ip[3] = ((unsigned) ((ulIPAddress) >> 24 ));
-
-    
-}
-
 RTOSPlusTCPEthernetInterface *rtosTCPEtherInterfacePtr; //pointer to the clas instance so we can call from the c hooks
 
-extern "C" {
+extern "C"
+{
     
-    /* Use by the pseudo random number generator. in +TCP */
-    static UBaseType_t ulNextRand;
-
-
     //SD:: use the RFF tasks management to create tasks needed for +tcp
-    TaskHandle_t RRfInitialiseIPTask(TaskFunction_t pxTaskCode) {
-        //original call in +tcp
-        //xReturn = xTaskCreate( prvIPTask, "IP-task", ( uint16_t ) ipconfigIP_TASK_STACK_SIZE_WORDS, NULL, ( UBaseType_t ) ipconfigIP_TASK_PRIORITY, &xIPTaskHandle );
-
-        tcpPlusTask.Create(pxTaskCode, "IP-task", nullptr, ( UBaseType_t ) /*ipconfigIP_TASK_PRIORITY*/TaskBase::TcpPriority);
+    TaskHandle_t RRfInitialiseIPTask(TaskFunction_t pxTaskCode)
+    {
+        tcpPlusTask.Create(pxTaskCode, "IP-task", nullptr, ( UBaseType_t ) TaskBase::TcpPriority);
         return tcpPlusTask.GetHandle();
     }
     
-    TaskHandle_t RRfInitialiseEMACTask(TaskFunction_t pxTaskCode) {
-        //Original EMAC task creation in NetworkInterface.c (portable lpc17xx)
-        //xReturn = xTaskCreate( prvEMACHandlerTask, "EMAC", nwRX_TASK_STACK_SIZE, NULL, configMAX_PRIORITIES - 1, &xRxHanderTask );
-
-        //TODO::Determine priority to run EMAC at
-        emacTask.Create(pxTaskCode, "EMAC", nullptr, /*configMAX_PRIORITIES - 1*/ TaskBase::TcpPriority);
-        //FreeRTOS_debug_printf( ( "RRfInitialiseIPTask: Creating Task for EMAC \n" ) );
+    TaskHandle_t RRfInitialiseEMACTask(TaskFunction_t pxTaskCode)
+    {
+        emacTask.Create(pxTaskCode, "EMAC", nullptr, TaskBase::TcpPriority);
         return emacTask.GetHandle();
     }
     
@@ -104,26 +83,12 @@ extern "C" const char *pcApplicationHostnameHook( void )
 }
 
 
-//ipconfigRAND32
-//Random required for various FreeRTOS+TCP functions, sockets etc
-// from example
-extern "C" UBaseType_t uxRand( void )
-{
-    const uint32_t ulMultiplier = 0x015a4e35UL, ulIncrement = 1UL;
-
-    ulNextRand = ( ulMultiplier * ulNextRand ) + ulIncrement;
-    return( ( int ) ( ulNextRand >> 16UL ) & 0x7fffUL );
-}
-
-//**********************
-
-
 RTOSPlusTCPEthernetInterface::RTOSPlusTCPEthernetInterface(Platform& p)
 	: platform(p), lastTickMillis(0), state(NetworkState::disabled), activated(false)
 {
     //setup our pointer to access our class methods from the +TCP "C" callbacks
     rtosTCPEtherInterfacePtr = this;
-    
+        
 	// Create the sockets
 	for (RTOSPlusTCPEthernetSocket*& skt : sockets)
 	{
@@ -196,13 +161,6 @@ GCodeResult RTOSPlusTCPEthernetInterface::EnableProtocol(NetworkProtocol protoco
 			if (state == NetworkState::active)
 			{
 				StartProtocol(protocol);
-                
-
-                //SD::MDS is done by +TCP (if enabled in config)
-//                if (state == NetworkState::active)
-//                {
-//                    DoMdnsAnnounce();
-//                }
 			}
 		}
 		ReportOneProtocol(protocol, reply);
@@ -373,15 +331,6 @@ void RTOSPlusTCPEthernetInterface::Start()
     
     SetIPAddress(platform.GetIPAddress(), platform.NetMask(), platform.GateWay());
 
-    //time_t xTimeNow;
-    //time( &xTimeNow ); // Seed the random number generator.
-    //ulNextRand = xTimeNow;
-
-    dnsServerAddress[0]=0;
-    dnsServerAddress[1]=0;
-    dnsServerAddress[2]=0;
-    dnsServerAddress[3]=0;
-
     //set the global mac var needed for networkinterface.c
     ucMACAddress[0] = macAddress[0];
     ucMACAddress[1] = macAddress[1];
@@ -390,13 +339,12 @@ void RTOSPlusTCPEthernetInterface::Start()
     ucMACAddress[4] = macAddress[4];
     ucMACAddress[5] = macAddress[5];
 
-    
-    uint8_t ip[4], nm[4], gw[4];
+    uint8_t ip[4], nm[4], gw[4], dns[4];
     ipAddress.UnpackV4(ip);
     netmask.UnpackV4(nm);
     gateway.UnpackV4(gw);
     
-    BaseType_t ret = FreeRTOS_IPInit( ip, nm, gw, dnsServerAddress, macAddress );
+    BaseType_t ret = FreeRTOS_IPInit( ip, nm, gw, dns, macAddress );
     if(ret == pdFALSE){
         FreeRTOS_debug_printf( ( "Failed to start IP") );
         state = NetworkState::disabled;
@@ -426,48 +374,37 @@ void RTOSPlusTCPEthernetInterface::Spin(bool full)
 
     switch(state)
 	{
-	case NetworkState::enabled:
-	case NetworkState::disabled:
-	default:
-		// Nothing to do
-		break;
+        case NetworkState::enabled:
+        case NetworkState::disabled:
+        default:
+            // Nothing to do
+            break;
 
-	case NetworkState::establishingLink:
-		{
-			//MutexLocker lock(interfaceMutex);
-            //Nothing to do. FreeRTOS+TCP IP-Task will handle the dhcp etc (controled via the c hooks)
+
+    
+        //establishingLink and obtainingIP states are handled by the callback handlers from RTOS +TCP
+        case NetworkState::establishingLink:
+        case NetworkState::obtainingIP:
+            break;
             
-		}
-		break;
-
-	case NetworkState::obtainingIP:
-		if (full)
-		{
-			//MutexLocker lock(interfaceMutex);
-
-            //nothing to do. Currently handled by the IP-Task
-
-		}
-		break;
-
-	case NetworkState::connected:
-		if (full)
-		{
-            InitSockets();
-            platform.MessageF(NetworkInfoMessage, "Network running, IP address = %s\n", IP4String(ipAddress).c_str());
-            state = NetworkState::active;
-		}
-		break;
-
-	case NetworkState::active:
-		{
-			MutexLocker lock(interfaceMutex);
-
+        case NetworkState::connected:
+            if (full)
+            {
+                InitSockets();
+                platform.MessageF(NetworkInfoMessage, "Network running, IP address = %s\n", IP4String(ipAddress).c_str());
+                state = NetworkState::active;
+            }
+            break;
+            
+        case NetworkState::active:
+        {
+            MutexLocker lock(interfaceMutex);
+            
             if(FreeRTOS_IsNetworkUp() == pdTRUE)
             {
                 // Poll the next TCP socket
                 sockets[nextSocketToPoll]->Poll(full);
-
+                
                 // Move on to the next TCP socket for next time
                 ++nextSocketToPoll;
                 if (nextSocketToPoll == NumRTOSPlusTCPEthernetTcpSockets)
@@ -481,15 +418,16 @@ void RTOSPlusTCPEthernetInterface::Spin(bool full)
                 TerminateSockets();
                 state = NetworkState::establishingLink;
             }
-		}
-		break;
-	}
+        }
+            break;
+    }
 }
 
 void RTOSPlusTCPEthernetInterface::Diagnostics(MessageType mtype)
 {
 	platform.MessageF(mtype, "Interface state: ");
-    switch (state){
+    switch (state)
+    {
         case NetworkState::disabled:
             platform.MessageF(mtype, "disabled\n");
             break;
@@ -512,6 +450,43 @@ void RTOSPlusTCPEthernetInterface::Diagnostics(MessageType mtype)
             
             break;
     }
+    
+#if( ipconfigCHECK_IP_QUEUE_SPACE != 0 )
+    platform.MessageF(mtype, "NetBuffers: %lu lowest: %lu\n", uxGetNumberOfFreeNetworkBuffers(), uxGetMinimumFreeNetworkBuffers() );
+    //Print out the minimum IP Queue space left since boot
+    platform.MessageF(mtype, "Lowest IP Event Queue: %lu of %d\n", uxGetMinimumIPQueueSpace(), ipconfigEVENT_QUEUE_LENGTH );
+    
+    //defined in driver for debugging
+    extern uint32_t numNetworkRXIntOverrunErrors; //hardware producted overrun error
+    extern uint32_t numNetworkDroppedPacketsDueToNoBuffer;
+    extern uint8_t numNetworkUnalignedNetworkBuffers;
+    
+    platform.MessageF(mtype, "EthDrv: RX IntOverrun Errors: %lu\n", numNetworkRXIntOverrunErrors);
+    platform.MessageF(mtype, "EthDrv: Dropped packets (no buffer): %lu\n",  numNetworkDroppedPacketsDueToNoBuffer );
+    platform.MessageF(mtype, "EthDrv: Unaligned Network Buffers (should be 0): %d\n", numNetworkUnalignedNetworkBuffers);
+    
+    platform.MessageF(mtype, "EthDrv: EthFrameSize: %d (LPC Buffer Size: %d)\n", (uint16_t)(ipTOTAL_ETHERNET_FRAME_SIZE), (uint16_t)(ipTOTAL_ETHERNET_FRAME_SIZE+ipBUFFER_PADDING) );
+
+# if defined(COLLECT_NETDRIVER_ERROR_STATS)
+    
+    extern uint32_t numNetworkCRCErrors;
+    extern uint32_t numNetworkSYMErrors;
+    extern uint32_t numNetworkLENErrors;
+    extern uint32_t numNetworkALIGNErrors;
+    extern uint32_t numNetworkOVERRUNErrors;
+    
+    platform.MessageF(mtype, "EthDrv: RX CRC Errors: %lu\n", numNetworkCRCErrors);
+    platform.MessageF(mtype, "EthDrv: RX SYM Errors: %lu (PHY Reported an Error)\n", numNetworkSYMErrors);
+    platform.MessageF(mtype, "EthDrv: RX LEN Errors: %lu (Frame length != actual data length)\n", numNetworkLENErrors);
+    platform.MessageF(mtype, "EthDrv: RX ALIGN Errors: %lu\n", numNetworkALIGNErrors);
+    platform.MessageF(mtype, "EthDrv: RX OVERRUN Errors: %lu\n", numNetworkOVERRUNErrors);
+# endif
+
+    
+    
+#endif
+    
+    
 }
 
 // Enable or disable the network
@@ -543,13 +518,6 @@ int RTOSPlusTCPEthernetInterface::EnableState() const
 {
 	return (state == NetworkState::disabled) ? 0 : 1;
 }
-
-//void RTOSPlusTCPEthernetInterface::SetIPAddress(const uint8_t p_ipAddress[], const uint8_t p_netmask[], const uint8_t p_gateway[])
-//{
-//    memcpy(ipAddress, p_ipAddress, sizeof(ipAddress));
-//    memcpy(netmask, p_netmask, sizeof(netmask));
-//    memcpy(gateway, p_gateway, sizeof(gateway));
-//}
 
 void RTOSPlusTCPEthernetInterface::SetIPAddress(IPAddress p_ip, IPAddress p_netmask, IPAddress p_gateway)
 {
@@ -622,19 +590,6 @@ void RTOSPlusTCPEthernetInterface::ProcessIPApplication( eIPCallbackEvent_t eNet
          server. */
         FreeRTOS_GetAddressConfiguration( &ulIPAddress, &ulNetMask, &ulGatewayAddress, &ulDNSServerAddress );
 
-//        char cBuffer[ 16 ];
-//        FreeRTOS_inet_ntoa( ulIPAddress, cBuffer );
-//        FreeRTOS_debug_printf( ( "\r\n\r\nIP Address: %s\r\n", cBuffer ) );
-//
-//        FreeRTOS_inet_ntoa( ulNetMask, cBuffer );
-//        FreeRTOS_debug_printf( ( "Subnet Mask: %s\r\n", cBuffer ) );
-//
-//        FreeRTOS_inet_ntoa( ulGatewayAddress, cBuffer );
-//        FreeRTOS_debug_printf( ( "Gateway Address: %s\r\n", cBuffer ) );
-//
-//        FreeRTOS_inet_ntoa( ulDNSServerAddress, cBuffer );
-//        FreeRTOS_debug_printf( ( "DNS Server Address: %s\r\n\r\n\r\n", cBuffer ) );
-        
         //If IP address still equals 0.0.0.0 here then DHCP has Failed.
         if( ulIPAddress == 0 ) //ulIPAddress is in 32bit format
         {
@@ -645,16 +600,9 @@ void RTOSPlusTCPEthernetInterface::ProcessIPApplication( eIPCallbackEvent_t eNet
         else
         {
             //update the class private vars with the values we got from +tcp
-            //convert32bitIPAddress(ulIPAddress, ipAddress);
-            //convert32bitIPAddress(ulNetMask, netmask);
-            //convert32bitIPAddress(ulGatewayAddress, gateway);
-            
             ipAddress.SetV4LittleEndian(ulIPAddress);
             netmask.SetV4LittleEndian(ulNetMask);
             gateway.SetV4LittleEndian(ulGatewayAddress);
-            
-            convert32bitIPAddress(ulDNSServerAddress, dnsServerAddress);
-
             state = NetworkState::connected; //set connected state (we have IP address)
         }
 
@@ -664,7 +612,6 @@ void RTOSPlusTCPEthernetInterface::ProcessIPApplication( eIPCallbackEvent_t eNet
         
         //FreeRTOS_debug_printf( ( "Application Hook: NetDown\r\n" ) );
         state = NetworkState::establishingLink; //back to establishing link
-        
     }
 
 }
@@ -676,8 +623,6 @@ void RTOSPlusTCPEthernetInterface::ProcessIPApplication( eIPCallbackEvent_t eNet
 */
 eDHCPCallbackAnswer_t RTOSPlusTCPEthernetInterface::ProcessDHCPHook( eDHCPCallbackPhase_t eDHCPPhase, uint32_t ulIPAddress )
 {
-    FreeRTOS_debug_printf( ( "Process DHCP Hook") );
-
     eDHCPCallbackAnswer_t eReturn;
     
     /* This hook is called in a couple of places during the DHCP process, as identified by the eDHCPPhase parameter. */
@@ -695,8 +640,6 @@ eDHCPCallbackAnswer_t RTOSPlusTCPEthernetInterface::ProcessDHCPHook( eDHCPCallba
              If eDHCPStopNoChanges had been returned instead then the DHCP process would be stopped and
              whatever the current network configuration was would continue to be used.
              */
-            
-            
             if(ipAddress.GetV4LittleEndian() == 0)
             {
                 eReturn = eDHCPContinue; //use DHCP

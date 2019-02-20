@@ -32,7 +32,7 @@ const char* const ErrorPagePart2 =
 	"</p>\n"
 	"</body>\n";
 
-HttpResponder::HttpResponder(NetworkResponder *n) : NetworkResponder(n)
+HttpResponder::HttpResponder(NetworkResponder *n) : UploadingNetworkResponder(n)
 {
 }
 
@@ -558,12 +558,12 @@ bool HttpResponder::GetJsonResponse(const char* request, OutputBuffer *&response
 		if (nameVal != nullptr)
 		{
 			// Regular rr_fileinfo?name=xxx call
-			SafeStrncpy(filenameBeingProcessed, nameVal, ARRAY_SIZE(filenameBeingProcessed));
+			filenameBeingProcessed.copy(nameVal);
 		}
 		else
 		{
 			// Simple rr_fileinfo call to get info about the file being printed
-			filenameBeingProcessed[0] = 0;
+			filenameBeingProcessed.Clear();
 		}
 		responderState = ResponderState::gettingFileInfo;
 		return false;
@@ -625,7 +625,7 @@ const char* HttpResponder::GetKeyValue(const char *key) const
 bool HttpResponder::SendFileInfo(bool quitEarly)
 {
 	OutputBuffer *jsonResponse = nullptr;
-	bool gotFileInfo = reprap.GetFileInfoResponse(filenameBeingProcessed, jsonResponse, quitEarly);
+	bool gotFileInfo = reprap.GetFileInfoResponse(filenameBeingProcessed.c_str(), jsonResponse, quitEarly);
 	if (gotFileInfo)
 	{
 		// Got it - send the response now
@@ -647,6 +647,7 @@ bool HttpResponder::SendFileInfo(bool quitEarly)
 		}
 		else
 		{
+			filenameBeingProcessed.Clear();
 			Commit();
 		}
 	}
@@ -969,6 +970,7 @@ void HttpResponder::SendJsonResponse(const char* command)
 				if (buf != nullptr)
 				{
 					OutputBuffer::ReleaseAll(buf);
+                    OutputBuffer::ReleaseAll(outBuf);
 					return;					// next time we try, hopefully there will be a spare buffer
 				}
 			}
@@ -979,8 +981,8 @@ void HttpResponder::SendJsonResponse(const char* command)
 			// We know that we have an output buffer, but it may be too short to send a long reply, so send a short one
 			outBuf->copy(serviceUnavailableResponse);
 			Commit(ResponderState::free, false);
-			return;
 		}
+        return;
 	}
 
 	// Send the JSON response
@@ -1018,8 +1020,6 @@ void HttpResponder::SendJsonResponse(const char* command)
 
 	if (outBuf->HadOverflow())
 	{
-		// We ran out of buffers. Release the buffers we have and return false. The caller will retry later.
-		OutputBuffer::ReleaseAll(outBuf);
 		// We ran out of buffers at some point.
 		// Unfortunately the protocol is prone to deadlocking, because if most output buffer are used up holding a GCode reply,
 		// there may be insufficient buffers left to compose the status response to tell DWC that it needs to fetch that GCode reply.
@@ -1032,6 +1032,7 @@ void HttpResponder::SendJsonResponse(const char* command)
 				if (buf != nullptr)
 				{
 					OutputBuffer::ReleaseAll(buf);
+                    OutputBuffer::ReleaseAll(outBuf);
 					return;
 				}
 			}
@@ -1039,8 +1040,13 @@ void HttpResponder::SendJsonResponse(const char* command)
 			OutputBuffer::Truncate(outBuf, 999999);				// release all buffers except the first one
 			outBuf->copy(serviceUnavailableResponse);
 			Commit(ResponderState::free, false);
-			return;
 		}
+        else
+        {
+            // We ran out of buffers. Release the buffers we have and return. The caller will retry later.
+            OutputBuffer::ReleaseAll(outBuf);
+        }
+        return;
 	}
 
 	// Here if everything is OK
@@ -1319,7 +1325,7 @@ void HttpResponder::CancelUpload()
 			}
 		}
 	}
-	NetworkResponder::CancelUpload();
+	UploadingNetworkResponder::CancelUpload();
 }
 
 // This overrides the version in class NetworkResponder

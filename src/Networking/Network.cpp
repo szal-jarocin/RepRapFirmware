@@ -58,7 +58,7 @@ Network::Network(Platform& p) : platform(p), responders(nullptr), nextResponderT
 #elif defined(DUET_M)
 	interfaces[0] = new W5500Interface(p);
 #elif defined(__LPC17xx__)
-    interfaces[0] = new RTOSPlusTCPEthernetInterface(p);
+	interfaces[0] = new RTOSPlusTCPEthernetInterface(p);
 #else
 # error Unknown board
 #endif
@@ -90,13 +90,12 @@ DEFINE_GET_OBJECT_MODEL_TABLE(Network)
 
 // Note that Platform::Init() must be called before this to that Platform::IsDuetWiFi() returns the correct value
 void Network::Init()
-{    
-    httpMutex.Create("HTTP");
-#if ENABLE_TELNET
-    telnetMutex.Create("Telnet");
+{
+	httpMutex.Create("HTTP");
+#if SUPPORT_TELNET
+	telnetMutex.Create("Telnet");
 #endif
-    
-    
+
 #if defined(DUET_NG)
 	interfaces[0] = (platform.IsDuetWiFi()) ? static_cast<NetworkInterface*>(new WiFiInterface(platform)) : static_cast<NetworkInterface*>(new W5500Interface(platform));
 #endif
@@ -104,20 +103,22 @@ void Network::Init()
 	// Create the responders
 	HttpResponder::InitStatic();
 
-#if ENABLE_TELNET
-    TelnetResponder::InitStatic();
+#if SUPPORT_TELNET
+	TelnetResponder::InitStatic();
 
 	for (size_t i = 0; i < NumTelnetResponders; ++i)
 	{
 		responders = new TelnetResponder(responders);
 	}
 #endif
-#if ENABLE_FTP
+
+#if SUPPORT_FTP
 	for (size_t i = 0; i < NumFtpResponders; ++i)
 	{
 		responders = new FtpResponder(responders);
 	}
 #endif
+
 	for (size_t i = 0; i < NumHttpResponders; ++i)
 	{
 		responders = new HttpResponder(responders);
@@ -487,7 +488,7 @@ void Network::HandleHttpGCodeReply(const char *msg)
 
 void Network::HandleTelnetGCodeReply(const char *msg)
 {
-#if ENABLE_TELNET
+#if SUPPORT_TELNET
 	MutexLocker lock(telnetMutex);
 	TelnetResponder::HandleGCodeReply(msg);
 #endif
@@ -501,9 +502,11 @@ void Network::HandleHttpGCodeReply(OutputBuffer *buf)
 
 void Network::HandleTelnetGCodeReply(OutputBuffer *buf)
 {
-#if ENABLE_TELNET
+#if SUPPORT_TELNET
 	MutexLocker lock(telnetMutex);
 	TelnetResponder::HandleGCodeReply(buf);
+#else
+	OutputBuffer::Release(buf);
 #endif
 }
 

@@ -25,19 +25,15 @@
 // Socket class
 
 const unsigned int MaxBuffersPerSocket = 1;
-
+const unsigned int SocketShutdownTimeoutMillis = 50;//how long to wait before we force close the socket after last send
 
 //function to check socket: (requires FreeRTOS_IP_Private.h)
-//would be better to have each "socket" in its own task and use commands as documented
-//which block while waiting to accept etc etc etc....
-//this is written to keep inline with existing polled sockets approach
-
-bool isSocketClosing(Socket_t xSocket){
+bool isSocketClosing(Socket_t xSocket)
+{
     FreeRTOS_Socket_t *pxSocket = ( FreeRTOS_Socket_t * ) xSocket;
     
     if(xSocket == nullptr) return true;
 
-    
     switch( pxSocket->u.xTCP.ucTCPState )
     {
         //closing states
@@ -51,9 +47,7 @@ bool isSocketClosing(Socket_t xSocket){
 
         default:
             break;
-            
     }
-    
     return false;
 }
 
@@ -71,8 +65,6 @@ bool hasSocketGracefullyClosed(Socket_t xSocket)
     {
         return false;
     }
-    
-    
 }
 
 bool isSocketListening(Socket_t xSocket){
@@ -80,7 +72,6 @@ bool isSocketListening(Socket_t xSocket){
     
     if(xSocket == nullptr) return false;
 
-    
     if( pxSocket->u.xTCP.ucTCPState == eTCP_LISTEN )
     {
         return true;
@@ -92,80 +83,6 @@ bool isSocketListening(Socket_t xSocket){
 
 }
 
-void debugSocketStatus( Socket_t xSocket)
-{
-    if( xSocket == nullptr) return;
-    FreeRTOS_debug_printf( ( "debugSocketStatus: socketState: " ) );
-
-        FreeRTOS_Socket_t *pxSocket = ( FreeRTOS_Socket_t * ) xSocket;
-    
-        switch( pxSocket->u.xTCP.ucTCPState )
-        {
-            case eESTABLISHED://If the 'ipconfigTCP_KEEP_ALIVE' option is enabled, sockets in state ESTABLISHED can be protected using keep-alive messages.
-                FreeRTOS_debug_printf( ( "eSTABLISHED\n" ) );
-                break;
-    
-            // eCLOSED, eTCP_LISTEN and eCLOSE_WAIT states may last for ever, up to the owner.
-            case eCLOSED: // (server + client) no connection state at all.
-                FreeRTOS_debug_printf( ( "eCLOSED\n" ) );
-                break;
-
-            case eTCP_LISTEN: //(server) waiting for a connection request from any remote TCP and port.
-                FreeRTOS_debug_printf( ( "eTCP_LISTEN\n" ) );
-                break;
-
-            case eCLOSE_WAIT: //(server + client) waiting for a connection termination request from the local user.
-                FreeRTOS_debug_printf( ( "eCLOSE_WAIT\n" ) );
-                break;
-
-    
-            case eCLOSING:         //(server + client) waiting for a connection termination request acknowledgement from the remote TCP.
-                FreeRTOS_debug_printf( ( "eCLOSING\n" ) );
-                break;
-
-            case eLAST_ACK:        //(server + client) waiting for an acknowledgement of the connection termination request
-                                   //previously sent to the remote TCP (which includes an acknowledgement of its connection termination request).
-                FreeRTOS_debug_printf( ( "eLAST_ACK\n" ) );
-                break;
-
-            case eTIME_WAIT:        //(either server or client) waiting for enough time to pass to be sure the remote TCP received the
-                                    //acknowledgement of its connection termination request. [According to RFC 793 a connection can
-                                    //stay in TIME-WAIT for a maximum of four minutes known as a MSL (maximum segment lifetime).]
-                FreeRTOS_debug_printf( ( "eTIME_WAIT\n" ) );
-                break;
-
-            case eCONNECT_SYN:    //(client) internal state: socket wants to send a connect
-                FreeRTOS_debug_printf( ( "eCONNECTED_SYN\n" ) );
-                break;
-
-            case eSYN_FIRST:      //(server) Just created, must ACK the SYN request.
-                FreeRTOS_debug_printf( ( "eSYN_FIRST\n" ) );
-                break;
-
-            case eSYN_RECEIVED:   //(server) waiting for a confirming connection request acknowledgement after having both received and sent a connection request.
-                FreeRTOS_debug_printf( ( "eSYN_RECEIVED\n" ) );
-                break;
-
-            case eFIN_WAIT_1:     //(server + client) waiting for a connection termination request from the remote TCP, or an acknowledgement of the connection termination request previously sent.
-                FreeRTOS_debug_printf( ( "eFIN_WAIT_1\n" ) );
-                break;
-
-            case eFIN_WAIT_2:     //(server + client) waiting for a connection termination request from the remote TCP.
-                FreeRTOS_debug_printf( ( "eFIN_WAIT_2\n" ) );
-                break;
-
-    
-            default:
-                FreeRTOS_debug_printf( ( "Unknown Status\n" ) );
-                break;
-        }
-
-    
-    
-    
-
-    
-}
 
 bool isSocketEstablished(Socket_t xSocket)
 {
@@ -179,8 +96,6 @@ bool isSocketEstablished(Socket_t xSocket)
     {
         return false;
     }
-
-    
 }
 
 bool isSocketEstablishing(Socket_t xSocket)
@@ -207,21 +122,15 @@ RTOSPlusTCPEthernetSocket::RTOSPlusTCPEthernetSocket(NetworkInterface *iface)
 {
     xConnectedSocket = nullptr;
     xListeningSocket = nullptr;
-    
 }
 
 // Initialise a TCP socket
 void RTOSPlusTCPEthernetSocket::Init(SocketNumber skt, Port serverPort, NetworkProtocol p)
 {
-
-    FreeRTOS_debug_printf( ( "+TCPSocket::Init(): socketNo:%d, port: %d, Protocol: %s\n", skt, serverPort, ProtocolNames[p] ) );
-    
     socketNum = skt;
 	localPort = serverPort;
 	protocol = p;
-
     ReInit();
-    
 }
 
 void RTOSPlusTCPEthernetSocket::TerminateAndDisable()
@@ -236,9 +145,6 @@ void RTOSPlusTCPEthernetSocket::ReInit()
 {
 	MutexLocker lock(interface->interfaceMutex);
 
-    FreeRTOS_debug_printf( ( "+TCPSocket::ReInit()\n"  ) );
-
-    
     // Discard any received data
 	while (receivedData != nullptr)
 	{
@@ -250,21 +156,16 @@ void RTOSPlusTCPEthernetSocket::ReInit()
     if( xListeningSocket != nullptr )
     {
         state = SocketState::listening;
-        //isTerminated = false;
-
     }
     else
     {
         //failed to create socket!!!
-        FreeRTOS_debug_printf( ( "+TCPSocket::ReInit() Failed to create socket"  ) );
-
+        if (reprap.Debug(moduleNetwork))
+        {
+            debugPrintf("Failed to create Server Socket. Disabling Socket\n");
+        }
         state = SocketState::disabled;
-        //isTerminated = true;
-
     }
-    
-	//persistConnection = true;
-	//isSending = false;
 }
 
 // Close a connection when the last packet has been sent
@@ -272,12 +173,8 @@ void RTOSPlusTCPEthernetSocket::Close()
 {
 	MutexLocker lock(interface->interfaceMutex);
     
-    
 	if (state != SocketState::disabled && state != SocketState::inactive)
 	{
-		//ExecCommand(socketNum, Sn_CR_DISCON);
-        FreeRTOS_debug_printf( ( "+TCPSocket::Close() - Closing Socket\n" ) );
-
         DiscardReceivedData();
         if (protocol == FtpDataProtocol)
         {
@@ -287,31 +184,22 @@ void RTOSPlusTCPEthernetSocket::Close()
         //server initiated Close:
         //Send Shutdown request and gracefully shutdown
         FreeRTOS_shutdown( xConnectedSocket, FREERTOS_SHUT_RDWR );
-
         state = SocketState::closing;
-        
 	}
 }
 
 // Terminate a connection immediately
 void RTOSPlusTCPEthernetSocket::Terminate()
 {
-    
-    FreeRTOS_debug_printf( ( "+TCPSocket::Terminate() socket\n\n" ) );
-
 	MutexLocker lock(interface->interfaceMutex);
 	if (state != SocketState::disabled)
 	{
-
         DiscardReceivedData();
 
-        FreeRTOS_shutdown( xConnectedSocket, FREERTOS_SHUT_RDWR ); //
+        FreeRTOS_shutdown( xConnectedSocket, FREERTOS_SHUT_RDWR );
         FreeRTOS_closesocket( xConnectedSocket );
         xConnectedSocket = nullptr;
-        
-		//isTerminated = true;
         state = SocketState::inactive;
-
 	}
 }
 
@@ -342,7 +230,6 @@ bool RTOSPlusTCPEthernetSocket::ReadChar(char& c)
 		}
 		return ret;
 	}
-
     
     c = 0;
 	return false;
@@ -403,10 +290,6 @@ void RTOSPlusTCPEthernetSocket::Poll(bool full)
                     if(FreeRTOS_issocketconnected(xConnectedSocket) == pdTRUE)
                     {
                         whenConnected = millis();
-
-                        //TODO:: do we need the remote port for any other RRF functions????
-                        //remotePort =
-
                     }
                     else
                     {
@@ -427,28 +310,17 @@ void RTOSPlusTCPEthernetSocket::Poll(bool full)
                         state = SocketState::closing;
                         if (reprap.Debug(moduleNetwork))
                         {
-                            
                             debugPrintf("Socket closed while setting up on Skt: %d\n", socketNum);
                         }
-
-                    }
-                    else
-                    {
-                        //we accepted a client, but didnt get a Responder during the last pass.
-                        //will try again below
                     }
                 }
-                
                 
                 //check for a responder
                 if(FreeRTOS_issocketconnected(xConnectedSocket) == pdTRUE && state == SocketState::listening)
                 {
-
-                    
                     if (reprap.GetNetwork().FindResponder(this, protocol))
                     {
                         state = SocketState::connected;
-                        //sendOutstanding = false;
                     }
                     else if (millis() - whenConnected >= FindResponderTimeout)
                     {
@@ -456,17 +328,13 @@ void RTOSPlusTCPEthernetSocket::Poll(bool full)
                         {
                             debugPrintf("Timed out waiting for resonder on skt %d for port %u\n", socketNum, localPort);
                         }
-                        
                         Close(); // close the socket
-                        //Terminate();
                     }
                     else
                     {
                         //waiting for a responder, but not yet timed out
                     }
                 }
-
-                
             } break;
 
             case SocketState::connected:
@@ -492,23 +360,16 @@ void RTOSPlusTCPEthernetSocket::Poll(bool full)
                 {
                     if (reprap.Debug(moduleNetwork))
                     {
-                        
                         debugPrintf("Unknown error on Skt: %d\n", socketNum);
                     }
                     //some sort of socket error?
-
-                    //TODO::; probably this should call Terminate ????
-                    
-                    ReceiveData(); //last check of receive buffers??
-                    state = SocketState::closing;
+                    Close(); //close the socket
                 }
             } break;
                 
             case SocketState::clientDisconnecting:
             {
-
                 //client disconnecting (planned) - close gracefully after we have finished receiving from buffers
-
                 //check for any remaining data in buffers
                 
                 BaseType_t rxlen = FreeRTOS_rx_size( xConnectedSocket ); //bytes not received from buffers
@@ -530,12 +391,22 @@ void RTOSPlusTCPEthernetSocket::Poll(bool full)
                 
             case SocketState::closing:
             {
+                whenConnected = millis(); // reuse whenConnected to have a shutdown timeout
 
-                //debugSocketStatus(xConnectedSocket);
-                FreeRTOS_closesocket( xConnectedSocket ); //close the socket
-                xConnectedSocket = nullptr;
-                ReInit();
-                
+                /* Wait for the socket to disconnect gracefully (indicated by FreeRTOS_recv()
+                returning a FREERTOS_EINVAL error) before closing the socket. */
+                uint8_t tmp;
+                if( FreeRTOS_recv( xConnectedSocket, &tmp, 1, 0 ) < 0 ||  (millis() - whenConnected) >= SocketShutdownTimeoutMillis)
+                {
+                    if (reprap.Debug(moduleNetwork))
+                    {
+                        debugPrintf("Waited %ld ms for Graceful Shutdown\n", (millis() - whenConnected));
+                    }
+
+                    FreeRTOS_closesocket( xConnectedSocket ); //close the socket
+                    xConnectedSocket = nullptr;
+                    ReInit();
+                }
             } break;
 
             default:
@@ -547,7 +418,8 @@ void RTOSPlusTCPEthernetSocket::Poll(bool full)
 
 
 
-void RTOSPlusTCPEthernetSocket::CheckSocketError(BaseType_t val){
+void RTOSPlusTCPEthernetSocket::CheckSocketError(BaseType_t val)
+{
     //If there was not enough memory for the socket to be able to create either an Rx or Tx stream then -pdFREERTOS_ERRNO_ENOMEM is returned.
     //If the socket was closed or got closed then -pdFREERTOS_ERRNO_ENOTCONN is returned.
     //If the socket received a signal, causing the read operation to be aborted, then -pdFREERTOS_ERRNO_EINTR is returned.
@@ -557,18 +429,11 @@ void RTOSPlusTCPEthernetSocket::CheckSocketError(BaseType_t val){
     {
         if (reprap.Debug(moduleNetwork))
         {
-            
             debugPrintf("SocketError on Skt: %d Closing Connection\n", socketNum);
         }
 
-        DiscardReceivedData();
-        //we need to close the client socket (but not the server socket)
-        FreeRTOS_closesocket( xConnectedSocket );
-        xConnectedSocket = NULL;
-        
-        ReInit();
+        Terminate();
     }
-    
 }
 
 
@@ -655,21 +520,25 @@ size_t RTOSPlusTCPEthernetSocket::Send(const uint8_t *data, size_t length)
             
             BaseType_t ret = FreeRTOS_tx_size(xConnectedSocket);
             
-            if(ret > 0){
+            if(ret > 0)
+            {
                 //still sending
                 if (reprap.Debug(moduleNetwork))
                 {
                     debugPrintf("Still Sending on Skt: %d\n", socketNum);
                 }
-
                 return 0;
-            } else if(ret == 0) {
+                
+            }
+            else if(ret == 0)
+            {
                 //empty
-            } else {
+            }
+            else
+            {
                 //Error
                 if (reprap.Debug(moduleNetwork))
                 {
-                    
                     debugPrintf("Send error on Skt: %d\n", socketNum);
                 }
                 CheckSocketError(ret);
@@ -688,11 +557,13 @@ size_t RTOSPlusTCPEthernetSocket::Send(const uint8_t *data, size_t length)
         BaseType_t ret = FreeRTOS_send( xConnectedSocket, data, length, 0 );
         if( (ret < 0) && ( ret != -pdFREERTOS_ERRNO_EWOULDBLOCK ))
         {
+            //Error on socket
             if (reprap.Debug(moduleNetwork))
             {
                 debugPrintf("Send error on Skt: %d Err Code: %d\n", socketNum,(int16_t )ret );
             }
-            return 0; // Error code
+            Terminate(); // close the conenction
+            return 0;
         }
         else
         {
@@ -703,9 +574,7 @@ size_t RTOSPlusTCPEthernetSocket::Send(const uint8_t *data, size_t length)
         }
         
         length = (size_t) ret; //ret holds how much data we actually were able to send
-        
-        Send();
-
+    
 		return length;
 	}
 	return 0;
@@ -714,26 +583,7 @@ size_t RTOSPlusTCPEthernetSocket::Send(const uint8_t *data, size_t length)
 // wait for the interface to send the outstanding data
 void RTOSPlusTCPEthernetSocket::Send()
 {
-	MutexLocker lock(interface->interfaceMutex);
-    if (CanSend() /*&& sendOutstanding*/)
-    {
-
-        //small timeout so we dont block Network task polling
-        uint8_t timeout = 10; // TODO:: 10ms is probably too long to wait??
-        while(FreeRTOS_tx_size(xConnectedSocket) > 0){
-            if(timeout <= 0){
-                // timed out
-                if (reprap.Debug(moduleNetwork))
-                {
-                        debugPrintf("Qeued data still not sent on Skt: %d \n",socketNum );
-                }
-
-                break;
-            }
-            vTaskDelay(1);
-            timeout -= 1;
-        }
-    }
 }
+
 
 // End
