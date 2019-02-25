@@ -910,7 +910,7 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply)
 			String<MaxFilenameLength> filename;
 			if (gb.GetUnprecedentedString(filename.GetRef()))
 			{
-				platform.GetMassStorage()->Delete(platform.GetGCodeDir(), filename.c_str());
+				platform.Delete(platform.GetGCodeDir(), filename.c_str());
 			}
 			else
 			{
@@ -2205,45 +2205,62 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply)
 		break;
 
 	case 290:	// Baby stepping
-		if (gb.Seen('S') || gb.Seen('Z'))
 		{
-			const float fval = gb.GetFValue();
-			if (!LockMovement(gb))
+			const bool absolute = (gb.Seen('R') && gb.GetIValue() == 0);
+			bool seen = false, haveResidual = false;
+			for (size_t axis = 0; axis < numVisibleAxes; ++axis)
 			{
-				return false;
+				if (gb.Seen(axisLetters[axis]) || (axis == 2 && gb.Seen('S')))			// S is a synonym for Z
+				{
+					const float fval = gb.GetFValue();
+					if (!LockMovement(gb))
+					{
+						return false;
+					}
+					seen = true;
+					float difference;
+					if (absolute)
+					{
+						difference = fval - currentBabyStepOffsets[axis];
+						currentBabyStepOffsets[axis] = fval;
+					}
+					else
+					{
+						difference = constrain<float>(fval, -1.0, 1.0);
+						currentBabyStepOffsets[axis] += difference;
+					}
+
+					const float amountPushed = reprap.GetMove().PushBabyStepping(axis, difference);
+					moveBuffer.initialCoords[axis] += amountPushed;
+
+					// The following causes all the remaining baby stepping that we didn't manage to push to be added to the [remainder of the] currently-executing move, if there is one.
+					// This could result in an abrupt Z movement, however the move will be processed as normal so the jerk limit will be honoured.
+					moveBuffer.coords[axis] += difference;
+					if (amountPushed != difference)
+					{
+						haveResidual = true;
+					}
+				}
 			}
 
-			const bool absolute = (gb.Seen('R') && gb.GetIValue() == 0);
-			float difference;
-			if (absolute)
+			if (seen)
 			{
-				difference = fval - currentBabyStepZOffset;
-				currentBabyStepZOffset = fval;
+				if (haveResidual && segmentsLeft == 0 && reprap.GetMove().AllMovesAreFinished())
+				{
+					// The pipeline is empty, so execute the babystepping move immediately
+					SetMoveBufferDefaults();
+					moveBuffer.feedRate = DefaultFeedRate;
+					NewMoveAvailable(1);
+				}
 			}
 			else
 			{
-				difference = constrain<float>(fval, -1.0, 1.0);
-				currentBabyStepZOffset += difference;
+				reply.printf("Baby stepping offsets (mm):");
+				for (size_t axis = 0; axis < numVisibleAxes; ++axis)
+				{
+					reply.catf(" %x:%.3f", axisLetters[axis], (double)currentBabyStepOffsets[axis]);
+				}
 			}
-
-			const float amountPushed = reprap.GetMove().PushBabyStepping(difference);
-			moveBuffer.initialCoords[Z_AXIS] += amountPushed;
-
-			// The following causes all the remaining baby stepping that we didn't manage to push to be added to the [remainder of the] currently-executing move, if there is one.
-			// This could result in an abrupt Z movement, however the move will be processed as normal so the jerk limit will be honoured.
-			moveBuffer.coords[Z_AXIS] += difference;
-
-			if (amountPushed != difference && segmentsLeft == 0 && reprap.GetMove().AllMovesAreFinished())
-			{
-				// The pipeline is empty, so execute the babystepping move immediately
-				SetMoveBufferDefaults();
-				moveBuffer.feedRate = platform.MaxFeedrate(Z_AXIS);
-				NewMoveAvailable(1);
-			}
-		}
-		else
-		{
-			reply.printf("Baby stepping offset is %.3fmm", (double)GetBabyStepOffset());
 		}
 		break;
 
@@ -2754,7 +2771,7 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply)
 			}
 
 			// Read the entire file
-			FileStore * const f = platform.OpenFile(platform.GetSysDir(), platform.GetConfigFile(), OpenMode::read);
+			FileStore * const f = platform.OpenSysFile(platform.GetConfigFile(), OpenMode::read);
 			if (f == nullptr)
 			{
 				reply.copy("Configuration file not found");
@@ -2783,6 +2800,26 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply)
 				}
 				f->Close();
 			}
+		}
+		break;
+
+	case 505:	// set sys folder
+		if (gb.Seen('P'))
+		{
+			// Lock movement to try to prevent other threads opening system files while we change the system path
+			if (!LockMovementAndWaitForStandstill(gb))
+			{
+				return false;
+			}
+			String<MaxFilenameLength> path;
+			gb.GetQuotedString(path.GetRef());
+			platform.SetSysDir(path.c_str());
+		}
+		else
+		{
+			String<MaxFilenameLength> path;
+			platform.GetSysDir(path.GetRef());
+			reply.printf("Sys file path is %s", path.c_str());
 		}
 		break;
 
@@ -3018,37 +3055,44 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply)
 
 	case 559:
 	case 560: // Binary writing
-	{
-		const char* folder = platform.GetSysDir();
-		const char* defaultFile = platform.GetConfigFile();
-		if (code == 560)
 		{
-			folder = platform.GetWebDir();
-			defaultFile = INDEX_PAGE_FILE;
+			String<MaxFilenameLength> sysDir;
+			const char* defaultFile;
+			const char *folder;
+			if (code == 560)
+			{
+				folder = platform.GetWebDir();
+				defaultFile = INDEX_PAGE_FILE;
+			}
+			else
+			{
+				platform.GetSysDir(sysDir.GetRef());
+				folder = sysDir.c_str();
+				defaultFile = platform.GetConfigFile();
+			}
+			String<MaxFilenameLength> filename;
+			if (gb.Seen('P'))
+			{
+				gb.GetPossiblyQuotedString(filename.GetRef());
+			}
+			else
+			{
+				filename.copy(defaultFile);
+			}
+			const FilePosition size = (gb.Seen('S') ? (FilePosition)gb.GetIValue() : 0);
+			const uint32_t crc32 = (gb.Seen('C') ? gb.GetUIValue() : 0);
+			const bool ok = gb.OpenFileToWrite(folder, filename.c_str(), size, true, crc32);
+			if (ok)
+			{
+				reply.printf("Writing to file: %s", filename.c_str());
+			}
+			else
+			{
+				reply.printf("Can't open file %s for writing.", filename.c_str());
+				result = GCodeResult::error;
+			}
 		}
-		String<MaxFilenameLength> filename;
-		if (gb.Seen('P'))
-		{
-			gb.GetPossiblyQuotedString(filename.GetRef());
-		}
-		else
-		{
-			filename.copy(defaultFile);
-		}
-		const FilePosition size = (gb.Seen('S') ? (FilePosition)gb.GetIValue() : 0);
-		const uint32_t crc32 = (gb.Seen('C') ? gb.GetUIValue() : 0);
-		const bool ok = gb.OpenFileToWrite(folder, filename.c_str(), size, true, crc32);
-		if (ok)
-		{
-			reply.printf("Writing to file: %s", filename.c_str());
-		}
-		else
-		{
-			reply.printf("Can't open file %s for writing.", filename.c_str());
-			result = GCodeResult::error;
-		}
-	}
-	break;
+		break;
 
 	case 561: // Set identity transform and disable height map
 		if (!LockMovementAndWaitForStandstill(gb))
@@ -3268,6 +3312,10 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply)
 	case 572: // Set/report pressure advance
 		if (gb.Seen('S'))
 		{
+			if (!LockMovementAndWaitForStandstill(gb))
+			{
+				return false;
+			}
 			const float advance = gb.GetFValue();
 			if (gb.Seen('D'))
 			{
@@ -3332,6 +3380,10 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply)
 			{
 				if (gb.Seen(axisLetters[axis]))
 				{
+					if (!LockMovementAndWaitForStandstill(gb))
+					{
+						return false;
+					}
 					++axesSeen;
 					lastAxisSeen = axis;
 					const int ival = gb.GetIValue();
@@ -4213,12 +4265,12 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply)
 #endif
 
 	case 916:
-		if (!platform.GetMassStorage()->FileExists(platform.GetSysDir(), RESUME_AFTER_POWER_FAIL_G))
+		if (!platform.SysFileExists(RESUME_AFTER_POWER_FAIL_G))
 		{
 			reply.copy("No resume file found");
 			result = GCodeResult::error;
 		}
-		else if (!platform.GetMassStorage()->FileExists(platform.GetSysDir(), RESUME_PROLOGUE_G))
+		else if (!platform.SysFileExists(RESUME_PROLOGUE_G))
 		{
 			reply.printf("Resume prologue file '%s' not found", RESUME_PROLOGUE_G);
 			result = GCodeResult::error;

@@ -110,13 +110,13 @@ void BoardConfig::Init() {
     if (rslt == GCodeResult::ok)
     {
         //Open File
-        if (reprap.GetPlatform().GetMassStorage()->FileExists(reprap.GetPlatform().GetSysDir(), "board.txt"))
+        if (reprap.GetPlatform().SysFileExists("board.txt"))
         {
-            configFile = reprap.GetPlatform().OpenFile(reprap.GetPlatform().GetSysDir(), "board.txt", OpenMode::read);
+            configFile = reprap.GetPlatform().OpenFile(DEFAULT_SYS_DIR, "board.txt", OpenMode::read);
         }
         else
         {
-            reprap.GetPlatform().MessageF(UsbMessage, "Unable to read board configuration: %sboard.txt...\n",reprap.GetPlatform().GetSysDir() );
+            reprap.GetPlatform().MessageF(UsbMessage, "Unable to read board configuration: %sboard.txt...\n",DEFAULT_SYS_DIR );
             return;
         }
     }
@@ -130,7 +130,7 @@ void BoardConfig::Init() {
     
     if(configFile != nullptr){
         
-        reprap.GetPlatform().MessageF(UsbMessage, "Loading config from 0:/sys/board.txt...\n" );
+        reprap.GetPlatform().MessageF(UsbMessage, "Loading config from %sboard.txt...\n", DEFAULT_SYS_DIR );
 
         //uint32_t time = millis();
         BoardConfig::GetConfigKeys(configFile);
