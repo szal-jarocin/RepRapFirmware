@@ -455,7 +455,10 @@ void RTOSPlusTCPEthernetInterface::Diagnostics(MessageType mtype)
     platform.MessageF(mtype, "NetBuffers: %lu lowest: %lu\n", uxGetNumberOfFreeNetworkBuffers(), uxGetMinimumFreeNetworkBuffers() );
     //Print out the minimum IP Queue space left since boot
     platform.MessageF(mtype, "Lowest IP Event Queue: %lu of %d\n", uxGetMinimumIPQueueSpace(), ipconfigEVENT_QUEUE_LENGTH );
-    
+
+    platform.MessageF(mtype, "EthDrv: EthFrameSize: %d (LPC Buffer Size: %d)\n", (uint16_t)(ipTOTAL_ETHERNET_FRAME_SIZE), (uint16_t)(ipTOTAL_ETHERNET_FRAME_SIZE+ipBUFFER_PADDING) );
+
+# if defined(COLLECT_NETDRIVER_ERROR_STATS)
     //defined in driver for debugging
     extern uint32_t numNetworkRXIntOverrunErrors; //hardware producted overrun error
     extern uint32_t numNetworkDroppedPacketsDueToNoBuffer;
@@ -464,11 +467,7 @@ void RTOSPlusTCPEthernetInterface::Diagnostics(MessageType mtype)
     platform.MessageF(mtype, "EthDrv: RX IntOverrun Errors: %lu\n", numNetworkRXIntOverrunErrors);
     platform.MessageF(mtype, "EthDrv: Dropped packets (no buffer): %lu\n",  numNetworkDroppedPacketsDueToNoBuffer );
     platform.MessageF(mtype, "EthDrv: Unaligned Network Buffers (should be 0): %d\n", numNetworkUnalignedNetworkBuffers);
-    
-    platform.MessageF(mtype, "EthDrv: EthFrameSize: %d (LPC Buffer Size: %d)\n", (uint16_t)(ipTOTAL_ETHERNET_FRAME_SIZE), (uint16_t)(ipTOTAL_ETHERNET_FRAME_SIZE+ipBUFFER_PADDING) );
 
-# if defined(COLLECT_NETDRIVER_ERROR_STATS)
-    
     extern uint32_t numNetworkCRCErrors;
     extern uint32_t numNetworkSYMErrors;
     extern uint32_t numNetworkLENErrors;

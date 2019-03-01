@@ -1292,7 +1292,10 @@ inline OutputBuffer *Platform::GetAuxGCodeReply()
         //with flexibleconfig just treat these pins one by one instead of parallel writes for now. Using driver pos in bitmap
         uint8_t pos=0;
         while (driverMap!=0 && pos < MaxTotalDrivers){
-            if(driverMap & 0x01) GPIO_PinWrite(STEP_PINS[pos], 1); //set high
+            if(driverMap & 0x01)
+            {
+                if(STEP_PINS[pos] != NoPin) GPIO_PinWrite(STEP_PINS[pos], 1); //set high
+            }
             driverMap = driverMap >> 1;
             pos++;
         }
@@ -1331,7 +1334,7 @@ inline OutputBuffer *Platform::GetAuxGCodeReply()
     if(hasStepPinsOnDifferentPorts == true ){
         //with flexibleconfig just treat these pins one by one instead of parallel writes for now.
         for(size_t d=0; d<MaxTotalDrivers; d++){
-            GPIO_PinWrite(STEP_PINS[d], 0); //set low
+            if(STEP_PINS[d] != NoPin) GPIO_PinWrite(STEP_PINS[d], 0); //set low
         }
     }
     else

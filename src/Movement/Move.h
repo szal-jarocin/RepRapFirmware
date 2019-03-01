@@ -27,7 +27,7 @@ const unsigned int NumDms = 20 * 12;								// allow enough for plenty of CAN ex
 const unsigned int DdaRingLength = 40;
 const unsigned int NumDms = 20 * 8;									// suitable for e.g. a delta + 5 input hot end
 #elif __LPC17xx__
-const unsigned int DdaRingLength = 28;
+const unsigned int DdaRingLength = 20;
 const unsigned int NumDms = 20 * 5;                                 // suitable for e.g. a delta + 2-input hot end
 #else
 // We are more memory-constrained on the SAM3X
