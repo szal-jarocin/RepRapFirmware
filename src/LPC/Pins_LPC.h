@@ -4,7 +4,7 @@
 #include "Microstepping.h"
 #include "sd_mmc.h"
 
-const size_t NumFirmwareUpdateModules = 0;
+const size_t NumFirmwareUpdateModules = 1;
 
 #ifndef UNUSED
 #define UNUSED(x) (void)(x)
@@ -22,7 +22,7 @@ const size_t NumFirmwareUpdateModules = 0;
 #define LPC_ELECTRONICS_STRING "LPC176x"
 #define LPC_BOARD_STRING "LPC176x"
 
-#define FIRMWARE_FILE "firmware-.bin"
+#define FIRMWARE_FILE "firmware.bin"
 
 // Features definition
 #define SUPPORT_OBJECT_MODEL         1
@@ -40,8 +40,8 @@ const size_t NumFirmwareUpdateModules = 0;
 #define SUPPORT_IOBITS		         0					// set to support P parameter in G0/G1 commands
 #define SUPPORT_DHT_SENSOR	         0					// set nonzero to support DHT temperature/humidity sensors
 
-#define SUPPORT_TELNE                0
-#define SUPPORT_FT                   0
+#define SUPPORT_TELNET               0
+#define SUPPORT_FTP                  0
 #define NO_PANELDUE                  1
 
 

@@ -25,10 +25,10 @@
 #include "FreeRTOS_DHCP.h"
 #include "RTOSIface.h"
 
-constexpr size_t TcpPlusStackWords = ( uint16_t ) ipconfigIP_TASK_STACK_SIZE_WORDS+20; // needs to be aroud 240 when debugging with debugPrintf
+constexpr size_t TcpPlusStackWords = ( uint16_t ) ipconfigIP_TASK_STACK_SIZE_WORDS; // needs to be aroud 240 when debugging with debugPrintf
 static Task<TcpPlusStackWords> tcpPlusTask;
 
-constexpr size_t EmacStackWords = 74+30;/*170*/ // needs to be bigger (>=170) if using debugPrinf for testing
+constexpr size_t EmacStackWords = 80;/*170*/ // needs to be bigger (>=170) if using debugPrinf for testing
 static Task<EmacStackWords> emacTask;
 
 
