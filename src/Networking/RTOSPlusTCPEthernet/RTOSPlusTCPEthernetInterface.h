@@ -124,7 +124,9 @@ private:
     
 	NetworkState state;
 	bool activated;
-	bool usingDhcp;
+    bool initialised;
+    bool linkUp;
+	bool usingDHCP;
 
     IPAddress ipAddress;
     IPAddress netmask;

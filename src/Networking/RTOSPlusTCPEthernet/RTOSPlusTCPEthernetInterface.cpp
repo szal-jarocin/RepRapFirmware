@@ -7,6 +7,7 @@
 
 #include "RTOSPlusTCPEthernetInterface.h"
 #include "RTOSPlusTCPEthernetSocket.h"
+#include "RTOSPlusTCPEthernetServerSocket.h"
 #include "NetworkBuffer.h"
 #include "Platform.h"
 #include "RepRap.h"
@@ -25,10 +26,10 @@
 #include "FreeRTOS_DHCP.h"
 #include "RTOSIface.h"
 
-constexpr size_t TcpPlusStackWords = ( uint16_t ) ipconfigIP_TASK_STACK_SIZE_WORDS; // needs to be aroud 240 when debugging with debugPrintf
+constexpr size_t TcpPlusStackWords = 100; // needs to be aroud 240 when debugging with debugPrintf
 static Task<TcpPlusStackWords> tcpPlusTask;
 
-constexpr size_t EmacStackWords = 80;/*170*/ // needs to be bigger (>=170) if using debugPrinf for testing
+constexpr size_t EmacStackWords = 65;/*170*/ // needs to be bigger (>=170) if using debugPrinf for testing
 static Task<EmacStackWords> emacTask;
 
 
@@ -84,7 +85,7 @@ extern "C" const char *pcApplicationHostnameHook( void )
 
 
 RTOSPlusTCPEthernetInterface::RTOSPlusTCPEthernetInterface(Platform& p)
-	: platform(p), lastTickMillis(0), state(NetworkState::disabled), activated(false)
+: platform(p), lastTickMillis(0), state(NetworkState::disabled), activated(false), initialised(false), linkUp(false), usingDHCP(false)
 {
     //setup our pointer to access our class methods from the +TCP "C" callbacks
     rtosTCPEtherInterfacePtr = this;
@@ -329,29 +330,47 @@ void RTOSPlusTCPEthernetInterface::Start()
 {
 	MutexLocker lock(interfaceMutex);
     
-    SetIPAddress(platform.GetIPAddress(), platform.NetMask(), platform.GateWay());
-
-    //set the global mac var needed for networkinterface.c
-    ucMACAddress[0] = macAddress[0];
-    ucMACAddress[1] = macAddress[1];
-    ucMACAddress[2] = macAddress[2];
-    ucMACAddress[3] = macAddress[3];
-    ucMACAddress[4] = macAddress[4];
-    ucMACAddress[5] = macAddress[5];
-
-    uint8_t ip[4], nm[4], gw[4], dns[4];
-    ipAddress.UnpackV4(ip);
-    netmask.UnpackV4(nm);
-    gateway.UnpackV4(gw);
     
-    BaseType_t ret = FreeRTOS_IPInit( ip, nm, gw, dns, macAddress );
-    if(ret == pdFALSE){
-        FreeRTOS_debug_printf( ( "Failed to start IP") );
-        state = NetworkState::disabled;
-        return;
+    if(initialised == true)
+    {
+        platform.Message(NetworkInfoMessage, "FreeRTOS+TCP already started. If changing IP or from static to dhpc then a reset is required.\n");
+        FreeRTOS_NetworkDown(); //send a network down event
     }
+    else
+    {
+        
+        initialised = true;
+        
+        SetIPAddress(platform.GetIPAddress(), platform.NetMask(), platform.GateWay());
 
-    
+        //set the global mac var needed for networkinterface.c
+        ucMACAddress[0] = macAddress[0];
+        ucMACAddress[1] = macAddress[1];
+        ucMACAddress[2] = macAddress[2];
+        ucMACAddress[3] = macAddress[3];
+        ucMACAddress[4] = macAddress[4];
+        ucMACAddress[5] = macAddress[5];
+
+        uint8_t ip[4], nm[4], gw[4], dns[4];
+        ipAddress.UnpackV4(ip);
+        netmask.UnpackV4(nm);
+        gateway.UnpackV4(gw);
+        
+        if(ipAddress.GetV4LittleEndian() == 0)
+        {
+            usingDHCP = true;
+        }
+        
+        
+        //FreeRTOS_IPInit should only be called once
+        BaseType_t ret = FreeRTOS_IPInit( ip, nm, gw, dns, macAddress );
+        if(ret == pdFALSE){
+            platform.Message(NetworkInfoMessage, "Failed to Init FreeRTOS+TCP\n");
+            state = NetworkState::disabled;
+            return;
+        }
+
+    }
     state = NetworkState::establishingLink;
 }
 
@@ -412,12 +431,6 @@ void RTOSPlusTCPEthernetInterface::Spin(bool full)
                     nextSocketToPoll = 0;
                 }
             }
-            else if (full)
-            {
-                //Network is Down
-                TerminateSockets();
-                state = NetworkState::establishingLink;
-            }
         }
             break;
     }
@@ -462,11 +475,9 @@ void RTOSPlusTCPEthernetInterface::Diagnostics(MessageType mtype)
     //defined in driver for debugging
     extern uint32_t numNetworkRXIntOverrunErrors; //hardware producted overrun error
     extern uint32_t numNetworkDroppedPacketsDueToNoBuffer;
-    extern uint8_t numNetworkUnalignedNetworkBuffers;
     
     platform.MessageF(mtype, "EthDrv: RX IntOverrun Errors: %lu\n", numNetworkRXIntOverrunErrors);
     platform.MessageF(mtype, "EthDrv: Dropped packets (no buffer): %lu\n",  numNetworkDroppedPacketsDueToNoBuffer );
-    platform.MessageF(mtype, "EthDrv: Unaligned Network Buffers (should be 0): %d\n", numNetworkUnalignedNetworkBuffers);
 
     extern uint32_t numNetworkCRCErrors;
     extern uint32_t numNetworkSYMErrors;
@@ -560,6 +571,10 @@ void RTOSPlusTCPEthernetInterface::TerminateSockets()
 	{
 		sockets[skt]->Terminate();
 	}
+    // Close the Server Socket
+    RTOSPlusTCPEthernetServerSocket::Instance()->CloseAllProtocols();
+    
+    
 }
 
 
@@ -576,25 +591,22 @@ void RTOSPlusTCPEthernetInterface::ProcessIPApplication( eIPCallbackEvent_t eNet
 {
     //variables to hold IP information from +TCP layer (either from static assignment or DHCP)
     uint32_t ulIPAddress, ulNetMask, ulGatewayAddress, ulDNSServerAddress;
-    
-    FreeRTOS_debug_printf( ( "vApplicationIPNetworkEventHook: Event=%d \n", eNetworkEvent ) );
-    
-    
+
     /* If the network has just come up...*/
     if( eNetworkEvent == eNetworkUp )
     {
-        
-        
+        linkUp = true;
+
         /* Print out the network configuration, which may have come from a DHCP
          server. */
         FreeRTOS_GetAddressConfiguration( &ulIPAddress, &ulNetMask, &ulGatewayAddress, &ulDNSServerAddress );
 
-        //If IP address still equals 0.0.0.0 here then DHCP has Failed.
+        
         if( ulIPAddress == 0 ) //ulIPAddress is in 32bit format
         {
-            state = NetworkState::obtainingIP;
-            
-            //TODO::
+            //IP address equals 0.0.0.0 here. DHCP has Failed.
+            state = NetworkState::disabled;
+            platform.Message(NetworkInfoMessage, "Failed to obtain IP Address from DHCP\n");
         }
         else
         {
@@ -609,7 +621,15 @@ void RTOSPlusTCPEthernetInterface::ProcessIPApplication( eIPCallbackEvent_t eNet
     else if (eNetworkEvent == eNetworkDown)
     {
         
-        //FreeRTOS_debug_printf( ( "Application Hook: NetDown\r\n" ) );
+        if(linkUp == true)
+        {
+            linkUp = false;
+            platform.Message(NetworkInfoMessage, "Lost Network Link\n");
+            //Link was previously up but has gone down. We need to close all sockets including server socket
+            //and Reinitialise after link comes back up
+            TerminateSockets();
+        }
+        
         state = NetworkState::establishingLink; //back to establishing link
     }
 
@@ -631,7 +651,6 @@ eDHCPCallbackAnswer_t RTOSPlusTCPEthernetInterface::ProcessDHCPHook( eDHCPCallba
             
             state = NetworkState::obtainingIP; // obtaining IP state
             
-            
             /* A DHCP discovery is about to be sent out.  eDHCPContinue is returned to allow the discovery to go out.
              
              If eDHCPUseDefaults had been returned instead then the DHCP process would be stopped and the statically configured IP address would be used.
@@ -639,7 +658,7 @@ eDHCPCallbackAnswer_t RTOSPlusTCPEthernetInterface::ProcessDHCPHook( eDHCPCallba
              If eDHCPStopNoChanges had been returned instead then the DHCP process would be stopped and
              whatever the current network configuration was would continue to be used.
              */
-            if(ipAddress.GetV4LittleEndian() == 0)
+            if(usingDHCP == true)
             {
                 eReturn = eDHCPContinue; //use DHCP
             }
