@@ -2,17 +2,16 @@
 #define PINS_SAME70_H__
 
 #define FIRMWARE_NAME		"RepRapFirmware for Duet 3"
-#define DEFAULT_BOARD_TYPE BoardType::Duet3_10
-const size_t NumFirmwareUpdateModules = 4;		// 3 modules, plus one for manual upload to WiFi module (module 2 not used)
+#define DEFAULT_BOARD_TYPE BoardType::Duet3_05
+const size_t NumFirmwareUpdateModules = 1;
 #define IAP_FIRMWARE_FILE	"Duet3Firmware.bin"
-#define WIFI_FIRMWARE_FILE	"DuetWiFiServer.bin"
 #define IAP_UPDATE_FILE		"iapduet3.bin"
 
 // Features definition
 #define HAS_LWIP_NETWORKING		1
-#define HAS_WIFI_NETWORKING		1
+#define HAS_WIFI_NETWORKING		0
 #define HAS_CPU_TEMP_SENSOR		1
-#define HAS_HIGH_SPEED_SD		1
+#define HAS_HIGH_SPEED_SD		0
 
 #define SUPPORT_TMC51xx			1
 #define TMC51xx_USES_USART		1
@@ -25,12 +24,14 @@ const size_t NumFirmwareUpdateModules = 4;		// 3 modules, plus one for manual up
 #define SUPPORT_INKJET			0					// set nonzero to support inkjet control
 #define SUPPORT_ROLAND			0					// set nonzero to support Roland mill
 #define SUPPORT_SCANNER			0					// set zero to disable support for FreeLSS scanners
+#define SUPPORT_LASER			1					// support laser cutters and engravers using G1 S parameter
 #define SUPPORT_IOBITS			1					// set to support P parameter in G0/G1 commands
 #define SUPPORT_DHT_SENSOR		1					// set nonzero to support DHT temperature/humidity sensors
 #define SUPPORT_WORKPLACE_COORDINATES	1			// set nonzero to support G10 L2 and G53..59
 #define SUPPORT_OBJECT_MODEL	1
 #define SUPPORT_FTP				1
 #define SUPPORT_TELNET			1
+#define SUPPORT_ASYNC_MOVES		1
 
 #define USE_CACHE				0					// Cache controller disabled for now
 
@@ -99,15 +100,16 @@ constexpr size_t NumHeaters = 4;
 constexpr size_t NumFans = 6;
 constexpr size_t NumEndstops = 8;
 
-// Endstops
-constexpr Pin END_STOP_PINS[NumEndstops] = { PORTD_PIN(30), PORTE_PIN(4), PORTA_PIN(18), PORTE_PIN(5), PORTA_PIN(17), PORTA_PIN(19), PORTC_PIN(31), PORTC_PIN(0) };
+// Endstops. If we want to connect a PanelDue to IO7 then we may need to disable endstop 7 here.
+//constexpr Pin END_STOP_PINS[NumEndstops] = { PORTD_PIN(30), PORTE_PIN(4), PORTA_PIN(18), PORTE_PIN(5), PORTA_PIN(17), PORTA_PIN(19), PORTB_PIN(3), PORTD_PIN(25) };
+constexpr Pin END_STOP_PINS[NumEndstops] = { PORTD_PIN(30), PORTE_PIN(4), PORTA_PIN(18), PORTE_PIN(5), PORTA_PIN(17), PORTA_PIN(19), PORTB_PIN(3), NoPin };
 
 // Heater and thermistors
 constexpr Pin HEAT_ON_PINS[NumHeaters] = { PORTA_PIN(7), PORTA_PIN(24), PORTA_PIN(16), PORTA_PIN(11) };
 
 // Cooling fans
-constexpr size_t NUM_FANS = 7;
-constexpr Pin COOLING_FAN_PINS[NUM_FANS] = { PORTA_PIN(15), PORTC_PIN(5), PORTA_PIN(8), PORTC_PIN(11), PORTC_PIN(8), PORTA_PIN(0), PORTC_PIN(23) };
+constexpr size_t NUM_FANS = 6;
+constexpr Pin COOLING_FAN_PINS[NUM_FANS] = { PORTA_PIN(15), PORTC_PIN(5), PORTA_PIN(8), PORTC_PIN(11), PORTC_PIN(8), PORTA_PIN(12) };
 
 constexpr Pin Z_PROBE_PIN = PORTE_PIN(3);		// IO8
 constexpr Pin Z_PROBE_MOD_PIN = PORTE_PIN(1);	// IO8_OUT
@@ -121,7 +123,7 @@ constexpr size_t NumExtraHeaterProtections = 8;		// The number of extra heater p
 
 // Thermistor/PT1000 inputs
 constexpr size_t NumThermistorInputs = 4;
-constexpr Pin TEMP_SENSE_PINS[NumThermistorInputs] = { PORTB_PIN(3), PORTC_PIN(15), PORTC_PIN(0), PORTC_PIN(30) };	// Thermistor/PT1000 pins
+constexpr Pin TEMP_SENSE_PINS[NumThermistorInputs] = { PORTC_PIN(31), PORTC_PIN(15), PORTC_PIN(29), PORTC_PIN(30) };	// Thermistor/PT1000 pins
 
 // Default thermistor parameters
 constexpr float BED_R25 = 100000.0;
@@ -145,21 +147,21 @@ constexpr Pin SpiTempSensorCsPins[MaxSpiTempSensors] = { PORTD_PIN(16), PORTD_PI
 constexpr Pin ATX_POWER_PIN = PORTA_PIN(10);
 
 // Analogue pin numbers
-constexpr Pin PowerMonitorVinDetectPin = PORTC_PIN(13);
+constexpr Pin PowerMonitorVinDetectPin = PORTA_PIN(20);
 
-constexpr float PowerMonitorVoltageRange = 11.0 * 3.3;						// We use an 11:1 voltage divider (TBD)
+constexpr float PowerMonitorVoltageRange = 11.0 * 3.3;			// we use an 11:1 voltage divider (TBD)
 
-constexpr Pin VssaSensePin = PORTA_PIN(20);
+constexpr Pin VssaSensePin = PORTC_PIN(13);
 constexpr Pin VrefSensePin = PORTE_PIN(0);
 
 // Digital pin number to turn the IR LED on (high) or off (low), also controls the DIAG LED
 constexpr Pin DiagPin = PORTC_PIN(20);
 
 // SD cards
-constexpr size_t NumSdCards = 2;
-constexpr Pin SdCardDetectPins[NumSdCards] = { PORTA_PIN(6), NoPin };
-constexpr Pin SdWriteProtectPins[NumSdCards] = { NoPin, NoPin };
-constexpr Pin SdSpiCSPins[1] = { PORTD_PIN(24) };
+constexpr size_t NumSdCards = 1;								// actually 0 cards, but 0 probably won't work yet
+constexpr Pin SdCardDetectPins[1] = { NoPin };
+constexpr Pin SdWriteProtectPins[1] = { NoPin };
+constexpr Pin SdSpiCSPins[1] = { NoPin };
 constexpr uint32_t ExpectedSdCardSpeed = 25000000;
 
 // Ethernet
@@ -171,9 +173,14 @@ constexpr Pin PhyResetPin = PORTD_PIN(11);
 // This is the mapping from logical pins 60+ to firmware pin numbers
 constexpr Pin SpecialPinMap[] =
 {
+	PORTB_PIN(7), PORTB_PIN(6), PORTC_PIN(14), PORTA_PIN(3),	// IO_0_OUT - IO_3_OUT
+	PORTA_PIN(3), PORTA_PIN(26), PORTA_PIN(0), PORTD_PIN(26),	// IO_4_OUT - IO_7_OUT (note IO_5_OUT not functional on prototypes)
+	PORTD_PIN(16), PORTD_PIN(15), PORTD_PIN(27), PORTC_PIN(22),	// U0_CS0 - U0_CS3
+	PORTC_PIN(23),												// Servo
+	PORTE_PIN(2)												// RPi data ready, for testing only (remove this for production)
 };
-constexpr Pin DueX5GpioPinMap[] = {};				// TBD
-constexpr int HighestLogicalPin = 50;										// highest logical pin number on this electronics
+
+constexpr int HighestLogicalPin = 73;							// highest logical pin number on this electronics
 
 // SAME70 Flash locations
 // These are designed to work with 1Mbyte flash processors as well as 2Mbyte

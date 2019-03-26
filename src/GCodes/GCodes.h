@@ -114,7 +114,11 @@ public:
 		float coords[MaxTotalDrivers];									// new positions for the axes, amount of movement for the extruders
 		float initialCoords[MaxAxes];									// the initial positions of the axes
 		float feedRate;													// feed rate of this move
-		float virtualExtruderPosition;									// the virtual extruder position at the start of this move
+		union
+		{
+			float virtualExtruderPosition;								// the virtual extruder position at the start of this move, for normal moves
+			float acceleration;											// the requested acceleration, for async moves
+		};
 		FilePosition filePos;											// offset in the file being printed at the start of reading this move
 		float proportionLeft;											// what proportion of the entire move remains after this segment
 		AxesBitmap xAxes;												// axes that X is mapped to
@@ -131,6 +135,8 @@ public:
 		uint8_t hasExtrusion : 1;										// true if the move includes extrusion - only valid if the move was set up by SetupMove
 		uint8_t isCoordinated : 1;										// true if this is a coordinates move
 		uint8_t usingStandardFeedrate : 1;								// true if this move uses the standard feed rate
+
+		void SetDefaults(size_t firstDriveToZero);						// set up default values
 	};
 
 	GCodes(Platform& p);
@@ -139,6 +145,9 @@ public:
 	void Exit();														// Shut it down
 	void Reset();														// Reset some parameter to defaults
 	bool ReadMove(RawMove& m);											// Called by the Move class to get a movement set by the last G Code
+#if SUPPORT_ASYNC_MOVES
+	bool ReadAuxMove(RawMove &m);
+#endif
 	void ClearMove();
 	bool QueueFileToPrint(const char* fileName, const StringRef& reply);	// Open a file of G Codes to run
 	void StartPrinting(bool fromStart);									// Start printing the file already selected
@@ -153,8 +162,7 @@ public:
 
 	bool GetAxisIsHomed(unsigned int axis) const						// Has the axis been homed?
 		{ return IsBitSet(axesHomed, axis); }
-	void SetAxisIsHomed(unsigned int axis)								// Tell us that the axis is now homed
-		{ SetBit(axesHomed, axis); }
+	void SetAxisIsHomed(unsigned int axis);								// Tell us that the axis is now homed
 	void SetAxisNotHomed(unsigned int axis)								// Tell us that the axis is not homed
 		{ ClearBit(axesHomed, axis); }
 	void SetAllAxesNotHomed()											// Flag all axes as not homed
@@ -169,10 +177,9 @@ public:
 
 	float GetRawExtruderTotalByDrive(size_t extruder) const;			// Get the total extrusion since start of print, for one drive
 	float GetTotalRawExtrusion() const { return rawExtruderTotal; }		// Get the total extrusion since start of print, all drives
-	float GetBabyStepOffset(size_t axis) const
-		pre(axis < maxAxes)
-		{ return currentBabyStepOffsets[axis]; }						// Get the current baby stepping offset for an axis
-	const float *GetUserPosition() const { return currentUserPosition; }	// Return the current user position
+	float GetTotalBabyStepOffset(size_t axis) const
+		pre(axis < maxAxes);
+	const float *GetUserPosition() const { return currentUserPosition; } // Return the current user position
 
 #if HAS_NETWORKING
 	NetworkGCodeInput *GetHTTPInput() const { return httpInput; }
@@ -333,7 +340,8 @@ private:
 
 	void SetMachinePosition(const float positionNow[MaxTotalDrivers], bool doBedCompensation = true); // Set the current position to be this
 	void UpdateCurrentUserPosition();											// Get the current position from the Move class
-	void ToolOffsetTransform(const float coordsIn[MaxAxes], float coordsOut[MaxAxes], AxesBitmap explicitAxes = 0);	// Convert user coordinates to head reference point coordinates
+	void ToolOffsetTransform(const float coordsIn[MaxAxes], float coordsOut[MaxAxes], AxesBitmap explicitAxes = 0, bool applyWorkplaceOffsets = true);
+																				// Convert user coordinates to head reference point coordinates
 	void ToolOffsetInverseTransform(const float coordsIn[MaxAxes], float coordsOut[MaxAxes]);	// Convert head reference point coordinates to user coordinates
 	const char *TranslateEndStopResult(EndStopHit es);							// Translate end stop result to text
 	GCodeResult RetractFilament(GCodeBuffer& gb, bool retract);					// Retract or un-retract filaments
@@ -463,6 +471,11 @@ private:
 	unsigned int segmentsLeft;					// The number of segments left to do in the current move, or 0 if no move available
 	unsigned int totalSegments;					// The total number of segments left in the complete move
 
+#if SUPPORT_ASYNC_MOVES
+	RawMove auxMoveBuffer;
+	bool auxMoveAvailable;
+#endif
+
 	unsigned int segmentsLeftToStartAt;
 	float moveFractionToStartAt;				// how much of the next move was printed before the power failure
 	float moveFractionToSkip;
@@ -496,7 +509,6 @@ private:
 	float virtualExtruderPosition;				// Virtual extruder position of the last move fed into the Move class
 	float rawExtruderTotalByDrive[MaxExtruders]; // Extrusion amount in the last G1 command with an E parameter when in absolute extrusion mode
 	float rawExtruderTotal;						// Total extrusion amount fed to Move class since starting print, before applying extrusion factor, summed over all drives
-	float distanceScale;						// MM or inches
 
 #if SUPPORT_WORKPLACE_COORDINATES
 	static const size_t NumCoordinateSystems = 9;
@@ -523,6 +535,9 @@ private:
 	float extrusionFactors[MaxExtruders];		// extrusion factors (normally 1.0)
 	float volumetricExtrusionFactors[MaxExtruders]; // Volumetric extrusion factors
 	float currentBabyStepOffsets[MaxAxes];		// The accumulated axis offsets due to baby stepping requests
+#if SUPPORT_ASYNC_MOVES
+	float hiddenBabyStepOffsets[MaxAxes];		// The amount of live (async) baby stepping performed
+#endif
 
 	// Z probe
 	GridDefinition defaultGrid;					// The grid defined by the M557 command in config.g
@@ -579,6 +594,7 @@ private:
 
 	// Laser
 	float laserMaxPower;
+	bool laserPowerSticky;						// true if G1 S parameters are remembered across G1 commands
 
 	// Heater fault handler
 	HeaterFaultState heaterFaultState;			// whether there is a heater fault and what we have done about it so far
@@ -621,7 +637,6 @@ private:
 	static constexpr const char* RESUME_AFTER_POWER_FAIL_G = "resurrect.g";
 	static constexpr const char* RESUME_PROLOGUE_G = "resurrect-prologue.g";
 	static constexpr const char* FILAMENT_CHANGE_G = "filament-change.g";
-	static constexpr const char* PEEL_MOVE_G = "peel-move.g";
 #if HAS_SMART_DRIVERS
 	static constexpr const char* REHOME_G = "rehome.g";
 #endif
@@ -647,6 +662,16 @@ inline void GCodes::NewMoveAvailable()
 	const unsigned int sl = totalSegments;
 	__DMB();					// make sure that the move details have been written first
 	segmentsLeft = sl;			// set the number of segments to indicate that a move is available to be taken
+}
+
+// Get the total baby stepping offset for an axis
+inline float GCodes::GetTotalBabyStepOffset(size_t axis) const
+{
+#if SUPPORT_ASYNC_MOVES
+	return currentBabyStepOffsets[axis] + hiddenBabyStepOffsets[axis];
+#else
+	return currentBabyStepOffsets[axis];
+#endif
 }
 
 //*****************************************************************************************************
