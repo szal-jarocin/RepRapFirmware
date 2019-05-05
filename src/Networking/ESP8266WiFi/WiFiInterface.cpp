@@ -60,7 +60,9 @@ static_assert(SsidLength == SsidBufferLength, "SSID lengths in NetworkDefs.h and
 #include "xdmac/xdmac.h"
 #endif
 
+#ifndef __LPC17xx__
 #include "matrix/matrix.h"
+#endif
 
 const uint32_t WifiResponseTimeoutMillis = 200;
 const uint32_t WiFiWaitReadyMillis = 100;

@@ -40,19 +40,18 @@ static const boardConfigEntry_t boardConfigs[]=
     {"stepper.digipotFactor", &digipotFactor, nullptr, cvFloatType},
 
     
-    {"endstop.pins", END_STOP_PINS, &NumEndstops, cvPinType},
+    //{"endstop.pins", END_STOP_PINS, &NumEndstops, cvPinType},
     {"zProbe.pin", &Z_PROBE_PIN, nullptr, cvPinType},
     {"zProbe.modulationPin", &Z_PROBE_MOD_PIN, nullptr, cvPinType},
 
     {"heat.tempSensePins", TEMP_SENSE_PINS, &NumThermistorInputs, cvPinType},
-    {"heat.heatOnPins", HEAT_ON_PINS, &NumHeaters, cvPinType},
+    //{"heat.heatOnPins", HEAT_ON_PINS, &NumHeaters, cvPinType},
     {"heat.spiTempSensorCSPins", SpiTempSensorCsPins, &MaxSpiTempSensors, cvPinType},
     
-    {"fan.pins", COOLING_FAN_PINS, &NUM_FANS, cvPinType},
-    {"fan.tachoPins", TachoPins, &NumTachos, cvPinType},
+    //{"fan.pins", COOLING_FAN_PINS, &NUM_FANS, cvPinType},
+    //{"fan.tachoPins", TachoPins, &NumTachos, cvPinType},
     
     {"atxPowerPin", &ATX_POWER_PIN, nullptr, cvPinType},
-
     
     {"lpc.slowPWM.frequencyHz", &Timer1Frequency, nullptr, cvUint16Type},
     {"lpc.slowPWM.pins", Timer1PWMPins, &MaxTimerEntries, cvPinType},
@@ -62,13 +61,12 @@ static const boardConfigEntry_t boardConfigs[]=
 
     {"lpc.servoPins", Timer2PWMPins, &MaxTimerEntries, cvPinType},
 
-    {"specialPinMap", SpecialPinMap, &MaxNumberSpecialPins, cvPinType},
+    //{"specialPinMap", SpecialPinMap, &MaxNumberSpecialPins, cvPinType},
     {"lpc.externalInterruptPins", ExternalInterruptPins, &MaxExtIntEntries, cvPinType},
     
     {"externalSDCard.csPin", &SdSpiCSPins[1], nullptr, cvPinType},
     {"externalSDCard.cardDetectPin", &SdCardDetectPins[1], nullptr, cvPinType},
     {"lpc.externalSDCard.spiFrequencyHz", &ExternalSDCardFrequency, nullptr, cvUint32Type},
-
     
     {"lcd.lcdCSPin", &LcdCSPin, nullptr, cvPinType},
     {"lcd.lcdBeepPin", &LcdBeepPin, nullptr, cvPinType},
