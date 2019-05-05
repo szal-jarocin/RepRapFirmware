@@ -262,13 +262,13 @@ void ValueMenuItem::CorePrint(Lcd7920& lcd)
 			break;
 
 		case PrintFormat::asIpAddress:
-			lcd.print(currentValue.u & 0x000F);
+			lcd.print(currentValue.u & 0x000000FF);
 			lcd.print(':');
-			lcd.print((currentValue.u >> 8) & 0x000F);
+			lcd.print((currentValue.u >> 8) & 0x0000000FF);
 			lcd.print(':');
-			lcd.print((currentValue.u >> 16) & 0x000F);
+			lcd.print((currentValue.u >> 16) & 0x0000000FF);
 			lcd.print(':');
-			lcd.print((currentValue.u >> 24) & 0x000F);
+			lcd.print((currentValue.u >> 24) & 0x0000000FF);
 			break;
 
 		case PrintFormat::asTime:
@@ -379,16 +379,23 @@ void ValueMenuItem::Draw(Lcd7920& lcd, PixelNumber rightMargin, bool highlight, 
 				currentFormat = PrintFormat::asIpAddress;
 				break;
 
-			case 35:
+			case 35:	// Percentage of file that has been processed
 				currentValue.f = (reprap.GetPrintMonitor().IsPrinting())
 									? reprap.GetGCodes().FractionOfFilePrinted() * 100.0
 										: 0;
 				currentFormat = PrintFormat::asPercent;
 				break;
 
-			case 36:	// Print time remaining
+			case 36:	// Print time remaining, file-based
 				currentValue.u = (reprap.GetPrintMonitor().IsPrinting())
 									? static_cast<int>(reprap.GetPrintMonitor().EstimateTimeLeft(PrintEstimationMethod::fileBased))
+										: 0;
+				currentFormat = PrintFormat::asTime;
+				break;
+
+			case 37:	// Print time remaining, filament-based
+				currentValue.u = (reprap.GetPrintMonitor().IsPrinting())
+									? static_cast<int>(reprap.GetPrintMonitor().EstimateTimeLeft(PrintEstimationMethod::filamentBased))
 										: 0;
 				currentFormat = PrintFormat::asTime;
 				break;
@@ -416,11 +423,17 @@ void ValueMenuItem::Draw(Lcd7920& lcd, PixelNumber rightMargin, bool highlight, 
 				break;
 
 			case PrintFormat::asFloat:
-				itemChanged = currentValue.f == oldValue.f;
+				if (currentValue.f != oldValue.f)
+				{
+					itemChanged = true;
+				}
 				break;
 
 			case PrintFormat::asSigned:
-				itemChanged = currentValue.i == oldValue.i;
+				if (currentValue.i != oldValue.i)
+				{
+					itemChanged = true;
+				}
 				break;
 
 			case PrintFormat::asUnsigned:
@@ -428,7 +441,10 @@ void ValueMenuItem::Draw(Lcd7920& lcd, PixelNumber rightMargin, bool highlight, 
 			case PrintFormat::asText:
 			case PrintFormat::asTime:
 			default:
-				itemChanged = currentValue.u == oldValue.u;
+				if (currentValue.u != oldValue.u)
+				{
+					itemChanged = true;
+				}
 				break;
 			}
 		}

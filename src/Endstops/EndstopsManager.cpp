@@ -258,7 +258,7 @@ GCodeResult EndstopsManager::HandleM574(GCodeBuffer& gb, const StringRef& reply)
 						   )
 						{
 							// Asking for a switch endstop but we don't already have one, so we don't know what pin number(s) it should use
-							reply.printf("Logical pin number needed for witch-type endstop on %c axis", c);
+							reply.printf("Pin name needed for switch-type endstop on %c axis", c);
 							return GCodeResult::error;
 						}
 						else
@@ -293,7 +293,7 @@ bool EndstopsManager::HomingZWithProbe() const
 
 EndStopHit EndstopsManager::Stopped(size_t axis) const
 {
-	return axisEndstops[axis]->Stopped();
+	return (axisEndstops[axis] == nullptr) ? EndStopHit::noStop : axisEndstops[axis]->Stopped();
 }
 
 void EndstopsManager::GetM119report(const StringRef& reply)

@@ -2330,6 +2330,7 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply)
 				// If we need to wait for an acknowledgement, save the state and set waiting
 				if ((sParam == 2 || sParam == 3) && Push(gb))						// stack the machine state including the file position
 				{
+					UnlockMovement(gb);												// allow movement so that e.g. an SD card print can call M291 and then DWC or PanelDue can be used to jog axes
 					gb.MachineState().fileState.Close();							// stop reading from file
 					gb.MachineState().waitingForAcknowledgement = true;				// flag that we are waiting for acknowledgement
 				}
@@ -3642,6 +3643,12 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply)
 		result = reprap.GetMove().ConfigureDynamicAcceleration(gb, reply);
 		break;
 
+#if SUPPORT_ASYNC_MOVES
+	case 594:	// Enter or leave height following mode
+		result = reprap.GetMove().StartHeightFollowing(gb, reply);
+		break;
+#endif
+
 	// For case 600, see 226
 
 	// M650 (set peel move parameters) and M651 (execute peel move) are no longer handled specially. Use macros to specify what they should do.
@@ -4226,6 +4233,12 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply)
 	case 950:	// configure I/O pins
 		result = platform.ConfigurePort(gb, reply);
 		break;
+
+#if SUPPORT_ASYNC_MOVES
+	case 951:	// configure height control
+		result = reprap.GetMove().ConfigureHeightFollowing(gb, reply);
+		break;
+#endif
 
 	case 997: // Perform firmware update
 		result = UpdateFirmware(gb, reply);
