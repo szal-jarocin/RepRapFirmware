@@ -263,14 +263,13 @@ namespace Tasks
 
 			//p.MessageF(mtype, "AHB_RAM Static ram used : %" PRIu32 "\n", ahbStaticUsed);
 			//p.Message(mtype, "=== Ram Totals ===\n");
-			p.MessageF(mtype, "Main SRAM         : %" PRIu32 "/%" PRIu32 " (%" PRIu32 " free, %" PRIu32 " never used)\n", totalMainUsage, (uint32_t)32*1024, 32*1024-totalMainUsage, neverUsed );
-			p.MessageF(mtype, "RTOS Dynamic Heap : %" PRIi32 "/%" PRIu32 " (%d free, %d never used)", (uint32_t)(xPortGetTotalHeapSize()-xPortGetFreeHeapSize()),(uint32_t)xPortGetTotalHeapSize(), xPortGetFreeHeapSize(),xPortGetMinimumEverFreeHeapSize() );
+			//p.MessageF(mtype, "Main SRAM         : %" PRIu32 "/%" PRIu32 " (%" PRIu32 " free, %" PRIu32 " never used)\n", totalMainUsage, (uint32_t)32*1024, 32*1024-totalMainUsage, neverUsed );
+			p.MessageF(mtype, "RTOS Dynamic Heap : %" PRIi32 "/%" PRIu32 " (%d free, %d never used)\n", (uint32_t)(xPortGetTotalHeapSize()-xPortGetFreeHeapSize()),(uint32_t)xPortGetTotalHeapSize(), xPortGetFreeHeapSize(),xPortGetMinimumEverFreeHeapSize() );
 
 			//Print out the PWM and timers freq
 			uint16_t freqs[4];
 			GetTimerInfo(freqs);
-			p.MessageF(mtype, "\n=== LPC PWM ===\n");
-			p.MessageF(mtype, "HWPWM:%dHz T1:%dHz T2:%dHz T3:%dHz\n", freqs[0], freqs[1], freqs[2], freqs[3]);
+            p.MessageF(mtype, "LPC PWM: HWPWM=%dHz T1=%dHz T2=%dHz T3=%dHz\n", freqs[0], freqs[1], freqs[2], freqs[3]);
 
 #endif //end __LPC17xx__
 

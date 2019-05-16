@@ -30,6 +30,8 @@ struct boardConfigEntry_t{
 static const boardConfigEntry_t boardConfigs[]=
 {
 
+    {"lpc.board", &lpcBoardName, nullptr, cvStringType},
+
     {"leds.diagnostic", &DiagPin, nullptr, cvPinType},
     {"lpc.internalSDCard.spiFrequencyHz", &InternalSDCardFrequency, nullptr, cvUint32Type},
 
@@ -41,8 +43,8 @@ static const boardConfigEntry_t boardConfigs[]=
 
     
     //{"endstop.pins", END_STOP_PINS, &NumEndstops, cvPinType},
-    {"zProbe.pin", &Z_PROBE_PIN, nullptr, cvPinType},
-    {"zProbe.modulationPin", &Z_PROBE_MOD_PIN, nullptr, cvPinType},
+    //{"zProbe.pin", &Z_PROBE_PIN, nullptr, cvPinType},
+    //{"zProbe.modulationPin", &Z_PROBE_MOD_PIN, nullptr, cvPinType},
 
     {"heat.tempSensePins", TEMP_SENSE_PINS, &NumThermistorInputs, cvPinType},
     //{"heat.heatOnPins", HEAT_ON_PINS, &NumHeaters, cvPinType},
@@ -62,7 +64,7 @@ static const boardConfigEntry_t boardConfigs[]=
     {"lpc.servoPins", Timer2PWMPins, &MaxTimerEntries, cvPinType},
 
     //{"specialPinMap", SpecialPinMap, &MaxNumberSpecialPins, cvPinType},
-    {"lpc.externalInterruptPins", ExternalInterruptPins, &MaxExtIntEntries, cvPinType},
+    //{"lpc.externalInterruptPins", ExternalInterruptPins, &MaxExtIntEntries, cvPinType},
     
     {"externalSDCard.csPin", &SdSpiCSPins[1], nullptr, cvPinType},
     {"externalSDCard.cardDetectPin", &SdCardDetectPins[1], nullptr, cvPinType},
@@ -76,6 +78,8 @@ static const boardConfigEntry_t boardConfigs[]=
     {"lcd.lcdDCPin", &LcdDCPin, nullptr, cvPinType},
     {"lcd.panelButtonPin", &PanelButtonPin, nullptr, cvPinType},
 
+    {"lpc.uartPanelDueMode", &UARTPanelDueMode, nullptr, cvBoolType},
+    
 };
 
 
@@ -137,6 +141,13 @@ void BoardConfig::Init() {
         //time = millis() - time;
         //reprap.GetPlatform().MessageF(UsbMessage, "Took %ld ms to load config\n", time );
 
+        
+        if(!SetBoard(lpcBoardName)) // load the Correct PinTable for the defined Board (RRF3)
+        {
+            reprap.GetPlatform().MessageF(UsbMessage, "Unknown board: %s\n", lpcBoardName );
+        }
+        
+        
         
         //Calculate STEP_DRIVER_MASK (used for parallel writes)
         STEP_DRIVER_MASK = 0;
@@ -243,6 +254,9 @@ void BoardConfig::PrintValue(MessageType mtype, configValueType configType, void
         case cvUint32Type:
             reprap.GetPlatform().MessageF(mtype, "%lu ",  *(uint32_t *)(variable) );
             break;
+        case cvStringType:
+            reprap.GetPlatform().MessageF(mtype, "%s ",  (char *)(variable) );
+            break;
         default:{
             
         }
@@ -346,6 +360,17 @@ void BoardConfig::SetValueFromString(configValueType type, void *variable, const
                 *(uint32_t *)(variable) = SafeStrtoul(valuePtr, &ptr, 10);
             }
             break;
+            
+        case cvStringType:
+            {
+                
+                //TODO:: string Type only handles Board Name variable
+                if(strlen(valuePtr)+1 < MaxBoardNameLength){
+                    strcpy((char *)(variable), valuePtr);
+                }
+            }
+            break;
+            
         default:
             debugPrintf("Unhandled ValueType\n");
     }

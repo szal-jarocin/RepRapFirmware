@@ -12,7 +12,9 @@
 #include "NetworkDefs.h"
 
 #if defined(__LPC17xx__)
-# include "RTOSPlusTCPEthernetInterface.h"
+    #if HAS_RTOSPLUSTCP_NETWORKING
+        #include "RTOSPlusTCPEthernetInterface.h"
+    #endif
 #endif
 
 class WiFiSocket;
@@ -78,7 +80,12 @@ public:
 	static unsigned int Count(NetworkBuffer*& ptr);
 
 #if defined(__LPC17xx__)
-    static const size_t bufferSize =   1 * ipconfigTCP_MSS;
+    #if HAS_RTOSPLUSTCP_NETWORKING
+        static const size_t bufferSize =   1 * ipconfigTCP_MSS;
+    #elif HAS_WIFI_NETWORKING
+        static const size_t bufferSize =   2 * 1024;
+    #endif
+    
 #else
 	static const size_t bufferSize =
 #ifdef USE_3K_BUFFERS
@@ -97,11 +104,7 @@ private:
 	size_t dataLength;
 	size_t readPointer;
     // When doing unaligned transfers on the WiFi interface, up to 3 extra bytes may be returned, hence the +1 in the following
-#if defined(__LPC17xx__)
-    uint8_t data32[bufferSize];
-#else
 	uint32_t data32[bufferSize/sizeof(uint32_t) + 1];		// 32-bit aligned buffer so we can do direct DMA
-#endif
     static NetworkBuffer *freelist;
 };
 

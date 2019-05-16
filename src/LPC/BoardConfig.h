@@ -22,6 +22,7 @@ enum configValueType{
     cvUint16Type,
     cvUint32Type,
     cvFloatType,
+    cvStringType,
 };
 
 

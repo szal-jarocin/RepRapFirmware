@@ -317,10 +317,6 @@ void IoPort::AppendPinName(const StringRef& str) const
 			str.cat('!');
 		}
 		const size_t insertPoint = str.strlen();
-#ifdef __LPC17xx__
-        //TODO:: For now just generate the port.pin format
-        str.catf("%d.%d", (PinTable[logicalPin].pin >> 5), (PinTable[logicalPin].pin & 0x1f));
-#else
 		const char *pn = PinTable[logicalPin].GetNames();
 		unsigned int numPrinted = 0;
 		do
@@ -364,8 +360,6 @@ void IoPort::AppendPinName(const StringRef& str) const
 			str.Insert(insertPoint, '(');
 			str.cat(')');
 		}
-#endif
-
 	}
 	else
 	{

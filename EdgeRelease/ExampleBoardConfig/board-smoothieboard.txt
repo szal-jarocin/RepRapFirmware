@@ -21,40 +21,47 @@ leds.diagnostic = 1.18; //RRF Diagnostics Pin (LED1 on Smoothie)
 //                      Drive       0     1     2     3      4 
 //                    Typically     X     Y     Z     E0     E1
 stepper.enablePins =             { 0.4,  0.10, 0.19, 0.21,  4.29};
-//Note: Only Step pins on Port 2 are accepted.
 stepper.stepPins =               { 2.0,  2.1,  2.2,  2.3,   2.8}; 
 stepper.directionPins =          { 0.5,  0.11, 0.20, 0.22,  2.13};
 stepper.hasDriverCurrentControl = true;
 stepper.digipotFactor = 113.33; //factor for converting current to digipot value
 	
-//RRF equiv     X     Y     Z     E0    E1    E2
-//RRF C Index   0     1     2     3     4     5
-//              Xmin  Ymin  Zmin  Xmax  Ymax  Zmax
-endstop.pins = {1.24, 1.26, 1.28, 1.25, 1.27, 1.29};
+
+//Endstop pins are now assigned in config.g in RepRapFirmware v3
+//Xmin: 1.24
+//Xmax: 1.25
+//Ymin: 1.26
+//Ymax: 1.27
+//Zmin: 1.28
+//Zmax: 1.29
+
 
 // Z Probe pin
-// Probe pin can be NoPin and select from an "EndStop Pin" (which are digital input)
-// using the C parameter of M558. 
-// Note: Expected to be an ADC pin for certain modes, if needed then a spare A/D capable pin
-// should be used and set zProbe.pin below. Beware that pins configured for ADC are **NOT** 5V tolerant
+//
 zProbe.pin = NoPin;
 zProbe.modulationPin = NoPin
     
     
 //                    Bed   E0    E1
 heat.tempSensePins = {0.24, 0.23, 0.25}; //Max of 3 entries
-heat.heatOnPins =    {2.5,  2.7,  1.23}; //Max of 3 entries
+
+//Heater pins are now assigned in config.g in RepRapFirmware v3
+//Bed: 2.5
+//E0:  2.7
+//E1:  1.23
+
 heat.spiTempSensorCSPins = { }
         
 // Fan PWM pins. If not assigned pin does not support HWPwm, or HWPWM not running at desired fan RPM, 
 // then also add to Timers array below
 // Current maximum of 2 fans supported
-fan.pins = {2.4, 2.6}; 
 
-// Pins used for Fan RPM measurement. Needs to be on Port 0 or Port 2.
-// Note: This pin must also appear in the externalInterruptPins below to enable the interrupt
-// Array of pins, currently limited to 1 pin on LPC
-fan.tachoPins = { NoPin };
+//Fan Pins and tacho are now assigned in config.g in RepRapFirmware v3
+//Fan0: 2.4
+//Fan1: 2.6
+ 
+
+// Tacho Fan RPM measurement. Needs to be on Port 0 or Port 2.
  
 atxPowerPin = NoPin;
         
@@ -73,16 +80,14 @@ lpc.slowPWM.frequencyHz = 10; //10Hz (for Bed PWM)
 lpc.fastPWM.pins = {2.7, 2.6}; 
 lpc.fastPWM.frequencyHz = 250; //250Hz (for Hotend/Fan PWM)
 
-// Note: Also add servo Pins to the SpecialPinMap Below so they get assigned a logical pin number
+//Pins which will need 50Hz PWM
 lpc.servoPins = { }; 
 
 
+//Enable pins for External Interrupts
 lpc.externalInterruptPins = {0.26}; //Max of 3 pins for Ext Interrupts. Must be on Port 0 or Port 2.
 
 
-//Pins in the specialPinMap will have "logical pin numbers" 60-69 in RRF (max 10 special pins)
-//Array of any Servo/Extra/spare pins that can be controlled by M42 and M280
-specialPinMap = {1.21};
 
 
 
@@ -110,10 +115,10 @@ lcd.panelButtonPin = 2.11; //Extra button on Viki and RRD Panels (reset/back etc
     
 
 
+
+lpc.uartPanelDueMode = false;
+
 //EXPERIMENTAL
 lpc.internalSDCard.spiFrequencyHz  = 10000000;
-
-
-
 
 

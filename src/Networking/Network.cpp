@@ -60,7 +60,11 @@ Network::Network(Platform& p) : platform(p), responders(nullptr), nextResponderT
 #elif defined(DUET_M)
 	interfaces[0] = new W5500Interface(p);
 #elif defined(__LPC17xx__)
-	interfaces[0] = new RTOSPlusTCPEthernetInterface(p);
+    #if HAS_WIFI_NETWORKING
+        interfaces[0] = new WiFiInterface(p);
+    #else
+        interfaces[0] = new RTOSPlusTCPEthernetInterface(p);
+    #endif
 #else
 # error Unknown board
 #endif
