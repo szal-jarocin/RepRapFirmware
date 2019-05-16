@@ -277,7 +277,7 @@ void Network::Activate()
 	}
 
 #ifdef RTOS
-	networkTask.Create(NetworkLoop, "NETWORK", nullptr, TaskBase::SpinPriority);
+	networkTask.Create(NetworkLoop, "NETWORK", nullptr, TaskPriority::SpinPriority);
 #endif
 
 }

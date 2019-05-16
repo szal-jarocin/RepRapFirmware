@@ -25,15 +25,12 @@ Licence: GPL
 #define PLATFORM_H
 
 #include "RepRapFirmware.h"
-#include "IoPorts.h"
-
-
+#include "Hardware/IoPorts.h"
 #ifdef __LPC17xx__
     #include "SoftwareResetData.h"
 #else
     #include "DueFlashStorage.h"
 #endif
-
 #include "Fans/Fan.h"
 #include "Heating/TemperatureError.h"
 #include "OutputMemory.h"
@@ -556,7 +553,6 @@ public:
 	void SetLaserPwmFrequency(PwmFrequency freq);
 
 	// Misc
-	void InitI2c();
 	GCodeResult ConfigurePort(GCodeBuffer& gb, const StringRef& reply);
 	const PwmPort& GetGpioPort(size_t gpioPortNumber) const pre(gpioPortNumber > MaxGpioPorts) { return gpioPorts[gpioPortNumber]; }
 
@@ -885,7 +881,6 @@ private:
 
 	// Misc
 	bool deliberateError;								// true if we deliberately caused an exception for testing purposes
-	bool i2cInitialised;								// true if the I2C subsystem has been initialised
 };
 
 // Where the htm etc files are

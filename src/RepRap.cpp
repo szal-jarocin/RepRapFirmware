@@ -45,7 +45,7 @@ static_assert(CONF_HSMCI_XDMAC_CHANNEL == DmacChanHsmci, "mismatched DMA channel
 #endif
 
 # if SAME70
-#  include "DmacManager.h"
+#  include "Hardware/DmacManager.h"
 # endif
 
 // We call vTaskNotifyGiveFromISR from various interrupts, so the following must be true
@@ -409,12 +409,6 @@ void RepRap::Spin()
 	ticksInSpinState = 0;
 	spinningModule = modulePrintMonitor;
 	printMonitor->Spin();
-
-#ifdef DUET_NG
-	ticksInSpinState = 0;
-	spinningModule = moduleDuetExpansion;
-	DuetExpansion::Spin();
-#endif
 
 	ticksInSpinState = 0;
 	spinningModule = moduleFilamentSensors;
@@ -867,7 +861,11 @@ OutputBuffer *RepRap::GetStatusResponse(uint8_t type, ResponseSource source)
 	// So we report 9999.9 instead.
 
 	// First the user coordinates
-	response->catf("],\"system\":%u,\"xyz\":", gCodes->GetWorkplaceCoordinateSystemNumber());
+#if SUPPORT_WORKPLACE_COORDINATES
+	response->catf("],\"wpl\":%u,\"xyz\":", gCodes->GetWorkplaceCoordinateSystemNumber());
+#else
+	response->cat("],\"xyz\":");
+#endif
 	const float * const userPos = gCodes->GetUserPosition();
 	ch = '[';
 	for (size_t axis = 0; axis < numVisibleAxes; axis++)
