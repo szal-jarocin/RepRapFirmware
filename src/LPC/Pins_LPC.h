@@ -143,7 +143,6 @@ extern Pin ATX_POWER_PIN;// Digital pin number that controls the ATX power on/of
 
 
 constexpr size_t MaxZProbes = 1;
-
 constexpr size_t NumTotalFans = 3;
 
 //SD: Internal SDCard is on SSP1
@@ -175,13 +174,8 @@ extern Pin EncoderPinSw;
 extern Pin PanelButtonPin;
 
 
-
 extern Pin DiagPin;
-
 constexpr size_t NUM_SERIAL_CHANNELS = 2;
-
-
-
 extern bool UARTPanelDueMode;
 
 
@@ -273,8 +267,8 @@ struct BoardDefaults
     const Pin slowPwmPins[MaxTimerEntries];
     const Pin fastPwmPins[MaxTimerEntries];
     const Pin servoPwmPins[MaxTimerEntries];
-    
 };
+
 struct BoardEntry
 {
     const char *boardName;
@@ -301,13 +295,8 @@ constexpr BoardEntry LPC_Boards[] =
 };
 
 
-//NumNamedPins will vary based on the Board - Ideally this should be set to the Largest Array We Use
 //This needs to be const as its used in other places to create arrays
-//constexpr unsigned int NumNamedPins = MaxPinNumber;
-
-//ReArm currently has most pins available,
-constexpr size_t NumNamedPins = 45; // Max number of named pins we will support.
-
-
+//Use the largest size for the "generic" table
+constexpr unsigned int NumNamedPins = MaxPinNumber;
 
 #endif

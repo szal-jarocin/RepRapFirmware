@@ -160,14 +160,6 @@ extern "C" void MainTask(void *pvParameters)
 extern "C" uint32_t _estack;		// this is defined in the linker script
 
 #if __LPC17xx__
-	// These are defined in Linker Scripts for LPC
-	extern "C" unsigned int __AHB0_block_start;
-	extern "C" unsigned int __AHB0_dyn_start;
-	extern "C" unsigned int __AHB0_end;
-
-	extern "C" unsigned long __StackLimit;
-	extern "C" unsigned long __StackTop;
-
 	extern "C" size_t xPortGetTotalHeapSize( void );
 #endif
 
@@ -258,18 +250,12 @@ namespace Tasks
 			p.MessageF(mtype, "Never used ram: %" PRIu32 "\n", neverUsed);
 
 #ifdef __LPC17xx__
-			//const uint32_t ahbStaticUsed = (uint32_t)&__AHB0_dyn_start -(uint32_t)&__AHB0_block_start;
-			const uint32_t totalMainUsage = (uint32_t)((&_end - ramstart) + mi.uordblks + maxStack);
-
-			//p.MessageF(mtype, "AHB_RAM Static ram used : %" PRIu32 "\n", ahbStaticUsed);
-			//p.Message(mtype, "=== Ram Totals ===\n");
-			//p.MessageF(mtype, "Main SRAM         : %" PRIu32 "/%" PRIu32 " (%" PRIu32 " free, %" PRIu32 " never used)\n", totalMainUsage, (uint32_t)32*1024, 32*1024-totalMainUsage, neverUsed );
 			p.MessageF(mtype, "RTOS Dynamic Heap : %" PRIi32 "/%" PRIu32 " (%d free, %d never used)\n", (uint32_t)(xPortGetTotalHeapSize()-xPortGetFreeHeapSize()),(uint32_t)xPortGetTotalHeapSize(), xPortGetFreeHeapSize(),xPortGetMinimumEverFreeHeapSize() );
 
 			//Print out the PWM and timers freq
-			uint16_t freqs[4];
-			GetTimerInfo(freqs);
-            p.MessageF(mtype, "LPC PWM: HWPWM=%dHz T1=%dHz T2=%dHz T3=%dHz\n", freqs[0], freqs[1], freqs[2], freqs[3]);
+            LPCPWMInfo freqs = {};
+            GetTimerInfo(&freqs);
+            p.MessageF(mtype, "LPC PWM: HWPWM=%dHz T1=%dHz T2=%dHz T3=%dHz\n", freqs.hwPWMFreq, freqs.tim1Freq, freqs.tim2Freq, freqs.tim3Freq);
 
 #endif //end __LPC17xx__
 
@@ -469,9 +455,6 @@ void PendSV_Handler		( void ) __attribute__ ((noreturn, alias("OtherFault_Handle
 	void vAssertCalled(uint32_t line, const char *file) __attribute((naked, noreturn));
 	void vAssertCalled(uint32_t line, const char *file)
 	{
-        
-        //debugPrintf("vAssertCalled() - Line: %lu, File: %s", line, file );
-        
 	    __asm volatile
 	    (
 	    	" push {r0, r1, lr}											\n"		/* save parameters and call address */

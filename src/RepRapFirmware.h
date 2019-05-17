@@ -369,7 +369,19 @@ const FilePosition noFilePosition = 0xFFFFFFFF;
 namespace TaskPriority
 {
 	static constexpr int SpinPriority = 1;							// priority for tasks that rarely block
-	static constexpr int HeatPriority = 2;
+#ifdef LPC_NETWORKING
+    static constexpr int TcpPriority  = 2;
+    static constexpr int HeatPriority = 3;
+    static constexpr int DhtPriority = 3;
+    static constexpr int TmcPriority = 3;
+    static constexpr int AinPriority = 3;
+    static constexpr int HeightFollowingPriority = 3;
+    static constexpr int DueXPriority = 4;
+    static constexpr int LaserPriority = 4;
+    static constexpr int CanSenderPriority = 4;
+    static constexpr int CanReceiverPriority = 4;
+#else
+    static constexpr int HeatPriority = 2;
 	static constexpr int DhtPriority = 2;
 	static constexpr int TmcPriority = 2;
 	static constexpr int AinPriority = 2;
@@ -378,6 +390,7 @@ namespace TaskPriority
 	static constexpr int LaserPriority = 3;
 	static constexpr int CanSenderPriority = 3;
 	static constexpr int CanReceiverPriority = 3;
+#endif
 }
 
 #endif

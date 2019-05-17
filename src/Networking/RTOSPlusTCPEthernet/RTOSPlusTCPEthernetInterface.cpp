@@ -41,13 +41,13 @@ extern "C"
     //SD:: use the RFF tasks management to create tasks needed for +tcp
     TaskHandle_t RRfInitialiseIPTask(TaskFunction_t pxTaskCode)
     {
-        tcpPlusTask.Create(pxTaskCode, "IP-task", nullptr, ( UBaseType_t ) TaskBase::TcpPriority);
+        tcpPlusTask.Create(pxTaskCode, "IP-task", nullptr, ( UBaseType_t ) TaskPriority::TcpPriority);
         return tcpPlusTask.GetHandle();
     }
     
     TaskHandle_t RRfInitialiseEMACTask(TaskFunction_t pxTaskCode)
     {
-        emacTask.Create(pxTaskCode, "EMAC", nullptr, TaskBase::TcpPriority);
+        emacTask.Create(pxTaskCode, "EMAC", nullptr, TaskPriority::TcpPriority);
         return emacTask.GetHandle();
     }
     
