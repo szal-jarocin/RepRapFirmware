@@ -37,14 +37,6 @@ Licence: GPL
 const char feedrateLetter = 'F';						// GCode feedrate
 const char extrudeLetter = 'E'; 						// GCode extrude
 
-// Type for specifying which endstops we want to check
-typedef AxesBitmap EndstopChecks;						// must be large enough to hold a bitmap of drive numbers or ZProbeActive
-const EndstopChecks ZProbeActive = 1 << 31;				// must be distinct from 1 << (any drive number)
-const EndstopChecks HomeAxes = 1 << 30;					// must be distinct from 1 << (any drive number)
-const EndstopChecks LogProbeChanges = 1 << 29;			// must be distinct from 1 << (any drive number)
-const EndstopChecks UseSpecialEndstop = 1 << 28;		// must be distinct from 1 << (any drive number)
-const EndstopChecks ActiveLowEndstop = 1 << 27;			// must be distinct from 1 << (any drive number)
-
 typedef uint32_t TriggerInputsBitmap;					// Bitmap of input pins that a single trigger number responds to
 typedef uint32_t TriggerNumbersBitmap;					// Bitmap of trigger numbers
 static_assert(MaxTriggers <= sizeof(TriggerNumbersBitmap) * CHAR_BIT, "need larger TriggerNumbersBitmap type");
@@ -129,13 +121,11 @@ public:
 	bool RunConfigFile(const char* fileName);							// Start running the config file
 	bool IsDaemonBusy() const;											// Return true if the daemon is busy running config.g or a trigger file
 
-	bool GetAxisIsHomed(unsigned int axis) const						// Has the axis been homed?
+	bool IsAxisHomed(unsigned int axis) const							// Has the axis been homed?
 		{ return IsBitSet(axesHomed, axis); }
 	void SetAxisIsHomed(unsigned int axis);								// Tell us that the axis is now homed
-	void SetAxisNotHomed(unsigned int axis)								// Tell us that the axis is not homed
-		{ ClearBit(axesHomed, axis); }
-	void SetAllAxesNotHomed()											// Flag all axes as not homed
-		{ axesHomed = 0; }
+	void SetAxisNotHomed(unsigned int axis);							// Tell us that the axis is not homed
+	void SetAllAxesNotHomed();											// Flag all axes as not homed
 
 	float GetSpeedFactor() const;										// Return the current speed factor
 #if SUPPORT_12864_LCD
@@ -148,7 +138,7 @@ public:
 	float GetTotalRawExtrusion() const { return rawExtruderTotal; }		// Get the total extrusion since start of print, all drives
 	float GetTotalBabyStepOffset(size_t axis) const
 		pre(axis < maxAxes);
-	const float *GetUserPosition() const { return currentUserPosition; } // Return the current user position
+	float GetUserCoordinate(size_t axis) const;							// Get the current user coordinate in the current workspace coordinate system
 
 #if HAS_NETWORKING
 	NetworkGCodeInput *GetHTTPInput() const { return httpInput; }
@@ -276,11 +266,12 @@ private:
 	GCodeResult SetPositions(GCodeBuffer& gb);									// Deal with a G92
 	GCodeResult DoDriveMapping(GCodeBuffer& gb, const StringRef& reply);		// Deal with a M584
 	GCodeResult ProbeTool(GCodeBuffer& gb, const StringRef& reply);				// Deal with a M585
+	GCodeResult FindCenterOfCavity(GCodeBuffer& gb, const StringRef& reply, const bool towardsMin = true);	// Deal with a M675
 	GCodeResult SetDateTime(GCodeBuffer& gb,const  StringRef& reply);			// Deal with a M905
 	GCodeResult SavePosition(GCodeBuffer& gb,const  StringRef& reply);			// Deal with G60
 	GCodeResult ConfigureDriver(GCodeBuffer& gb,const  StringRef& reply);		// Deal with M569
 
-	bool LoadExtrusionAndFeedrateFromGCode(GCodeBuffer& gb);					// Set up the extrusion of a move
+	bool LoadExtrusionAndFeedrateFromGCode(GCodeBuffer& gb, bool isPrintingMove);	// Set up the extrusion of a move
 
 	bool Push(GCodeBuffer& gb);													// Push feedrate etc on the stack
 	void Pop(GCodeBuffer& gb);													// Pop feedrate etc
@@ -313,9 +304,11 @@ private:
 
 	void SetMachinePosition(const float positionNow[MaxTotalDrivers], bool doBedCompensation = true); // Set the current position to be this
 	void UpdateCurrentUserPosition();											// Get the current position from the Move class
-	void ToolOffsetTransform(const float coordsIn[MaxAxes], float coordsOut[MaxAxes], AxesBitmap explicitAxes = 0, bool applyWorkplaceOffsets = true);
+	void ToolOffsetTransform(const float coordsIn[MaxAxes], float coordsOut[MaxAxes], AxesBitmap explicitAxes = 0) const;
 																				// Convert user coordinates to head reference point coordinates
-	void ToolOffsetInverseTransform(const float coordsIn[MaxAxes], float coordsOut[MaxAxes]);	// Convert head reference point coordinates to user coordinates
+	void ToolOffsetInverseTransform(const float coordsIn[MaxAxes], float coordsOut[MaxAxes]) const;	// Convert head reference point coordinates to user coordinates
+	float GetCurrentToolOffset(size_t axis) const;								// Get an axis offset of the current tool
+
 	GCodeResult RetractFilament(GCodeBuffer& gb, bool retract);					// Retract or un-retract filaments
 	GCodeResult LoadFilament(GCodeBuffer& gb, const StringRef& reply);			// Load the specified filament into a tool
 	GCodeResult UnloadFilament(GCodeBuffer& gb, const StringRef& reply);		// Unload the current filament from a tool
@@ -376,6 +369,7 @@ private:
 #endif
 	Pwm_t ConvertLaserPwm(float reqVal) const;
 
+	// This function is called by other functions to account correctly for workplace coordinates, depending on whether the build configuration supports them.
 	inline float GetWorkplaceOffset(size_t axis) const
 	{
 #if SUPPORT_WORKPLACE_COORDINATES
@@ -432,7 +426,10 @@ private:
 	char *powerFailScript;						// the commands run when there is a power failure
 #endif
 
-	float currentUserPosition[MaxAxes];			// The current position of the axes as commanded by the input gcode, before accounting for tool offset and Z hop
+	// The current user position now holds the requested user position after applying workplace coordinate offsets.
+	// So we must subtract the workplace coordinate offsets when we want to display them.
+	// We have chosen this approach because it allows us to switch workplace coordinates systems or turn off applying workplace offsets without having to update currentUserPosition.
+	float currentUserPosition[MaxAxes];			// The current position of the axes as commanded by the input gcode, after accounting for workplace offset, before accounting for tool offset and Z hop
 	float currentZHop;							// The amount of Z hop that is currently applied
 	float lastPrintingMoveHeight;				// the Z coordinate in the last printing move, or a negative value if we don't know it
 
@@ -467,6 +464,7 @@ private:
 	RestorePoint numberedRestorePoints[NumRestorePoints];				// Restore points accessible using the R parameter in the G0/G1 command
 	RestorePoint& pauseRestorePoint = numberedRestorePoints[1];			// The position and feed rate when we paused the print
 	RestorePoint& toolChangeRestorePoint = numberedRestorePoints[2];	// The position and feed rate when we freed a tool
+	RestorePoint& findCenterOfCavityRestorePoint = numberedRestorePoints[3];	// The position and feed rate when we found the lower boundary of cavity
 
 	size_t numTotalAxes;						// How many axes we have
 	size_t numVisibleAxes;						// How many axes are visible
@@ -518,6 +516,7 @@ private:
 	bool doingManualBedProbe;					// true if we are waiting for the user to jog the nozzle until it touches the bed
 	bool probeIsDeployed;						// true if M401 has been used to deploy the probe and M402 has not yet been used t0 retract it
 	bool hadProbingError;						// true if there was an error probing the last point
+	bool zDatumSetByProbing;					// true if the Z position was last set by probing, not by an endstop switch or by G92
 	uint8_t tapsDone;							// how many times we tapped the current point
 
 	float simulationTime;						// Accumulated simulation time
