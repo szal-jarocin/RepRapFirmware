@@ -19,48 +19,49 @@ constexpr PinEntry PinTable_Mbed[] =
     {P0_23, PinCapability::ainrw, "t1"},
     {P0_24, PinCapability::ainrw, "t2"},
     {P0_25, PinCapability::ainrw, "t3"},
-    {P0_26, PinCapability::ainrw, "t4"},
+    //{P0_26, PinCapability::ainrw, "t4"},
 
     //Endstops
-    {P1_24, PinCapability::read, "xmin"},
-    {P1_25, PinCapability::read, "xmax"},
-    {P1_26, PinCapability::read, "ymin"},
-    {P1_27, PinCapability::read, "ymax"},
-    {P1_28, PinCapability::read, "zmin"},
-    {P1_29, PinCapability::read, "zmax"},
+    {P1_24, PinCapability::rw, "xmin"},
+    {P1_25, PinCapability::rw, "xmax"},
+    {P1_26, PinCapability::rw, "ymin"},
+    {P1_27, PinCapability::rw, "ymax"},
+    {P1_28, PinCapability::rw, "zmin"},
+    {P1_29, PinCapability::rw, "zmax"},
 
     //Heaters and Fans (Big and Small Mosfets}
-    {P1_23, PinCapability::wpwm, "q5"  }, //(Big Mosfet)
-    {P2_5,  PinCapability::wpwm, "q6" },  //(Big Mosfet)
-    {P2_7,  PinCapability::wpwm, "q7" },  //(Big Mosfet)
-    {P1_22, PinCapability::wpwm, "q4" },  //(Small Mosfet)
-    {P2_4,  PinCapability::wpwm, "q8" },  //(Small Mosfet)
-    {P2_6,  PinCapability::wpwm, "q9" },  //(Small Mosfet)
+    {P1_23, PinCapability::rwpwm, "q5"  }, //(Big Mosfet)
+    {P2_5,  PinCapability::rwpwm, "q6" },  //(Big Mosfet)
+    {P2_7,  PinCapability::rwpwm, "q7" },  //(Big Mosfet)
+    {P1_22, PinCapability::rwpwm, "q4" },  //(Small Mosfet)
+    {P2_4,  PinCapability::rwpwm, "q8" },  //(Small Mosfet)
+    {P2_6,  PinCapability::rwpwm, "q9" },  //(Small Mosfet)
 
     //Spare pins (also as LEDs)
     {P1_18, PinCapability::rw, "led1"},
     {P1_20, PinCapability::rw, "led2"},
     {P1_21, PinCapability::rw, "led3"},
-    {P1_23, PinCapability::rw, "led4"}, // mbed led4 also (heater q5) on Smoothie config
+    {P1_23, PinCapability::rwpwm, "led4"}, // mbed led4 also (heater q5) on Smoothie config
     
 
     //Spare pins (or used for LCD)
-    {P1_22, PinCapability::rw, "p1.22"},
-    {P1_23, PinCapability::rw, "p1.23"},
-    {P1_31, PinCapability::rw, "p1.31"},
-    {P1_30, PinCapability::rw, "p1.30"},
-    {P3_25, PinCapability::rw, "p3.25"},
-    {P3_26, PinCapability::rw, "p3.26"},
-    {P2_11, PinCapability::rw, "p2.11"},
+    {P0_4, PinCapability::rw, "p0.4"},
+    {P0_5, PinCapability::rw, "p0.5"},
+    {P0_10, PinCapability::rw, "p0.10"},
+    {P2_0, PinCapability::rw, "p2.0"},
+    {P2_1, PinCapability::rw, "p2.1"},
 
+    {P0_26, PinCapability::rw, "p0.26"},
+    {P1_30, PinCapability::rw, "p1.30"},
+    {P1_31, PinCapability::rw, "p1.31"},
 };
 
 
 constexpr BoardDefaults mbedDefaults =
 {
-    {P0_4,  P0_10, P0_19, P0_21,  P4_29},   //enablePins
-    {P2_0,  P2_1,  P2_2,  P2_3,   P2_8},    //stepPins
-    {P0_5,  P0_11, P0_20, P0_22,  P2_13},   //dirPins
+    {P3_25,  P0_10, P0_19, P0_21,  P4_29},   //enablePins
+    {P2_11,  P2_12, P2_10, P2_3,   P2_8},    //stepPins
+    {P3_26,  P4_28, P0_20, P0_22,  P2_13},   //dirPins
     true,                                   //currentControl
     113.33,                                 //digiPot Factor
     {P2_5, NoPin, NoPin},                   //slowPWM
@@ -70,3 +71,7 @@ constexpr BoardDefaults mbedDefaults =
 };
 
 #endif
+
+
+
+

@@ -5,28 +5,32 @@
 
 //Default values for configurable variables.
 
+
+//LPC Pins output High by default. Heater Pins are Active High.
 //The Smoothie Bootloader turns off Pins 2.4, 2.5, 2.6 and 2.7 which are used as Heater pins
 //Therefore, heaters do not need to be turned off immediately and can wait until they are locaed in config file to initialise.
 
-//Pin END_STOP_PINS[NumEndstops] = {NoPin, NoPin, NoPin, NoPin, NoPin, NoPin};
+//Except Mosfets on Smoothieboard Q5 and Q4
+
+
 
 Pin Z_PROBE_PIN = NoPin;
-Pin Z_PROBE_MOD_PIN =   NoPin;
+Pin Z_PROBE_MOD_PIN = NoPin;
 
-
-Pin TEMP_SENSE_PINS[NumThermistorInputs] = {NoPin, NoPin, NoPin};
+Pin TEMP_SENSE_PINS[NumThermistorInputs] =   {NoPin, NoPin, NoPin};
 Pin SpiTempSensorCsPins[MaxSpiTempSensors] = { NoPin, NoPin };
 
-
 Pin ATX_POWER_PIN = NoPin;
+bool ATX_POWER_INVERTED = false;
 
-uint16_t Timer1Frequency = 10; //default for Timer1 (slowPWM) for HeatBeds
+
+uint16_t Timer1Frequency = 10;  // default for Timer1 (slowPWM) for HeatBeds
 uint16_t Timer3Frequency = 120; // default for Timer2 (fastPWM) for Hotends/fans etc
 
-Pin SdCardDetectPins[NumSdCards] = { NoPin, NoPin };
-Pin SdSpiCSPins[NumSdCards] = { P0_6, NoPin };// Internal, external. Note:: ("slot" 0 in CORE is configured to be LCP SSP1 to match default RRF behaviour)
-uint32_t ExternalSDCardFrequency = 2000000; //default to 2MHz
-uint32_t InternalSDCardFrequency = 10000000; //default to 10MHz
+Pin SdCardDetectPins[NumSdCards] =  { NoPin, NoPin };
+Pin SdSpiCSPins[NumSdCards] =       { P0_6, NoPin };    // Internal, external. Note:: ("slot" 0 in CORE is configured to be LCP SSP1 to match default RRF behaviour)
+uint32_t ExternalSDCardFrequency =  4000000;            //default to 4MHz
+uint32_t InternalSDCardFrequency =  25000000;           //default to 25MHz
 
 
 Pin LcdCSPin =       NoPin; //LCD Chip Select
@@ -39,30 +43,21 @@ Pin PanelButtonPin = NoPin; //Extra button on Viki and RRD Panels (reset/back et
 
 Pin DiagPin = NoPin;
 
-Pin ENABLE_PINS[NumDirectDrivers] = {NoPin, NoPin, NoPin, NoPin, NoPin};
-Pin STEP_PINS[NumDirectDrivers]  = {NoPin, NoPin, NoPin, NoPin, NoPin};
-Pin DIRECTION_PINS[NumDirectDrivers]  = {NoPin, NoPin, NoPin, NoPin, NoPin};
+Pin ENABLE_PINS[NumDirectDrivers] =     {NoPin, NoPin, NoPin, NoPin, NoPin};
+Pin STEP_PINS[NumDirectDrivers] =       {NoPin, NoPin, NoPin, NoPin, NoPin};
+Pin DIRECTION_PINS[NumDirectDrivers] =  {NoPin, NoPin, NoPin, NoPin, NoPin};
 uint32_t STEP_DRIVER_MASK = 0; //SD: mask of the step pins on Port 2 used for writing to step pins in parallel
 
-bool hasStepPinsOnDifferentPorts = false; //for boards that don't have all step pins on port2
-
+bool hasStepPinsOnDifferentPorts = false;   //for boards that don't have all step pins on port2
 bool hasDriverCurrentControl = false;
-float digipotFactor = 113.33; //defualt factor for converting current to digipot value
-
-bool UARTPanelDueMode = false; //disable PanelDue support by default
-
+float digipotFactor = 113.33;               //defualt factor for converting current to digipot value
+bool UARTPanelDueMode = false;              //disable PanelDue support by default
 
 
-#ifdef __MBED__
-    PinEntry *PinTable = (PinEntry *) PinTable_Mbed;
-    size_t NumNamedLPCPins = ARRAY_SIZE(PinTable_Mbed);
-#else
-
-#error TODO:: Need a default PinTable and NumNamedPins.....
-
-#endif
-
-char lpcBoardName[MaxBoardNameLength] = "";
+//Default to the Generic PinTable
+PinEntry *PinTable = (PinEntry *) PinTable_Generic;
+size_t NumNamedLPCPins = ARRAY_SIZE(PinTable_Generic);
+char lpcBoardName[MaxBoardNameLength] = "generic";
 
 bool IsEmptyPinArray(Pin *arr, size_t len)
 {
@@ -78,7 +73,6 @@ void SetDefaultPinArray(const Pin *src, Pin *dst, size_t len)
 {
     if(IsEmptyPinArray(dst, len))
     {
-        
         //array is empty from board.txt config, set to defaults
         for(size_t i=0; i<len; i++)
         {
@@ -87,9 +81,10 @@ void SetDefaultPinArray(const Pin *src, Pin *dst, size_t len)
     }
 }
 
+
+//Find Board settings from string
 bool SetBoard(const char* bn)
 {
-    
     const size_t numBoards = ARRAY_SIZE(LPC_Boards);
 
     for(size_t i=0; i<numBoards; i++)
@@ -114,7 +109,6 @@ bool SetBoard(const char* bn)
             return true;
         }
     }
-    
     return false;
 }
 
@@ -167,6 +161,21 @@ bool LookupPinName(const char*pn, LogicalPin& lpin, bool& hardwareInverted)
             }
         }
     }
+    
+    //pn did not match a label in the lookup table, so now
+    //look up by classic port.pin
+    //Note: only allocated pins already in the lookup table are suported.
+    const Pin lpcPin = BoardConfig::StringToPin(pn);
+    if(lpcPin != NoPin){
+        //find pin in lookup table
+        for (size_t lp = 0; lp < NumNamedLPCPins; ++lp){
+            if(lpcPin == PinTable[lp].pin){
+                lpin = (LogicalPin)lp;
+                hardwareInverted = false;
+                return true;
+            }
+        }
+    }
     return false;
 }
 
@@ -193,6 +202,8 @@ bool PinEntry::CanDo(PinAccess access) const
             
         case PinAccess::pwm:
             //return ((uint8_t)cap & (uint8_t)PinCapability::pwm) != 0;
+            //any GPIO pin can be a PWM by using TimerPWM (assuming there is a free Slot)
+            //TODO:: we also need the Frequency here so we can check availability
             return IsPwmCapable(pin);
             
         case PinAccess::servo:

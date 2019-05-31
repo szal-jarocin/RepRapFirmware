@@ -19,7 +19,7 @@ const size_t FileWriteBufLen = 8192;					// Size of each write buffer
         const size_t FileWriteBufLen = 2048;
     #else
         const size_t NumFileWriteBuffers = 1;
-        const size_t FileWriteBufLen = 2*256; //4096; save some memory on LPC for networking
+        const size_t FileWriteBufLen = 512;             //save some memory on LPC for networking
     #endif
 #else
 const size_t NumFileWriteBuffers = 1;

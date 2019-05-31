@@ -10,6 +10,9 @@
 // If a pin name is prefixed by ! then this means the pin is hardware inverted. The same pin may have names for both the inverted and non-inverted cases,
 // for example the inverted heater pins on the expansion connector are available as non-inverted servo pins on a DFueX.
 
+
+
+//https://raw.githubusercontent.com/Bouni/smoothieboard-graphics/master/smoothieboard-wiring.png
 constexpr PinEntry PinTable_Smoothieboard[] =
 {
 
@@ -20,20 +23,20 @@ constexpr PinEntry PinTable_Smoothieboard[] =
     {P0_26, PinCapability::ainrw, "t4"},
 
     //Endstops
-    {P1_24, PinCapability::read, "xmin"},
-    {P1_25, PinCapability::read, "xmax"},
-    {P1_26, PinCapability::read, "ymin"},
-    {P1_27, PinCapability::read, "ymax"},
-    {P1_28, PinCapability::read, "zmin"},
-    {P1_29, PinCapability::read, "zmax"},
+    {P1_24, PinCapability::rw, "xmin"},
+    {P1_25, PinCapability::rw, "xmax"},
+    {P1_26, PinCapability::rw, "ymin"},
+    {P1_27, PinCapability::rw, "ymax"},
+    {P1_28, PinCapability::rw, "zmin"},
+    {P1_29, PinCapability::rw, "zmax"},
 
     //Heaters and Fans (Big and Small Mosfets}
-    {P1_23, PinCapability::wpwm, "q5"  }, //(Big Mosfet)
-    {P2_5,  PinCapability::wpwm, "q6" },  //(Big Mosfet)
-    {P2_7,  PinCapability::wpwm, "q7" },  //(Big Mosfet)
-    {P1_22, PinCapability::wpwm, "q4" },  //(Small Mosfet)
-    {P2_4,  PinCapability::wpwm, "q8" },  //(Small Mosfet)
-    {P2_6,  PinCapability::wpwm, "q9" },  //(Small Mosfet)
+    {P1_23, PinCapability::rwpwm, "q5"  }, //(Big Mosfet)
+    {P2_5,  PinCapability::rwpwm, "q6" },  //(Big Mosfet)
+    {P2_7,  PinCapability::rwpwm, "q7" },  //(Big Mosfet)
+    {P1_22, PinCapability::rwpwm, "q4" },  //(Small Mosfet)
+    {P2_4,  PinCapability::rwpwm, "q8" },  //(Small Mosfet)
+    {P2_6,  PinCapability::rwpwm, "q9" },  //(Small Mosfet)
 
     //Spare pins (also as LEDs)
     {P1_21, PinCapability::rw, "led1"},

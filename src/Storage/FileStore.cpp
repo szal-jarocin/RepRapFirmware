@@ -120,6 +120,8 @@ bool FileStore::Open(const char* filePath, OpenMode mode, uint32_t preAllocSize)
 	crc.Reset();
 	usageMode = (writing) ? FileUseMode::readWrite : FileUseMode::readOnly;
 	openCount = 1;
+    
+#ifndef __LPC17xx__
 	if (mode == OpenMode::write && preAllocSize != 0)
 	{
 		const FRESULT expandReturn = f_expand(&file, preAllocSize, 1);		// try to pre-allocate contiguous space - it doesn't matter if it fails
@@ -128,6 +130,8 @@ bool FileStore::Open(const char* filePath, OpenMode mode, uint32_t preAllocSize)
 			debugPrintf("Preallocating %" PRIu32 " bytes returned %d\n", preAllocSize, (int)expandReturn);
 		}
 	}
+#endif
+    
 	return true;
 }
 

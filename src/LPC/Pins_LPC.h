@@ -45,7 +45,7 @@ const size_t NumFirmwareUpdateModules = 1;
 #define SUPPORT_FTP                      0
 
 
-#define ALLOCATE_DEFAULT_PORTS           0
+#define ALLOCATE_DEFAULT_PORTS           1
 
 #if defined(LPC_NETWORKING)
     //LPC Ethernet
@@ -140,7 +140,7 @@ extern uint16_t Timer3Frequency;
 
 
 extern Pin ATX_POWER_PIN;// Digital pin number that controls the ATX power on/off
-
+extern bool ATX_POWER_INVERTED;
 
 constexpr size_t MaxZProbes = 1;
 constexpr size_t NumTotalFans = 3;
@@ -283,7 +283,10 @@ struct BoardEntry
 #include "Boards/Mbed.h"
 #include "Boards/Smoothieboard.h"
 #include "Boards/MKSSBase.h"
+#include "Boards/AzsmzMini.h"
 //#include "Boards/BIQU_SKR.h"
+#include "Boards/Generic.h"
+
 
 
 constexpr BoardEntry LPC_Boards[] =
@@ -292,6 +295,9 @@ constexpr BoardEntry LPC_Boards[] =
     {"smoothieboard", PinTable_Smoothieboard, ARRAY_SIZE(PinTable_Smoothieboard), smoothieBoardDefaults},
     {"rearm", PinTable_Rearm, ARRAY_SIZE(PinTable_Rearm), rearmDefaults},
     {"mkssbase", PinTable_MKSSbase, ARRAY_SIZE(PinTable_MKSSbase), mkssbaseDefaults},
+    {"azsmzmini", PinTable_AZSMZ, ARRAY_SIZE(PinTable_AZSMZ), mkssbaseDefaults},
+    
+    {"generic", PinTable_Generic, ARRAY_SIZE(PinTable_Generic), genericDefaults},
 };
 
 

@@ -19,22 +19,22 @@ constexpr PinEntry PinTable_Rearm[] =
     {P0_25, PinCapability::ainrw, "t2,a15"},        //Ext1 Therm
     
     //Endstops
-    {P1_24, PinCapability::read, "xmin,d3,x"},//X-. X as the - gets stripped in RRF3
-    {P1_25, PinCapability::read, "xmax,d2,x+"},
-    {P1_26, PinCapability::read, "ymin,d14,y"},
-    {P1_27, PinCapability::read, "ymax,d15,y+"},
-    {P1_29, PinCapability::read, "zmin,d18,z"},
-    {P1_28, PinCapability::read, "zmax,d19,z+"},
+    {P1_24, PinCapability::rw, "xmin,d3,x"},//X-. X as the - gets stripped in RRF3
+    {P1_25, PinCapability::rw, "xmax,d2,x+"},
+    {P1_26, PinCapability::rw, "ymin,d14,y"},
+    {P1_27, PinCapability::rw, "ymax,d15,y+"},
+    {P1_29, PinCapability::rw, "zmin,d18,z"},
+    {P1_28, PinCapability::rw, "zmax,d19,z+"},
 
     //Heaters and Fans (Mosfets)
-    {P2_7, PinCapability::wpwm, "d8"  },            //HB Mosfet
-    {P2_4, PinCapability::wpwm, "d9" },             //HE2 Mosfet
-    {P2_5, PinCapability::wpwm, "d10" },            //HE1 Mosfet
+    {P2_7, PinCapability::rwpwm, "d8"  },            //HB Mosfet
+    {P2_4, PinCapability::rwpwm, "d9" },             //HE2 Mosfet
+    {P2_5, PinCapability::rwpwm, "d10" },            //HE1 Mosfet
 
     //Servos (only 1st 3 servos supported as a servo)
-    {P1_20, PinCapability::wpwm, "servo0,d11"},     //PWM1[2]
-    {P1_21, PinCapability::wpwm, "servo1,d6"},      //PWM1[3]
-    {P1_19, PinCapability::wpwm, "servo2,d5"},
+    {P1_20, PinCapability::rwpwm, "servo0,d11"},     //PWM1[2]
+    {P1_21, PinCapability::rwpwm, "servo1,d6"},      //PWM1[3]
+    {P1_19, PinCapability::rwpwm, "servo2,d5"},
     {P1_18, PinCapability::rw, "d4"},               //PWM1[1]
     
     //Ramps  AUX1 Pins
@@ -101,6 +101,11 @@ constexpr PinEntry PinTable_Rearm[] =
     {P1_30, PinCapability::rw,"d37"},
     //P1_21, d6     PWM1[3] //overlaps with Servos
     //P0_26, a9/d63 //Overlaps Aux2
+    
+
+    //Misc
+    {P2_12, PinCapability::rw,"pson"}, //PS-ON
+    {P4_28, PinCapability::rw,"play"}, //Play LED
 
 };
 

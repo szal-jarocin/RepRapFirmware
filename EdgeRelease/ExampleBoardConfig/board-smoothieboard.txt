@@ -6,96 +6,29 @@
 //    : Comments can be defined with // or # (comments are not supported inside arrays)
 //    : Each config entry must be all on a single line.
 
-// Smoothie Leds:
-//Led1 - 1.18;
-//Led2 - 1.19;
-//Led3 - 1.20;
-//Led4 - 1.21;
+
+lpc.board = smoothieboard
+
 
 
 //LED blinks to indicate Platform is spinning or other diagnostic 
 //Comment out or set to NoPin if not wanted.
 leds.diagnostic = 1.18; //RRF Diagnostics Pin (LED1 on Smoothie)
 
-	
-//                      Drive       0     1     2     3      4 
-//                    Typically     X     Y     Z     E0     E1
-stepper.enablePins =             { 0.4,  0.10, 0.19, 0.21,  4.29};
-stepper.stepPins =               { 2.0,  2.1,  2.2,  2.3,   2.8}; 
-stepper.directionPins =          { 0.5,  0.11, 0.20, 0.22,  2.13};
-stepper.hasDriverCurrentControl = true;
-stepper.digipotFactor = 113.33; //factor for converting current to digipot value
-	
 
-//Endstop pins are now assigned in config.g in RepRapFirmware v3
-//Xmin: 1.24
-//Xmax: 1.25
-//Ymin: 1.26
-//Ymax: 1.27
-//Zmin: 1.28
-//Zmax: 1.29
-
-
-// Z Probe pin
-//
-zProbe.pin = NoPin;
-zProbe.modulationPin = NoPin
-    
-    
 //                    Bed   E0    E1
 heat.tempSensePins = {0.24, 0.23, 0.25}; //Max of 3 entries
 
-//Heater pins are now assigned in config.g in RepRapFirmware v3
-//Bed: 2.5
-//E0:  2.7
-//E1:  1.23
-
 heat.spiTempSensorCSPins = { }
         
-// Fan PWM pins. If not assigned pin does not support HWPwm, or HWPWM not running at desired fan RPM, 
-// then also add to Timers array below
-// Current maximum of 2 fans supported
-
-//Fan Pins and tacho are now assigned in config.g in RepRapFirmware v3
-//Fan0: 2.4
-//Fan1: 2.6
- 
-
-// Tacho Fan RPM measurement. Needs to be on Port 0 or Port 2.
  
 atxPowerPin = NoPin;
         
-        
-// **PWM on LPC**. 
-// There are a number of HW PWM pins on the LPC, however, they all share the same frequency.
-// RRF makes use of different frequencies so to support that, 3 HW Timers are also configured to perform
-// PWM. This also allows the use of any GPIO pin to support PWM. To use the Timers, add the pins
-// to the slowPWM, fastPWM and servoPins arrays below.  Each timer can support up to 3 Pins and 
-// they all also share the same frequency.
-// servoPins run at 50Hz. Fast/Slow PWM Frequency can be changed below.
-                
-lpc.slowPWM.pins = {2.5}; 
-lpc.slowPWM.frequencyHz = 10; //10Hz (for Bed PWM)
-
-lpc.fastPWM.pins = {2.7, 2.6}; 
-lpc.fastPWM.frequencyHz = 250; //250Hz (for Hotend/Fan PWM)
-
-//Pins which will need 50Hz PWM
-lpc.servoPins = { }; 
-
-
-//Enable pins for External Interrupts
-lpc.externalInterruptPins = {0.26}; //Max of 3 pins for Ext Interrupts. Must be on Port 0 or Port 2.
-
-
-
-
 
 //**SPI Devices**
     
 // SPI devices should be connected to using SSP0:
-//    MOSI, MISO, SCLK
-//    0.18  0.17  0.15
+// MOSI (P0.18), MISO (0.17), SCLK (0.15)
 
 
 //Only supports 1 External SDCard
@@ -118,7 +51,8 @@ lcd.panelButtonPin = 2.11; //Extra button on Viki and RRD Panels (reset/back etc
 
 lpc.uartPanelDueMode = false;
 
-//EXPERIMENTAL
-lpc.internalSDCard.spiFrequencyHz  = 10000000;
+//Default SDCard speed is 25MHz
+//HighSpeed SDCards can run up to 50MHz
+//lpc.internalSDCard.spiFrequencyHz  = 50000000;
 
 

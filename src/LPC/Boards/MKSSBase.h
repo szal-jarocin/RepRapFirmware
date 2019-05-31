@@ -19,18 +19,18 @@ constexpr PinEntry PinTable_MKSSbase[] =
     {P0_26, PinCapability::ainrw, "th4"},
 
     //Endstops
-    {P1_24, PinCapability::read, "xmin,x"}, //X-. X as the - gets stripped in RRF3
-    {P1_25, PinCapability::read, "xmax,x+"}, //X+
-    {P1_26, PinCapability::read, "ymin,y"},
-    {P1_27, PinCapability::read, "ymax,y+"},
-    {P1_28, PinCapability::read, "zmin,z"},
-    {P1_29, PinCapability::read, "zmax,z+"},
+    {P1_24, PinCapability::rw, "xmin,x"}, //X-. X as the - gets stripped in RRF3
+    {P1_25, PinCapability::rw, "xmax,x+"}, //X+
+    {P1_26, PinCapability::rw, "ymin,y"},
+    {P1_27, PinCapability::rw, "ymax,y+"},
+    {P1_28, PinCapability::rw, "zmin,z"},
+    {P1_29, PinCapability::rw, "zmax,z+"},
 
     //Heaters and Fans
-    {P2_5, PinCapability::wpwm, "bed"},
-    {P2_7, PinCapability::wpwm, "e1"},
-    {P2_6, PinCapability::wpwm, "e2"},
-    {P2_4, PinCapability::wpwm, "fan"},
+    {P2_5, PinCapability::rwpwm, "bed"},
+    {P2_7, PinCapability::rwpwm, "e1"},
+    {P2_6, PinCapability::rwpwm, "e2"},
+    {P2_4, PinCapability::rwpwm, "fan"},
 
 
     //J7

@@ -54,6 +54,7 @@ static const boardConfigEntry_t boardConfigs[]=
     //{"fan.tachoPins", TachoPins, &NumTachos, cvPinType},
     
     {"atxPowerPin", &ATX_POWER_PIN, nullptr, cvPinType},
+    {"atxPowerPinInverted", &ATX_POWER_INVERTED, nullptr, cvBoolType},
     
     {"lpc.slowPWM.frequencyHz", &Timer1Frequency, nullptr, cvUint16Type},
     {"lpc.slowPWM.pins", Timer1PWMPins, &MaxTimerEntries, cvPinType},
@@ -118,13 +119,14 @@ void BoardConfig::Init() {
         }
         else
         {
+            delay(3000);        // Wait a few seconds so users have a chance to see this
             reprap.GetPlatform().MessageF(UsbMessage, "Unable to read board configuration: %sboard.txt...\n",DEFAULT_SYS_DIR );
             return;
         }
     }
     else
     {
-     // failed to mount card
+        // failed to mount card
         delay(3000);        // Wait a few seconds so users have a chance to see this
         reprap.GetPlatform().MessageF(UsbMessage, "%s\n", reply.c_str());
         return;
@@ -187,11 +189,14 @@ void BoardConfig::Init() {
             sd_mmc_reinit_slot(1, SdSpiCSPins[1], ExternalSDCardFrequency);
         }
         
-        //Init Extra pins from LCD (not used anywhere yet)
+        //Init pins from LCD (not used anywhere yet)
         //make sure to init ButtonPin as input incase user presses button
-        if(PanelButtonPin != NoPin) pinMode(PanelButtonPin, INPUT);
-        if(LcdDCPin != NoPin) pinMode(LcdDCPin, OUTPUT_HIGH);
+        if(PanelButtonPin != NoPin) pinMode(PanelButtonPin, INPUT); //unused
+        if(LcdDCPin != NoPin) pinMode(LcdDCPin, OUTPUT_HIGH); //unused
         
+        if(LcdBeepPin != NoPin) pinMode(LcdBeepPin, OUTPUT_LOW);
+        // Set the 12864 display CS pin low to prevent it from receiving garbage due to other SPI traffic
+        if(LcdBeepPin != NoPin) pinMode(LcdCSPin, OUTPUT_LOW);
 
         
     }

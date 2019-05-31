@@ -278,20 +278,23 @@ void Platform::Init()
 
 	massStorage->Init();
 
-#if __LPC17xx__
+#ifdef __LPC17xx__
     //Load HW pin assignments from sdcard
     BoardConfig::Init();
+    pinMode(ATX_POWER_PIN,(ATX_POWER_INVERTED==false)?OUTPUT_LOW:OUTPUT_HIGH);
+#else
+    // Deal with power first (we assume this doesn't depend on identifying the board type)
+    pinMode(ATX_POWER_PIN,OUTPUT_LOW);
 #endif
+
     
+    deferredPowerDown = false;
+
     if (DiagPin != NoPin)
     {
         pinMode(DiagPin, OUTPUT_LOW);                // set up diag LED for debugging and turn it off
     }
     
-    // Deal with power first (we assume this doesn't depend on identifying the board type)
-    pinMode(ATX_POWER_PIN, OUTPUT_LOW);
-    deferredPowerDown = false;
-
 	// Ethernet networking defaults
 	ipAddress = DefaultIpAddress;
 	netMask = DefaultNetMask;
@@ -3640,13 +3643,22 @@ void Platform::StopLogging()
 
 bool Platform::AtxPower() const
 {
+#ifdef __LPC17xx__
+    bool val = IoPort::ReadPin(ATX_POWER_PIN);
+    return (ATX_POWER_INVERTED==false)?val:!val;
+#else
 	return IoPort::ReadPin(ATX_POWER_PIN);
+#endif
 }
 
 void Platform::AtxPowerOn()
 {
 	deferredPowerDown = false;
+#ifdef __LPC17xx__
+    IoPort::WriteDigital(ATX_POWER_PIN, (ATX_POWER_INVERTED==false)?true:false);
+#else
 	IoPort::WriteDigital(ATX_POWER_PIN, true);
+#endif
 }
 
 void Platform::AtxPowerOff(bool defer)
@@ -3660,7 +3672,11 @@ void Platform::AtxPowerOff(bool defer)
 			logger->Flush(true);
 			// We don't call logger->Stop() here because we don't know whether turning off the power will work
 		}
-		IoPort::WriteDigital(ATX_POWER_PIN, false);
+#ifdef __LPC17xx__
+        IoPort::WriteDigital(ATX_POWER_PIN, (ATX_POWER_INVERTED==false)?false:true);
+#else
+        IoPort::WriteDigital(ATX_POWER_PIN, false);
+#endif
 	}
 }
 

@@ -224,6 +224,10 @@ bool IoPort::Allocate(const char *pn, const StringRef& reply, PinUsedBy neededFo
 // Set the specified pin mode returning true if successful
 bool IoPort::SetMode(PinAccess access)
 {
+#if __LPC17xx__
+    if (logicalPin == NoLogicalPin) return false;
+#endif
+    
 	// Check that the pin mode has been defined suitably
 	PinMode desiredMode;
 	switch (access)

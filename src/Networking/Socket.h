@@ -51,6 +51,7 @@ protected:
 		connected,
 		clientDisconnecting,
 		closing,
+        closing2,
 		aborted
 	};
 

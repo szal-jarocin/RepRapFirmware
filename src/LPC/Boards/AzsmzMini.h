@@ -20,19 +20,19 @@ constexpr PinEntry PinTable_AZSMZ[] =
     {P0_25, PinCapability::ainrw, "t2"},
 
     //Endstops
-    {P1_24, PinCapability::read, "x"},
-    {P1_26, PinCapability::read, "y"},
-    {P1_28, PinCapability::read, "z"},
-    {P1_29, PinCapability::read, "a,probe"},
+    {P1_24, PinCapability::rw, "x"},
+    {P1_26, PinCapability::rw, "y"},
+    {P1_28, PinCapability::rw, "z"},
+    {P1_29, PinCapability::rw, "a,probe"},
     
     //Heaters and Fans
-    {P2_5, PinCapability::wpwm, "bed,d8"  },
-    {P2_7,  PinCapability::wpwm, "fan,d9" },
-    {P2_4,  PinCapability::wpwm, "heat,d10" },
-    {P0_26,  PinCapability::wpwm, "fan1" },
+    {P2_5, PinCapability::rwpwm, "bed,d8"  },
+    {P2_7,  PinCapability::rwpwm, "fan,d9" },
+    {P2_4,  PinCapability::rwpwm, "heat,d10" },
+    {P0_26,  PinCapability::rwpwm, "fan1" },
     
     //servo
-    {P1_23, PinCapability::wpwm, "p1.23,servo"},
+    {P1_23, PinCapability::rwpwm, "p1.23,servo"},
     
     //Aux-2
     {P1_27, PinCapability::rw, "p1.27"},
