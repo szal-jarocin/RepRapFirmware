@@ -32,7 +32,7 @@ protected:
 
 private:
 #if __LPC17xx__
-    static const size_t MaxHttpSessions = 1;            // maximum number of simultaneous HTTP sessions
+    static const size_t MaxHttpSessions = 2;            // maximum number of simultaneous HTTP sessions
 #else
     static const size_t MaxHttpSessions = 8;            // maximum number of simultaneous HTTP sessions
 #endif

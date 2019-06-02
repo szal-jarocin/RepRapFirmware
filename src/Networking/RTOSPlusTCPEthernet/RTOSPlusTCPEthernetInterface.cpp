@@ -32,6 +32,8 @@ static Task<TcpPlusStackWords> tcpPlusTask;
 constexpr size_t EmacStackWords = 65;/*170*/ // needs to be bigger (>=170) if using debugPrinf for testing
 static Task<EmacStackWords> emacTask;
 
+static uint32_t lastIPTaskTime = 0;
+
 
 RTOSPlusTCPEthernetInterface *rtosTCPEtherInterfacePtr; //pointer to the clas instance so we can call from the c hooks
 
@@ -62,26 +64,6 @@ uint8_t ucMACAddress[ 6 ];
 
 
 
-
-
-//FreeRTOS +TCP "C" application Hooks
-
- /* Called by FreeRTOS+TCP when the network connects or disconnects.  Disconnect events are only received if implemented in the MAC driver. */
-extern "C" void vApplicationIPNetworkEventHook( eIPCallbackEvent_t eNetworkEvent )
-{
-    (rtosTCPEtherInterfacePtr)->ProcessIPApplication(eNetworkEvent); //call the c++ class to handle the callback
-}
-
-//// RTOS+TCP DHCP Hook.... this allows us to control over the DHCP process.
-extern "C" eDHCPCallbackAnswer_t xApplicationDHCPHook( eDHCPCallbackPhase_t eDHCPPhase, uint32_t ulIPAddress )
-{
-    return (rtosTCPEtherInterfacePtr)->ProcessDHCPHook(eDHCPPhase, ulIPAddress);
-}
-
-extern "C" const char *pcApplicationHostnameHook( void )
-{
-    return (rtosTCPEtherInterfacePtr)->ProcessApplicationHostnameHook();
-}
 
 
 RTOSPlusTCPEthernetInterface::RTOSPlusTCPEthernetInterface(Platform& p)
@@ -381,6 +363,7 @@ void RTOSPlusTCPEthernetInterface::Stop()
 	if (state != NetworkState::disabled)
 	{
 		MutexLocker lock(interfaceMutex);
+        TerminateSockets();
         state = NetworkState::disabled;
         //todo: how to stop FreeRTOS+TCP ? (perhaps suspend the IP-Task and EMAC task
         
@@ -407,12 +390,12 @@ void RTOSPlusTCPEthernetInterface::Spin(bool full)
             break;
             
         case NetworkState::connected:
-            if (full)
-            {
-                InitSockets();
-                platform.MessageF(NetworkInfoMessage, "Network running, IP address = %s\n", IP4String(ipAddress).c_str());
-                state = NetworkState::active;
-            }
+        {
+            MutexLocker lock(interfaceMutex);
+            InitSockets();
+            platform.MessageF(NetworkInfoMessage, "Network running, IP address = %s\n", IP4String(ipAddress).c_str());
+            state = NetworkState::active;
+        }
             break;
             
         case NetworkState::active:
@@ -430,6 +413,15 @@ void RTOSPlusTCPEthernetInterface::Spin(bool full)
                 {
                     nextSocketToPoll = 0;
                 }
+            }
+            else
+            {
+                //down event should be handled by the callback
+                if (reprap.Debug(moduleNetwork))
+                {
+                    debugPrintf("RTOSPlusEthernetInterface: Network Down while active\n");
+                }
+
             }
         }
             break;
@@ -467,15 +459,17 @@ void RTOSPlusTCPEthernetInterface::Diagnostics(MessageType mtype)
 #if( ipconfigCHECK_IP_QUEUE_SPACE != 0 )
     platform.MessageF(mtype, "NetBuffers: %lu lowest: %lu\n", uxGetNumberOfFreeNetworkBuffers(), uxGetMinimumFreeNetworkBuffers() );
     //Print out the minimum IP Queue space left since boot
-    platform.MessageF(mtype, "Lowest IP Event Queue: %lu of %d\n", uxGetMinimumIPQueueSpace(), ipconfigEVENT_QUEUE_LENGTH );
+    platform.MessageF(mtype, "IP Event Queue lowest: %d\n", (int)uxGetMinimumIPQueueSpace());
 
-    platform.MessageF(mtype, "EthDrv: EthFrameSize: %d (LPC Buffer Size: %d)\n", (uint16_t)(ipTOTAL_ETHERNET_FRAME_SIZE), (uint16_t)(ipTOTAL_ETHERNET_FRAME_SIZE+ipBUFFER_PADDING) );
+    //platform.MessageF(mtype, "EthDrv: EthFrameSize: %d (LPC Buffer Size: %d)\n", (uint16_t)(ipTOTAL_ETHERNET_FRAME_SIZE), (uint16_t)(ipTOTAL_ETHERNET_FRAME_SIZE+ipBUFFER_PADDING) );
 
 # if defined(COLLECT_NETDRIVER_ERROR_STATS)
     //defined in driver for debugging
     extern uint32_t numNetworkRXIntOverrunErrors; //hardware producted overrun error
     extern uint32_t numNetworkDroppedPacketsDueToNoBuffer;
-    
+    extern uint32_t numRejectedStackPackets;
+
+    platform.MessageF(mtype, "EthDrv: Rejected packets by IPStack (timeout or full): %lu\n",  numRejectedStackPackets );
     platform.MessageF(mtype, "EthDrv: RX IntOverrun Errors: %lu\n", numNetworkRXIntOverrunErrors);
     platform.MessageF(mtype, "EthDrv: Dropped packets (no buffer): %lu\n",  numNetworkDroppedPacketsDueToNoBuffer );
 
@@ -485,18 +479,25 @@ void RTOSPlusTCPEthernetInterface::Diagnostics(MessageType mtype)
     extern uint32_t numNetworkALIGNErrors;
     extern uint32_t numNetworkOVERRUNErrors;
     
-    platform.MessageF(mtype, "EthDrv: RX CRC Errors: %lu\n", numNetworkCRCErrors);
-    platform.MessageF(mtype, "EthDrv: RX SYM Errors: %lu (PHY Reported an Error)\n", numNetworkSYMErrors);
-    platform.MessageF(mtype, "EthDrv: RX LEN Errors: %lu (Frame length != actual data length)\n", numNetworkLENErrors);
-    platform.MessageF(mtype, "EthDrv: RX ALIGN Errors: %lu\n", numNetworkALIGNErrors);
-    platform.MessageF(mtype, "EthDrv: RX OVERRUN Errors: %lu\n", numNetworkOVERRUNErrors);
+    bool errors = false;
+    if(numNetworkCRCErrors || numNetworkSYMErrors || numNetworkLENErrors || numNetworkALIGNErrors || numNetworkOVERRUNErrors) errors=true;
+    platform.MessageF(mtype, "EthDrv RX Errors: %s", (errors)?"":"none");
+    if(numNetworkCRCErrors > 0) platform.MessageF(mtype, "CRC(%lu) ", numNetworkCRCErrors);
+    if(numNetworkSYMErrors > 0) platform.MessageF(mtype, "CRC(%lu) ", numNetworkSYMErrors);
+    if(numNetworkLENErrors > 0) platform.MessageF(mtype, "CRC(%lu) ", numNetworkLENErrors);
+    if(numNetworkALIGNErrors > 0) platform.MessageF(mtype, "CRC(%lu) ", numNetworkALIGNErrors);
+    if(numNetworkOVERRUNErrors > 0) platform.MessageF(mtype, "CRC(%lu) ", numNetworkOVERRUNErrors);
+    platform.MessageF(mtype, "\n");
 # endif
 
-    
-    
+
 #endif
     
-    
+    if(millis() - lastIPTaskTime > 5000)
+    {
+        platform.MessageF(mtype, "IPTask has been stuck for over 5 seconds\n");
+    }
+
 }
 
 // Enable or disable the network
@@ -573,13 +574,13 @@ void RTOSPlusTCPEthernetInterface::TerminateSockets()
 	}
     // Close the Server Socket
     RTOSPlusTCPEthernetServerSocket::Instance()->CloseAllProtocols();
-    
-    
 }
 
 
 
 //*******  Handlers called from +TCP callbacks *******
+//Note:: These hooks are called from the IP Task.
+
 
 //get the hostname
 const char *RTOSPlusTCPEthernetInterface::ProcessApplicationHostnameHook( void ){
@@ -591,6 +592,7 @@ void RTOSPlusTCPEthernetInterface::ProcessIPApplication( eIPCallbackEvent_t eNet
 {
     //variables to hold IP information from +TCP layer (either from static assignment or DHCP)
     uint32_t ulIPAddress, ulNetMask, ulGatewayAddress, ulDNSServerAddress;
+    MutexLocker lock(interfaceMutex);
 
     /* If the network has just come up...*/
     if( eNetworkEvent == eNetworkUp )
@@ -632,6 +634,10 @@ void RTOSPlusTCPEthernetInterface::ProcessIPApplication( eIPCallbackEvent_t eNet
         
         state = NetworkState::establishingLink; //back to establishing link
     }
+    else {
+        platform.Message(NetworkInfoMessage, "Network Other MSG\n");
+        
+    }
 
 }
 
@@ -648,7 +654,9 @@ eDHCPCallbackAnswer_t RTOSPlusTCPEthernetInterface::ProcessDHCPHook( eDHCPCallba
     switch( eDHCPPhase )
     {
         case eDHCPPhasePreDiscover  :
-            
+        {
+            MutexLocker lock(interfaceMutex);
+
             state = NetworkState::obtainingIP; // obtaining IP state
             
             /* A DHCP discovery is about to be sent out.  eDHCPContinue is returned to allow the discovery to go out.
@@ -667,7 +675,7 @@ eDHCPCallbackAnswer_t RTOSPlusTCPEthernetInterface::ProcessDHCPHook( eDHCPCallba
                 //RRF has been configured to use a static address, so dont attempt to use DHCP
                 eReturn = eDHCPUseDefaults; //use Static
             }
-
+        }
             break;
             
         case eDHCPPhasePreRequest  :
@@ -688,6 +696,51 @@ eDHCPCallbackAnswer_t RTOSPlusTCPEthernetInterface::ProcessDHCPHook( eDHCPCallba
     
     return eReturn;
 
+}
+
+//FreeRTOS +TCP "C" application Hooks
+
+/* Called by FreeRTOS+TCP when the network connects or disconnects.  Disconnect events are only received if implemented in the MAC driver. */
+extern "C" void vApplicationIPNetworkEventHook( eIPCallbackEvent_t eNetworkEvent )
+{
+    (rtosTCPEtherInterfacePtr)->ProcessIPApplication(eNetworkEvent); //call the c++ class to handle the callback
+}
+
+//// RTOS+TCP DHCP Hook.... this allows us to control over the DHCP process.
+extern "C" eDHCPCallbackAnswer_t xApplicationDHCPHook( eDHCPCallbackPhase_t eDHCPPhase, uint32_t ulIPAddress )
+{
+    return (rtosTCPEtherInterfacePtr)->ProcessDHCPHook(eDHCPPhase, ulIPAddress);
+}
+
+extern "C" const char *pcApplicationHostnameHook( void )
+{
+    return (rtosTCPEtherInterfacePtr)->ProcessApplicationHostnameHook();
+}
+
+//called every iteration of IP Task
+extern "C" void IPTaskWatchDogTimer()
+{
+    lastIPTaskTime = millis();
+}
+
+
+/*
+ * Callback that provides the inputs necessary to generate a randomized TCP
+ * Initial Sequence Number per RFC 6528.  In this case just a psuedo random
+ * number is used so THIS IS NOT RECOMMENDED FOR PRODUCTION SYSTEMS.
+ */
+extern "C" uint32_t ulApplicationGetNextSequenceNumber( uint32_t
+                                                   ulSourceAddress,
+                                                   uint16_t usSourcePort,
+                                                   uint32_t ulDestinationAddress,
+                                                   uint16_t usDestinationPort )
+{
+    ( void ) ulSourceAddress;
+    ( void ) usSourcePort;
+    ( void ) ulDestinationAddress;
+    ( void ) usDestinationPort;
+    
+    return (int32_t)millis();
 }
 
 
