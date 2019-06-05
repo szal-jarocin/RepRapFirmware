@@ -19,12 +19,12 @@ constexpr PinEntry PinTable_MKSSbase[] =
     {P0_26, PinCapability::ainrw, "th4"},
 
     //Endstops
-    {P1_24, PinCapability::rw, "xmin,x"}, //X-. X as the - gets stripped in RRF3
-    {P1_25, PinCapability::rw, "xmax,x+"}, //X+
-    {P1_26, PinCapability::rw, "ymin,y"},
-    {P1_27, PinCapability::rw, "ymax,y+"},
-    {P1_28, PinCapability::rw, "zmin,z"},
-    {P1_29, PinCapability::rw, "zmax,z+"},
+    {P1_24, PinCapability::rwpwm, "xmin,x"}, //X-. X as the - gets stripped in RRF3
+    {P1_25, PinCapability::rwpwm, "xmax,x+"}, //X+
+    {P1_26, PinCapability::rwpwm, "ymin,y"},
+    {P1_27, PinCapability::rwpwm, "ymax,y+"},
+    {P1_28, PinCapability::rwpwm, "zmin,z"},
+    {P1_29, PinCapability::rwpwm, "zmax,z+"},
 
     //Heaters and Fans
     {P2_5, PinCapability::rwpwm, "bed"},
@@ -34,36 +34,36 @@ constexpr PinEntry PinTable_MKSSbase[] =
 
 
     //J7
-    {P0_17, PinCapability::rw, "p0.17"},
-    {P0_16, PinCapability::rw, "p0.16"},
-    {P0_14, PinCapability::rw, "p0.14"},
+    {P0_17, PinCapability::rwpwm, "p0.17"},
+    {P0_16, PinCapability::rwpwm, "p0.16"},
+    {P0_14, PinCapability::rwpwm, "p0.14"},
     
     //J8
-    {P1_22, PinCapability::rw, "p1.22"},
-    {P1_23, PinCapability::rw, "p1.23"},
-    {P2_12, PinCapability::rw, "p2.12"},
-    {P2_11, PinCapability::rw, "p2.11"},
-    {P4_28, PinCapability::rw, "p4.28"},
+    {P1_22, PinCapability::rwpwm, "p1.22"},
+    {P1_23, PinCapability::rwpwm, "p1.23"},
+    {P2_12, PinCapability::rwpwm, "p2.12"},
+    {P2_11, PinCapability::rwpwm, "p2.11"},
+    {P4_28, PinCapability::rwpwm, "p4.28"},
     
     //Aux-1
     //P0.2
     //P0.3
     
     //Exp1
-    {P1_31, PinCapability::rw, "p1.31"},
-    {P0_18, PinCapability::rw, "p0.18"},
-    {P0_14, PinCapability::rw, "p0.14"},
-    {P1_30, PinCapability::rw, "p1.30"},
-    {P0_16, PinCapability::rw, "p0.16"},
+    {P1_31, PinCapability::rwpwm, "p1.31"},
+    {P0_18, PinCapability::rwpwm, "p0.18"},
+    {P0_14, PinCapability::rwpwm, "p0.14"},
+    {P1_30, PinCapability::rwpwm, "p1.30"},
+    {P0_16, PinCapability::rwpwm, "p0.16"},
     
     //Exp2
-    {P0_8,  PinCapability::rw, "p0.8"},
-    {P3_25, PinCapability::rw, "p3.25"},
-    {P3_26, PinCapability::rw, "p3.26"},
-    {P0_27, PinCapability::rw, "p0.27"},
-    {P0_7,  PinCapability::rw, "p0.7"},
-    {P0_28, PinCapability::rw, "p0.28"},
-    {P0_9,  PinCapability::rw, "p0.9"},
+    {P0_8,  PinCapability::rwpwm, "p0.8"},
+    {P3_25, PinCapability::rwpwm, "p3.25"},
+    {P3_26, PinCapability::rwpwm, "p3.26"},
+    {P0_27, PinCapability::rwpwm, "p0.27"},
+    {P0_7,  PinCapability::rwpwm, "p0.7"},
+    {P0_28, PinCapability::rwpwm, "p0.28"},
+    {P0_9,  PinCapability::rwpwm, "p0.9"},
     
 };
 

@@ -12,10 +12,6 @@ const size_t NumFirmwareUpdateModules = 1;
 #define UNUSED(x) (void)(x)
 #endif
 
-
-
-
-
 #define FIRMWARE_NAME "RepRapFirmware for LPC176x based Boards"
 
 // Default board type
@@ -284,7 +280,7 @@ struct BoardEntry
 #include "Boards/Smoothieboard.h"
 #include "Boards/MKSSBase.h"
 #include "Boards/AzsmzMini.h"
-//#include "Boards/BIQU_SKR.h"
+#include "Boards/BIQU_SKR.h"
 #include "Boards/Generic.h"
 
 
@@ -292,17 +288,20 @@ struct BoardEntry
 constexpr BoardEntry LPC_Boards[] =
 {
     {"mbed", PinTable_Mbed, ARRAY_SIZE(PinTable_Mbed), mbedDefaults}, //for debugging
+    {"generic", PinTable_Generic, ARRAY_SIZE(PinTable_Generic), genericDefaults},
+
+    //known boards
     {"smoothieboard", PinTable_Smoothieboard, ARRAY_SIZE(PinTable_Smoothieboard), smoothieBoardDefaults},
     {"rearm", PinTable_Rearm, ARRAY_SIZE(PinTable_Rearm), rearmDefaults},
     {"mkssbase", PinTable_MKSSbase, ARRAY_SIZE(PinTable_MKSSbase), mkssbaseDefaults},
     {"azsmzmini", PinTable_AZSMZ, ARRAY_SIZE(PinTable_AZSMZ), mkssbaseDefaults},
-    
-    {"generic", PinTable_Generic, ARRAY_SIZE(PinTable_Generic), genericDefaults},
+    {"biquskr_1.1", PinTable_BIQU_SKR_v1_1, ARRAY_SIZE(PinTable_BIQU_SKR_v1_1), biquskr_1_1_Defaults},
+    {"biquskr_1.3", PinTable_BIQU_SKR_v1_3, ARRAY_SIZE(PinTable_BIQU_SKR_v1_3), biquskr_1_3_Defaults},
 };
 
 
 //This needs to be const as its used in other places to create arrays
 //Use the largest size for the "generic" table
-constexpr unsigned int NumNamedPins = MaxPinNumber;
+constexpr unsigned int NumNamedPins = ARRAY_SIZE(PinTable_Generic);
 
 #endif
