@@ -2818,7 +2818,9 @@ const char* GCodes::DoStraightMove(GCodeBuffer& gb, bool isCoordinated)
 			case LimitPositionResult::intermediateUnreachable:
 				if (   moveBuffer.isCoordinated
 					&& (   (machineType == MachineType::fff && !moveBuffer.hasExtrusion)
+#if SUPPORT_LASER
 						|| (machineType == MachineType::laser && moveBuffer.laserPwmOrIoBits.laserPwm == 0)
+#endif
 					   )
 				   )
 				{
