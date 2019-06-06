@@ -17,3 +17,7 @@
 /RADDS_RTOS/
 /SAME70XPLD/
 .settings/language.settings.xml
+/Driver/
+/Scripts/
+/Tools/
+/SD-image/
