@@ -33,11 +33,11 @@ constexpr PinEntry PinTable_Rearm[] =
     {P2_4, PinCapability::rwpwm, "d9" },             //HE2 Mosfet
     {P2_5, PinCapability::rwpwm, "d10" },            //HE1 Mosfet
 
-    //Servos (only 1st 3 servos supported as a servo)
+    //Servos (only max of 3 servos can be configured_
     {P1_20, PinCapability::rwpwm, "servo0,d11"},     //PWM1[2]
     {P1_21, PinCapability::rwpwm, "servo1,d6"},      //PWM1[3]
     {P1_19, PinCapability::rwpwm, "servo2,d5"},
-    {P1_18, PinCapability::rwpwm, "d4"},               //PWM1[1]
+    {P1_18, PinCapability::rwpwm, "servo3,d4"},      //PWM1[1]
     
     //Ramps  AUX1 Pins
     //P0_2 D1 (TXD0)  (Used by AUX Serial)
@@ -118,9 +118,9 @@ constexpr BoardDefaults rearmDefaults = {
     {P0_11, P0_20, P0_22, P0_5, P2_13},     //dirPins
     false,                                  //currentControl
     113.33,                                 //digiPot Factor
-    {P2_7, NoPin, NoPin},                   //slowPWM
-    {NoPin, NoPin, NoPin},                  //fastPWM
-    {P1_20, P1_19, P1_21},                  //ServoPWM (Servo1,2,3)
+//    {P2_7, NoPin, NoPin},                   //slowPWM
+//    {NoPin, NoPin, NoPin},                  //fastPWM
+//    {P1_20, P1_19, P1_21},                  //ServoPWM (Servo1,2,3)
 };
 
 

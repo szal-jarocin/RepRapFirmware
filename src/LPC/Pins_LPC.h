@@ -260,9 +260,9 @@ struct BoardDefaults
     const Pin dirPins[NumDirectDrivers];
     const bool hasDriverCurrentControl;
     const float digipotFactor;    
-    const Pin slowPwmPins[MaxTimerEntries];
-    const Pin fastPwmPins[MaxTimerEntries];
-    const Pin servoPwmPins[MaxTimerEntries];
+    //const Pin slowPwmPins[MaxTimerEntries];
+    //const Pin fastPwmPins[MaxTimerEntries];
+    //const Pin servoPwmPins[MaxTimerEntries];
 };
 
 struct BoardEntry

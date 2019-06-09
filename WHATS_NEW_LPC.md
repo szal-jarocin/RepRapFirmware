@@ -14,7 +14,7 @@ Version 3.0 beta3
     * Does not support SPI drivers on Biqu SKR 1.3. 
     * When defining a board, the names on the silk screen (or official pinout if there is no names on the silk) can be used in M950. LPC style of port.pin (i.e. 1.23) can also be used if desired, however.
     * For ReArm, the silk on the RAMPs shield is used and additionally support from the official pinout that uses arduino mega naming can be used, i.e. D8, etc.
-    * For the above boards (except generic), some defaults are included in the firmware for stepper pins (en/step/dir), current control, timer pwm pins ,and will be used as the default. They can be overriden by defining those variables in board.txt.
+    * For the above boards (except generic), some defaults are included in the firmware for stepper pins (en/step/dir), current control and will be used as the default. They can be overriden by defining those variables in board.txt.
     * The generic board has no defaults. 
 * Added new option do enable/disable RRF Panel Due mode for the AUX serial port (default is false). For example: lpc.uartPanelDueMode = true; 
 * Added new atxPowerPinInverted entry which is set to true or false.  Set to true if the PSON needs to be inverted. Default is False.

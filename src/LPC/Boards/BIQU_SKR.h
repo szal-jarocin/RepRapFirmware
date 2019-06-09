@@ -69,9 +69,9 @@ constexpr BoardDefaults biquskr_1_1_Defaults = {
     {P0_5,  P2_2, P0_21, P2_13, P0_0},      //dirPins
     false,                                  //currentControl
     113.33,                                 //digiPot Factor
-    {P2_5, NoPin, NoPin},                   //slowPWM
-    {P2_7, NoPin, NoPin},                   //fastPWM
-    {P2_0, NoPin, NoPin},                   //ServoPWM
+//    {P2_5, NoPin, NoPin},                   //slowPWM
+//    {P2_7, NoPin, NoPin},                   //fastPWM
+//    {P2_0, NoPin, NoPin},                   //ServoPWM
 };
 
 // BIQU SKR version 1.3
@@ -158,10 +158,10 @@ constexpr BoardDefaults biquskr_1_3_Defaults = {
     {P2_2, P0_19, P0_22, P2_13,  P0_1},   //stepPins
     {P2_6, P0_20, P2_11, P0_11,  P0_0},    //dirPins
     false,                                  //currentControl
-    113.33,                                 //digiPot Factor
-    {P2_5, NoPin, NoPin},                   //slowPWM
-    {P2_7, NoPin, NoPin},                   //fastPWM
-    {P2_0, NoPin, NoPin},                   //ServoPWM
+    113.33                                 //digiPot Factor
+//    {P2_5, NoPin, NoPin},                   //slowPWM
+//    {P2_7, NoPin, NoPin},                   //fastPWM
+//    {P2_0, NoPin, NoPin},                   //ServoPWM
     
 };
 

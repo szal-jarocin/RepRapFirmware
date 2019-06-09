@@ -62,9 +62,9 @@ constexpr BoardDefaults smoothieBoardDefaults = {
     {P0_5,  P0_11, P0_20, P0_22,  P2_13},   //dirPins
     true,                                   //currentControl
     113.33,                                 //digiPot Factor    
-    {P2_5, NoPin, NoPin},                   //slowPWM
-    {P2_7, P2_6, NoPin},                    //fastPWM
-    {NoPin, NoPin, NoPin},                  //ServoPWM
+//    {P2_5, NoPin, NoPin},                   //slowPWM
+//    {P2_7, P2_6, NoPin},                    //fastPWM
+//    {NoPin, NoPin, NoPin},                  //ServoPWM
     
 };
 

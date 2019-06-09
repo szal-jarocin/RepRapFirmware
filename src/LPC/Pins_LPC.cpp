@@ -102,9 +102,9 @@ bool SetBoard(const char* bn)
             hasDriverCurrentControl = LPC_Boards[i].defaults.hasDriverCurrentControl;
             digipotFactor = LPC_Boards[i].defaults.digipotFactor;
             
-            SetDefaultPinArray(LPC_Boards[i].defaults.slowPwmPins, Timer1PWMPins, MaxTimerEntries);
-            SetDefaultPinArray(LPC_Boards[i].defaults.fastPwmPins, Timer3PWMPins, MaxTimerEntries);
-            SetDefaultPinArray(LPC_Boards[i].defaults.servoPwmPins, Timer2PWMPins, MaxTimerEntries);
+            //SetDefaultPinArray(LPC_Boards[i].defaults.slowPwmPins, Timer1PWMPins, MaxTimerEntries);
+            //SetDefaultPinArray(LPC_Boards[i].defaults.fastPwmPins, Timer3PWMPins, MaxTimerEntries);
+            //SetDefaultPinArray(LPC_Boards[i].defaults.servoPwmPins, Timer2PWMPins, MaxTimerEntries);
             
             return true;
         }
