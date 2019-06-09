@@ -432,7 +432,7 @@ void Platform::Init()
 		motorCurrents[drive] = 0.0;
 		motorCurrentFraction[drive] = 1.0;
 		driverState[drive] = DriverStatus::disabled;
-		driveDriverBits[drive] = driveDriverBits[drive + MaxTotalDrivers] = CalcDriverBitmap(drive);
+		driveDriverBits[drive] = driveDriverBits[drive + MaxTotalDrivers] = StepPins::CalcDriverBitmap(drive);
 
 		// Map axes and extruders straight through
 		if (drive < MinAxes)
@@ -441,7 +441,7 @@ void Platform::Init()
 			const size_t axis = (drive == 0) ? Z_AXIS
 								: (drive == 1) ? X_AXIS
 									: Y_AXIS;					// on PCCB we map Z X Y to drivers 0 1 2
-			driveDriverBits[axis] = CalcDriverBitmap(drive);	// overwrite the default value set up earlier
+			driveDriverBits[axis] = StepPins::CalcDriverBitmap(drive);	// overwrite the default value set up earlier
 			axisDrivers[axis].numDrivers = 1;
 			axisDrivers[axis].driverNumbers[0] = (uint8_t)drive;
 #else
@@ -1629,12 +1629,6 @@ float Platform::AdcReadingToCpuTemperature(uint32_t adcVal) const
                 {
                     reason |= (uint16_t)SoftwareResetReason::inUsbOutput;    // if we are resetting because we are stuck in a Spin function, record whether we are trying to send to USB
                 }
-#if HAS_LWIP_NETWORKING
-                if (reprap.GetNetwork().InNetworkStack())
-                {
-                    reason |= (uint16_t)SoftwareResetReason::inLwipSpin;
-                }
-#endif
                 if (SERIAL_AUX_DEVICE.canWrite() == 0
 #ifdef SERIAL_AUX2_DEVICE
                     || SERIAL_AUX2_DEVICE.canWrite() == 0
@@ -2072,7 +2066,7 @@ void Platform::Diagnostics(MessageType mtype)
 			if(sptr->magic != 0xFFFF)
 			{
 				//slot = s;
-				MessageF(mtype, "Flash Slot[%d]: \n", s);
+				MessageF(mtype, "LPC Flash Slot[%d]: \n", s);
 				slot=0;// we only have 1 slot in the array, set this to zero to be compatible with existing code below
 				//copy the data into srdBuff
 				LPC_ReadSoftwareResetDataSlot(s, &srdBuf[0], sizeof(srdBuf[0]));
@@ -3120,7 +3114,7 @@ void Platform::SetAxisDriversConfig(size_t axis, size_t numValues, const uint32_
 	{
 		const uint8_t driver = min<uint32_t>(driverNumbers[i], 255);
 		axisDrivers[axis].driverNumbers[i] = driver;
-		bitmap |= CalcDriverBitmap(driver);
+		bitmap |= StepPins::CalcDriverBitmap(driver);
 #if HAS_SMART_DRIVERS
 		SmartDrivers::SetAxisNumber(driver, axis);
 #endif
@@ -3135,12 +3129,12 @@ void Platform::SetExtruderDriver(size_t extruder, uint8_t driver)
 #if HAS_SMART_DRIVERS
 	SmartDrivers::SetAxisNumber(driver, extruder + reprap.GetGCodes().GetTotalAxes());
 #endif
-	driveDriverBits[extruder + reprap.GetGCodes().GetTotalAxes()] = CalcDriverBitmap(driver);
+	driveDriverBits[extruder + reprap.GetGCodes().GetTotalAxes()] = StepPins::CalcDriverBitmap(driver);
 }
 
 void Platform::SetDriverStepTiming(size_t driver, const float microseconds[4])
 {
-	const uint32_t bitmap = CalcDriverBitmap(driver);
+	const uint32_t bitmap = StepPins::CalcDriverBitmap(driver);
 	slowDriversBitmap &= ~bitmap;								// start by assuming this drive does not need extended timing
 	if (slowDriversBitmap == 0)
 	{
@@ -3154,7 +3148,7 @@ void Platform::SetDriverStepTiming(size_t driver, const float microseconds[4])
 	{
 		if (microseconds[i] > MinStepPulseTiming)
 		{
-			slowDriversBitmap |= CalcDriverBitmap(driver);		// this drive does need extended timing
+			slowDriversBitmap |= StepPins::CalcDriverBitmap(driver);		// this drive does need extended timing
 			const uint32_t clocks = (uint32_t)(((float)StepTimer::StepClockRate * microseconds[i] * 0.000001) + 0.99);	// convert microseconds to step clocks, rounding up
 			if (clocks > slowDriverStepTimingClocks[i])
 			{
@@ -3167,7 +3161,7 @@ void Platform::SetDriverStepTiming(size_t driver, const float microseconds[4])
 // Get the driver step timing, returning true if we are using slower timing than standard
 bool Platform::GetDriverStepTiming(size_t driver, float microseconds[4]) const
 {
-	const bool isSlowDriver = ((slowDriversBitmap & CalcDriverBitmap(driver)) != 0);
+	const bool isSlowDriver = ((slowDriversBitmap & StepPins::CalcDriverBitmap(driver)) != 0);
 	for (size_t i = 0; i < 4; ++i)
 	{
 		microseconds[i] = (isSlowDriver)
@@ -4378,7 +4372,7 @@ GCodeResult Platform::ConfigurePort(GCodeBuffer& gb, const StringRef& reply)
 	{
 		freq = gb.GetPwmFrequency();
 	}
-
+    
 	if (gb.Seen('F'))
 	{
 		const uint32_t fanNum = gb.GetUIValue();

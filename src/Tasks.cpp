@@ -250,7 +250,7 @@ namespace Tasks
 			p.MessageF(mtype, "Never used ram: %" PRIu32 "\n", neverUsed);
 
 #ifdef __LPC17xx__
-			p.MessageF(mtype, "RTOS Dynamic Heap : %" PRIi32 "/%" PRIu32 " (%d free, %d never used)\n", (uint32_t)(xPortGetTotalHeapSize()-xPortGetFreeHeapSize()),(uint32_t)xPortGetTotalHeapSize(), xPortGetFreeHeapSize(),xPortGetMinimumEverFreeHeapSize() );
+			p.MessageF(mtype, "Dynamic Memory (RTOS Heap 5): %" PRIi32 "/%" PRIu32 " (%d free, %d never used)\n", (uint32_t)(xPortGetTotalHeapSize()-xPortGetFreeHeapSize()),(uint32_t)xPortGetTotalHeapSize(), xPortGetFreeHeapSize(),xPortGetMinimumEverFreeHeapSize() );
 
 			//Print out the PWM and timers freq
             LPCPWMInfo freqs = {};

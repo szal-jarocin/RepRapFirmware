@@ -19,7 +19,6 @@
 /* Last sector address */
 #define START_ADDR_LAST_SECTOR  0x00078000
 
-constexpr uint32_t SECTOR_SIZE = (32*1024);
 constexpr uint32_t IAP_PAGE_SIZE  = 256;
 
 /* LAST SECTOR */
@@ -32,9 +31,11 @@ uint32_t *LPC_GetSoftwareResetDataSlotPtr(uint8_t slot)
 }
 
 
+//When the Sector is erased, all the bits will be high
+//This checks if the first 4 bytes are all high for the designated software reset slot
+//the first 2 bytes of a used reset slot will have the magic number in it.
 bool LPC_IsSoftwareResetDataSlotVacant(uint8_t slot)
 {
-
     const uint32_t *p = (uint32_t *) (START_ADDR_LAST_SECTOR + (slot*IAP_PAGE_SIZE));
     
     for (size_t i = 0; i < IAP_PAGE_SIZE/sizeof(uint32_t); ++i)

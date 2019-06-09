@@ -64,8 +64,6 @@ const size_t NumFirmwareUpdateModules = 1;
 #endif
 
 
-
-#define NO_TRIGGERS                      1    // Temporary!!!
 #define NO_EXTRUDER_ENDSTOPS             1    // Temporary!!!
 
 
@@ -303,5 +301,69 @@ constexpr BoardEntry LPC_Boards[] =
 //This needs to be const as its used in other places to create arrays
 //Use the largest size for the "generic" table
 constexpr unsigned int NumNamedPins = ARRAY_SIZE(PinTable_Generic);
+
+namespace StepPins
+{
+    // *** These next three functions must use the same bit assignments in the drivers bitmap ***
+    // Each stepper driver must be assigned one bit in a 32-bit word, in such a way that multiple drivers can be stepped efficiently
+    // and more or less simultaneously by doing parallel writes to several bits in one or more output ports.
+    // All our step pins are on port D, so the bitmap is just the map of step bits in port D.
+    
+    // Calculate the step bit for a driver. This doesn't need to be fast. It must return 0 if the driver is remote.
+    static inline uint32_t CalcDriverBitmap(size_t driver)
+    {
+        if (driver >= NumDirectDrivers)
+        {
+            return 0;
+        }
+
+        if(STEP_PINS[driver] == NoPin ) return 0;
+        if(hasStepPinsOnDifferentPorts == true ){
+            //treat these pins one by one instead of parallel writes for now. Using driver pos in bitmap
+            return 1u << driver ;
+        }
+        //Pins are on the same port,
+        return 1u << (STEP_PINS[driver] & 0x1f); //lower 5-bits contains the bit number of a 32bit port
+    }
+    
+    // Set the specified step pins high
+    // This needs to be as fast as possible, so we do a parallel write to the port(s).
+    // We rely on only those port bits that are step pins being set in the PIO_OWSR register of each port
+    static inline void StepDriversHigh(uint32_t driverMap)
+    {
+        if(hasStepPinsOnDifferentPorts == true ){
+            //Using driver pos in bitmap to match positio in STEP_PINS
+            uint8_t pos=0;
+            while (driverMap!=0 && pos < MaxTotalDrivers){
+                if(driverMap & 0x01)
+                {
+                    if(STEP_PINS[pos] != NoPin) GPIO_PinWrite(STEP_PINS[pos], 1); //set high
+                }
+                driverMap = driverMap >> 1;
+                pos++;
+            }
+        } else {
+            //pins all on port 2, parallel write
+            LPC_GPIO2->FIOSET = driverMap;
+        }
+    }
+    
+    // Set all step pins low
+    // This needs to be as fast as possible, so we do a parallel write to the port(s).
+    // We rely on only those port bits that are step pins being set in the STEP_DRIVER_MASK variable
+    static inline void StepDriversLow()
+    {
+        if(hasStepPinsOnDifferentPorts == true ){
+            for(size_t d=0; d<MaxTotalDrivers; d++){
+                if(STEP_PINS[d] != NoPin) GPIO_PinWrite(STEP_PINS[d], 0); //set low
+            }
+        }
+        else
+        {
+            LPC_GPIO2->FIOCLR = STEP_DRIVER_MASK; //clear only pins that are 1 in the mask
+        }
+    }
+}
+
 
 #endif
