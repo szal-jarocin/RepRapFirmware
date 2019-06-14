@@ -34,7 +34,11 @@ public:
 	bool AssignPorts(GCodeBuffer& gb, const StringRef& reply);
 	bool AssignPorts(const char *pinNames, const StringRef& reply);
 	void SetPwm(float speed);
+#ifdef __LPC17xx__
+    bool SetPwmFrequency(PwmFrequency freq) { return port.SetFrequency(freq); }
+#else
 	void SetPwmFrequency(PwmFrequency freq) { port.SetFrequency(freq); }
+#endif
 	bool HasMonitoredHeaters() const { return heatersMonitored != 0; }
 	void SetHeatersMonitored(HeatersMonitoredBitmap h);
 	const char *GetName() const { return name.c_str(); }

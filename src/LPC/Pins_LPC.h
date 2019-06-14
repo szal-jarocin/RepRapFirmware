@@ -41,7 +41,7 @@ const size_t NumFirmwareUpdateModules = 1;
 #define SUPPORT_FTP                      0
 
 
-#define ALLOCATE_DEFAULT_PORTS           1
+#define ALLOCATE_DEFAULT_PORTS           0
 
 #if defined(LPC_NETWORKING)
     //LPC Ethernet
@@ -104,8 +104,8 @@ extern float digipotFactor;
 constexpr uint8_t POT_WIPES[5] = { 0, 1, 2, 3, 0};
 
 
-extern Pin Z_PROBE_PIN; // Z Probe pin
-extern Pin Z_PROBE_MOD_PIN; // Digital pin number to turn the IR LED on (high) or off (low)
+//extern Pin Z_PROBE_PIN; // Z Probe pin
+//extern Pin Z_PROBE_MOD_PIN; // Digital pin number to turn the IR LED on (high) or off (low)
 
 // HEATERS - The bed is assumed to be the at index 0
 extern Pin TEMP_SENSE_PINS[NumThermistorInputs];

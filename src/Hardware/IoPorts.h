@@ -73,8 +73,13 @@ public:
 
 	void AppendDetails(const StringRef& str);
 
-	void SetFrequency(PwmFrequency freq) { frequency = freq; }
-	void WriteAnalog(float pwm) const;
+	
+#ifdef __LPC17xx__
+    bool SetFrequency(PwmFrequency freq);
+#else
+    void SetFrequency(PwmFrequency freq){ frequency = freq; }
+#endif
+    void WriteAnalog(float pwm) const;
 
 private:
 	PwmFrequency frequency;

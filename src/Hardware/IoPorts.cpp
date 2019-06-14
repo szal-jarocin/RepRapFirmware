@@ -240,10 +240,6 @@ bool IoPort::Allocate(const char *pn, const StringRef& reply, PinUsedBy neededFo
 // Set the specified pin mode returning true if successful
 bool IoPort::SetMode(PinAccess access)
 {
-#if __LPC17xx__
-    if (logicalPin == NoLogicalPin) return false;
-#endif
-    
 	// Check that the pin mode has been defined suitably
 	PinMode desiredMode;
 	switch (access)
@@ -504,7 +500,11 @@ uint16_t IoPort::ReadAnalog() const
 // Members of class PwmPort
 PwmPort::PwmPort()
 {
+#ifdef __LPC17xx__
+    frequency = 0; //default to 0, frequency must be set in gcode
+#else
 	frequency = DefaultPinWritePwmFreq;
+#endif
 }
 
 void PwmPort::AppendDetails(const StringRef& str)
@@ -523,5 +523,21 @@ void PwmPort::WriteAnalog(float pwm) const
 		IoPort::WriteAnalog(PinTable[logicalPin].pin, ((totalInvert) ? 1.0 - pwm : pwm), frequency);
 	}
 }
+
+#ifdef __LPC17xx__
+bool PwmPort::SetFrequency(PwmFrequency freq){
+    //Only a limited number of PWM frequencies avail
+    //Check if we can use the requested frequency, returning true if successful
+
+    if(frequency!=0) return false; // cant change an already configured Pin frequency on LPC
+    
+    frequency = freq;
+    
+    return ConfigurePinForPWM(PinTable[logicalPin].pin, freq);
+}
+
+#endif
+
+
 
 // End

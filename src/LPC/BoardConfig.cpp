@@ -56,13 +56,15 @@ static const boardConfigEntry_t boardConfigs[]=
     {"atxPowerPin", &ATX_POWER_PIN, nullptr, cvPinType},
     {"atxPowerPinInverted", &ATX_POWER_INVERTED, nullptr, cvBoolType},
     
+    {"lpc.HWPWM.frequencyHz", &HardwarePWMFrequency, nullptr, cvUint16Type},
+    
     {"lpc.slowPWM.frequencyHz", &Timer1Frequency, nullptr, cvUint16Type},
-    {"lpc.slowPWM.pins", Timer1PWMPins, &MaxTimerEntries, cvPinType},
+    //{"lpc.slowPWM.pins", Timer1PWMPins, &MaxTimerEntries, cvPinType},
 
     {"lpc.fastPWM.frequencyHz", &Timer3Frequency, nullptr, cvUint16Type},
-    {"lpc.fastPWM.pins", Timer3PWMPins, &MaxTimerEntries, cvPinType},
+    //{"lpc.fastPWM.pins", Timer3PWMPins, &MaxTimerEntries, cvPinType},
 
-    {"lpc.servoPins", Timer2PWMPins, &MaxTimerEntries, cvPinType},
+    //{"lpc.servoPins", Timer2PWMPins, &MaxTimerEntries, cvPinType},
 
     //{"specialPinMap", SpecialPinMap, &MaxNumberSpecialPins, cvPinType},
     //{"lpc.externalInterruptPins", ExternalInterruptPins, &MaxExtIntEntries, cvPinType},
@@ -268,12 +270,11 @@ void BoardConfig::PrintValue(MessageType mtype, configValueType configType, void
     }
 }
 
-
 void BoardConfig::Diagnostics(MessageType mtype)
 {
 
     
-    reprap.GetPlatform().MessageF(mtype, "== Configurable Board Settings ==\n");
+    reprap.GetPlatform().MessageF(mtype, "== Configurable Board.txt Settings ==\n");
 
     
     //Pin Array Configs
@@ -302,9 +303,40 @@ void BoardConfig::Diagnostics(MessageType mtype)
 
         }
     }
+    
+    reprap.GetPlatform().MessageF(mtype, "\n=== Other LPC Hardware Settings ===\n");
+    
+    //Print out the PWM and timers freq
+    LPCPWMInfo freqs = {};
+    GetTimerInfo(&freqs);
+    reprap.GetPlatform().MessageF(mtype, "Hardware PWM=%dHz ", freqs.hwPWMFreq );
+    PrintPinArray(mtype, UsedHardwarePWMChannel, NumPwmChannels);
+
+    reprap.GetPlatform().MessageF(mtype, "Timer 1 PWM=%dHz ", freqs.tim1Freq );
+    PrintPinArray(mtype, Timer1PWMPins, MaxTimerEntries);
+    reprap.GetPlatform().MessageF(mtype, "Timer 2 PWM=%dHz ", freqs.tim2Freq );
+    PrintPinArray(mtype, Timer2PWMPins, MaxTimerEntries);
+    reprap.GetPlatform().MessageF(mtype, "Timer 3 PWM=%dHz ", freqs.tim3Freq );
+    PrintPinArray(mtype, Timer3PWMPins, MaxTimerEntries);
 }
 
-
+void BoardConfig::PrintPinArray(MessageType mtype, Pin arr[], uint16_t numEntries)
+{
+    reprap.GetPlatform().MessageF(mtype, "[ ");
+    for(uint8_t i=0; i<numEntries; i++)
+    {
+        if(arr[i] != NoPin)
+        {
+            reprap.GetPlatform().MessageF(mtype, "%d.%d ", (arr[i]>>5), (arr[i] & 0x1f));
+        }
+        else
+        {
+            reprap.GetPlatform().MessageF(mtype, "NoPin ");
+        }
+        
+    }
+    reprap.GetPlatform().MessageF(mtype, "]\n");
+}
 
 
                   

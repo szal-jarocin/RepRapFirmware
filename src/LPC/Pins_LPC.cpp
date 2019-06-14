@@ -14,8 +14,8 @@
 
 
 
-Pin Z_PROBE_PIN = NoPin;
-Pin Z_PROBE_MOD_PIN = NoPin;
+//Pin Z_PROBE_PIN = NoPin;
+//Pin Z_PROBE_MOD_PIN = NoPin;
 
 Pin TEMP_SENSE_PINS[NumThermistorInputs] =   {NoPin, NoPin, NoPin};
 Pin SpiTempSensorCsPins[MaxSpiTempSensors] = { NoPin, NoPin };
@@ -25,7 +25,7 @@ bool ATX_POWER_INVERTED = false;
 
 
 uint16_t Timer1Frequency = 10;  // default for Timer1 (slowPWM) for HeatBeds
-uint16_t Timer3Frequency = 120; // default for Timer2 (fastPWM) for Hotends/fans etc
+uint16_t Timer3Frequency = 250; // default for Timer2 (fastPWM) for Hotends/fans etc
 
 Pin SdCardDetectPins[NumSdCards] =  { NoPin, NoPin };
 Pin SdSpiCSPins[NumSdCards] =       { P0_6, NoPin };    // Internal, external. Note:: ("slot" 0 in CORE is configured to be LCP SSP1 to match default RRF behaviour)

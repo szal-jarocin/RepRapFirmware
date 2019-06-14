@@ -41,6 +41,7 @@ private:
     static bool GetConfigKeys(FileStore *configFile );
     static void SetValueFromString(configValueType type, void *variable, const char *valuePtr);
     static void PrintValue(MessageType mtype, configValueType configType, void *variable);
+    static void PrintPinArray(MessageType mtype, Pin arr[], uint16_t numEntries);
 
 };
 

@@ -4389,7 +4389,17 @@ GCodeResult Platform::ConfigurePort(GCodeBuffer& gb, const StringRef& reply)
 			}
 			if (seenFreq)
 			{
+#ifdef __LPC17xx__
+                //check if the frequency can be set
+                if(!fan.SetPwmFrequency(freq))
+                {
+                    reply.printf("Failed to set frequency for pin");
+                    fan.AssignPorts("nil", reply);
+                    return GCodeResult::error;
+                }
+#else
 				fan.SetPwmFrequency(freq);
+#endif
 			}
 			if (!seenPin && !seenFreq)
 			{
@@ -4424,7 +4434,17 @@ GCodeResult Platform::ConfigurePort(GCodeBuffer& gb, const StringRef& reply)
 			}
 			if (seenFreq)
 			{
+#ifdef __LPC17xx__
+                //check if the frequency can be set
+                if(!port.SetFrequency(freq))
+                {
+                    reply.printf("Failed to set frequency for pin");
+                    port.Release();
+                    return GCodeResult::error;
+                }
+#else
 				port.SetFrequency(freq);
+#endif
 			}
 			if (!seenPin && !seenFreq)
 			{
@@ -4457,11 +4477,26 @@ GCodeResult Platform::ConfigurePort(GCodeBuffer& gb, const StringRef& reply)
 					{
 						freq = (seenServo) ? ServoRefreshFrequency : DefaultPinWritePwmFreq;
 					}
+#ifdef __LPC17xx__
+                    //check if the frequency can be set
+                    if(!port.SetFrequency(freq))
+                    {
+                        reply.printf("Failed to set frequency for pin");
+                        port.Release();
+                        return GCodeResult::error;
+                    }
+#else
 					port.SetFrequency(freq);
+#endif
 				}
 				else if (seenFreq)
 				{
+#ifdef __LPC17xx__
+                    reply.printf("Unable to change PWM frequency after it has already been configured on LPC");
+                    return GCodeResult::error;
+#else
 					port.SetFrequency(freq);
+#endif
 				}
 				else
 				{

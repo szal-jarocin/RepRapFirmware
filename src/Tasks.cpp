@@ -234,10 +234,12 @@ namespace Tasks
 #endif
 			p.MessageF(mtype, "Static ram: %d\n", &_end - ramstart);
 
-        
+#ifdef __LPC17xx__
+            p.MessageF(mtype, "Dynamic Memory (RTOS Heap 5): %d free, %d never used\n", xPortGetFreeHeapSize(),xPortGetMinimumEverFreeHeapSize() );
+#else
 			const struct mallinfo mi = mallinfo();
 			p.MessageF(mtype, "Dynamic ram: %d of which %d recycled\n", mi.uordblks, mi.fordblks);
-
+#endif
 			uint32_t maxStack, neverUsed;
 #ifdef RTOS
 			GetHandlerStackUsage(&maxStack, &neverUsed);
@@ -248,16 +250,6 @@ namespace Tasks
 			p.MessageF(mtype, "Stack ram used: %" PRIu32 " current, %" PRIu32 " maximum\n", currentStack, maxStack);
 #endif
 			p.MessageF(mtype, "Never used ram: %" PRIu32 "\n", neverUsed);
-
-#ifdef __LPC17xx__
-			p.MessageF(mtype, "Dynamic Memory (RTOS Heap 5): %" PRIi32 "/%" PRIu32 " (%d free, %d never used)\n", (uint32_t)(xPortGetTotalHeapSize()-xPortGetFreeHeapSize()),(uint32_t)xPortGetTotalHeapSize(), xPortGetFreeHeapSize(),xPortGetMinimumEverFreeHeapSize() );
-
-			//Print out the PWM and timers freq
-            LPCPWMInfo freqs = {};
-            GetTimerInfo(&freqs);
-            p.MessageF(mtype, "LPC PWM: HWPWM=%dHz T1=%dHz T2=%dHz T3=%dHz\n", freqs.hwPWMFreq, freqs.tim1Freq, freqs.tim2Freq, freqs.tim3Freq);
-
-#endif //end __LPC17xx__
 
 		}	// end memory stats scope
 

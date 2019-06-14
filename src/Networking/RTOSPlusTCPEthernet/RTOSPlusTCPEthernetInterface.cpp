@@ -435,6 +435,7 @@ void RTOSPlusTCPEthernetInterface::Diagnostics(MessageType mtype)
     {
         case NetworkState::disabled:
             platform.MessageF(mtype, "disabled\n");
+            return;
             break;
         case NetworkState::enabled:
             platform.MessageF(mtype, "enabled\n");
