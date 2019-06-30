@@ -17,7 +17,6 @@
 #include "FreeRTOS_IP.h"
 #include "FreeRTOS_Sockets.h"
 
-
 // Socket structure that we use to track TCP connections
 class RTOSPlusTCPEthernetSocket : public Socket
 {
@@ -49,7 +48,7 @@ private:
 //TCP+
     Socket_t xListeningSocket;  // server socket 
     Socket_t xConnectedSocket;  //connected client socket
-    void CheckSocketError(BaseType_t val); 
+    bool CheckSocketError(BaseType_t val); 
 
 };
 

@@ -19,6 +19,7 @@
 #include "FreeRTOS_IP_Private.h"
 
 #include "RTOSPlusTCPEthernetServerSocket.h"
+#include "General/IP4String.h"
 
 
 //***************************************************************************************************
@@ -86,16 +87,8 @@ bool isSocketListening(Socket_t xSocket){
 
 bool isSocketEstablished(Socket_t xSocket)
 {
-    FreeRTOS_Socket_t *pxSocket = ( FreeRTOS_Socket_t * ) xSocket;
-
-    if( pxSocket->u.xTCP.ucTCPState == eESTABLISHED )
-    {
-        return true;
-    }
-    else
-    {
-        return false;
-    }
+    return FreeRTOS_issocketconnected(xSocket);
+    
 }
 
 bool isSocketEstablishing(Socket_t xSocket)
@@ -151,6 +144,9 @@ void RTOSPlusTCPEthernetSocket::ReInit()
 		receivedData = receivedData->Release();
 	}
 
+    xConnectedSocket = nullptr;
+    state = SocketState::inactive;
+
     //create server socket, or check if it was closed for some reason and attempt reopen
     xListeningSocket = RTOSPlusTCPEthernetServerSocket::Instance()->GetServerSocket(localPort, protocol);
     if( xListeningSocket != nullptr )
@@ -164,7 +160,6 @@ void RTOSPlusTCPEthernetSocket::ReInit()
         {
             debugPrintf("Failed to create Server Socket. Disabling Socket\n");
         }
-        state = SocketState::disabled;
     }
 }
 
@@ -207,7 +202,6 @@ void RTOSPlusTCPEthernetSocket::Terminate()
 bool RTOSPlusTCPEthernetSocket::CanRead() const
 {
 	return (state == SocketState::connected) ||
-        FreeRTOS_tx_size(xConnectedSocket) > 0 || //data in the buffers
 		(state == SocketState::clientDisconnecting && receivedData != nullptr && receivedData->TotalRemaining() != 0);
 }
 
@@ -238,7 +232,7 @@ bool RTOSPlusTCPEthernetSocket::ReadChar(char& c)
 // Return a pointer to data in a buffer and a length available
 bool RTOSPlusTCPEthernetSocket::ReadBuffer(const uint8_t *&buffer, size_t &len)
 {
-	if (receivedData != nullptr)
+    if (receivedData != nullptr)
 	{
 		len = receivedData->Remaining();
 		buffer = receivedData->UnreadData();
@@ -277,9 +271,8 @@ void RTOSPlusTCPEthernetSocket::Poll(bool full)
             {
                 //check for client connections
                 
-                if(xConnectedSocket == nullptr || FreeRTOS_issocketconnected(xConnectedSocket) == pdFALSE )
+                if(xConnectedSocket == nullptr)
                 {
-                    //socket exists but not open, attempt to connect to client
                     struct freertos_sockaddr xClient;
                     socklen_t xSize = sizeof( xClient );
                     
@@ -287,15 +280,30 @@ void RTOSPlusTCPEthernetSocket::Poll(bool full)
                     //if there is no client, FreeRTOS_accept will return false.
                     xConnectedSocket = FreeRTOS_accept( xListeningSocket, &xClient, &xSize );
                     
-                    if(FreeRTOS_issocketconnected(xConnectedSocket) == pdTRUE)
+                    if(xConnectedSocket == FREERTOS_INVALID_SOCKET) //server socket not valid or in not the listening state
                     {
-                        whenConnected = millis();
+                        ReInit();
                     }
-                    else
+                    else if(xConnectedSocket == nullptr)
                     {
+                        //timed out waiting
                         // no clients waiting to connect
                         // nothing else to do
                         return;
+
+                    }
+                    else
+                    {
+                        whenConnected = millis();
+                        
+                        //Set the Remote Port and IP Address
+                        remotePort = xClient.sin_port;
+                        remoteIPAddress.SetV4LittleEndian(xClient.sin_addr);
+
+                        if (reprap.Debug(moduleNetwork))
+                        {
+                            debugPrintf("Accepted Connection from %s:%d on Skt: %d\n", IP4String(remoteIPAddress).c_str(), remotePort, socketNum );
+                        }
                     }
                     
                 }
@@ -305,7 +313,7 @@ void RTOSPlusTCPEthernetSocket::Poll(bool full)
                     //dont attempt to accept any new connections
                     
                     //check socket to see if its closed before we got to initialise everything
-                    if( isSocketClosing(xConnectedSocket) == true || hasSocketGracefullyClosed(xConnectedSocket) == true )
+                    if(FreeRTOS_issocketconnected(xConnectedSocket) != pdTRUE)
                     {
                         state = SocketState::closing;
                         if (reprap.Debug(moduleNetwork))
@@ -360,10 +368,17 @@ void RTOSPlusTCPEthernetSocket::Poll(bool full)
                 {
                     if (reprap.Debug(moduleNetwork))
                     {
-                        debugPrintf("Unknown error on Skt: %d\n", socketNum);
+                        debugPrintf("Unknown socket state on Skt: %d\n", socketNum);
                     }
-                    //some sort of socket error?
-                    Close(); //close the socket
+
+                    //test the socket to see if its really in an error state
+                    uint8_t tmp;
+                    BaseType_t ret = FreeRTOS_recv( xConnectedSocket, &tmp, 1, 0 );
+                    if( ret < 0 )
+                    {
+                        CheckSocketError(ret);
+                        Close(); //close the socket
+                    }
                 }
             } break;
                 
@@ -371,8 +386,7 @@ void RTOSPlusTCPEthernetSocket::Poll(bool full)
             {
                 //client disconnecting (planned) - close gracefully after we have finished receiving from buffers
                 //check for any remaining data in buffers
-                
-                BaseType_t rxlen = FreeRTOS_rx_size( xConnectedSocket ); //bytes not received from buffers
+                BaseType_t rxlen = FreeRTOS_recvcount( xConnectedSocket ); //bytes not received from buffers
                 if( rxlen > 0 ){
                     ReceiveData();
                 }
@@ -390,10 +404,12 @@ void RTOSPlusTCPEthernetSocket::Poll(bool full)
             } break;
                 
             case SocketState::closing:
-            {
                 whenConnected = millis(); // reuse whenConnected to have a shutdown timeout
-
-                /* Wait for the socket to disconnect gracefully (indicated by FreeRTOS_recv()
+                state = SocketState::closing2;
+                //fall through to closing2:
+            case SocketState::closing2:
+            {
+                /* Wait for the socket to send remaining packets and disconnect gracefully (indicated by FreeRTOS_recv()
                 returning a FREERTOS_EINVAL error) before closing the socket. */
                 uint8_t tmp;
                 if( FreeRTOS_recv( xConnectedSocket, &tmp, 1, 0 ) < 0 ||  (millis() - whenConnected) >= SocketShutdownTimeoutMillis)
@@ -418,7 +434,8 @@ void RTOSPlusTCPEthernetSocket::Poll(bool full)
 
 
 
-void RTOSPlusTCPEthernetSocket::CheckSocketError(BaseType_t val)
+//returns true if the socket was in Error
+bool RTOSPlusTCPEthernetSocket::CheckSocketError(BaseType_t val)
 {
     //If there was not enough memory for the socket to be able to create either an Rx or Tx stream then -pdFREERTOS_ERRNO_ENOMEM is returned.
     //If the socket was closed or got closed then -pdFREERTOS_ERRNO_ENOTCONN is returned.
@@ -430,18 +447,27 @@ void RTOSPlusTCPEthernetSocket::CheckSocketError(BaseType_t val)
         if (reprap.Debug(moduleNetwork))
         {
             debugPrintf("SocketError on Skt: %d Closing Connection\n", socketNum);
+
+            if(val == -pdFREERTOS_ERRNO_ENOMEM)     debugPrintf("  - Not enough memory for Socket\n");
+            else if(val == -pdFREERTOS_ERRNO_ENOTCONN)   debugPrintf("  - Socket was closed or got closed\n");
+            else if(val == -pdFREERTOS_ERRNO_EINTR)      debugPrintf("  - Read operation was aborted\n");
+            else if(val == -pdFREERTOS_ERRNO_EINVAL)     debugPrintf("  - Socket not valid\n");
+            else debugPrintf("  - Other socket error code: %d", (int)val);
         }
 
         Terminate();
+        
+        return true;
     }
+    
+    return false;
 }
 
 
 // Try to receive more incoming data from the socket. The mutex is alrady owned.
 void RTOSPlusTCPEthernetSocket::ReceiveData()
 {
-    
-    BaseType_t len = FreeRTOS_rx_size( xConnectedSocket );
+    BaseType_t len = FreeRTOS_recvcount( xConnectedSocket );
     
 	if (len > 0)
 	{
@@ -456,14 +482,13 @@ void RTOSPlusTCPEthernetSocket::ReceiveData()
                 lastBuffer->dataLength += bReceived;
                 if (reprap.Debug(moduleNetwork))
                 {
-                    debugPrintf("Appended %u bytes\n", (unsigned int)bReceived);
+                    debugPrintf("Appended %u bytes on skt: %d\n", (unsigned int)bReceived, socketNum);
                 }
             }
             else
             {
                 CheckSocketError(bReceived);
             }
-            
 		}
 		else if (NetworkBuffer::Count(receivedData) < MaxBuffersPerSocket)
 		{
@@ -477,11 +502,12 @@ void RTOSPlusTCPEthernetSocket::ReceiveData()
                     NetworkBuffer::AppendToList(&receivedData, buf);
                     if (reprap.Debug(moduleNetwork))
                     {
-                      debugPrintf("Received %u bytes\n", (unsigned int)bReceived);
+                        //debugPrintf("Received %u bytes on skt: %d\n", (unsigned int)bReceived, socketNum);
                     }
                 }
                 else
                 {
+                    buf->Release();// release the buffer we allocated above but did not use
                     CheckSocketError(bReceived);
                 }
             }
@@ -493,7 +519,6 @@ void RTOSPlusTCPEthernetSocket::ReceiveData()
                 debugPrintf("No buffer available to receive data on skt:%d\n", socketNum);
             }
         }
- 
 	}
 }
 
@@ -514,44 +539,28 @@ size_t RTOSPlusTCPEthernetSocket::Send(const uint8_t *data, size_t length)
 	if (CanSend() && length != 0 )
 	{
 		// Check for previous send complete
-		//if (isSending)									// are we already sending?
-        if(FreeRTOS_tx_space(xConnectedSocket) <= 0) // is there space ?
-		{
+		if (FreeRTOS_outstanding(xConnectedSocket) > 0)									// are we already sending?
+        {
+            return 0;
+        }
+        
+        BaseType_t canWriteBytes = FreeRTOS_maywrite(xConnectedSocket);
+        if(canWriteBytes < 0)
+        {
+            //Error on Socket
+            if (reprap.Debug(moduleNetwork))
+            {
+                debugPrintf("Send error on Skt: %d\n", socketNum);
+            }
+            CheckSocketError(canWriteBytes);
             
-            BaseType_t ret = FreeRTOS_tx_size(xConnectedSocket);
-            
-            if(ret > 0)
-            {
-                //still sending
-                if (reprap.Debug(moduleNetwork))
-                {
-                    debugPrintf("Still Sending on Skt: %d\n", socketNum);
-                }
-                return 0;
-                
-            }
-            else if(ret == 0)
-            {
-                //empty
-            }
-            else
-            {
-                //Error
-                if (reprap.Debug(moduleNetwork))
-                {
-                    debugPrintf("Send error on Skt: %d\n", socketNum);
-                }
-                CheckSocketError(ret);
-                
-                return 0;
-            }
-		}
+            return 0;
+        }
         
         //fill up the remaining TX buffer
-        BaseType_t txSpace = FreeRTOS_tx_space(xConnectedSocket);
-        if (length >  (uint16_t) txSpace)
+        if (length >  (uint16_t) canWriteBytes)
         {
-            length = (uint16_t) txSpace;
+            length = (uint16_t) canWriteBytes;
         }
         
         BaseType_t ret = FreeRTOS_send( xConnectedSocket, data, length, 0 );
@@ -562,14 +571,14 @@ size_t RTOSPlusTCPEthernetSocket::Send(const uint8_t *data, size_t length)
             {
                 debugPrintf("Send error on Skt: %d Err Code: %d\n", socketNum,(int16_t )ret );
             }
-            Terminate(); // close the conenction
+            CheckSocketError(ret);
             return 0;
         }
         else
         {
             if (reprap.Debug(moduleNetwork))
             {
-                debugPrintf("Queued %d bytes on Skt: %d\n", (int16_t )ret, socketNum );
+                debugPrintf("Queued %d bytes (of %d bytes) on Skt: %d\n", (int16_t )ret, length, socketNum );
             }
         }
         

@@ -107,7 +107,7 @@ typedef double floatc_t;					// type of matrix element used for calibration
 typedef float floatc_t;						// type of matrix element used for calibration
 #endif
 
-typedef uint32_t AxesBitmap;				// Type of a bitmap representing a set of axes
+typedef uint16_t AxesBitmap;				// Type of a bitmap representing a set of axes
 typedef uint32_t DriversBitmap;				// Type of a bitmap representing a set of driver numbers
 typedef uint32_t FansBitmap;				// Type of a bitmap representing a set of fan numbers
 typedef uint16_t Pwm_t;						// Type of a PWM value when we don't want to use floats
@@ -334,6 +334,38 @@ constexpr float RadiansToDegrees = 180.0/3.141592653589793;
 // Type of an offset in a file
 typedef uint32_t FilePosition;
 const FilePosition noFilePosition = 0xFFFFFFFF;
+
+#ifdef RTOS
+
+// Task priorities
+namespace TaskPriority
+{
+	static constexpr int SpinPriority = 1;							// priority for tasks that rarely block
+#ifdef LPC_NETWORKING
+    static constexpr int TcpPriority  = 2;
+    //EMAC priority = 3
+    static constexpr int HeatPriority = 4;
+    static constexpr int DhtPriority = 4;
+    static constexpr int TmcPriority = 4;
+    static constexpr int AinPriority = 4;
+    static constexpr int HeightFollowingPriority = 4;
+    static constexpr int DueXPriority = 5;
+    static constexpr int LaserPriority = 5;
+    static constexpr int CanSenderPriority = 5;
+    static constexpr int CanReceiverPriority = 5;
+#else
+	static constexpr int HeatPriority = 2;
+	static constexpr int DhtPriority = 2;
+	static constexpr int TmcPriority = 2;
+	static constexpr int AinPriority = 2;
+	static constexpr int DueXPriority = 3;
+	static constexpr int LaserPriority = 3;
+	static constexpr int CanSenderPriority = 3;
+	static constexpr int CanReceiverPriority = 3;
+#endif
+}
+
+#endif
 
 //-------------------------------------------------------------------------------------------------
 // Interrupt priorities - must be chosen with care! 0 is the highest priority, 15 is the lowest.

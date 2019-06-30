@@ -243,6 +243,10 @@ bool GCodes::HandleGcode(GCodeBuffer& gb, const StringRef& reply)
 				ClearBedMapping();
 				break;
 
+			case 3:		// save height map to names file
+				result = SaveHeightMap(gb, reply);
+				break;
+
 			default:
 				result = GCodeResult::badOrMissingParameter;
 				break;
@@ -286,27 +290,23 @@ bool GCodes::HandleGcode(GCodeBuffer& gb, const StringRef& reply)
 		DoFileMacro(gb, BED_EQUATION_G, true);	// Try to execute bed.g
 		break;
 
-#if SUPPORT_WORKPLACE_COORDINATES
 	case 53:	// Temporarily use machine coordinates
 		gb.MachineState().g53Active = true;
 		break;
 
+#if SUPPORT_WORKPLACE_COORDINATES
 	case 54:	// Switch to coordinate system 1
 	case 55:	// Switch to coordinate system 2
 	case 56:	// Switch to coordinate system 3
 	case 57:	// Switch to coordinate system 4
 	case 58:	// Switch to coordinate system 5
 	case 59:	// Switch to coordinate system 6,7,8,9
-		if (!LockMovementAndWaitForStandstill(gb))
-		{
-			return false;
-		}
 		{
 			unsigned int cs = code - 54;
 			if (code == 59)
 			{
 				const int8_t fraction = gb.GetCommandFraction();
-				if (fraction >= 0)
+				if (fraction > 0)
 				{
 					cs += (unsigned int)fraction;
 				}
@@ -314,9 +314,7 @@ bool GCodes::HandleGcode(GCodeBuffer& gb, const StringRef& reply)
 			if (cs < NumCoordinateSystems)
 			{
 				currentCoordinateSystem = cs;											// this is the zero-base coordinate system number
-				gb.MachineState().g53Active = false;
-				gb.MachineState().runningSystemMacro = false;
-				ToolOffsetInverseTransform(moveBuffer.coords, currentUserPosition);		// update user coordinates
+				gb.MachineState().g53Active = false;									// cancel any active G53
 			}
 			else
 			{
@@ -383,11 +381,6 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply)
 			reply.copy("Pause the print before attempting to cancel it");
 			result = GCodeResult::error;
 		}
-		else if (isWaiting)
-		{
-			cancelWait = true;								// was waiting for heating to complete, so cancel it
-			return false;
-		}
 		else if (   !LockMovementAndWaitForStandstill(gb)	// wait until everything has stopped
 				 || !IsCodeQueueIdle()						// must also wait until deferred command queue has caught up
 			    )
@@ -398,6 +391,7 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply)
 		{
 			const bool wasPaused = isPaused;				// isPaused gets cleared by CancelPrint
 			const bool wasSimulating = IsSimulating();		// simulationMode may get cleared by CancelPrint
+			isWaiting = cancelWait = false;					// we may have been waiting for temperatures to be reached
 			StopPrint((&gb == fileGCode) ? StopPrintReason::normalCompletion : StopPrintReason::userCancelled);
 
 			if (!wasSimulating)								// don't run any macro files or turn heaters off etc. if we were simulating before we stopped the print
@@ -408,11 +402,9 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply)
 					break;
 				}
 
-				gb.SetState((code == 0) ? GCodeState::stopping : GCodeState::sleeping);
-				if (!DoFileMacro(gb, (code == 0) ? STOP_G : SLEEP_G, false))
-				{
-					reprap.GetHeat().SwitchOffAll(true);	// no stop.g file found, so default to turning all heaters off
-				}
+				const bool leaveHeatersOn = (gb.Seen('H') && gb.GetIValue() > 0);
+				gb.SetState((leaveHeatersOn) ? GCodeState::stoppingWithHeatersOn : GCodeState::stoppingWithHeatersOff);
+				(void)DoFileMacro(gb, (code == 0) ? STOP_G : SLEEP_G, false);
 			}
 		}
 		break;
@@ -792,9 +784,7 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply)
 					{
 						// We executed M23 to set the file offset, which normally means that we are executing resurrect.g.
 						// We need to copy the absolute/relative and volumetric extrusion flags over
-						fileGCode->OriginalMachineState().drivesRelative = gb.MachineState().drivesRelative;
-						fileGCode->OriginalMachineState().feedRate = gb.MachineState().feedRate;
-						fileGCode->OriginalMachineState().volumetricExtrusion = gb.MachineState().volumetricExtrusion;
+						fileGCode->OriginalMachineState().CopyStateFrom(gb.MachineState());
 						fileToPrint.Seek(fileOffsetToPrint);
 						moveFractionToSkip = moveFractionToStartAt;
 					}
@@ -1212,7 +1202,7 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply)
 		{
 			String<MaxFilenameLength> filename;
 			gb.GetPossiblyQuotedString(filename.GetRef());
-			DoFileMacro(gb, filename.c_str(), true, 98);
+			DoFileMacro(gb, filename.c_str(), true, code);
 		}
 		break;
 
@@ -1243,8 +1233,8 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply)
 	case 106: // Set/report fan values
 		{
 			bool seenFanNum = false;
-			int32_t fanNum;
-			gb.TryGetIValue('P', fanNum, seenFanNum);
+			uint32_t fanNum;
+			gb.TryGetUIValue('P', fanNum, seenFanNum);
 			bool processed;
 
 			// 2018-08-09: only configure the fan if a fan number was given.
@@ -1315,6 +1305,8 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply)
 		{
 			return false;
 		}
+		UnlockMovement(gb);									// allow babystepping and pausing while heating
+
 		// no break
 	case 104:
 		// New behaviour from 1.20beta12:
@@ -1384,7 +1376,7 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply)
 				}
 
 				gb.MachineState().newToolNumber = applicableTool->Number();
-				gb.MachineState().toolChangeParam = (simulationMode == 0) ? 0 : DefaultToolChangeParam;
+				gb.MachineState().toolChangeParam = (simulationMode != 0) ? 0 : DefaultToolChangeParam;
 				gb.SetState(GCodeState::m109ToolChange0);
 			}
 			else
@@ -1608,9 +1600,9 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply)
 
 			if (result != GCodeResult::error)
 			{
-				String<GCODE_LENGTH> message;
 				if (gb.Seen(('S')))
 				{
+					String<GCODE_LENGTH> message;
 					gb.GetQuotedString(message.GetRef());
 					platform.Message(type, message.c_str());
 				}
@@ -1795,6 +1787,8 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply)
 		{
 			return false;
 		}
+
+		UnlockMovement(gb);									// allow babystepping and pausing while heating
 		{
 			// Check if the heater index is passed
 			const uint32_t index = gb.Seen('P') ? gb.GetUIValue() : 0;
@@ -1882,7 +1876,7 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply)
 			{
 				if (gb.Seen(axisLetters[axis]))
 				{
-					platform.SetAcceleration(axis, gb.ConvertDistance(gb.GetFValue()));
+					platform.SetAcceleration(axis, gb.GetDistance());
 					seen = true;
 				}
 			}
@@ -1920,12 +1914,20 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply)
 	case 203: // Set/print minimum/maximum feedrates
 		{
 			bool seen = false;
+
+			// Do the minimum first, because we constrain the maximum rates to be no lower than it
+			if (gb.Seen('I'))
+			{
+				seen = true;
+				platform.SetMinMovementSpeed(gb.GetDistance() * SecondsToMinutes);
+			}
+
 			for (size_t axis = 0; axis < numTotalAxes; ++axis)
 			{
 				if (gb.Seen(axisLetters[axis]))
 				{
 					seen = true;
-					platform.SetMaxFeedrate(axis, gb.ConvertDistance(gb.GetFValue()) * SecondsToMinutes);
+					platform.SetMaxFeedrate(axis, gb.GetDistance() * SecondsToMinutes);
 				}
 			}
 
@@ -1939,12 +1941,6 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply)
 				{
 					platform.SetMaxFeedrate(numTotalAxes + e, gb.ConvertDistance(eVals[e]) * SecondsToMinutes);
 				}
-			}
-
-			if (gb.Seen('I'))
-			{
-				seen = true;
-				platform.SetMinMovementSpeed(gb.ConvertDistance(gb.GetFValue()) * SecondsToMinutes);
 			}
 
 			if (!seen)
@@ -2221,9 +2217,6 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply)
 		{
 			const bool absolute = (gb.Seen('R') && gb.GetIValue() == 0);
 			bool seen = false;
-#if 0	//SUPPORT_ASYNC_MOVES
-			bool live = true;
-#endif
 			float differences[MaxAxes];
 			for (size_t axis = 0; axis < numVisibleAxes; ++axis)
 			{
@@ -2239,12 +2232,6 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply)
 					{
 						differences[axis] = constrain<float>(fval, -1.0, 1.0);
 					}
-#if 0	//SUPPORT_ASYNC_MOVES
-					if (differences[axis] != 0.0 && !IsBitSet(reprap.GetMove().GetKinematics().GetLinearAxes(), axis))
-					{
-						live = false;		// we can only live babystep linear axes
-					}
-#endif
 				}
 				else
 				{
@@ -2254,64 +2241,34 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply)
 
 			if (seen)
 			{
-#if 0	//SUPPORT_ASYNC_MOVES
-				if (live)
+				if (!LockMovement(gb))
 				{
-					if (auxMoveAvailable)
-					{
-						return false;									// wait until the previous aux move has gone
-					}
-
-					auxMoveBuffer.SetDefaults(0);
-					auxMoveBuffer.feedRate = DefaultFeedRate;
-					auxMoveBuffer.acceleration = 9999.0;
-					for (size_t axis = 0; axis < numVisibleAxes; ++axis)
-					{
-						hiddenBabyStepOffsets[axis] += differences[axis];
-						if (differences[axis] != 0.0)
-						{
-							auxMoveBuffer.coords[axis] = differences[axis];
-							auxMoveBuffer.feedRate = min<float>(auxMoveBuffer.feedRate, platform.MaxFeedrate(axis));
-							auxMoveBuffer.acceleration = min<float>(auxMoveBuffer.acceleration, platform.Acceleration(axis));
-						}
-					}
-					auxMoveBuffer.feedRate /= 4;						// allow for other movement taking place at the same time
-					auxMoveBuffer.acceleration /= 4;
-					__DMB();
-					auxMoveAvailable = true;
+					return false;
 				}
-				else
-#endif
+
+				// Perform babystepping synchronously with moves
+				bool haveResidual = false;
+				for (size_t axis = 0; axis < numVisibleAxes; ++axis)
 				{
-					if (!LockMovement(gb))
-					{
-						return false;
-					}
+					currentBabyStepOffsets[axis] += differences[axis];
+					const float amountPushed = reprap.GetMove().PushBabyStepping(axis, differences[axis]);
+					moveBuffer.initialCoords[axis] += amountPushed;
 
-					// Perform babystepping synchronously with moves
-					bool haveResidual = false;
-					for (size_t axis = 0; axis < numVisibleAxes; ++axis)
+					// The following causes all the remaining baby stepping that we didn't manage to push to be added to the [remainder of the] currently-executing move, if there is one.
+					// This could result in an abrupt Z movement, however the move will be processed as normal so the jerk limit will be honoured.
+					moveBuffer.coords[axis] += differences[axis];
+					if (amountPushed != differences[axis])
 					{
-						currentBabyStepOffsets[axis] += differences[axis];
-						const float amountPushed = reprap.GetMove().PushBabyStepping(axis, differences[axis]);
-						moveBuffer.initialCoords[axis] += amountPushed;
-
-						// The following causes all the remaining baby stepping that we didn't manage to push to be added to the [remainder of the] currently-executing move, if there is one.
-						// This could result in an abrupt Z movement, however the move will be processed as normal so the jerk limit will be honoured.
-						moveBuffer.coords[axis] += differences[axis];
-						if (amountPushed != differences[axis])
-						{
-							haveResidual = true;
-						}
+						haveResidual = true;
 					}
+				}
 
-					if (haveResidual && segmentsLeft == 0 && reprap.GetMove().AllMovesAreFinished())
-					{
-						// The pipeline is empty, so execute the babystepping move immediately
-						SetMoveBufferDefaults();
-						moveBuffer.feedRate = DefaultFeedRate;
-						NewMoveAvailable(1);
-					}
+				if (haveResidual && segmentsLeft == 0 && reprap.GetMove().AllMovesAreFinished())
+				{
+					// The pipeline is empty, so execute the babystepping move immediately
+					SetMoveBufferDefaults();
+					moveBuffer.feedRate = DefaultFeedRate;
+					NewMoveAvailable(1);
 				}
 			}
 			else
@@ -2372,18 +2329,12 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply)
 					}
 				}
 
-				// If any axis jog buttons are enabled, wait for movement to stop and lock the movement system
-				if (axisControls != 0)
-				{
-					if (!LockMovementAndWaitForStandstill(gb))
-					{
-						return false;
-					}
-				}
+				// Don't lock the movement system, because if we do then only the channel that issues the M291 can move the axes
 
 				// If we need to wait for an acknowledgement, save the state and set waiting
 				if ((sParam == 2 || sParam == 3) && Push(gb))						// stack the machine state including the file position
 				{
+					UnlockMovement(gb);												// allow movement so that e.g. an SD card print can call M291 and then DWC or PanelDue can be used to jog axes
 					gb.MachineState().fileState.Close();							// stop reading from file
 					gb.MachineState().waitingForAcknowledgement = true;				// flag that we are waiting for acknowledgement
 				}
@@ -2427,16 +2378,28 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply)
 		bool seen = false;
 		if (gb.Seen('P'))
 		{
+			if (!LockMovementAndWaitForStandstill(gb))
+			{
+				return false;
+			}
 			seen = true;
 			reprap.GetHeat().AllowColdExtrude(gb.GetIValue() > 0);
 		}
 		if (gb.Seen('S'))
 		{
+			if (!LockMovementAndWaitForStandstill(gb))
+			{
+				return false;
+			}
 			seen = true;
 			reprap.GetHeat().SetExtrusionMinTemp(gb.GetFValue());
 		}
 		if (gb.Seen('R'))
 		{
+			if (!LockMovementAndWaitForStandstill(gb))
+			{
+				return false;
+			}
 			seen = true;
 			reprap.GetHeat().SetRetractionMinTemp(gb.GetFValue());
 		}
@@ -2566,7 +2529,7 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply)
 		break;
 
 	case 374: // Save grid and height map to file
-		result = GetGCodeResultFromError(SaveHeightMap(gb, reply));
+		result = SaveHeightMap(gb, reply);
 		break;
 
 	case 375: // Load grid and height map from file and enable compensation
@@ -3270,7 +3233,7 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply)
 			{
 				if (gb.Seen(axisLetters[axis]))
 				{
-					platform.SetInstantDv(axis, gb.ConvertDistance(gb.GetFValue()) * multiplier1);
+					platform.SetInstantDv(axis, gb.GetDistance() * multiplier1);
 					seen = true;
 				}
 			}
@@ -3286,7 +3249,14 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply)
 					platform.SetInstantDv(numTotalAxes + e, eVals[e] * multiplier1);
 				}
 			}
-			else if (!seen)
+
+			if (code == 566 && gb.Seen('P'))
+			{
+				seen = true;
+				reprap.GetMove().SetJerkPolicy(gb.GetUIValue());
+			}
+
+			if (!seen)
 			{
 				const float multiplier2 = (code == 566) ? MinutesToSeconds : 1.0;
 				reply.printf("Maximum jerk rates (mm/%s): ", (code == 566) ? "min" : "sec");
@@ -3300,6 +3270,10 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply)
 				{
 					reply.catf("%c%.1f", sep, (double)(platform.GetInstantDv(extruder + numTotalAxes) * multiplier2));
 					sep = ':';
+				}
+				if (code == 566)
+				{
+					reply.catf(", jerk policy: %u", reprap.GetMove().GetJerkPolicy());
 				}
 			}
 		}
@@ -3486,7 +3460,6 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply)
 			const uint8_t inputType = (gb.Seen('S')) ? gb.GetUIValue() : 1;
 
 			unsigned int axesSeen = 0;
-			size_t lastAxisSeen;
 			for (size_t axis = 0; axis < numTotalAxes; ++axis)
 			{
 				if (gb.Seen(axisLetters[axis]))
@@ -3496,7 +3469,6 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply)
 						return false;
 					}
 					++axesSeen;
-					lastAxisSeen = axis;
 					const int ival = gb.GetIValue();
 					if (ival >= 0 && ival <= 3)
 					{
@@ -3508,22 +3480,6 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply)
 						result = GCodeResult::error;
 						break;
 					}
-				}
-			}
-
-			if (gb.Seen('C'))
-			{
-				if (axesSeen == 1)
-				{
-					uint32_t inputNumbers[MaxDriversPerAxis];
-					size_t numInputs = MaxDriversPerAxis;
-					gb.GetUnsignedArray(inputNumbers, numInputs, false);
-					platform.SetAxisEndstopConfig(lastAxisSeen, numInputs, inputNumbers);
-				}
-				else
-				{
-					reply.copy("Invalid use of C parameter");
-					result = GCodeResult::error;
 				}
 			}
 
@@ -3542,22 +3498,6 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply)
 										: "none");
 					if (config != EndStopPosition::noEndStop)
 					{
-						if (inputType == EndStopInputType::activeHigh || inputType == EndStopInputType::activeLow)
-						{
-							const AxisEndstopConfig& es = platform.GetAxisEndstopConfig(axis);
-							if (es.numEndstops == 1)
-							{
-								reply.catf(" input %u", es.endstopNumbers[0]);
-							}
-							else
-							{
-								reply.cat(" inputs");
-								for (size_t i = 0; i < es.numEndstops; ++i)
-								{
-									reply.catf(" %u", es.endstopNumbers[i]);
-								}
-							}
-						}
 						reply.catf(" %s",
 									(inputType == EndStopInputType::activeHigh) ? "active high"
 										: (inputType == EndStopInputType::activeLow) ? "active low"
@@ -3842,7 +3782,7 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply)
 			}
 			if (changed || changedMode)
 			{
-				if (reprap.GetMove().GetKinematics().LimitPosition(moveBuffer.coords, nullptr, numVisibleAxes, axesHomed, false, false))
+				if (reprap.GetMove().GetKinematics().LimitPosition(moveBuffer.coords, nullptr, numVisibleAxes, axesHomed, false, false) != LimitPositionResult::ok)
 				{
 					ToolOffsetInverseTransform(moveBuffer.coords, currentUserPosition);	// make sure the limits are reflected in the user position
 				}
@@ -3921,7 +3861,7 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply)
 						move.GetKinematics().GetAssumedInitialPosition(numVisibleAxes, moveBuffer.coords);
 						ToolOffsetInverseTransform(moveBuffer.coords, currentUserPosition);
 					}
-					if (reprap.GetMove().GetKinematics().LimitPosition(moveBuffer.coords, nullptr, numVisibleAxes, axesHomed, false, false))
+					if (reprap.GetMove().GetKinematics().LimitPosition(moveBuffer.coords, nullptr, numVisibleAxes, axesHomed, false, false) != LimitPositionResult::ok)
 					{
 						ToolOffsetInverseTransform(moveBuffer.coords, currentUserPosition);	// make sure the limits are reflected in the user position
 					}
@@ -3968,7 +3908,7 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply)
 					move.GetKinematics().GetAssumedInitialPosition(numVisibleAxes, moveBuffer.coords);
 					ToolOffsetInverseTransform(moveBuffer.coords, currentUserPosition);
 				}
-				if (reprap.GetMove().GetKinematics().LimitPosition(moveBuffer.coords, nullptr, numVisibleAxes, axesHomed, false, false))
+				if (reprap.GetMove().GetKinematics().LimitPosition(moveBuffer.coords, nullptr, numVisibleAxes, axesHomed, false, false) != LimitPositionResult::ok)
 				{
 					ToolOffsetInverseTransform(moveBuffer.coords, currentUserPosition);	// make sure the limits are reflected in the user position
 				}
@@ -3998,6 +3938,10 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply)
 
 	case 672: // Program Z probe
 		result = platform.ProgramZProbe(gb, reply);
+		break;
+
+	case 675:
+		result = FindCenterOfCavity(gb, reply);
 		break;
 
 	case 701: // Load filament

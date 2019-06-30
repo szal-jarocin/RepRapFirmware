@@ -51,6 +51,9 @@ protected:
 		connected,
 		clientDisconnecting,
 		closing,
+#ifdef __LPC17xx__
+        closing2,
+#endif
 		aborted
 	};
 

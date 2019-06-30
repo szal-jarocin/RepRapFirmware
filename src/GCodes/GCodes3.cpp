@@ -15,6 +15,7 @@
 #include "Tools/Tool.h"
 #include "PrintMonitor.h"
 #include "Tasks.h"
+#include "Hardware/I2C.h"
 
 #if HAS_WIFI_NETWORKING
 # include "FirmwareUpdater.h"
@@ -40,7 +41,7 @@ GCodeResult GCodes::SetPrintZProbe(GCodeBuffer& gb, const StringRef& reply)
 	bool seenT = false;
 	if (gb.Seen('T'))
 	{
-		unsigned int tp = gb.GetUIValue();
+		const unsigned int tp = gb.GetUIValue();
 		if (tp == 0 || tp >= (unsigned int)ZProbeType::numTypes)
 		{
 			reply.copy("Invalid Z probe type");
@@ -94,27 +95,30 @@ GCodeResult GCodes::SetPrintZProbe(GCodeBuffer& gb, const StringRef& reply)
 		}
 		platform.SetZProbeParameters(probeType, params);
 	}
-	else if (seenT)
-	{
-		// Don't bother printing temperature coefficient and calibration temperature because we will probably remove them soon
-		reply.printf("Threshold %d, trigger height %.2f, offsets X%.1f Y%.1f", params.adcValue, (double)params.triggerHeight, (double)params.xOffset, (double)params.yOffset);
-	}
 	else
 	{
-		const int v0 = platform.GetZProbeReading();
-		int v1, v2;
-		switch (platform.GetZProbeSecondaryValues(v1, v2))
+		if (seenT)
 		{
-		case 1:
-			reply.printf("%d (%d)", v0, v1);
-			break;
-		case 2:
-			reply.printf("%d (%d, %d)", v0, v1, v2);
-			break;
-		default:
-			reply.printf("%d", v0);
-			break;
+			reply.printf("Probe type %u:", (unsigned int)probeType);
 		}
+		else
+		{
+			const int v0 = platform.GetZProbeReading();
+			int v1, v2;
+			switch (platform.GetZProbeSecondaryValues(v1, v2))
+			{
+			case 1:
+				reply.printf("Current reading %d (%d),", v0, v1);
+				break;
+			case 2:
+				reply.printf("Current reading %d (%d, %d),", v0, v1, v2);
+				break;
+			default:
+				reply.printf("Current reading %d,", v0);
+				break;
+			}
+		}
+		reply.catf(" threshold %d, trigger height %.2f, offsets X%.1f Y%.1f", params.adcValue, (double)params.triggerHeight, (double)params.xOffset, (double)params.yOffset);
 	}
 	return GCodeResult::ok;
 }
@@ -160,18 +164,24 @@ GCodeResult GCodes::SetPositions(GCodeBuffer& gb)
 	// Handle any E parameter in the G92 command
 	if (gb.Seen(extrudeLetter))
 	{
-		virtualExtruderPosition = gb.ConvertDistance(gb.GetFValue());
+		virtualExtruderPosition = gb.GetDistance();
 	}
 
 	if (axesIncluded != 0)
 	{
 		ToolOffsetTransform(currentUserPosition, moveBuffer.coords);
-		if (reprap.GetMove().GetKinematics().LimitPosition(moveBuffer.coords, nullptr, numVisibleAxes, LowestNBits<AxesBitmap>(numVisibleAxes), false, limitAxes))	// pretend that all axes are homed
+		if (reprap.GetMove().GetKinematics().LimitPosition(moveBuffer.coords, nullptr, numVisibleAxes, LowestNBits<AxesBitmap>(numVisibleAxes), false, limitAxes)
+			!= LimitPositionResult::ok												// pretend that all axes are homed
+		   )
 		{
 			ToolOffsetInverseTransform(moveBuffer.coords, currentUserPosition);		// make sure the limits are reflected in the user position
 		}
 		reprap.GetMove().SetNewPosition(moveBuffer.coords, true);
 		axesHomed |= reprap.GetMove().GetKinematics().AxesAssumedHomed(axesIncluded);
+		if (IsBitSet(axesIncluded, Z_AXIS))
+		{
+			zDatumSetByProbing -= false;
+		}
 
 #if SUPPORT_ROLAND
 		if (reprap.GetRoland()->Active())
@@ -205,7 +215,7 @@ GCodeResult GCodes::OffsetAxes(GCodeBuffer& gb, const StringRef& reply)
 #else
 			axisOffsets[axis]
 #endif
-						 = -gb.ConvertDistance(gb.GetFValue());
+						 = -gb.GetDistance();
 			seen = true;
 		}
 	}
@@ -241,7 +251,7 @@ GCodeResult GCodes::GetSetWorkplaceCoordinates(GCodeBuffer& gb, const StringRef&
 		{
 			if (gb.Seen(axisLetters[axis]))
 			{
-				const float coord = gb.ConvertDistance(gb.GetFValue());
+				const float coord = gb.GetDistance();
 				if (!seen)
 				{
 					if (!LockMovementAndWaitForStandstill(gb))						// make sure the user coordinates are stable and up to date
@@ -250,17 +260,11 @@ GCodeResult GCodes::GetSetWorkplaceCoordinates(GCodeBuffer& gb, const StringRef&
 					}
 					seen = true;
 				}
-				workplaceCoordinates[cs - 1][axis] = (compute)
-													? currentUserPosition[axis] - coord + workplaceCoordinates[currentCoordinateSystem][axis]
-														: coord;
+				workplaceCoordinates[cs - 1][axis] = (compute) ? currentUserPosition[axis] - coord : coord;
 			}
 		}
 
-		if (seen)
-		{
-			ToolOffsetInverseTransform(moveBuffer.coords, currentUserPosition);		// update user coordinates in case we are using the workspace we just changed
-		}
-		else
+		if (!seen)
 		{
 			reply.printf("Origin of workplace %" PRIu32 ":", cs);
 			for (size_t axis = 0; axis < numVisibleAxes; axis++)
@@ -274,7 +278,7 @@ GCodeResult GCodes::GetSetWorkplaceCoordinates(GCodeBuffer& gb, const StringRef&
 	return GCodeResult::badOrMissingParameter;
 }
 
-// Save any modified workplace coordinate offsets to file returning true if successful. Used by M500.
+// Save all the workplace coordinate offsets to file returning true if successful. Used by M500 and by SaveResumeInfo.
 bool GCodes::WriteWorkplaceCoordinates(FileStore *f) const
 {
 	for (size_t cs = 0; cs < NumCoordinateSystems; ++cs)
@@ -334,7 +338,7 @@ GCodeResult GCodes::DefineGrid(GCodeBuffer& gb, const StringRef &reply)
 	float radius = -1.0;
 	gb.TryGetFValue('R', radius, seenR);
 
-	if (!seenX && !seenY && !seenR && !seenS)
+	if (!seenX && !seenY && !seenR && !seenS && !seenP)
 	{
 		// Just print the existing grid parameters
 		if (defaultGrid.IsValid())
@@ -358,7 +362,7 @@ GCodeResult GCodes::DefineGrid(GCodeBuffer& gb, const StringRef &reply)
 	if (!seenX && !seenR)
 	{
 		// Must have given just the S or P parameter
-		reply.copy("specify at least radius or X,Y ranges in M577");
+		reply.copy("specify at least radius or X and Y ranges in M577");
 		return GCodeResult::error;
 	}
 
@@ -796,12 +800,15 @@ GCodeResult GCodes::DoDriveMapping(GCodeBuffer& gb, const StringRef& reply)
 				c = ':';
 			}
 		}
-		reply.cat(' ');
-		char c = extrudeLetter;
-		for (size_t extruder = 0; extruder < numExtruders; ++extruder)
+		if (numExtruders != 0)
 		{
-			reply.catf("%c%u", c, platform.GetExtruderDriver(extruder));
-			c = ':';
+			reply.cat(' ');
+			char c = extrudeLetter;
+			for (size_t extruder = 0; extruder < numExtruders; ++extruder)
+			{
+				reply.catf("%c%u", c, platform.GetExtruderDriver(extruder));
+				c = ':';
+			}
 		}
 		reply.catf(", %u axes visible", numVisibleAxes);
 	}
@@ -885,7 +892,7 @@ GCodeResult GCodes::ProbeTool(GCodeBuffer& gb, const StringRef& reply)
 			// Deal with feed rate
 			if (gb.Seen(feedrateLetter))
 			{
-				const float rate = gb.ConvertDistance(gb.GetFValue());
+				const float rate = gb.GetDistance();
 				gb.MachineState().feedRate = rate * SecondsToMinutes;	// don't apply the speed factor to homing and other special moves
 			}
 			moveBuffer.feedRate = gb.MachineState().feedRate;
@@ -896,6 +903,70 @@ GCodeResult GCodes::ProbeTool(GCodeBuffer& gb, const StringRef& reply)
 		}
 	}
 
+	return GCodeResult::ok;
+}
+
+GCodeResult GCodes::FindCenterOfCavity(GCodeBuffer& gb, const StringRef& reply, const bool towardsMin)
+{
+	if (reprap.GetCurrentTool() == nullptr)
+	{
+		reply.copy("No tool selected!");
+		return GCodeResult::error;
+	}
+
+	if (!LockMovementAndWaitForStandstill(gb))
+	{
+		return GCodeResult::notFinished;
+	}
+
+	for (size_t axis = 0; axis < numVisibleAxes; axis++)
+	{
+		if (gb.Seen(axisLetters[axis]))
+		{
+
+			SetMoveBufferDefaults();
+
+			// Prepare a move similar to G1 .. S3
+			moveBuffer.moveType = 3;
+			SetBit(moveBuffer.endStopsToCheck, axis);
+			axesToSenseLength = 0;
+
+			doingArcMove = false;
+
+			moveBuffer.canPauseAfter = false;
+			moveBuffer.hasExtrusion = false;
+
+			moveBuffer.coords[axis] = towardsMin ? platform.AxisMinimum(axis) : platform.AxisMaximum(axis);
+
+			// Deal with feed rate
+			if (gb.Seen(feedrateLetter))
+			{
+				const float rate = gb.ConvertDistance(gb.GetFValue());
+				gb.MachineState().feedRate = rate * SecondsToMinutes;	// don't apply the speed factor to homing and other special moves
+			}
+			else
+			{
+				reply.copy("No feed rate provided.");
+				return GCodeResult::badOrMissingParameter;
+			}
+			moveBuffer.feedRate = gb.MachineState().feedRate;
+
+			if (towardsMin)
+			{
+				gb.SetState(GCodeState::findCenterOfCavityMin);
+			}
+			else
+			{
+				gb.SetState(GCodeState::findCenterOfCavityMax);
+			}
+
+			// Kick off new movement
+			NewMoveAvailable(1);
+
+			// Only do one axis at a time
+			break;
+		}
+	}
 	return GCodeResult::ok;
 }
 
@@ -1059,12 +1130,8 @@ GCodeResult GCodes::SendI2c(GCodeBuffer& gb, const StringRef &reply)
 				bValues[i] = (uint8_t)values[i];
 			}
 
-			platform.InitI2c();
-			size_t bytesTransferred;
-			{
-				MutexLocker lock(Tasks::GetI2CMutex());
-				bytesTransferred = I2C_IFACE.Transfer(address, bValues, numToSend, numToReceive);
-			}
+			I2C::Init();
+			const size_t bytesTransferred = I2C::Transfer(address, bValues, numToSend, numToReceive);
 
 			if (bytesTransferred < numToSend)
 			{
@@ -1109,14 +1176,10 @@ GCodeResult GCodes::ReceiveI2c(GCodeBuffer& gb, const StringRef &reply)
 			const uint32_t numBytes = gb.GetUIValue();
 			if (numBytes > 0 && numBytes <= MaxI2cBytes)
 			{
-				platform.InitI2c();
+				I2C::Init();
 
 				uint8_t bValues[MaxI2cBytes];
-				size_t bytesRead;
-				{
-					MutexLocker lock(Tasks::GetI2CMutex());
-					bytesRead = I2C_IFACE.Transfer(address, bValues, 0, numBytes);
-				}
+				const size_t bytesRead = I2C::Transfer(address, bValues, 0, numBytes);
 
 				reply.copy("Received");
 				if (bytesRead == 0)

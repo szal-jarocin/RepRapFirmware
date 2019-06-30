@@ -43,9 +43,6 @@ public:
 
 	bool InitStandardMove(DDARing& ring, GCodes::RawMove &nextMove, bool doMotorMapping) __attribute__ ((hot));	// Set up a new move, returning true if it represents real movement
 	bool InitLeadscrewMove(DDARing& ring, float feedrate, const float amounts[MaxTotalDrivers]);		// Set up a leadscrew motor move
-#if SUPPORT_ASYNC_MOVES
-	bool InitAsyncMove(DDARing& ring, float feedrate, float reqAcceleration, const float amounts[MaxTotalDrivers]);			// Set up an async move
-#endif
 
 	void Start(Platform& p, uint32_t tim) __attribute__ ((hot));			// Start executing the DDA, i.e. move the move.
 	void StepDrivers(Platform& p) __attribute__ ((hot));					// Take one step of the DDA, called by timed interrupt.
@@ -210,7 +207,7 @@ private:
 	LaserPwmOrIoBits laserPwmOrIoBits;		// laser PWM required or port state required during this move (here because it is currently 16 bits)
 #endif
 
-    EndstopChecks endStopsToCheck;			// Which endstops we are checking on this move
+	EndstopsBitmap endStopsToCheck;			// Which endstops we are checking on this move
     AxesBitmap xAxes;						// Which axes are behaving as X axes
     AxesBitmap yAxes;						// Which axes are behaving as Y axes
 

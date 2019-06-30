@@ -62,14 +62,19 @@ Socket_t RTOSPlusTCPEthernetServerSocket::GetServerSocket(Port serverPort, Netwo
     else
     {
         if(protocolServerSockets[p] != nullptr){
-            FreeRTOS_debug_printf( ( "+TCPServerSocket::GetServerSocket(): Had non-resue socket but there is a problem: Error code: %d ", (int)ret) );
+            if (reprap.Debug(moduleNetwork))
+            {
+                debugPrintf( "+TCPServerSocket::GetServerSocket(): Had non-resue socket but there is a problem: Error code: %d\n", (int)ret);
+            }
             CloseProtocol(p);
         }
         
     }
     
-    FreeRTOS_debug_printf( ( "+TCPServerSocket::GetServerSocket(): port: %d, Protocol: %s, maxConnections: %d\n", serverPort, ProtocolNames[p], maxClients ) );
-    
+    if (reprap.Debug(moduleNetwork))
+    {
+        debugPrintf("+TCPServerSocket::GetServerSocket(): Create Socket (port: %d, Protocol: %s, maxConnections: %d)\n", (int)serverPort, ProtocolNames[p], (int)maxClients);
+    }
     //attempt to create the socket
     protocolServerSockets[p] = FreeRTOS_socket( FREERTOS_AF_INET, FREERTOS_SOCK_STREAM, FREERTOS_IPPROTO_TCP );
     
@@ -93,11 +98,31 @@ Socket_t RTOSPlusTCPEthernetServerSocket::GetServerSocket(Port serverPort, Netwo
         xBindAddress.sin_port = FreeRTOS_htons( xBindAddress.sin_port );
         
         /* Bind the socket to the port */
-        FreeRTOS_bind( protocolServerSockets[p], &xBindAddress, sizeof( xBindAddress ) );
+        if(FreeRTOS_bind( protocolServerSockets[p], &xBindAddress, sizeof( xBindAddress ) ) < 0 )
+        {
+            //error binding socket
+            if (reprap.Debug(moduleNetwork))
+            {
+                debugPrintf("+TCPServerSocket::GetServerSocket(): Failed to bind socket\n");
+                CloseProtocol(p);
+                return nullptr;
+
+            }
+
+        }
         
         /* Set the socket into a listening state so it can accept connections.
          The maximum number of simultaneous connections is limited to value of backlog. */
-        FreeRTOS_listen( protocolServerSockets[p], maxClients );
+        if( FreeRTOS_listen( protocolServerSockets[p], maxClients ) < 0){
+            //Unable to set listen state
+            if (reprap.Debug(moduleNetwork))
+            {
+                debugPrintf("+TCPServerSocket::GetServerSocket(): Failed to set socket to listen state\n");
+                CloseProtocol(p);
+                return nullptr;
+            }
+
+        }
         
         return protocolServerSockets[p];
         
@@ -105,7 +130,7 @@ Socket_t RTOSPlusTCPEthernetServerSocket::GetServerSocket(Port serverPort, Netwo
     else
     {
         //failed to create socket
-        debugPrintf( "Failed to create Protocol Server Socket for %s on port %d", ProtocolNames[p], serverPort );
+        debugPrintf( "Failed to create Protocol Server Socket for %s on port %d\n", ProtocolNames[p], serverPort );
         protocolServerSockets[p] = nullptr;
 
     }

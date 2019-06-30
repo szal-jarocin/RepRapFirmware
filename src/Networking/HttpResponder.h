@@ -16,10 +16,11 @@ public:
 	HttpResponder(NetworkResponder *n);
 	bool Spin() override;								// do some work, returning true if we did anything significant
 	bool Accept(Socket *s, NetworkProtocol protocol) override;	// ask the responder to accept this connection, returns true if it did
-	void Terminate(NetworkProtocol protocol) override;			// terminate the responder if it is serving the specified protocol
+	void Terminate(NetworkProtocol protocol, NetworkInterface *interface) override;	// terminate the responder if it is serving the specified protocol on the specified interface
 	void Diagnostics(MessageType mtype) const override;
 
 	static void InitStatic();
+	static void Disable();
 	static void HandleGCodeReply(const char *reply);
 	static void HandleGCodeReply(OutputBuffer *reply);
 	static uint32_t GetReplySeq() { return seq; }
@@ -32,7 +33,7 @@ protected:
 
 private:
 #if __LPC17xx__
-    static const size_t MaxHttpSessions = 1;            // maximum number of simultaneous HTTP sessions
+    static const size_t MaxHttpSessions = 2;            // maximum number of simultaneous HTTP sessions
 #else
     static const size_t MaxHttpSessions = 8;            // maximum number of simultaneous HTTP sessions
 #endif

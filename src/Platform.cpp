@@ -35,9 +35,9 @@
 #include "SoftTimer.h"
 #include "Logger.h"
 #include "Tasks.h"
-#include "DmacManager.h"
+#include "Hardware/DmacManager.h"
 #include "Math/Isqrt.h"
-#include "Wire.h"
+#include "Hardware/I2C.h"
 
 #ifndef __LPC17xx__
 # include "sam/drivers/tc/tc.h"
@@ -79,7 +79,7 @@ extern uint32_t _estack;			// defined in the linker script
 
 #if !defined(HAS_LWIP_NETWORKING) || !defined(HAS_WIFI_NETWORKING) || !defined(HAS_CPU_TEMP_SENSOR) || !defined(HAS_HIGH_SPEED_SD) \
  || !defined(HAS_SMART_DRIVERS) || !defined(HAS_STALL_DETECT) || !defined(HAS_VOLTAGE_MONITOR) || !defined(HAS_VREF_MONITOR) || !defined(ACTIVE_LOW_HEAT_ON) \
- || !defined(SUPPORT_NONLINEAR_EXTRUSION) || !defined(SUPPORT_ASYNC_MOVES)
+ || !defined(SUPPORT_NONLINEAR_EXTRUSION)
 # error Missing feature definition
 #endif
 
@@ -168,13 +168,13 @@ extern "C" void UrgentInit()
 
 uint8_t Platform::softwareResetDebugInfo = 0;			// extra info for debugging
 
-Platform::Platform() :
-		logger(nullptr), board(DEFAULT_BOARD_TYPE), active(false), errorCodeBits(0),
+Platform::Platform()
+	: logger(nullptr), board(DEFAULT_BOARD_TYPE), active(false), errorCodeBits(0),
 #if HAS_SMART_DRIVERS
-		nextDriveToPoll(0),
+	  nextDriveToPoll(0),
 #endif
-		lastFanCheckTime(0), auxGCodeReply(nullptr), sysDir(nullptr), tickState(0), debugCode(0),
-		lastWarningMillis(0), deliberateError(false), i2cInitialised(false)
+	  lastFanCheckTime(0), auxGCodeReply(nullptr), sysDir(nullptr), tickState(0), debugCode(0),
+	  lastWarningMillis(0), deliberateError(false)
 {
 	massStorage = new MassStorage(this);
 }
@@ -184,7 +184,6 @@ Platform::Platform() :
 // Initialise the Platform. Note: this is the first module to be initialised, so don't call other modules from here!
 void Platform::Init()
 {
-
 	SetBoardType(BoardType::Auto);
 
 #if defined(PCCB_10) || defined(PCCB_08_X5)
@@ -313,7 +312,7 @@ void Platform::Init()
 	ARRAY_INIT(defaultMacAddress, DefaultMacAddress);
 
 	// Motor current setting on Duet 0.6 and 0.8.5
-	InitI2c();
+	I2C::Init();
 	mcpExpansion.setMCP4461Address(0x2E);		// not required for mcpDuet, as this uses the default address
 	ARRAY_INIT(potWipes, POT_WIPES);
 	senseResistor = SENSE_RESISTOR;
@@ -405,20 +404,19 @@ void Platform::Init()
 
 	for (size_t drive = 0; drive < MaxTotalDrivers; drive++)
 	{
-		enableValues[drive] = 0;					// assume active low enable signal
-		directions[drive] = true;					// drive moves forwards by default
+		enableValues[drive] = 0;									// assume active low enable signal
+		directions[drive] = true;									// drive moves forwards by default
 		motorCurrents[drive] = 0.0;
 		motorCurrentFraction[drive] = 1.0;
 		driverState[drive] = DriverStatus::disabled;
+		driveDriverBits[drive + MaxTotalDrivers] = CalcDriverBitmap(drive);
 
 		// Map axes and extruders straight through
-		driveDriverBits[drive] = driveDriverBits[drive + MaxTotalDrivers] = CalcDriverBitmap(drive);	// this returns 0 for remote drivers
+		driveDriverBits[drive] = CalcDriverBitmap(drive);			// this returns 0 for remote drivers
 		if (drive < MaxAxes)
 		{
 			axisDrivers[drive].numDrivers = 1;
 			axisDrivers[drive].driverNumbers[0] = (uint8_t)drive;
-			axisEndstops[drive].numEndstops = 1;
-			axisEndstops[drive].endstopNumbers[0] = (uint8_t)drive;
 			endStopPos[drive] = EndStopPosition::lowEndStop;		// default to low endstop
 			endStopInputType[drive] = EndStopInputType::activeHigh;	// assume all endstops use active high logic e.g. normally-closed switch to ground
 		}
@@ -1736,7 +1734,7 @@ void Platform::Spin()
 			// Check for attempts to move motors when not powered
 			if (warnDriversNotPowered)
 			{
-				Message(ErrorMessage, "Attempt to move motors when VIN is not in range");
+				Message(ErrorMessage, "Attempt to move motors when VIN is not in range\n");
 				warnDriversNotPowered = false;
 				reported = true;
 			}
@@ -2556,8 +2554,8 @@ void Platform::Diagnostics(MessageType mtype)
 
 #ifdef I2C_IFACE
 	const TwoWire::ErrorCounts errs = I2C_IFACE.GetErrorCounts(true);
-	MessageF(mtype, "I2C nak errors %" PRIu32 ", send timeouts %" PRIu32 ", receive timeouts %" PRIu32 ", finishTimeouts %" PRIu32 "\n",
-		errs.naks, errs.sendTimeouts, errs.recvTimeouts, errs.finishTimeouts);
+	MessageF(mtype, "I2C nak errors %" PRIu32 ", send timeouts %" PRIu32 ", receive timeouts %" PRIu32 ", finishTimeouts %" PRIu32 ", resets %" PRIu32 "\n",
+		errs.naks, errs.sendTimeouts, errs.recvTimeouts, errs.finishTimeouts, errs.resets);
 #endif
 }
 
@@ -2984,32 +2982,18 @@ EndStopHit Platform::Stopped(size_t axisOrExtruder) const
 #endif
 
 		case EndStopInputType::activeLow:
+			if (axisOrExtruder < NumEndstops && endStopPins[axisOrExtruder] != NoPin)
 			{
-				const AxisEndstopConfig& config = axisEndstops[axisOrExtruder];
-				if (config.numEndstops != 0)
-				{
-					const uint8_t input = config.endstopNumbers[0];
-					if (input < NumEndstops)
-					{
-						const bool b = IoPort::ReadPin(endStopPins[input]);
-						return (b) ? EndStopHit::noStop : (endStopPos[axisOrExtruder] == EndStopPosition::highEndStop) ? EndStopHit::highHit : EndStopHit::lowHit;
-					}
-				}
+				const bool b = IoPort::ReadPin(endStopPins[axisOrExtruder]);
+				return (b) ? EndStopHit::noStop : (endStopPos[axisOrExtruder] == EndStopPosition::highEndStop) ? EndStopHit::highHit : EndStopHit::lowHit;
 			}
 			break;
 
 		case EndStopInputType::activeHigh:
+			if (axisOrExtruder < NumEndstops && endStopPins[axisOrExtruder] != NoPin)
 			{
-				const AxisEndstopConfig& config = axisEndstops[axisOrExtruder];
-				if (config.numEndstops != 0)
-				{
-					const uint8_t input = config.endstopNumbers[0];
-					if (input < NumEndstops)
-					{
-						const bool b = !IoPort::ReadPin(endStopPins[input]);
-						return (b) ? EndStopHit::noStop : (endStopPos[axisOrExtruder] == EndStopPosition::highEndStop) ? EndStopHit::highHit : EndStopHit::lowHit;
-					}
-				}
+				const bool b = !IoPort::ReadPin(endStopPins[axisOrExtruder]);
+				return (b) ? EndStopHit::noStop : (endStopPos[axisOrExtruder] == EndStopPosition::highEndStop) ? EndStopHit::highHit : EndStopHit::lowHit;
 			}
 			break;
 
@@ -3676,7 +3660,7 @@ void Platform::SetFanValue(size_t fan, float speed)
 // Enable or disable the fan that shares its PWM pin with the last heater. Called when we disable or enable the last heater.
 void Platform::EnableSharedFan(bool enable)
 {
-	const size_t sharedFanNumber = NUM_FANS - 1;
+	const size_t sharedFanNumber = 1;				// Fan 1 on Duet 085 is shared with heater 6
 	fans[sharedFanNumber].Init(
 				(enable) ? COOLING_FAN_PINS[sharedFanNumber] : NoPin,
 				(enable) ? Fan0LogicalPin + sharedFanNumber : NoLogicalPin,
@@ -3774,15 +3758,6 @@ void Platform::GetEndStopConfiguration(size_t axis, EndStopPosition& esType, End
 {
 	esType = endStopPos[axis];
 	inputType = endStopInputType[axis];
-}
-
-void Platform::SetAxisEndstopConfig(size_t axis, size_t numValues, const uint32_t inputNumbers[])
-{
-	axisEndstops[axis].numEndstops = numValues;
-	for (size_t i = 0; i < numValues; ++i)
-	{
-		axisEndstops[axis].endstopNumbers[i] = min<uint32_t>(inputNumbers[i], 255);
-	}
 }
 
 //-----------------------------------------------------------------------------------------------------
@@ -5025,22 +5000,6 @@ bool Platform::SetDateTime(time_t time)
 		timeLastUpdatedMillis = millis();
 	}
 	return ok;
-}
-
-// Initialise the I2C interface, if not already done
-void Platform::InitI2c()
-{
-#if defined(I2C_IFACE)
-	if (!i2cInitialised)
-	{
-		MutexLocker lock(Tasks::GetI2CMutex());
-		if (!i2cInitialised)			// test it again, now that we own the mutex
-		{
-			I2C_IFACE.BeginMaster(I2cClockFreq);
-			i2cInitialised = true;
-		}
-	}
-#endif
 }
 
 #if SAM4E || SAM4S || SAME70

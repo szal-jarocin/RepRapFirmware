@@ -66,28 +66,23 @@ DEFINE_GET_OBJECT_MODEL_TABLE(Move)
 
 #endif
 
-Move::Move() : active(false)
+Move::Move()
+	: active(false),
+	  drcEnabled(false),											// disable dynamic ringing cancellation
+	  maxPrintingAcceleration(10000.0), maxTravelAcceleration(10000.0),
+	  drcPeriod(0.025),												// 40Hz
+	  drcMinimumAcceleration(10.0),
+	  jerkPolicy(0)
 {
 	// Kinematics must be set up here because GCodes::Init asks the kinematics for the assumed initial position
-	kinematics = Kinematics::Create(KinematicsType::cartesian);			// default to Cartesian
+	kinematics = Kinematics::Create(KinematicsType::cartesian);		// default to Cartesian
 	mainDDARing.Init1(DdaRingLength);
-#if SUPPORT_ASYNC_MOVES
-	auxDDARing.Init1(AuxDdaRingLength);
-#endif
 	DriveMovement::InitialAllocate(NumDms);
 }
 
 void Move::Init()
 {
 	mainDDARing.Init2();
-#if SUPPORT_ASYNC_MOVES
-	auxDDARing.Init2();
-#endif
-
-	maxPrintingAcceleration = maxTravelAcceleration = 10000.0;
-	drcEnabled = false;											// disable dynamic ringing cancellation
-	drcMinimumAcceleration = 10.0;
-	drcPeriod = 50.0;
 
 	// Clear the transforms
 	SetIdentityTransform();
@@ -133,9 +128,6 @@ void Move::Spin()
 
 	// Recycle the DDAs for completed moves, checking for DDA errors to print if Move debug is enabled
 	mainDDARing.RecycleDDAs();
-#if SUPPORT_ASYNC_MOVES
-	auxDDARing.RecycleDDAs();
-#endif
 
 	// See if we can add another move to the ring
 	bool canAddMove = (
@@ -204,27 +196,8 @@ void Move::Spin()
 
 	mainDDARing.Spin(simulationMode, idleCount > 10);	// let the DDA ring process moves. Better to have a few moves in the queue so that we can do lookahead, hence the test on idleCount.
 
-#if SUPPORT_ASYNC_MOVES
-	if (auxDDARing.CanAddMove())
-	{
-		GCodes::RawMove auxMove;
-		if (reprap.GetGCodes().ReadAuxMove(auxMove))
-		{
-			if (auxDDARing.AddAsyncMove(auxMove.feedRate, auxMove.acceleration, auxMove.coords))
-			{
-				moveState = MoveState::collecting;
-			}
-		}
-	}
-	auxDDARing.Spin(simulationMode, true);				// let the DDA ring process moves
-#endif
-
 	// Reduce motor current to standby if the rings have been idle for long enough
-	if (   mainDDARing.IsIdle()
-#if SUPPORT_ASYNC_MOVES
-		&& auxDDARing.IsIdle()
-#endif
-	   )
+	if (mainDDARing.IsIdle())
 	{
 		if (moveState == MoveState::executing && !reprap.GetGCodes().IsPaused())
 		{
@@ -318,27 +291,32 @@ void Move::Diagnostics(MessageType mtype)
 #endif
 
 	// Show the current probe position heights and type of bed compensation in use
-	p.Message(mtype, "Bed compensation in use: ");
+	String<StringLength40> bedCompString;
 	if (usingMesh)
 	{
-		p.Message(mtype, "mesh\n");
+		bedCompString.copy("mesh");
 	}
 	else if (probePoints.GetNumBedCompensationPoints() != 0)
 	{
-		p.MessageF(mtype, "%d point\n", probePoints.GetNumBedCompensationPoints());
+		bedCompString.printf("%d point", probePoints.GetNumBedCompensationPoints());
 	}
 	else
 	{
-		p.Message(mtype, "none\n");
+		bedCompString.copy("none");
 	}
+	p.MessageF(mtype, "Bed compensation in use: %s, comp offset %.3f\n", bedCompString.c_str(), (double)zShift);
 
-	p.Message(mtype, "Bed probe heights:");
-	// To keep the response short so that it doesn't get truncated when sending it via HTTP, we only show the first 5 bed probe points
-	for (size_t i = 0; i < 5; ++i)
+	// Only print the probe point heights if we are using old-style compensation
+	if (!usingMesh && probePoints.GetNumBedCompensationPoints() != 0)
 	{
-		p.MessageF(mtype, " %.3f", (double)probePoints.GetZHeight(i));
+		// To keep the response short so that it doesn't get truncated when sending it via HTTP, we only show the first 5 bed probe points
+		bedCompString.Clear();
+		for (size_t i = 0; i < 5; ++i)
+		{
+			bedCompString.catf(" %.3f", (double)probePoints.GetZHeight(i));
+		}
+		p.MessageF(mtype, "Bed probe heights:%s\n", bedCompString.c_str());
 	}
-	p.Message(mtype, "\n");
 
 #if DDA_LOG_PROBE_CHANGES
 	// Temporary code to print Z probe trigger positions
@@ -354,12 +332,7 @@ void Move::Diagnostics(MessageType mtype)
 	p.Message(mtype, "\n");
 #endif
 
-#if SUPPORT_ASYNC_MOVES
-	mainDDARing.Diagnostics(mtype, "Main");
-	auxDDARing.Diagnostics(mtype, "Aux");
-#else
 	mainDDARing.Diagnostics(mtype, "");
-#endif
 }
 
 // Set the current position to be this
@@ -728,33 +701,17 @@ void Move::Interrupt()
 	{
 		mainDDARing.Interrupt(p);
 		std::optional<uint32_t> nextStepTime = mainDDARing.GetNextInterruptTime();
-
-#if SUPPORT_ASYNC_MOVES
-		auxDDARing.Interrupt(p);
-		std::optional<uint32_t> nextAuxStepTime = auxDDARing.GetNextInterruptTime();
-		if (nextAuxStepTime.has_value() && (!nextStepTime.has_value() || (int32_t)(nextStepTime.value() - nextAuxStepTime.value()) > 0))
-		{
-			nextStepTime = nextAuxStepTime;
-		}
-		else if (!nextStepTime.has_value())
-		{
-			break;
-		}
-#else
 		if (!nextStepTime.has_value())
 		{
 			break;
 		}
-#endif
+
 		// Check whether we have been in this ISR for too long already and need to take a break
 		const uint16_t clocksTaken = StepTimer::GetInterruptClocks16() - (uint16_t)isrStartTime;
 		if (clocksTaken >= DDA::MaxStepInterruptTime && (nextStepTime.value() - isrStartTime) < (clocksTaken + DDA::MinInterruptInterval))
 		{
 			// Force a break by updating the move start time
 			mainDDARing.InsertHiccup(DDA::HiccupTime);
-#if SUPPORT_ASYNC_MOVES
-			auxDDARing.InsertHiccup(DDA::HiccupTime);
-#endif
 			nextStepTime = nextStepTime.value() + DDA::HiccupTime;
 #if SUPPORT_CAN_EXPANSION
 			CanInterface::InsertHiccup(DDA::HiccupTime);
@@ -801,7 +758,7 @@ void Move::SetXYBedProbePoint(size_t index, float x, float y)
 {
 	if (index >= MaxProbePoints)
 	{
-		reprap.GetPlatform().Message(ErrorMessage, "Z probe point index out of range.\n");
+		reprap.GetPlatform().Message(ErrorMessage, "Z probe point index out of range\n");
 	}
 	else
 	{
@@ -813,7 +770,7 @@ void Move::SetZBedProbePoint(size_t index, float z, bool wasXyCorrected, bool wa
 {
 	if (index >= MaxProbePoints)
 	{
-		reprap.GetPlatform().Message(ErrorMessage, "Z probe point Z index out of range.\n");
+		reprap.GetPlatform().Message(ErrorMessage, "Z probe point Z index out of range\n");
 	}
 	else
 	{
