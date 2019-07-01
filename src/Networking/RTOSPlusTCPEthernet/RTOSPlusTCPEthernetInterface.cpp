@@ -484,10 +484,10 @@ void RTOSPlusTCPEthernetInterface::Diagnostics(MessageType mtype)
     if(numNetworkCRCErrors || numNetworkSYMErrors || numNetworkLENErrors || numNetworkALIGNErrors || numNetworkOVERRUNErrors) errors=true;
     platform.MessageF(mtype, "EthDrv RX Errors: %s", (errors)?"":"none");
     if(numNetworkCRCErrors > 0) platform.MessageF(mtype, "CRC(%lu) ", numNetworkCRCErrors);
-    if(numNetworkSYMErrors > 0) platform.MessageF(mtype, "CRC(%lu) ", numNetworkSYMErrors);
-    if(numNetworkLENErrors > 0) platform.MessageF(mtype, "CRC(%lu) ", numNetworkLENErrors);
-    if(numNetworkALIGNErrors > 0) platform.MessageF(mtype, "CRC(%lu) ", numNetworkALIGNErrors);
-    if(numNetworkOVERRUNErrors > 0) platform.MessageF(mtype, "CRC(%lu) ", numNetworkOVERRUNErrors);
+    if(numNetworkSYMErrors > 0) platform.MessageF(mtype, "SYM(%lu) ", numNetworkSYMErrors);
+    if(numNetworkLENErrors > 0) platform.MessageF(mtype, "LEN(%lu) ", numNetworkLENErrors);
+    if(numNetworkALIGNErrors > 0) platform.MessageF(mtype, "ALIGN(%lu) ", numNetworkALIGNErrors);
+    if(numNetworkOVERRUNErrors > 0) platform.MessageF(mtype, "OVERRUN(%lu) ", numNetworkOVERRUNErrors);
     platform.MessageF(mtype, "\n");
 # endif
 
