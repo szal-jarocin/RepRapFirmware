@@ -9,7 +9,7 @@
 #include "Endstop.h"
 #include "ZProbe.h"
 #include "RepRap.h"
-#include "GCodes/GCodeBuffer.h"
+#include "GCodes/GCodeBuffer/GCodeBuffer.h"
 #include "GCodes/GCodes.h"
 #include "Movement/Move.h"
 
@@ -400,6 +400,8 @@ GCodeResult EndstopsManager::ProgramZProbe(GCodeBuffer& gb, const StringRef& rep
 	return GCodeResult::error;
 }
 
+#if HAS_MASS_STORAGE
+
 bool EndstopsManager::WriteZProbeParameters(FileStore *f, bool includingG31) const
 {
 	bool ok = true;
@@ -421,6 +423,8 @@ bool EndstopsManager::WriteZProbeParameters(FileStore *f, bool includingG31) con
 	}
 	return ok;
 }
+
+#endif
 
 // Handle M558
 GCodeResult EndstopsManager::HandleM558(GCodeBuffer& gb, const StringRef &reply)

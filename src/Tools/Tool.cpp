@@ -34,7 +34,7 @@
 Tool * Tool::freelist = nullptr;
 
 // Create a new tool and return a pointer to it. If an error occurs, put an error message in 'reply' and return nullptr.
-/*static*/ Tool *Tool::Create(unsigned int toolNumber, const char *name, int32_t d[], size_t dCount, int32_t h[], size_t hCount, AxesBitmap xMap, AxesBitmap yMap, FansBitmap fanMap, const StringRef& reply)
+/*static*/ Tool *Tool::Create(unsigned int toolNumber, const char *name, int32_t d[], size_t dCount, int32_t h[], size_t hCount, AxesBitmap xMap, AxesBitmap yMap, FansBitmap fanMap, int filamentDrive, const StringRef& reply)
 {
 	const size_t numExtruders = reprap.GetGCodes().GetNumExtruders();
 	if (dCount > ARRAY_SIZE(Tool::drives))
@@ -82,10 +82,10 @@ Tool * Tool::freelist = nullptr;
 		t = new Tool;
 	}
 
-	if (dCount == 1)
+	if (filamentDrive >= 0 && filamentDrive < (int)MaxExtruders)
 	{
-		// Create only one Filament instance per extruder drive, and only if this tool is assigned to exactly one extruder
-		Filament * const filament = Filament::GetFilamentByExtruder(d[0]);
+		// Use exactly only one Filament instance per extruder drive
+		Filament * const filament = Filament::GetFilamentByExtruder(filamentDrive);
 		t->filament = (filament == nullptr) ? new Filament(d[0]) : filament;
 	}
 	else
@@ -384,6 +384,8 @@ void Tool::DefineMix(const float m[])
 	}
 }
 
+#if HAS_MASS_STORAGE
+
 // Write the tool's settings to file returning true if successful
 bool Tool::WriteSettings(FileStore *f, bool isCurrent) const
 {
@@ -421,6 +423,8 @@ bool Tool::WriteSettings(FileStore *f, bool isCurrent) const
 
 	return ok;
 }
+
+#endif
 
 void Tool::SetOffset(size_t axis, float offs, bool byProbing)
 {

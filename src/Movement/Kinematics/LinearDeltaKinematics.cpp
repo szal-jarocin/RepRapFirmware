@@ -10,7 +10,7 @@
 #include "Movement/Move.h"
 #include "RepRap.h"
 #include "Storage/FileStore.h"
-#include "GCodes/GCodeBuffer.h"
+#include "GCodes/GCodeBuffer/GCodeBuffer.h"
 
 
 LinearDeltaKinematics::LinearDeltaKinematics() : Kinematics(KinematicsType::linearDelta, -1.0, 0.0, true), numTowers(UsualNumTowers)
@@ -720,6 +720,8 @@ void LinearDeltaKinematics::PrintParameters(const StringRef& reply) const
 		(double)(xTilt * 100.0), (double)(yTilt * 100.0));
 }
 
+#if HAS_MASS_STORAGE
+
 // Write the parameters that are set by auto calibration to a file, returning true if success
 bool LinearDeltaKinematics::WriteCalibrationParameters(FileStore *f) const
 {
@@ -752,6 +754,8 @@ bool LinearDeltaKinematics::WriteResumeSettings(FileStore *f) const
 {
 	return !doneAutoCalibration || WriteCalibrationParameters(f);
 }
+
+#endif
 
 // Get the bed tilt fraction for the specified axis
 float LinearDeltaKinematics::GetTiltCorrection(size_t axis) const

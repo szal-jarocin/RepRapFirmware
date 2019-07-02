@@ -39,6 +39,8 @@ const size_t NumFirmwareUpdateModules = 1;
 #define SUPPORT_WORKPLACE_COORDINATES    1
 #define SUPPORT_TELNET                   0
 #define SUPPORT_FTP                      0
+#define HAS_MASS_STORAGE                 1
+#define HAS_LINUX_INTERFACE              0
 
 
 #define ALLOCATE_DEFAULT_PORTS           0

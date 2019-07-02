@@ -165,10 +165,8 @@ Licence: GPL
 #include "Platform.h"
 #include "RepRap.h"
 
-#ifdef RTOS
-# include "FreeRTOS.h"
-# include "task.h"
-#endif
+#include "FreeRTOS.h"
+#include "task.h"
 
 // We just need one instance of RepRap; everything else is contained within it and hidden
 
@@ -192,6 +190,7 @@ const char * const moduleName[] =
 	"FilamentSensors",
 	"WiFi",
 	"Display",
+	"LinuxInterface",
 	"none"
 };
 
@@ -239,14 +238,10 @@ void debugPrintf(const char* fmt, ...)
 	}
 }
 
-#ifdef RTOS
-
 void delay(uint32_t ms)
 {
 	vTaskDelay(ms);
 }
-
-#endif
 
 // String testing
 

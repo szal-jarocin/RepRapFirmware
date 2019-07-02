@@ -11,10 +11,13 @@
 #include "RepRapFirmware.h"
 #include "ObjectModel/ObjectModel.h"
 
+class DataTransfer;
+
 // This class defines the bed probing grid
 class GridDefinition INHERIT_OBJECT_MODEL
 {
 public:
+	friend class DataTransfer;
 	friend class HeightMap;
 
 	GridDefinition();
@@ -69,11 +72,18 @@ public:
 	float GetInterpolatedHeightError(float x, float y) const;		// Compute the interpolated height error at the specified point
 	void ClearGridHeights();										// Clear all grid height corrections
 	void SetGridHeight(size_t xIndex, size_t yIndex, float height);	// Set the height of a grid point
+	void SetGridHeight(size_t index, float height);					// Set the height of a grid point
 
+#if HAS_MASS_STORAGE
 	bool SaveToFile(FileStore *f, float zOffset) const				// Save the grid to file returning true if an error occurred
 	pre(IsValid());
-
 	bool LoadFromFile(FileStore *f, const StringRef& r);			// Load the grid from file returning true if an error occurred
+#endif
+
+#if HAS_LINUX_INTERFACE
+	void SaveToArray(float *array, float zOffset) const				// Save the grid Z coordinates to an array
+	pre(IsValid());
+#endif
 
 	unsigned int GetMinimumSegments(float deltaX, float deltaY) const;	// Return the minimum number of segments for a move by this X or Y amount
 

@@ -8,7 +8,7 @@
 #include "Fan.h"
 #include "Platform.h"
 #include "RepRap.h"
-#include "GCodes/GCodeBuffer.h"
+#include "GCodes/GCodeBuffer/GCodeBuffer.h"
 #include "Heating/Heat.h"
 #include "Movement/StepTimer.h"
 
@@ -352,6 +352,8 @@ void Fan::Disable()
 	port.Release();
 }
 
+#if HAS_MASS_STORAGE
+
 // Save the settings of this fan if it isn't thermostatic
 bool Fan::WriteSettings(FileStore *f, size_t fanNum) const
 {
@@ -363,6 +365,8 @@ bool Fan::WriteSettings(FileStore *f, size_t fanNum) const
 	}
 	return true;
 }
+
+#endif
 
 // Tacho support
 int32_t Fan::GetRPM() const

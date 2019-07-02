@@ -67,6 +67,9 @@
 # include "Display/Display.h"
 #endif
 
+#if HAS_LINUX_INTERFACE
+# include "Linux/LinuxInterface.h"
+#endif
 #if HAS_NETWORKING && !HAS_LEGACY_NETWORKING
 # include "Networking/HttpResponder.h"
 # include "Networking/FtpResponder.h"
@@ -80,7 +83,7 @@ extern uint32_t _estack;			// defined in the linker script
 
 #if !defined(HAS_LWIP_NETWORKING) || !defined(HAS_WIFI_NETWORKING) || !defined(HAS_CPU_TEMP_SENSOR) || !defined(HAS_HIGH_SPEED_SD) \
  || !defined(HAS_SMART_DRIVERS) || !defined(HAS_STALL_DETECT) || !defined(HAS_VOLTAGE_MONITOR) || !defined(HAS_VREF_MONITOR) \
- || !defined(SUPPORT_NONLINEAR_EXTRUSION) || !defined(SUPPORT_ASYNC_MOVES)
+ || !defined(SUPPORT_NONLINEAR_EXTRUSION) || !defined(SUPPORT_ASYNC_MOVES) || !defined(HAS_MASS_STORAGE)
 # error Missing feature definition
 #endif
 
@@ -169,15 +172,24 @@ DriversBitmap AxisDriversConfig::GetDriversBitmap() const
 
 uint8_t Platform::softwareResetDebugInfo = 0;			// extra info for debugging
 
-Platform::Platform()
-	: logger(nullptr), board(DEFAULT_BOARD_TYPE), active(false), errorCodeBits(0),
-#if HAS_SMART_DRIVERS
-	  nextDriveToPoll(0),
+Platform::Platform() :
+#if HAS_MASS_STORAGE
+	logger(nullptr),
 #endif
-	  lastFanCheckTime(0), auxGCodeReply(nullptr), sysDir(nullptr), tickState(0), debugCode(0),
-	  lastWarningMillis(0), deliberateError(false)
+	board(DEFAULT_BOARD_TYPE), active(false), errorCodeBits(0),
+#if HAS_SMART_DRIVERS
+	nextDriveToPoll(0),
+#endif
+	lastFanCheckTime(0), auxGCodeReply(nullptr),
+#if HAS_MASS_STORAGE
+	sysDir(nullptr),
+#endif
+	tickState(0), debugCode(0),
+	lastWarningMillis(0), deliberateError(false)
 {
+#if HAS_MASS_STORAGE
 	massStorage = new MassStorage(this);
+#endif
 }
 
 //*******************************************************************************************************************
@@ -276,7 +288,9 @@ void Platform::Init()
 		setPullup(SdCardDetectPins[i], true);	// setPullup is safe to call with a NoPin argument
 	}
 
+#if HAS_MASS_STORAGE
 	massStorage->Init();
+#endif
 
 #ifdef __LPC17xx__
     //Load HW pin assignments from sdcard
@@ -611,36 +625,37 @@ void Platform::Init()
 // Check the prerequisites for updating the main firmware. Return True if satisfied, else print a message to 'reply' and return false.
 bool Platform::CheckFirmwareUpdatePrerequisites(const StringRef& reply)
 {
-#ifdef __LPC17xx__
-
-#ifndef LPC_NETWORKING
-    reply.printf("To update firmware download firmware-%s.bin to the sdcard as /firmware.bin and reset", LPC_BOARD_STRING);
-    return false;
-#else
-    FileStore * const firmwareFile = OpenFile(DEFAULT_SYS_DIR, FIRMWARE_FILE, OpenMode::read);
-    if (firmwareFile == nullptr)
-    {
-        reply.printf("Firmware binary \"%s\" not found", FIRMWARE_FILE);
-        return false;
-    }
-
-    // Check that the binary looks sensible. The first word is the initial stack pointer, which should be the top of RAM.
-    const uint32_t initialStackPointer = 0x10008000 - 32; //top 32bytes are reserved in linkerscript as IAP needs it
-
-    uint32_t firstDword;
-    bool ok = firmwareFile->Read(reinterpret_cast<char*>(&firstDword), sizeof(firstDword)) == (int)sizeof(firstDword);
-    firmwareFile->Close();
-    if (!ok || firstDword != initialStackPointer)
-    {
-        reply.printf("Firmware binary \"%s\" is not valid for this electronics", FIRMWARE_FILE);
-        return false;
-    }
-#endif
+#if HAS_MASS_STORAGE
+    #ifdef __LPC17xx__
+    
+        #ifndef LPC_NETWORKING
+            reply.printf("To update firmware download firmware-%s.bin to the sdcard as /firmware.bin and reset", LPC_BOARD_STRING);
+            return false;
+        #else
+            FileStore * const firmwareFile = OpenFile(DEFAULT_SYS_DIR, FIRMWARE_FILE, OpenMode::read);
+            if (firmwareFile == nullptr)
+            {
+                reply.printf("Firmware binary \"%s\" not found", FIRMWARE_FILE);
+                return false;
+            }
+    
+            // Check that the binary looks sensible. The first word is the initial stack pointer, which should be the top of RAM.
+            const uint32_t initialStackPointer = 0x10008000 - 32; //top 32bytes are reserved in linkerscript as IAP needs it
+    
+            uint32_t firstDword;
+            bool ok = firmwareFile->Read(reinterpret_cast<char*>(&firstDword), sizeof(firstDword)) == (int)sizeof(firstDword);
+            firmwareFile->Close();
+            if (!ok || firstDword != initialStackPointer)
+            {
+                reply.printf("Firmware binary \"%s\" is not valid for this electronics", FIRMWARE_FILE);
+                return false;
+            }
+        #endif
     
     
-#else
-
-	FileStore * const firmwareFile = OpenFile(DEFAULT_SYS_DIR, IAP_FIRMWARE_FILE, OpenMode::read);
+    #else
+    
+    FileStore * const firmwareFile = OpenFile(DEFAULT_SYS_DIR, IAP_FIRMWARE_FILE, OpenMode::read);
 	if (firmwareFile == nullptr)
 	{
 		reply.printf("Firmware binary \"%s\" not found", IAP_FIRMWARE_FILE);
@@ -668,8 +683,7 @@ bool Platform::CheckFirmwareUpdatePrerequisites(const StringRef& reply)
 		reply.printf("In-application programming binary \"%s\" not found", IAP_UPDATE_FILE);
 		return false;
 	}
-
-    
+    #endif
 #endif
 
 	return true;
@@ -678,14 +692,16 @@ bool Platform::CheckFirmwareUpdatePrerequisites(const StringRef& reply)
 // Update the firmware. Prerequisites should be checked before calling this.
 void Platform::UpdateFirmware()
 {
-#if __LPC17xx__
+#if HAS_MASS_STORAGE
 
+#if __LPC17xx__
+    
 #if LPC_NETWORKING
     //DWC will upload firmware to 0:/sys/ we need to move to 0:/firmware.bin and reboot
-
+    
     String<MaxFilenameLength> location;
     MassStorage::CombineName(location.GetRef(), DEFAULT_SYS_DIR, FIRMWARE_FILE);
-
+    
     if(!GetMassStorage()->Rename(location.c_str(), "0:/firmware.bin"))
     {
         //failed to rename
@@ -699,7 +715,7 @@ void Platform::UpdateFirmware()
     
 #else
 
-	FileStore * const iapFile = OpenFile(DEFAULT_SYS_DIR, IAP_UPDATE_FILE, OpenMode::read);
+    FileStore * const iapFile = OpenFile(DEFAULT_SYS_DIR, IAP_UPDATE_FILE, OpenMode::read);
 	if (iapFile == nullptr)
 	{
 		MessageF(FirmwareUpdateMessage, "IAP not found\n");
@@ -834,7 +850,7 @@ void Platform::UpdateFirmware()
 
 	iapFile->Close();
 
-	Message(LcdMessage, "Updating main firmware\n");
+	Message(AuxMessage, "Updating main firmware\n");
 	Message(UsbMessage, "Shutting down USB interface to update main firmware. Try reconnecting after 30 seconds.\n");
 
 	// Allow time for the firmware update message to be sent
@@ -901,28 +917,25 @@ void Platform::UpdateFirmware()
 	cpu_irq_enable();
 
 	__asm volatile ("mov r3, %0" : : "r" (IAP_FLASH_START) : "r3");
-#ifdef RTOS
+
 	// We are using separate process and handler stacks. Put the process stack 1K bytes below the handler stack.
 	__asm volatile ("ldr r1, [r3]");
 	__asm volatile ("msr msp, r1");
 	__asm volatile ("sub r1, #1024");
 	__asm volatile ("mov sp, r1");
-#else
-	__asm volatile ("ldr sp, [r3]");
-#endif
+
 	__asm volatile ("isb");
 	__asm volatile ("ldr r1, [r3, #4]");
 	__asm volatile ("orr r1, r1, #1");
 	__asm volatile ("bx r1");
-    
-    
+#endif
 #endif
 }
 
 // Send the beep command to the aux channel. There is no flow control on this port, so it can't block for long.
 void Platform::Beep(int freq, int ms)
 {
-	MessageF(LcdMessage, "{\"beep_freq\":%d,\"beep_length\":%d}\n", freq, ms);
+	MessageF(AuxMessage, "{\"beep_freq\":%d,\"beep_length\":%d}\n", freq, ms);
 }
 
 // Send a short message to the aux channel. There is no flow control on this port, so it can't block for long.
@@ -944,7 +957,9 @@ void Platform::SendAuxMessage(const char* msg)
 void Platform::Exit()
 {
 	StopLogging();
+#if HAS_MASS_STORAGE
 	massStorage->CloseAllFiles();
+#endif
 
 	// Release the aux output stack (should release the others too!)
 	while (auxGCodeReply != nullptr)
@@ -1127,7 +1142,9 @@ void Platform::Spin()
 	}
 #endif
 
+#if HAS_MASS_STORAGE
 	massStorage->Spin();
+#endif
 
 	// Try to flush messages to serial ports
 	(void)FlushMessages();
@@ -1477,11 +1494,14 @@ void Platform::Spin()
 	}
 #endif
 
+#if HAS_MASS_STORAGE
 	// Flush the log file it it is time. This may take some time, so do it last.
 	if (logger != nullptr)
 	{
 		logger->Flush(false);
 	}
+#endif
+
 }
 
 #if HAS_SMART_DRIVERS
@@ -1576,6 +1596,8 @@ bool Platform::GetAutoSaveSettings(float& saveVoltage, float&resumeVoltage)
 
 #endif
 
+#if HAS_MASS_STORAGE
+
 // Save some resume information
 bool Platform::WriteFanSettings(FileStore *f) const
 {
@@ -1587,6 +1609,7 @@ bool Platform::WriteFanSettings(FileStore *f) const
 	return ok;
 }
 
+#endif
 #if HAS_CPU_TEMP_SENSOR
 
 float Platform::AdcReadingToCpuTemperature(uint32_t adcVal) const
@@ -1782,11 +1805,9 @@ void Platform::SoftwareReset(uint16_t reason, const uint32_t *stk)
 		srdBuf[slot].cfsr = SCB->CFSR;
 		srdBuf[slot].icsr = SCB->ICSR;
 		srdBuf[slot].bfar = SCB->BFAR;
-#ifdef RTOS
 		// Get the task name if we can. There may be no task executing, so we must allow for this.
 		const TaskHandle_t currentTask = xTaskGetCurrentTaskHandle();
 		srdBuf[slot].taskName = (currentTask == nullptr) ? 0 : *reinterpret_cast<const uint32_t*>(pcTaskGetName(currentTask));
-#endif
 
 		if (stk != nullptr)
 		{
@@ -1838,14 +1859,8 @@ void Platform::InitialiseInterrupts()
 	NVIC_SetPriority(WDT_IRQn, NvicPriorityWatchdog);			// set priority for watchdog interrupts
 #endif
 
-
-#if HAS_HIGH_SPEED_SD && defined(RTOS)
+#if HAS_HIGH_SPEED_SD
 	NVIC_SetPriority(HSMCI_IRQn, NvicPriorityHSMCI);			// set priority for SD interface interrupts
-#endif
-
-#ifndef RTOS
-	// Set the tick interrupt to the highest priority. We need to to monitor the heaters and kick the watchdog.
-	NVIC_SetPriority(SysTick_IRQn, NvicPrioritySystick);		// set priority for tick interrupts
 #endif
 
 	// Set PanelDue UART interrupt priority
@@ -2131,13 +2146,8 @@ void Platform::Diagnostics(MessageType mtype)
 								reasonText, moduleName[srdBuf[slot].resetReason & 0x0F], srdBuf[slot].neverUsedRam, slot);
 			// Our format buffer is only 256 characters long, so the next 2 lines must be written separately
 			MessageF(mtype,
-#ifdef RTOS
 					"Software reset code 0x%04x HFSR 0x%08" PRIx32 " CFSR 0x%08" PRIx32 " ICSR 0x%08" PRIx32 " BFAR 0x%08" PRIx32 " SP 0x%08" PRIx32 " Task 0x%08" PRIx32 "\n",
 					srdBuf[slot].resetReason, srdBuf[slot].hfsr, srdBuf[slot].cfsr, srdBuf[slot].icsr, srdBuf[slot].bfar, srdBuf[slot].sp, srdBuf[slot].taskName
-#else
-					"Software reset code 0x%04x HFSR 0x%08" PRIx32 " CFSR 0x%08" PRIx32 " ICSR 0x%08" PRIx32 " BFAR 0x%08" PRIx32 " SP 0x%08" PRIx32 "\n",
-					srdBuf[slot].resetReason, srdBuf[slot].hfsr, srdBuf[slot].cfsr, srdBuf[slot].icsr, srdBuf[slot].bfar, srdBuf[slot].sp
-#endif
 				);
 			if (srdBuf[slot].sp != 0xFFFFFFFF)
 			{
@@ -2159,18 +2169,20 @@ void Platform::Diagnostics(MessageType mtype)
 	// Show the current error codes
 	MessageF(mtype, "Error status: %" PRIu32 "\n", errorCodeBits);
 
+#if HAS_MASS_STORAGE
 	// Show the number of free entries in the file table
 	MessageF(mtype, "Free file entries: %u\n", massStorage->GetNumFreeFiles());
 
+# if HAS_HIGH_SPEED_SD
 	// Show the HSMCI CD pin and speed
-#if HAS_HIGH_SPEED_SD
 	MessageF(mtype, "SD card 0 %s, interface speed: %.1fMBytes/sec\n", (massStorage->IsCardDetected(0) ? "detected" : "not detected"), (double)((float)hsmci_get_speed() * 0.000001));
-#else
+# else
 	MessageF(mtype, "SD card 0 %s\n", (massStorage->IsCardDetected(0) ? "detected" : "not detected"));
-#endif
+# endif
 
 	// Show the longest SD card write time
 	MessageF(mtype, "SD card longest block write time: %.1fms, max retries %u\n", (double)FileStore::GetAndClearLongestWriteTime(), FileStore::GetAndClearMaxRetryCount());
+#endif
 
 #if HAS_CPU_TEMP_SENSOR
 	// Show the MCU temperatures
@@ -2255,23 +2267,25 @@ GCodeResult Platform::DiagnosticTest(GCodeBuffer& gb, const StringRef& reply, in
 			const MessageType mtype = gb.GetResponseMessageType();
 			bool testFailed = false;
 
+#if HAS_MASS_STORAGE
 			// Check the SD card detect and speed
 			if (!massStorage->IsCardDetected(0))
 			{
 				Message(AddError(mtype), "SD card 0 not detected\n");
 				testFailed = true;
 			}
-#if HAS_HIGH_SPEED_SD
+# if HAS_HIGH_SPEED_SD
 			else if (hsmci_get_speed() != ExpectedSdCardSpeed)
 			{
 				MessageF(AddError(mtype), "SD card speed %.2fMbytes/sec is unexpected\n", (double)((float)hsmci_get_speed() * 0.000001));
 				testFailed = true;
 			}
-#endif
+# endif
 			else
 			{
 				Message(mtype, "SD card interface OK\n");
 			}
+#endif
 
 #if HAS_CPU_TEMP_SENSOR
 			// Check the MCU temperature
@@ -2500,7 +2514,12 @@ GCodeResult Platform::DiagnosticTest(GCodeBuffer& gb, const StringRef& reply, in
 		break;
 
 	case (int)DiagnosticTestType::TimeSDWrite:
+#if HAS_MASS_STORAGE
 		return reprap.GetGCodes().StartSDTiming(gb, reply);
+#else
+		reply.copy("No SD card interface available");
+		return GCodeResult::errorNotSupported;
+#endif
 
 	case (int)DiagnosticTestType::PrintObjectSizes:
 		reply.printf(
@@ -2597,6 +2616,8 @@ void Platform::UpdateConfiguredHeaters()
 	}
 }
 
+#if HAS_MASS_STORAGE
+
 // Write the platform parameters to file
 bool Platform::WritePlatformParameters(FileStore *f, bool includingG31) const
 {
@@ -2645,6 +2666,8 @@ bool Platform::WriteAxisLimits(FileStore *f, AxesBitmap axesProbed, const float 
 	scratchString.cat('\n');
 	return f->Write(scratchString.c_str());
 }
+
+#endif
 
 // This is called from the step ISR as well as other places, so keep it fast
 // If drive >= DRIVES then we are setting an individual motor direction
@@ -3335,18 +3358,20 @@ void Platform::AppendAuxReply(OutputBuffer *reply, bool rawMessage)
 // Send the specified message to the specified destinations. The Error and Warning flags have already been handled.
 void Platform::RawMessage(MessageType type, const char *message)
 {
+#if HAS_MASS_STORAGE
 	// Deal with logging
 	if ((type & LogMessage) != 0 && logger != nullptr)
 	{
 		logger->LogMessage(realTime, message);
 	}
+#endif
 
 	// Send the message to the destinations
-	if ((type & ImmediateLcdMessage) != 0)
+	if ((type & ImmediateAuxMessage) != 0)
 	{
 		SendAuxMessage(message);
 	}
-	else if ((type & LcdMessage) != 0)
+	else if ((type & AuxMessage) != 0)
 	{
 		AppendAuxReply(message, message[0] == '{' || (type & RawMessageFlag) != 0);
 	}
@@ -3425,15 +3450,17 @@ void Platform::RawMessage(MessageType type, const char *message)
 // and calls to send an immediate LCD message the same as ordinary LCD messages
 void Platform::Message(const MessageType type, OutputBuffer *buffer)
 {
+#if HAS_MASS_STORAGE
 	// First deal with logging because it doesn't hang on to the buffer
 	if ((type & LogMessage) != 0 && logger != nullptr)
 	{
 		logger->LogMessage(realTime, buffer);
 	}
+#endif
 
 	// Now send the message to all the destinations
 	size_t numDestinations = 0;
-	if ((type & (LcdMessage | ImmediateLcdMessage)) != 0)
+	if ((type & (AuxMessage | ImmediateAuxMessage)) != 0)
 	{
 		++numDestinations;
 	}
@@ -3449,9 +3476,14 @@ void Platform::Message(const MessageType type, OutputBuffer *buffer)
 	{
 		++numDestinations;
 	}
-
+#if HAS_LINUX_INTERFACE
+	if ((type & GenericMessage) == GenericMessage || (type & BinaryCodeReplyFlag) != 0)
+	{
+		++numDestinations;
+	}
+#endif
 #ifdef SERIAL_AUX2_DEVICE
-	if ((type & AuxMessage) != 0)
+	if ((type & LcdMessage) != 0)
 	{
 		++numDestinations;
 	}
@@ -3465,7 +3497,7 @@ void Platform::Message(const MessageType type, OutputBuffer *buffer)
 	{
 		buffer->IncreaseReferences(numDestinations - 1);
 
-		if ((type & (LcdMessage | ImmediateLcdMessage)) != 0)
+		if ((type & (AuxMessage | ImmediateAuxMessage)) != 0)
 		{
 			AppendAuxReply(buffer, ((*buffer)[0] == '{') || (type & RawMessageFlag) != 0);
 		}
@@ -3481,7 +3513,7 @@ void Platform::Message(const MessageType type, OutputBuffer *buffer)
 		}
 
 #ifdef SERIAL_AUX2_DEVICE
-		if ((type & AuxMessage) != 0)
+		if ((type & LcdMessage) != 0)
 		{
 			// Send this message to the second UART device
 			MutexLocker lock(aux2Mutex);
@@ -3507,12 +3539,31 @@ void Platform::Message(const MessageType type, OutputBuffer *buffer)
 				usbOutput.Push(buffer);
 			}
 		}
+
+#if HAS_LINUX_INTERFACE
+		if ((type & GenericMessage) == GenericMessage || (type & BinaryCodeReplyFlag) != 0)
+		{
+			reprap.GetLinuxInterface().HandleGCodeReply(type, buffer);
+		}
+#endif
 	}
 }
 
 void Platform::MessageF(MessageType type, const char *fmt, va_list vargs)
 {
 	String<FormatStringLength> formatString;
+#if HAS_LINUX_INTERFACE
+	if ((type & GenericMessage) == GenericMessage || (type & BinaryCodeReplyFlag) != 0)
+	{
+		formatString.vprintf(fmt, vargs);
+		reprap.GetLinuxInterface().HandleGCodeReply(type, formatString.c_str());
+		if ((type & BinaryCodeReplyFlag) != 0)
+		{
+			return;
+		}
+	}
+#endif
+
 	if ((type & ErrorMessageFlag) != 0)
 	{
 		formatString.copy("Error: ");
@@ -3541,6 +3592,17 @@ void Platform::MessageF(MessageType type, const char *fmt, ...)
 
 void Platform::Message(MessageType type, const char *message)
 {
+#if HAS_LINUX_INTERFACE
+	if ((type & GenericMessage) == GenericMessage || (type & BinaryCodeReplyFlag) != 0)
+	{
+		reprap.GetLinuxInterface().HandleGCodeReply(type, message);
+		if ((type & BinaryCodeReplyFlag) != 0)
+		{
+			return;
+		}
+	}
+#endif
+
 	if ((type & (ErrorMessageFlag | WarningMessageFlag)) == 0)
 	{
 		RawMessage(type, message);
@@ -3561,7 +3623,7 @@ void Platform::Message(MessageType type, const char *message)
 // sParam = 3 As for 2 but also display a Cancel button
 void Platform::SendAlert(MessageType mt, const char *message, const char *title, int sParam, float tParam, AxesBitmap controls)
 {
-	if ((mt & (HttpMessage | LcdMessage)) != 0)
+	if ((mt & (HttpMessage | AuxMessage)) != 0)
 	{
 		reprap.SetAlert(message, title, sParam, tParam, controls);		// make the RepRap class cache this message until it's picked up by the HTTP clients and/or PanelDue
 	}
@@ -3584,6 +3646,8 @@ void Platform::SendAlert(MessageType mt, const char *message, const char *title,
 		}
 	}
 }
+
+#if HAS_MASS_STORAGE
 
 // Configure logging according to the M929 command received, returning true if error
 GCodeResult Platform::ConfigureLogging(GCodeBuffer& gb, const StringRef& reply)
@@ -3627,13 +3691,17 @@ GCodeResult Platform::ConfigureLogging(GCodeBuffer& gb, const StringRef& reply)
 	return GCodeResult::ok;
 }
 
+#endif
+
 // This is called from EmergencyStop. It closes the log file and stops logging.
 void Platform::StopLogging()
 {
+#if HAS_MASS_STORAGE
 	if (logger != nullptr)
 	{
 		logger->Stop(realTime);
 	}
+#endif
 }
 
 bool Platform::AtxPower() const
@@ -3661,17 +3729,19 @@ void Platform::AtxPowerOff(bool defer)
 	deferredPowerDown = defer;
 	if (!defer)
 	{
+#if HAS_MASS_STORAGE
 		if (logger != nullptr)
 		{
 			logger->LogMessage(realTime, "Power off commanded");
 			logger->Flush(true);
 			// We don't call logger->Stop() here because we don't know whether turning off the power will work
 		}
-#ifdef __LPC17xx__
-        IoPort::WriteDigital(ATX_POWER_PIN, (ATX_POWER_INVERTED==false)?false:true);
-#else
-        IoPort::WriteDigital(ATX_POWER_PIN, false);
 #endif
+    #ifdef __LPC17xx__
+        IoPort::WriteDigital(ATX_POWER_PIN, ATX_POWER_INVERTED);
+    #else
+		IoPort::WriteDigital(ATX_POWER_PIN, false);
+    #endif
 	}
 }
 
@@ -3929,6 +3999,8 @@ bool Platform::IsDuetWiFi() const
 }
 #endif
 
+#if HAS_MASS_STORAGE
+
 // Where the system files are. Not thread safe!
 const char* Platform::InternalGetSysDir() const
 {
@@ -4016,6 +4088,8 @@ void Platform::GetSysDir(const StringRef & path) const
 	MutexLocker lock(Tasks::GetSysDirMutex());
 	path.copy(InternalGetSysDir());
 }
+
+#endif
 
 // CNC and laser support
 

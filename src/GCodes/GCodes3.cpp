@@ -8,7 +8,7 @@
 
 #include "GCodes.h"
 
-#include "GCodeBuffer.h"
+#include "GCodeBuffer/GCodeBuffer.h"
 #include "Heating/Heat.h"
 #include "Movement/Move.h"
 #include "RepRap.h"
@@ -189,9 +189,16 @@ GCodeResult GCodes::GetSetWorkplaceCoordinates(GCodeBuffer& gb, const StringRef&
 	return GCodeResult::badOrMissingParameter;
 }
 
+# if HAS_MASS_STORAGE
+
 // Save all the workplace coordinate offsets to file returning true if successful. Used by M500 and by SaveResumeInfo.
 bool GCodes::WriteWorkplaceCoordinates(FileStore *f) const
 {
+	if (!f->Write("; Workplace coordinates\n"))
+	{
+		return false;
+	}
+
 	for (size_t cs = 0; cs < NumCoordinateSystems; ++cs)
 	{
 		String<ScratchStringLength> scratchString;
@@ -209,6 +216,7 @@ bool GCodes::WriteWorkplaceCoordinates(FileStore *f) const
 	return true;
 }
 
+#endif
 #endif
 
 // Define the probing grid, called when we see an M557 command
@@ -350,6 +358,9 @@ GCodeResult GCodes::DefineGrid(GCodeBuffer& gb, const StringRef &reply)
 	return GCodeResult::error;
 }
 
+
+#if HAS_MASS_STORAGE || HAS_LINUX_INTERFACE
+
 // Handle M37 to simulate a whole file
 GCodeResult GCodes::SimulateFile(GCodeBuffer& gb, const StringRef &reply, const StringRef& file, bool updateFile)
 {
@@ -359,7 +370,9 @@ GCodeResult GCodes::SimulateFile(GCodeBuffer& gb, const StringRef &reply, const 
 		return GCodeResult::error;
 	}
 
+# if HAS_MASS_STORAGE
 	if (QueueFileToPrint(file.c_str(), reply))
+# endif
 	{
 		if (simulationMode == 0)
 		{
@@ -382,7 +395,7 @@ GCodeResult GCodes::SimulateFile(GCodeBuffer& gb, const StringRef &reply, const 
 	return GCodeResult::error;
 }
 
-// handle M37 to change the simulation mode
+// Handle M37 to change the simulation mode
 GCodeResult GCodes::ChangeSimulationMode(GCodeBuffer& gb, const StringRef &reply, uint32_t newSimulationMode)
 {
 	if (newSimulationMode != simulationMode)
@@ -413,6 +426,8 @@ GCodeResult GCodes::ChangeSimulationMode(GCodeBuffer& gb, const StringRef &reply
 	}
 	return GCodeResult::ok;
 }
+
+#endif
 
 // Handle M577
 GCodeResult GCodes::WaitForPin(GCodeBuffer& gb, const StringRef &reply)
@@ -1217,15 +1232,14 @@ GCodeResult GCodes::ConfigureDriver(GCodeBuffer& gb,const  StringRef& reply)
 							reply.cat(", pos unknown");
 						}
 					}
-#endif
-
-#if SUPPORT_TMC22xx || SUPPORT_TMC51xx
+#elif SUPPORT_TMC22xx || SUPPORT_TMC51xx
 					{
 						const uint32_t tpwmthrs = SmartDrivers::GetRegister(drive, SmartDriverRegister::tpwmthrs);
+						const uint32_t mstepPos = SmartDrivers::GetRegister(drive, SmartDriverRegister::mstepPos);
 						const uint32_t axis = SmartDrivers::GetAxisNumber(drive);
 						bool bdummy;
 						const float mmPerSec = (12000000.0 * platform.GetDriverMicrostepping(drive, bdummy))/(256 * tpwmthrs * platform.DriveStepsPerUnit(axis));
-						reply.catf(", tpwmthrs %" PRIu32 " (%.1f mm/sec)", tpwmthrs, (double)mmPerSec);
+						reply.catf(", pos %" PRIu32", tpwmthrs %" PRIu32 " (%.1f mm/sec)", mstepPos, tpwmthrs, (double)mmPerSec);
 					}
 #endif
 

@@ -37,8 +37,6 @@
 #include "Version.h"
 #include "Movement/StepTimer.h"
 
-#ifdef RTOS
-
 #if __LPC17xx__
 constexpr size_t NetworkStackWords = 375;
 #else
@@ -46,14 +44,12 @@ constexpr size_t NetworkStackWords = 550;
 #endif
 static Task<NetworkStackWords> networkTask;
 
-#endif
-
 Network::Network(Platform& p) : platform(p), responders(nullptr), nextResponderToPoll(nullptr)
 {
-#if defined(DUET3_V03) || defined(SAME70XPLD)
+#if defined(DUET3_V03)
 	interfaces[0] = new LwipEthernetInterface(p);
 	interfaces[1] = new WiFiInterface(p);
-#elif defined(DUET3_V05)
+#elif defined(SAME70XPLD) || defined(DUET3_V05)
 	interfaces[0] = new LwipEthernetInterface(p);
 #elif defined(DUET_NG)
 	interfaces[0] = nullptr;			// we set this up in Init()
@@ -330,10 +326,7 @@ void Network::Activate()
 		}
 	}
 
-#ifdef RTOS
 	networkTask.Create(NetworkLoop, "NETWORK", nullptr, TaskPriority::SpinPriority);
-#endif
-
 }
 
 void Network::Exit()

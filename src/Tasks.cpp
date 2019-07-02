@@ -10,11 +10,8 @@
 #include "Platform.h"
 #include <malloc.h>
 
-#ifdef RTOS
-# include "FreeRTOS.h"
-# include "task.h"
-
-#endif
+#include "FreeRTOS.h"
+#include "task.h"
 
 #if USE_CACHE
 # include "cmcc/cmcc.h"
@@ -24,9 +21,6 @@ const uint8_t memPattern = 0xA5;
 
 extern "C" char *sbrk(int i);
 extern char _end;
-
-
-#ifdef RTOS
 
 // The main task currently runs GCodes, so it needs to be large enough to hold the matrices used for auto calibration.
 // The timer and idle tasks currently never do I/O, so they can be much smaller.
@@ -87,8 +81,6 @@ extern "C" void __malloc_unlock ( struct _reent *_r )
 	}
 }
 
-#endif
-
 // Application entry point
 extern "C" void AppMain()
 {
@@ -125,7 +117,6 @@ extern "C" void AppMain()
 	EnableCache();
 #endif
 
-#ifdef RTOS
 	// Add the FreeRTOS internal tasks to the task list
 	idleTask.AddToList();
 
@@ -145,9 +136,6 @@ extern "C" void MainTask(void *pvParameters)
 	spiMutex.Create("SPI");
 	i2cMutex.Create("I2C");
 	sysDirMutex.Create("SysDir");
-#else
-	SysTickInit();					// set up system tick interrupt
-#endif
 
 	reprap.Init();
 
@@ -165,8 +153,6 @@ extern "C" uint32_t _estack;		// this is defined in the linker script
 
 namespace Tasks
 {
-
-#ifdef RTOS
 	static void GetHandlerStackUsage(uint32_t* maxStack, uint32_t* neverUsed)
 	{
 		const char * const ramend = (const char *)&_estack;
@@ -179,33 +165,12 @@ namespace Tasks
 		if (maxStack != nullptr) { *maxStack = ramend - stack_lwm; }
 		if (neverUsed != nullptr) { *neverUsed = stack_lwm - heapend; }
 	}
-#else
-	// Return the system stack usage and amount of memory that has never been used, in bytes
-	static void GetStackUsage(uint32_t* currentStack, uint32_t* maxStack, uint32_t* neverUsed)
-	{
-		const char * const ramend = (const char *)&_estack;
-		const char * const heapend = sbrk(0);
-		const char * stack_lwm = heapend;
-		register const char * stack_ptr asm ("sp");
-		while (stack_lwm < stack_ptr && *stack_lwm == memPattern)
-		{
-			++stack_lwm;
-		}
-		if (currentStack != nullptr) { *currentStack = ramend - stack_ptr; }
-		if (maxStack != nullptr) { *maxStack = ramend - stack_lwm; }
-		if (neverUsed != nullptr) { *neverUsed = stack_lwm - heapend; }
-	}
-#endif
 
 	uint32_t GetNeverUsedRam()
 	{
 		uint32_t neverUsedRam;
 
-#ifdef RTOS
 		GetHandlerStackUsage(nullptr, &neverUsedRam);
-#else
-		GetStackUsage(nullptr, nullptr, &neverUsedRam);
-#endif
 		return neverUsedRam;
 	}
 
@@ -213,11 +178,7 @@ namespace Tasks
 	void Diagnostics(MessageType mtype)
 	{
 		Platform& p = reprap.GetPlatform();
-#ifdef RTOS
 		p.Message(mtype, "=== RTOS ===\n");
-#else
-		p.Message(mtype, "=== System ===\n");
-#endif
 		// Print memory stats
 		{
 			const char * const ramstart =
@@ -241,19 +202,12 @@ namespace Tasks
 			p.MessageF(mtype, "Dynamic ram: %d of which %d recycled\n", mi.uordblks, mi.fordblks);
 #endif
 			uint32_t maxStack, neverUsed;
-#ifdef RTOS
 			GetHandlerStackUsage(&maxStack, &neverUsed);
 			p.MessageF(mtype, "Exception stack ram used: %" PRIu32 "\n", maxStack);
-#else
-			uint32_t currentStack;
-			Tasks::GetStackUsage(&currentStack, &maxStack, &neverUsed);
-			p.MessageF(mtype, "Stack ram used: %" PRIu32 " current, %" PRIu32 " maximum\n", currentStack, maxStack);
-#endif
 			p.MessageF(mtype, "Never used ram: %" PRIu32 "\n", neverUsed);
 
 		}	// end memory stats scope
 
-#ifdef RTOS
 		p.Message(mtype, "Tasks:");
 		for (const TaskBase *t = TaskBase::GetTaskList(); t != nullptr; t = t->GetNext())
 		{
@@ -278,34 +232,21 @@ namespace Tasks
 			}
 		}
 		p.MessageF(mtype, "\n");
-#endif
 	}
 
 	const Mutex *GetSpiMutex()
 	{
-#ifdef RTOS
 		return &spiMutex;
-#else
-		return nullptr;
-#endif
 	}
 
 	const Mutex *GetI2CMutex()
 	{
-#ifdef RTOS
 		return &i2cMutex;
-#else
-		return nullptr;
-#endif
 	}
 
 	const Mutex *GetSysDirMutex()
 	{
-#ifdef RTOS
 		return &sysDirMutex;
-#else
-		return nullptr;
-#endif
 	}
 }
 
@@ -313,11 +254,7 @@ namespace Tasks
 extern "C"
 {
 	// This intercepts the 1ms system tick
-#ifdef RTOS
 	void vApplicationTickHook()
-#else
-	void SysTick_Handler()
-#endif
 	{
 		CoreSysTick();
 		reprap.Tick();
@@ -406,9 +343,6 @@ extern "C"
 
 	void DebugMon_Handler   () __attribute__ ((noreturn,alias("OtherFault_Handler")));
 
-#ifdef RTOS
-
-
 // FreeRTOS hooks that we need to provide
 void stackOverflowDispatcher(const uint32_t *pulFaultStackAddress, char* pcTaskName) __attribute((noreturn));
 void stackOverflowDispatcher(const uint32_t *pulFaultStackAddress, char* pcTaskName)
@@ -430,14 +364,6 @@ void vApplicationStackOverflowHook(TaskHandle_t pxTask, char *pcTaskName)
 	);
 }
 
-#else
-
-// Handlers that FreeRTOS would provide if we were using it
-void SVC_Handler		( void ) __attribute__ ((noreturn, alias("OtherFault_Handler")));
-void PendSV_Handler		( void ) __attribute__ ((noreturn, alias("OtherFault_Handler")));
-
-#endif
-
 	void assertCalledDispatcher(const uint32_t *pulFaultStackAddress) __attribute((noreturn));
 	void assertCalledDispatcher(const uint32_t *pulFaultStackAddress)
 	{
@@ -447,6 +373,10 @@ void PendSV_Handler		( void ) __attribute__ ((noreturn, alias("OtherFault_Handle
 	void vAssertCalled(uint32_t line, const char *file) __attribute((naked, noreturn));
 	void vAssertCalled(uint32_t line, const char *file)
 	{
+#if false
+		debugPrintf("ASSERTION FAILED IN %s on LINE %d\n", file, line);
+		SERIAL_MAIN_DEVICE.flush();
+#endif
 	    __asm volatile
 	    (
 	    	" push {r0, r1, lr}											\n"		/* save parameters and call address */

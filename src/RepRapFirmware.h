@@ -94,8 +94,9 @@ enum Module : uint8_t
 	moduleFilamentSensors = 13,
 	moduleWiFi = 14,
 	moduleDisplay = 15,
-	numModules = 16,				// make this one greater than the last module number
-	noModule = 16
+	moduleLinuxInterface = 16,
+	numModules = 17,				// make this one greater than the last module number
+	noModule = 18
 };
 
 extern const char * const moduleName[];
@@ -130,6 +131,9 @@ class PortControl;
 
 #if SUPPORT_12864_LCD
 class Display;
+#endif
+#if HAS_LINUX_INTERFACE
+class LinuxInterface;
 #endif
 
 // Define floating point type to use for calculations where we would like high precision in matrix calculations
@@ -179,19 +183,7 @@ extern "C" void debugPrintf(const char* fmt, ...) __attribute__ ((format (printf
 #define DEBUG_HERE do { debugPrintf("At " __FILE__ " line %d\n", __LINE__); delay(50); } while (false)
 
 // Functions and globals not part of any class
-
-#ifdef RTOS
-
 void delay(uint32_t ms);
-
-#else
-
-inline void delay(uint32_t ms)
-{
-	coreDelay(ms);
-}
-
-#endif
 
 bool StringEndsWithIgnoreCase(const char* string, const char* ending);
 bool StringStartsWith(const char* string, const char* starting);
@@ -215,8 +207,8 @@ void ListDrivers(const StringRef& str, DriversBitmap drivers);
 
 // From section 3.12.7 of http://infocenter.arm.com/help/topic/com.arm.doc.dui0553b/DUI0553.pdf:
 // When you write to BASEPRI_MAX, the instruction writes to BASEPRI only if either:
-// • Rn is non-zero and the current BASEPRI value is 0
-// • Rn is non-zero and less than the current BASEPRI value
+// - Rn is non-zero and the current BASEPRI value is 0
+// - Rn is non-zero and less than the current BASEPRI value
 __attribute__( ( always_inline ) ) __STATIC_INLINE void __set_BASEPRI_MAX(uint32_t value)
 {
   __ASM volatile ("MSR basepri_max, %0" : : "r" (value) : "memory");
@@ -364,8 +356,6 @@ constexpr float RadiansToDegrees = 180.0/3.141592653589793;
 typedef uint32_t FilePosition;
 const FilePosition noFilePosition = 0xFFFFFFFF;
 
-#ifdef RTOS
-
 // Task priorities
 namespace TaskPriority
 {
@@ -395,8 +385,6 @@ namespace TaskPriority
 #endif
 }
 
-#endif
-
 //-------------------------------------------------------------------------------------------------
 // Interrupt priorities - must be chosen with care! 0 is the highest priority, 15 is the lowest.
 // This interacts with FreeRTOS config constant configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY which is currently defined as 3 for the SAME70 and 5 for the SAM4x.
@@ -410,10 +398,6 @@ const uint32_t NvicPriorityWatchdog = 0;		// the secondary watchdog has the high
 const uint32_t NvicPriorityPanelDueUart = 1;	// UART is highest to avoid character loss (it has only a 1-character receive buffer)
 const uint32_t NvicPriorityWiFiUart = 2;		// UART used to receive debug data from the WiFi module
 const uint32_t NvicPriorityMCan = 2;			// CAN interface
-
-# ifndef RTOS
-const uint32_t NvicPrioritySystick = 3;			// systick kicks the watchdog and starts the ADC conversions, so must be quite high
-# endif
 
 const uint32_t NvicPriorityPins = 3;			// priority for GPIO pin interrupts - filament sensors must be higher than step
 const uint32_t NvicPriorityStep = 4;			// step interrupt is next highest, it can preempt most other interrupts

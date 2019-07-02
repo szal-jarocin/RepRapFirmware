@@ -27,6 +27,10 @@
 # include "Display/Display.h"
 #endif
 
+#if HAS_LINUX_INTERFACE
+# include "Linux/LinuxInterface.h"
+#endif
+
 #if HAS_HIGH_SPEED_SD
 # include "sam/drivers/hsmci/hsmci.h"
 # include "conf_sd_mmc.h"
@@ -39,14 +43,12 @@ static_assert(CONF_HSMCI_XDMAC_CHANNEL == DmacChanHsmci, "mismatched DMA channel
 # include "CAN/CanInterface.h"
 #endif
 
-#ifdef RTOS
-# include "FreeRTOS.h"
-# include "task.h"
-#endif
+#include "FreeRTOS.h"
+#include "task.h"
 
-# if SAME70
-#  include "Hardware/DmacManager.h"
-# endif
+#if SAME70
+# include "Hardware/DmacManager.h"
+#endif
 
 // We call vTaskNotifyGiveFromISR from various interrupts, so the following must be true
 static_assert(configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY <= NvicPriorityHSMCI, "configMAX_SYSCALL_INTERRUPT_PRIORITY is set too high");
@@ -116,37 +118,7 @@ extern "C" void hsmciIdle(uint32_t stBits, uint32_t dmaBits)
 	}
 }
 
-
-#else
-
-// Non-RTOS code
-
-// Callback function from the hsmci driver, called while it is waiting for an SD card operation to complete
-// 'stBits' is the set of bits in the HSMCI status register that the caller is interested in.
-// The caller keeps calling this function until at least one of those bits is set.
-extern "C" void hsmciIdle(uint32_t stBits, uint32_t dmaBits)
-{
-	if (reprap.GetSpinningModule() != moduleNetwork)
-	{
-		reprap.GetNetwork().Spin(false);
-	}
-
-#if SUPPORT_IOBITS
-	if (reprap.GetSpinningModule() != modulePortControl)
-	{
-		reprap.GetPortControl().Spin(false);
-	}
-#endif
-
-#ifdef DUET_NG
-	if (reprap.GetSpinningModule() != moduleDuetExpansion)
-	{
-		DuetExpansion::Spin(false);
-	}
-#endif
-}
-
-#endif
+#endif //end ifndef LPC
 
 #if SUPPORT_OBJECT_MODEL
 
@@ -178,9 +150,7 @@ DEFINE_GET_OBJECT_MODEL_TABLE(RepRap)
 
 RepRap::RepRap() : toolList(nullptr), currentTool(nullptr), lastWarningMillis(0), activeExtruders(0),
 	activeToolHeaters(0), ticksInSpinState(0),
-#ifdef RTOS
 	heatTaskIdleTicks(0),
-#endif
 	spinningModule(noModule), debug(0), stopped(false),
 	active(false), resetting(false), processingConfig(true), beepFrequency(0), beepDuration(0),
 	diagnosticsDestination(MessageType::NoDestinationMessage), justSentDiagnostics(false)
@@ -205,6 +175,9 @@ RepRap::RepRap() : toolList(nullptr), currentTool(nullptr), lastWarningMillis(0)
 #if SUPPORT_12864_LCD
          display = new Display();
 #endif
+#if HAS_LINUX_INTERFACE
+	linuxInterface = new LinuxInterface();
+#endif
 
     printMonitor = new PrintMonitor(*platform, *gCodes);
 
@@ -219,7 +192,7 @@ void RepRap::Init()
 	messageBoxMutex.Create("MessageBox");
 
 	platform->Init();
-    heat->Init(); //SD:: moved heat to here cause network with RTOP+TCP creates extra tasks
+    heat->Init();
     network->Init();
 	SetName(DEFAULT_MACHINE_NAME);		// Network must be initialised before calling this because this calls SetHostName
 	gCodes->Init();						// must be called before Move::Init
@@ -241,6 +214,9 @@ void RepRap::Init()
 	FilamentMonitor::InitStatic();
 #if SUPPORT_12864_LCD
 	display->Init();
+#endif
+#if HAS_LINUX_INTERFACE
+	linuxInterface->Init();
 #endif
 
 	// Set up the timeout of the regular watchdog, and set up the backup watchdog if there is one.
@@ -270,7 +246,7 @@ void RepRap::Init()
 
 	platform->MessageF(UsbMessage, "%s Version %s dated %s\n", FIRMWARE_NAME, VERSION, DATE);
 
-#if !defined(DUET3_V05)					// Duet 3 0.5 has no local SD card
+#if HAS_MASS_STORAGE
 	// Try to mount the first SD card
 	{
 		GCodeResult rslt;
@@ -325,10 +301,8 @@ void RepRap::Init()
 
 #if HAS_HIGH_SPEED_SD
 	hsmci_set_idle_func(hsmciIdle);
-# ifdef RTOS
 	HSMCI->HSMCI_IDR = 0xFFFFFFFF;	// disable all HSMCI interrupts
 	NVIC_EnableIRQ(HSMCI_IRQn);
-# endif
 #endif
 	platform->MessageF(UsbMessage, "%s is up and running.\n", FIRMWARE_NAME);
 
@@ -371,12 +345,6 @@ void RepRap::Spin()
 	spinningModule = modulePlatform;
 	platform->Spin();
 
-#ifndef RTOS
-	ticksInSpinState = 0;
-	spinningModule = moduleNetwork;
-	network->Spin(true);
-#endif
-
 	ticksInSpinState = 0;
 	spinningModule = moduleWebserver;
 
@@ -387,12 +355,6 @@ void RepRap::Spin()
 	ticksInSpinState = 0;
 	spinningModule = moduleMove;
 	move->Spin();
-
-#ifndef RTOS
-	ticksInSpinState = 0;
-	spinningModule = moduleHeat;
-	heat->Spin();
-#endif
 
 #if SUPPORT_ROLAND
 	ticksInSpinState = 0;
@@ -418,6 +380,12 @@ void RepRap::Spin()
 	ticksInSpinState = 0;
 	spinningModule = moduleDisplay;
 	display->Spin();
+#endif
+
+#if HAS_LINUX_INTERFACE
+	ticksInSpinState = 0;
+	spinningModule = moduleLinuxInterface;
+	linuxInterface->Spin();
 #endif
 
 	ticksInSpinState = 0;
@@ -512,6 +480,9 @@ void RepRap::Diagnostics(MessageType mtype)
 	FilamentMonitor::Diagnostics(mtype);
 #ifdef DUET_NG
 	DuetExpansion::Diagnostics(mtype);
+#endif
+#if HAS_LINUX_INTERFACE
+	linuxInterface->Diagnostics(mtype);
 #endif
 	justSentDiagnostics = true;
 }
@@ -788,13 +759,9 @@ void RepRap::Tick()
 		{
 			platform->Tick();
 			++ticksInSpinState;
-#ifdef RTOS
 			++heatTaskIdleTicks;
 			const bool heatTaskStuck = (heatTaskIdleTicks >= MaxTicksInSpinState);
 			if (heatTaskStuck || ticksInSpinState >= MaxTicksInSpinState)		// if we stall for 20 seconds, save diagnostic data and reset
-#else
-				if (ticksInSpinState >= MaxTicksInSpinState)					// if we stall for 20 seconds, save diagnostic data and reset
-#endif
 			{
 				resetting = true;
 				for (size_t i = 0; i < NumTotalHeaters; i++)
@@ -804,18 +771,11 @@ void RepRap::Tick()
 				platform->DisableAllDrives();
 
 				// We now save the stack when we get stuck in a spin loop
-#ifdef RTOS
 				__asm volatile("mrs r2, psp");
 				register const uint32_t * stackPtr asm ("r2");					// we want the PSP not the MSP
 				platform->SoftwareReset(
 					(heatTaskStuck) ? (uint16_t)SoftwareResetReason::heaterWatchdog : (uint16_t)SoftwareResetReason::stuckInSpin,
 					stackPtr + 5);												// discard uninteresting registers, keep LR PC PSR
-#else
-				register const uint32_t * stackPtr asm ("sp");
-				platform->SoftwareReset(
-					(uint16_t)SoftwareResetReason::stuckInSpin,
-					stackPtr + 5);												// discard uninteresting registers, keep LR PC PSR
-#endif
 			}
 		}
 	}
@@ -914,7 +874,7 @@ OutputBuffer *RepRap::GetStatusResponse(uint8_t type, ResponseSource source)
 	response->catf("]},\"speeds\":{\"requested\":%.1f,\"top\":%.1f}",
 			(double)move->GetRequestedSpeed(), (double)move->GetTopSpeed());
 
- 	// Current tool number
+	// Current tool number
 	response->catf(",\"currentTool\":%d", GetCurrentToolNumber());
 
 	// Output notifications
@@ -973,7 +933,7 @@ OutputBuffer *RepRap::GetStatusResponse(uint8_t type, ResponseSource source)
 	// Parameters
 	{
 		// ATX power
-		response->catf(",\"params\":{\"atxPower\":%d", platform->AtxPower() ? 1 : 0);
+		response->catf(",\"params\":{\"atxPower\":%d", gCodes->AtxPowerControlled() ? (platform->AtxPower() ? 1 : 0) : -1);
 
 		// Cooling fan value
 		response->cat(",\"fanPercent\":");
@@ -1192,7 +1152,7 @@ OutputBuffer *RepRap::GetStatusResponse(uint8_t type, ResponseSource source)
 #endif
 
 	// Spindles
-	if (gCodes->GetMachineType() == MachineType::cnc)
+	if (gCodes->GetMachineType() == MachineType::cnc || type == 2)
 	{
 		int lastConfiguredSpindle = -1;
 		for (size_t spindle = 0; spindle < MaxSpindles; spindle++)
@@ -1280,6 +1240,7 @@ OutputBuffer *RepRap::GetStatusResponse(uint8_t type, ResponseSource source)
 		response->catf(",\"firmwareName\":\"%s\",\"geometry\":\"%s\",\"axes\":%u,\"totalAxes\":%u,\"axisNames\":\"%s\"",
 			FIRMWARE_NAME, move->GetGeometryString(), numVisibleAxes, numTotalAxes, gCodes->GetAxisLetters());
 
+#if HAS_MASS_STORAGE
 		// Total and mounted volumes
 		size_t mountedCards = 0;
 		for (size_t i = 0; i < NumSdCards; i++)
@@ -1290,6 +1251,12 @@ OutputBuffer *RepRap::GetStatusResponse(uint8_t type, ResponseSource source)
 			}
 		}
 		response->catf(",\"volumes\":%u,\"mountedVolumes\":%u", NumSdCards, mountedCards);
+#endif
+
+		// Machine mode
+		const char *machineMode = gCodes->GetMachineModeString();
+		response->cat(",\"mode\":");
+		response->EncodeString(machineMode, strlen(machineMode), false);
 
 		// Machine name
 		response->cat(",\"name\":");
@@ -1444,7 +1411,7 @@ OutputBuffer *RepRap::GetStatusResponse(uint8_t type, ResponseSource source)
 		}
 
 		// Fraction of file printed
-		response->catf("],\"fractionPrinted\":%.1f", (double)((printMonitor->IsPrinting()) ? (gCodes->FractionOfFilePrinted() * 100.0) : 0.0));
+		response->catf("],\"fractionPrinted\":%.1f", (double)((printMonitor->IsPrinting()) ? (printMonitor->FractionOfFilePrinted() * 100.0) : 0.0));
 
 		// Byte position of the file being printed
 		response->catf(",\"filePosition\":%lu", gCodes->GetFilePosition());
@@ -1751,7 +1718,7 @@ OutputBuffer *RepRap::GetLegacyStatusResponse(uint8_t type, int seq)
 	if (printMonitor->IsPrinting())
 	{
 		// Send the fraction printed
-		response->catf(",\"fraction_printed\":%.4f", (double)max<float>(0.0, gCodes->FractionOfFilePrinted()));
+		response->catf(",\"fraction_printed\":%.4f", (double)max<float>(0.0, printMonitor->FractionOfFilePrinted()));
 	}
 
 	// Short messages are now pushed directly to PanelDue, so don't include them here as well
@@ -1820,6 +1787,8 @@ OutputBuffer *RepRap::GetLegacyStatusResponse(uint8_t type, int seq)
 	response->cat('}');
 	return response;
 }
+
+#if HAS_MASS_STORAGE
 
 // Get the list of files in the specified directory in JSON format.
 // If flagDirs is true then we prefix each directory with a * character.
@@ -1985,6 +1954,8 @@ OutputBuffer *RepRap::GetFilelistResponse(const char *dir, unsigned int startAt)
 	return response;
 }
 
+#endif
+
 // Get information for the specified file, or the currently printing file (if 'filename' is null or empty), in JSON format
 bool RepRap::GetFileInfoResponse(const char *filename, OutputBuffer *&response, bool quitEarly)
 {
@@ -1992,6 +1963,7 @@ bool RepRap::GetFileInfoResponse(const char *filename, OutputBuffer *&response, 
 	GCodeFileInfo info;
 	if (specificFile)
 	{
+#if HAS_MASS_STORAGE
 		// Poll file info for a specific file
 		String<MaxFilenameLength> filePath;
 		MassStorage::CombineName(filePath.GetRef(), platform->GetGCodeDir(), filename);
@@ -2000,6 +1972,9 @@ bool RepRap::GetFileInfoResponse(const char *filename, OutputBuffer *&response, 
 			// This may take a few runs...
 			return false;
 		}
+#else
+		return false;
+#endif
 	}
 	else if (!printMonitor->GetPrintingFileInfo(info))
 	{
@@ -2251,6 +2226,8 @@ AxesBitmap RepRap::GetCurrentYAxes() const
 	return (currentTool == nullptr) ? DefaultYAxisMapping : currentTool->GetYAxisMap();
 }
 
+#if HAS_MASS_STORAGE
+
 // Save some resume information, returning true if successful
 // We assume that the tool configuration doesn't change, only the temperatures and the mix
 bool RepRap::WriteToolSettings(FileStore *f) const
@@ -2304,6 +2281,8 @@ bool RepRap::WriteToolParameters(FileStore *f) const
 	}
 	return ok;
 }
+
+#endif
 
 // Helper function for diagnostic tests in Platform.cpp, to cause a deliberate divide-by-zero
 /*static*/ uint32_t RepRap::DoDivide(uint32_t a, uint32_t b)

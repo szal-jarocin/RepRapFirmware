@@ -1,6 +1,9 @@
 //------------------------------------------------------------------------------------------------
 
 #include "RepRapFirmware.h"
+
+#if HAS_MASS_STORAGE
+
 #include "FileStore.h"
 #include "MassStorage.h"
 #include "Platform.h"
@@ -532,6 +535,8 @@ bool FileStore::SetClusterMap(uint32_t tbl[])
 		return false;
 	}
 }
+
+#endif
 
 #endif
 

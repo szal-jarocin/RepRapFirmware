@@ -107,6 +107,9 @@ public:
  	const char *GetLatestMessage(uint16_t& sequence) const;
  	const MessageBox& GetMessageBox() const { return mbox; }
 #endif
+#if HAS_LINUX_INTERFACE
+ 	LinuxInterface& GetLinuxInterface() const;
+#endif
 
 	void Tick();
 	bool SpinTimeoutImminent() const;
@@ -118,8 +121,12 @@ public:
 	OutputBuffer *GetStatusResponse(uint8_t type, ResponseSource source);
 	OutputBuffer *GetConfigResponse();
 	OutputBuffer *GetLegacyStatusResponse(uint8_t type, int seq);
+
+#if HAS_MASS_STORAGE
 	OutputBuffer *GetFilesResponse(const char* dir, unsigned int startAt, bool flagsDirs);
 	OutputBuffer *GetFilelistResponse(const char* dir, unsigned int startAt);
+#endif
+
 	bool GetFileInfoResponse(const char *filename, OutputBuffer *&response, bool quitEarly);
 
 	void Beep(unsigned int freq, unsigned int ms);
@@ -127,8 +134,10 @@ public:
 	void SetAlert(const char *msg, const char *title, int mode, float timeout, AxesBitmap controls);
 	void ClearAlert();
 
+#if HAS_MASS_STORAGE
 	bool WriteToolSettings(FileStore *f) const;				// save some information for the resume file
 	bool WriteToolParameters(FileStore *f) const;			// save some information in config-override.g
+#endif
 
 	void ReportInternalError(const char *file, const char *func, int line) const;	// Report an internal error
 
@@ -136,9 +145,7 @@ public:
 	static float SinfCosf(float angle);						// helper function for diagnostic tests
 	static double SinCos(double angle);						// helper function for diagnostic tests
 
-#ifdef RTOS
 	void KickHeatTaskWatchdog() { heatTaskIdleTicks = 0; }
-#endif
 
 protected:
 	DECLARE_OBJECT_MODEL
@@ -167,6 +174,9 @@ private:
 #if SUPPORT_12864_LCD
  	Display *display;
 #endif
+#if HAS_LINUX_INTERFACE
+ 	LinuxInterface *linuxInterface;
+#endif
 
  	Mutex toolListMutex, messageBoxMutex;
 	Tool* toolList;								// the tool list is sorted in order of increasing tool number
@@ -177,9 +187,7 @@ private:
 	uint16_t activeToolHeaters;
 
 	uint16_t ticksInSpinState;
-#ifdef RTOS
 	uint16_t heatTaskIdleTicks;
-#endif
 	Module spinningModule;
 	uint32_t fastLoop, slowLoop;
 
@@ -218,6 +226,9 @@ inline PortControl& RepRap::GetPortControl() const { return *portControl; }
 
 #if SUPPORT_12864_LCD
 inline Display& RepRap::GetDisplay() const { return *display; }
+#endif
+#if HAS_LINUX_INTERFACE
+inline LinuxInterface& RepRap::GetLinuxInterface() const { return *linuxInterface; }
 #endif
 
 inline bool RepRap::Debug(Module m) const { return debug & (1 << m); }
