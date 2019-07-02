@@ -21,13 +21,11 @@ Version 3.0 beta3
 * Added new option do enable/disable RRF Panel Due mode for the AUX serial port (default is false). For example: lpc.uartPanelDueMode = true; 
 * Added new atxPowerPinInverted entry which is set to true or false.  Set to true if the PSON needs to be inverted. Default is False.
 
-### Networking
 
-* Fixed a bug causing a buffer to not be freed after a read socket error.
-* Added mutexes to the callbacks which are called from a different task (IPTask).
-* Upgraded FreeRTOS+TCP to V2.0.11
-* Added extra FreeRTOS priorty and changed priories so the EMac task has a higher priority than IPTask.   
-* Removed the f_expand to preallocate space as it takes longer than the default network time out when uploading large files.
+
+
+Version 2.03
+=================
 
 ### SDCard
 
@@ -36,3 +34,11 @@ Version 3.0 beta3
 * Added check to ensure that if user enters a higher SPI frequency than the card can support to only use the max card speed.
 * If users select a slower SPI speed than the card can handle, that speed will instead be used (i.e. to have slower SPI speeds over long cables for external SDCard slot if desired).
 * Implemented SDCard read/write retries as RRF does.
+
+### Networking
+
+* Fixed a bug causing a buffer to not be freed after a read socket error.
+* Added mutexes to the callbacks which are called from a different task (IPTask).
+* Upgraded FreeRTOS+TCP to V2.0.11
+* Added extra FreeRTOS priorty and changed priories so the EMac task has a higher priority than IPTask.   
+* Removed the f_expand to preallocate space as it takes longer than the default network time out when uploading large files.
