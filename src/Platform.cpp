@@ -1128,18 +1128,8 @@ void Platform::Spin()
 	}
 
 #if defined(DUET3_V03) || defined(DUET3_V05) || defined(__LPC17xx__)
-	// Blink the LED
-	{
-		static uint32_t lastTime = 0;
-		static bool diagState = true;
-		const uint32_t now = millis();
-		if (now - lastTime >= 500)
-		{
-			lastTime = now;
-			diagState = !diagState;
-			digitalWrite(DiagPin, diagState);
-		}
-	}
+	// Blink the LED at about 2Hz. The expansion boards will blink in sync when they have established clock sync with us.
+	digitalWrite(DiagPin, (StepTimer::GetInterruptClocks() & (1u << 19)) != 0);
 #endif
 
 #if HAS_MASS_STORAGE
@@ -2022,6 +2012,9 @@ void Platform::PrintUniqueId(MessageType mtype)
 
 #endif
 
+// Global variable for debugging in tricky situations e.g. within ISRs
+int debugLine = 0;
+
 // Return diagnostic information
 void Platform::Diagnostics(MessageType mtype)
 {
@@ -2031,6 +2024,12 @@ void Platform::Diagnostics(MessageType mtype)
 #endif
 
 	Message(mtype, "=== Platform ===\n");
+
+	// Debugging support
+	if (debugLine != 0)
+	{
+		MessageF(mtype, "Debug line %d\n", debugLine);
+	}
 
 	// Show the up time and reason for the last reset
 	const uint32_t now = (uint32_t)(millis64()/1000u);		// get up time in seconds
@@ -2085,24 +2084,23 @@ void Platform::Diagnostics(MessageType mtype)
 			}
 		}
 #else
-        SoftwareResetData srdBuf[SoftwareResetData::numberOfSlots];
-        memset(srdBuf, 0, sizeof(srdBuf));
-        int slot = -1;
-        
-#if SAM4E || SAM4S || SAME70
-        // Work around bug in ASF flash library: flash_read_user_signature calls a RAMFUNC without disabling interrupts first.
-        // This caused a crash (watchdog timeout) sometimes if we run M122 while a print is in progress
-        const irqflags_t flags = cpu_irq_save();
-        DisableCache();
-        const uint32_t rc = flash_read_user_signature(reinterpret_cast<uint32_t*>(srdBuf), sizeof(srdBuf)/sizeof(uint32_t));
-        EnableCache();
-        cpu_irq_restore(flags);
-        
-        if (rc == FLASH_RC_OK)
-#else
+		SoftwareResetData srdBuf[SoftwareResetData::numberOfSlots];
+		memset(srdBuf, 0, sizeof(srdBuf));
+		int slot = -1;
 
+# if SAM4E || SAM4S || SAME70
+		// Work around bug in ASF flash library: flash_read_user_signature calls a RAMFUNC without disabling interrupts first.
+		// This caused a crash (watchdog timeout) sometimes if we run M122 while a print is in progress
+		const irqflags_t flags = cpu_irq_save();
+		DisableCache();
+		const uint32_t rc = flash_read_user_signature(reinterpret_cast<uint32_t*>(srdBuf), sizeof(srdBuf)/sizeof(uint32_t));
+		EnableCache();
+		cpu_irq_restore(flags);
+
+		if (rc == FLASH_RC_OK)
+# else
 		DueFlashStorage::read(SoftwareResetData::nvAddress, srdBuf, sizeof(srdBuf));
-#endif
+# endif
 		{
 			// Find the last slot written
 			slot = SoftwareResetData::numberOfSlots;
@@ -2228,14 +2226,6 @@ void Platform::Diagnostics(MessageType mtype)
 #if USE_CACHE
 	MessageF(mtype, "Cache data hit count %" PRIu32 "\n", cacheCount);
 #endif
-
-// Debug
-//MessageF(mtype, "TC_FMR = %08x, PWM_FPE = %08x, PWM_FSR = %08x\n", TC2->TC_FMR, PWM->PWM_FPE, PWM->PWM_FSR);
-//MessageF(mtype, "PWM2 period %08x, duty %08x\n", PWM->PWM_CH_NUM[2].PWM_CPRD, PWM->PWM_CH_NUM[2].PWM_CDTY);
-//MessageF(mtype, "Shortest/longest times read %.1f/%.1f write %.1f/%.1f ms, %u/%u\n",
-//		(float)shortestReadWaitTime/1000, (float)longestReadWaitTime/1000, (float)shortestWriteWaitTime/1000, (float)longestWriteWaitTime/1000,
-//		maxRead, maxWrite);
-//longestWriteWaitTime = longestReadWaitTime = 0; shortestReadWaitTime = shortestWriteWaitTime = 1000000;
 
 	reprap.Timing(mtype);
 

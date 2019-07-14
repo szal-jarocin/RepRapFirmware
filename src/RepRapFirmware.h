@@ -32,6 +32,8 @@ Licence: GPL
 
 #include "Core.h"
 #include "General/StringRef.h"
+#include "General/StringFunctions.h"
+#include "General/BitMap.h"
 
 // Definitions needed by Pins.h and/or Configuration.h
 // Logical pins used for general output, servos, CCN and laser control
@@ -185,14 +187,6 @@ extern "C" void debugPrintf(const char* fmt, ...) __attribute__ ((format (printf
 // Functions and globals not part of any class
 void delay(uint32_t ms);
 
-bool StringEndsWithIgnoreCase(const char* string, const char* ending);
-bool StringStartsWith(const char* string, const char* starting);
-bool StringStartsWithIgnoreCase(const char* string, const char* starting);
-bool StringEqualsIgnoreCase(const char* s1, const char* s2);
-int StringContains(const char* string, const char* match);
-void SafeStrncpy(char *dst, const char *src, size_t length) pre(length != 0);
-void SafeStrncat(char *dst, const char *src, size_t length) pre(length != 0);
-
 double HideNan(float val);
 
 void ListDrivers(const StringRef& str, DriversBitmap drivers);
@@ -277,54 +271,6 @@ private:
 	bool running;
 };
 
-// Helper functions to work on bitmaps of various lengths.
-// The primary purpose of these is to allow us to switch between 16, 32 and 64-bit bitmaps.
-
-// Convert an unsigned integer to a bit in a bitmap
-template<typename BitmapType> inline constexpr BitmapType MakeBitmap(unsigned int n)
-{
-	return (BitmapType)1u << n;
-}
-
-// Make a bitmap with the lowest n bits set
-template<typename BitmapType> inline constexpr BitmapType LowestNBits(unsigned int n)
-{
-	return ((BitmapType)1u << n) - 1;
-}
-
-// Check if a particular bit is set in a bitmap
-template<typename BitmapType> inline constexpr bool IsBitSet(BitmapType b, unsigned int n)
-{
-	return (b & ((BitmapType)1u << n)) != 0;
-}
-
-// Set a bit in a bitmap
-template<typename BitmapType> inline void SetBit(BitmapType &b, unsigned int n)
-{
-	b |= ((BitmapType)1u << n);
-}
-
-// Clear a bit in a bitmap
-template<typename BitmapType> inline void ClearBit(BitmapType &b, unsigned int n)
-{
-	b &= ~((BitmapType)1u << n);
-}
-
-// Convert an array of longs to a bit map with overflow checking
-template<typename BitmapType> BitmapType UnsignedArrayToBitMap(const uint32_t *arr, size_t numEntries)
-{
-	BitmapType res = 0;
-	for (size_t i = 0; i < numEntries; ++i)
-	{
-		const uint32_t f = arr[i];
-		if (f < sizeof(BitmapType) * CHAR_BIT)
-		{
-			SetBit(res, f);
-		}
-	}
-	return res;
-}
-
 // Common definitions used by more than one module
 
 constexpr size_t ScratchStringLength = 220;							// standard length of a scratch string, enough to print delta parameters to
@@ -382,6 +328,7 @@ namespace TaskPriority
 	static constexpr int LaserPriority = 3;
 	static constexpr int CanSenderPriority = 3;
 	static constexpr int CanReceiverPriority = 3;
+	static constexpr int CanClockPriority = 3;
 #endif
 }
 
@@ -422,10 +369,6 @@ const uint32_t NvicPriorityWatchdog = 0;		// the secondary watchdog has the high
 
 const uint32_t NvicPriorityPanelDueUart = 1;	// UART is highest to avoid character loss (it has only a 1-character receive buffer)
 const uint32_t NvicPriorityDriversSerialTMC = 2; // USART or UART used to control and monitor the smart drivers
-
-# ifndef RTOS
-const uint32_t NvicPrioritySystick = 3;			// systick kicks the watchdog and starts the ADC conversions, so must be quite high
-# endif
 
 const uint32_t NvicPriorityPins = 5;			// priority for GPIO pin interrupts - filament sensors must be higher than step
 const uint32_t NvicPriorityStep = 6;			// step interrupt is next highest, it can preempt most other interrupts
