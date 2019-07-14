@@ -198,7 +198,7 @@ void BoardConfig::Init() {
         
         if(LcdBeepPin != NoPin) pinMode(LcdBeepPin, OUTPUT_LOW);
         // Set the 12864 display CS pin low to prevent it from receiving garbage due to other SPI traffic
-        if(LcdBeepPin != NoPin) pinMode(LcdCSPin, OUTPUT_LOW);
+        if(LcdCSPin != NoPin) pinMode(LcdCSPin, OUTPUT_LOW);
 
         
     }
