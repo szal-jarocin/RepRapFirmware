@@ -97,7 +97,7 @@ GCodes::GCodes(Platform& p) :
 	telnetGCode = new GCodeBuffer("telnet", telnetInput, fileInput, TelnetMessage, TelnetMessage, true);
 	telnetInput = new NetworkGCodeInput();
 # else
-    telnetInput = nullptr;
+    telnetGCode = nullptr;
 # endif
 #else
 	httpGCode = telnetGCode = nullptr;

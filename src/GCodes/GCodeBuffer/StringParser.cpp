@@ -953,7 +953,7 @@ bool StringParser::GetReducedString(const StringRef& str)
 	}
 
 	// Reduced strings must start with a double-quote
-	if (readPointer == 0)
+    //if (readPointer == 0) //SD:: removed. was preventing opening " to be read
 	{
 		++readPointer;
 		if (gb.buffer[readPointer] != '"')

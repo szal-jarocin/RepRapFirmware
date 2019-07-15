@@ -187,6 +187,7 @@ void BoardConfig::Init() {
         //Configure the External SDCard
         if(SdSpiCSPins[1] != NoPin)
         {
+            setPullup(SdCardDetectPins[1], true);
             //set the CSPin and the frequency for the External SDCard
             sd_mmc_reinit_slot(1, SdSpiCSPins[1], ExternalSDCardFrequency);
         }
@@ -195,7 +196,6 @@ void BoardConfig::Init() {
         //make sure to init ButtonPin as input incase user presses button
         if(PanelButtonPin != NoPin) pinMode(PanelButtonPin, INPUT); //unused
         if(LcdDCPin != NoPin) pinMode(LcdDCPin, OUTPUT_HIGH); //unused
-        
         if(LcdBeepPin != NoPin) pinMode(LcdBeepPin, OUTPUT_LOW);
         // Set the 12864 display CS pin low to prevent it from receiving garbage due to other SPI traffic
         if(LcdCSPin != NoPin) pinMode(LcdCSPin, OUTPUT_LOW);
