@@ -389,19 +389,26 @@ void Platform::Init()
 	// Initialise endstops. On Duet 2 this must be done after testing for an expansion board.
 	endstops.Init();
 
-	// Drives
-	minimumMovementSpeed = DefaultMinFeedrate;
-	maxFeedrates[X_AXIS] = maxFeedrates[Y_AXIS] = DefaultXYMaxFeedrate;
-	accelerations[X_AXIS] = accelerations[Y_AXIS] = DefaultXYAcceleration;
-	driveStepsPerUnit[X_AXIS] = driveStepsPerUnit[Y_AXIS] = DefaultXYDriveStepsPerUnit;
-	instantDvs[X_AXIS] = instantDvs[Y_AXIS] = DefaultXYInstantDv;
+	// Axes
+	for (size_t axis = 0; axis < MaxAxes; ++axis)
+	{
+		axisMinima[axis] = DefaultAxisMinimum;
+		axisMaxima[axis] = DefaultAxisMaximum;
 
+		maxFeedrates[axis] = DefaultXYMaxFeedrate;
+		accelerations[axis] = DefaultXYAcceleration;
+		driveStepsPerUnit[axis] = DefaultXYDriveStepsPerUnit;
+		instantDvs[axis] = DefaultXYInstantDv;
+	}
+
+	// We use different defaults for the Z axis
 	maxFeedrates[Z_AXIS] = DefaultZMaxFeedrate;
 	accelerations[Z_AXIS] = DefaultZAcceleration;
 	driveStepsPerUnit[Z_AXIS] = DefaultZDriveStepsPerUnit;
 	instantDvs[Z_AXIS] = DefaultZInstantDv;
 
-	for (size_t drive = E0_AXIS; drive < MaxTotalDrivers; ++drive)
+	// Extruders
+	for (size_t drive = MaxAxes; drive < MaxAxesPlusExtruders; ++drive)
 	{
 		maxFeedrates[drive] = DefaultEMaxFeedrate;
 		accelerations[drive] = DefaultEAcceleration;
@@ -409,14 +416,8 @@ void Platform::Init()
 		instantDvs[drive] = DefaultEInstantDv;
 	}
 
-	// AXES
-	for (size_t axis = 0; axis < MaxAxes; ++axis)
-	{
-		axisMinima[axis] = DefaultAxisMinimum;
-		axisMaxima[axis] = DefaultAxisMaximum;
-	}
+	minimumMovementSpeed = DefaultMinFeedrate;
 	axisMaximaProbed = axisMinimaProbed = 0;
-
 	idleCurrentFactor = DefaultIdleCurrentFactor;
 
 	// Motors
@@ -439,42 +440,48 @@ void Platform::Init()
 		db = 0;													// clear drives bitmap for all axes
 	}
 
-	for (size_t drive = 0; drive < MaxTotalDrivers; drive++)
+	// Set up the local drivers
+	for (size_t driver = 0; driver < NumDirectDrivers; ++driver)
 	{
-		enableValues[drive] = 0;								// assume active low enable signal
-		directions[drive] = true;								// drive moves forwards by default
-		motorCurrents[drive] = 0.0;
-		motorCurrentFraction[drive] = 1.0;
-		driverState[drive] = DriverStatus::disabled;
-		driveDriverBits[drive] = driveDriverBits[drive + MaxTotalDrivers] = StepPins::CalcDriverBitmap(drive);	// map straight through by default
-
-		if (drive < NumDirectDrivers)
-		{
-			// Set up the control pins
-			pinMode(STEP_PINS[drive], OUTPUT_LOW);
-			pinMode(DIRECTION_PINS[drive], OUTPUT_LOW);
+		directions[driver] = true;								// drive moves forwards by default
+		enableValues[driver] = 0;								// assume active low enable signal
+		motorCurrents[driver] = 0.0;
+		motorCurrentFraction[driver] = 1.0;
+		// Set up the control pins
+		pinMode(STEP_PINS[driver], OUTPUT_LOW);
+		pinMode(DIRECTION_PINS[driver], OUTPUT_LOW);
 #if !(defined(DUET3_V03) || defined(DUET3_V05))
-			pinMode(ENABLE_PINS[drive], OUTPUT_HIGH);			// this is OK for the TMC2660 CS pins too
+		pinMode(ENABLE_PINS[driver], OUTPUT_HIGH);				// this is OK for the TMC2660 CS pins too
 #endif
 
 #ifndef __LPC17xx__
-			const PinDescription& pinDesc = g_APinDescription[STEP_PINS[drive]];
-			pinDesc.pPort->PIO_OWER = pinDesc.ulPin;			// enable parallel writes to the step pins
+		const PinDescription& pinDesc = g_APinDescription[STEP_PINS[driver]];
+		pinDesc.pPort->PIO_OWER = pinDesc.ulPin;				// enable parallel writes to the step pins
 #endif
-		}
+	}
+
+	// Set up the axis+extruder arrays
+	for (size_t drive = 0; drive < MaxAxesPlusExtruders; drive++)
+	{
+		driverState[drive] = DriverStatus::disabled;
 	}
 
 	// Set up default axis mapping
 	for (size_t axis = 0; axis < MinAxes; ++axis)
 	{
 #ifdef PCCB
-		const size_t drive = (axis + 1) % 3;					// on PCCB we map axes X Y Z to drivers 1 2 0
+		const size_t driver = (axis + 1) % 3;					// on PCCB we map axes X Y Z to drivers 1 2 0
 #else
-		const size_t drive = axis;								// on most boards we map axes straight through to drives
+		const size_t driver = axis;								// on most boards we map axes straight through to drives
 #endif
-		driveDriverBits[axis] = StepPins::CalcDriverBitmap(drive);	// overwrite the default value set up earlier
 		axisDrivers[axis].numDrivers = 1;
-		axisDrivers[axis].driverNumbers[0] = (uint8_t)drive;
+		axisDrivers[axis].driverNumbers[0] = (uint8_t)driver;
+		driveDriverBits[axis] = StepPins::CalcDriverBitmap(driver);	// overwrite the default value set up earlier
+	}
+	for (size_t axis = MinAxes; axis < MaxAxes; ++axis)
+	{
+		axisDrivers[axis].numDrivers = 0;
+		driveDriverBits[axis] = 0;
 	}
 
 	for (uint32_t& entry : slowDriverStepTimingClocks)
@@ -487,6 +494,7 @@ void Platform::Init()
 	for (size_t extr = 0; extr < MaxExtruders; ++extr)
 	{
 		extruderDrivers[extr] = (uint8_t)(extr + MinAxes);		// set up default extruder drive mapping
+		driveDriverBits[extr + MaxAxes] = StepPins::CalcDriverBitmap(extr + MinAxes);
 		SetPressureAdvance(extr, 0.0);							// no pressure advance
 #if SUPPORT_NONLINEAR_EXTRUSION
 		nonlinearExtrusionA[extr] = nonlinearExtrusionB[extr] = 0.0;
@@ -494,6 +502,7 @@ void Platform::Init()
 #endif
 	}
 
+	UpdateZMotorDriverBits();
 	driversPowered = false;
 
 #if HAS_SMART_DRIVERS
@@ -1388,7 +1397,7 @@ void Platform::Spin()
 				String<ScratchStringLength> scratchString;
 				ListDrivers(scratchString.GetRef(), stalledDriversToLog);
 				stalledDriversToLog = 0;
-				float liveCoordinates[MaxTotalDrivers];
+				float liveCoordinates[MaxAxesPlusExtruders];
 				reprap.GetMove().LiveCoordinates(liveCoordinates, reprap.GetCurrentXAxes(), reprap.GetCurrentYAxes());
 				MessageF(WarningMessage, "Driver(s)%s stalled at Z height %.2f", scratchString.c_str(), (double)liveCoordinates[Z_AXIS]);
 				reported = true;
@@ -1526,8 +1535,7 @@ void Platform::ReportDrivers(MessageType mt, DriversBitmap& whichDrivers, const 
 // Return true if any motor driving this axis is stalled
 bool Platform::AnyAxisMotorStalled(size_t drive) const
 {
-	const size_t numAxes = reprap.GetGCodes().GetTotalAxes();
-	if (drive < numAxes)
+	if (drive < reprap.GetGCodes().GetTotalAxes())
 	{
 		for (size_t i = 0; i < axisDrivers[drive].numDrivers; ++i)
 		{
@@ -2668,21 +2676,20 @@ void Platform::SetDirection(size_t drive, bool direction)
 	{
 		while (StepTimer::GetInterruptClocks() - DDA::lastStepLowTime < GetSlowDriverDirHoldClocks()) { }
 	}
-	const size_t numAxes = reprap.GetGCodes().GetTotalAxes();
-	if (drive < numAxes)
+	if (drive < MaxAxes)
 	{
 		for (size_t i = 0; i < axisDrivers[drive].numDrivers; ++i)
 		{
 			SetDriverDirection(axisDrivers[drive].driverNumbers[i], direction);
 		}
 	}
-	else if (drive < NumDirectDrivers)
+	else if (drive < MaxAxesPlusExtruders)
 	{
-		SetDriverDirection(extruderDrivers[drive - numAxes], direction);
+		SetDriverDirection(extruderDrivers[drive - MaxAxes], direction);
 	}
-	else if (drive >= MaxTotalDrivers && drive < MaxTotalDrivers + NumDirectDrivers)
+	else if (drive >= MaxAxesPlusExtruders && drive < MaxAxesPlusExtruders + NumDirectDrivers)
 	{
-		SetDriverDirection(drive - MaxTotalDrivers, direction);
+		SetDriverDirection(drive - MaxAxesPlusExtruders, direction);
 	}
 	if (isSlowDriver)
 	{
@@ -2752,34 +2759,32 @@ void Platform::DisableDriver(size_t driver)
 // Enable the drivers for a drive. Must not be called from an ISR, or with interrupts disabled.
 void Platform::EnableDrive(size_t drive)
 {
-	const size_t numAxes = reprap.GetGCodes().GetTotalAxes();
-	if (drive < numAxes)
+	if (drive < MaxAxes)
 	{
 		for (size_t i = 0; i < axisDrivers[drive].numDrivers; ++i)
 		{
 			EnableDriver(axisDrivers[drive].driverNumbers[i]);
 		}
 	}
-	else if (drive < NumDirectDrivers)
+	else if (drive < MaxAxesPlusExtruders)
 	{
-		EnableDriver(extruderDrivers[drive - numAxes]);
+		EnableDriver(extruderDrivers[drive - MaxAxes]);
 	}
 }
 
 // Disable the drivers for a drive
 void Platform::DisableDrive(size_t drive)
 {
-	const size_t numAxes = reprap.GetGCodes().GetTotalAxes();
-	if (drive < numAxes)
+	if (drive < MaxAxes)
 	{
 		for (size_t i = 0; i < axisDrivers[drive].numDrivers; ++i)
 		{
 			DisableDriver(axisDrivers[drive].driverNumbers[i]);
 		}
 	}
-	else if (drive < NumDirectDrivers)
+	else if (drive < MaxAxesPlusExtruders)
 	{
-		DisableDriver(extruderDrivers[drive - numAxes]);
+		DisableDriver(extruderDrivers[drive - MaxAxes]);
 	}
 }
 
@@ -2849,8 +2854,7 @@ void Platform::SetDriverCurrent(size_t driver, float currentOrPercent, int code)
 // Set the current for all drivers on an axis or extruder. Current is in mA.
 void Platform::SetMotorCurrent(size_t drive, float currentOrPercent, int code)
 {
-	const size_t numAxes = reprap.GetGCodes().GetTotalAxes();
-	if (drive < numAxes)
+	if (drive < MaxAxes)
 	{
 		for (size_t i = 0; i < axisDrivers[drive].numDrivers; ++i)
 		{
@@ -2858,9 +2862,9 @@ void Platform::SetMotorCurrent(size_t drive, float currentOrPercent, int code)
 		}
 
 	}
-	else if (drive < NumDirectDrivers)
+	else if (drive < MaxAxesPlusExtruders)
 	{
-		SetDriverCurrent(extruderDrivers[drive - numAxes], currentOrPercent, code);
+		SetDriverCurrent(extruderDrivers[drive - MaxAxes], currentOrPercent, code);
 	}
 }
 
@@ -2950,30 +2954,39 @@ void Platform::UpdateMotorCurrent(size_t driver)
 }
 
 // Get the configured motor current for an axis or extruder
-// Currently we don't allow multiple motors on a single axis to have different currents, so we can just return the current for the first one.
 float Platform::GetMotorCurrent(size_t drive, int code) const
 {
-	const size_t numAxes = reprap.GetGCodes().GetTotalAxes();
-	if (drive < NumDirectDrivers && drive < numAxes + reprap.GetGCodes().GetNumExtruders())
+	uint8_t driver;
+	if (drive >= MaxAxes && drive < MaxAxesPlusExtruders)
 	{
-		const uint8_t driver = (drive < numAxes) ? axisDrivers[drive].driverNumbers[0] : extruderDrivers[drive - numAxes];
-		if (driver < NumDirectDrivers)
-		{
-			switch (code)
-			{
-			case 906:
-				return motorCurrents[driver];
+		driver = extruderDrivers[drive - MaxAxes];
+	}
+	else if (drive < MaxAxes && axisDrivers[drive].numDrivers != 0)
+	{
+		// Currently we don't allow multiple motors on a single axis to have different currents, so we can just return the current for the first one.
+		driver = axisDrivers[drive].driverNumbers[0];
+	}
+	else
+	{
+		return 0.0;
+	}
 
-			case 913:
-				return motorCurrentFraction[driver] * 100.0;
+	if (driver < NumDirectDrivers)
+	{
+		switch (code)
+		{
+		case 906:
+			return motorCurrents[driver];
+
+		case 913:
+			return motorCurrentFraction[driver] * 100.0;
 
 #if HAS_SMART_DRIVERS
-			case 917:
-				return (driver < numSmartDrivers) ? SmartDrivers::GetStandstillCurrentPercent(driver) : 100.0;
+		case 917:
+			return (driver < numSmartDrivers) ? SmartDrivers::GetStandstillCurrentPercent(driver) : 100.0;
 #endif
-			default:
-				break;
-			}
+		default:
+			break;
 		}
 	}
 	return 0.0;
@@ -3038,8 +3051,7 @@ bool Platform::SetDriverMicrostepping(size_t driver, unsigned int microsteps, in
 bool Platform::SetMicrostepping(size_t drive, int microsteps, bool interp)
 {
 	// Check that it is a valid microstepping number
-	const size_t numAxes = reprap.GetGCodes().GetTotalAxes();
-	if (drive < numAxes)
+	if (drive < MaxAxes)
 	{
 		bool ok = true;
 		for (size_t i = 0; i < axisDrivers[drive].numDrivers; ++i)
@@ -3048,9 +3060,9 @@ bool Platform::SetMicrostepping(size_t drive, int microsteps, bool interp)
 		}
 		return ok;
 	}
-	else if (drive < NumDirectDrivers)
+	else if (drive < MaxAxesPlusExtruders)
 	{
-		return SetDriverMicrostepping(extruderDrivers[drive - numAxes], microsteps, interp);
+		return SetDriverMicrostepping(extruderDrivers[drive - MaxAxes], microsteps, interp);
 	}
 	return false;
 }
@@ -3081,17 +3093,17 @@ unsigned int Platform::GetDriverMicrostepping(size_t driver, bool& interpolation
 // Get the microstepping for an axis or extruder
 unsigned int Platform::GetMicrostepping(size_t drive, bool& interpolation) const
 {
-	const size_t numAxes = reprap.GetGCodes().GetTotalAxes();
-	if (drive < numAxes)
+	if (drive < reprap.GetGCodes().GetTotalAxes())
 	{
 		return GetDriverMicrostepping(axisDrivers[drive].driverNumbers[0], interpolation);
 	}
-	else if (drive < NumDirectDrivers)
+	else if (drive >= MaxAxes && drive < MaxAxesPlusExtruders)
 	{
-		return GetDriverMicrostepping(extruderDrivers[drive - numAxes], interpolation);
+		return GetDriverMicrostepping(extruderDrivers[drive - MaxAxes], interpolation);
 	}
 	else
 	{
+		INTERNAL_ERROR;
 		interpolation = false;
 		return 16;
 	}
@@ -3099,20 +3111,23 @@ unsigned int Platform::GetMicrostepping(size_t drive, bool& interpolation) const
 
 void Platform::SetEnableValue(size_t driver, int8_t eVal)
 {
-	enableValues[driver] = eVal;
-	DisableDriver(driver);				// disable the drive, because the enable polarity may have been wrong before
-#if HAS_SMART_DRIVERS
-	if (eVal == -1)
+	if (driver < NumDirectDrivers)
 	{
-		// User has asked to disable status monitoring for this driver, so clear its error bits
-		DriversBitmap mask = ~MakeBitmap<DriversBitmap>(driver);
-		temperatureShutdownDrivers &= mask;
-		temperatureWarningDrivers &= mask;
-		shortToGroundDrivers &= mask;
-		openLoadADrivers &= mask;
-		openLoadBDrivers &= mask;
-	}
+		enableValues[driver] = eVal;
+		DisableDriver(driver);				// disable the drive, because the enable polarity may have been wrong before
+#if HAS_SMART_DRIVERS
+		if (eVal == -1)
+		{
+			// User has asked to disable status monitoring for this driver, so clear its error bits
+			DriversBitmap mask = ~MakeBitmap<DriversBitmap>(driver);
+			temperatureShutdownDrivers &= mask;
+			temperatureWarningDrivers &= mask;
+			shortToGroundDrivers &= mask;
+			openLoadADrivers &= mask;
+			openLoadBDrivers &= mask;
+		}
 #endif
+	}
 }
 
 void Platform::SetAxisDriversConfig(size_t axis, size_t numValues, const uint32_t driverNumbers[])
@@ -3129,6 +3144,21 @@ void Platform::SetAxisDriversConfig(size_t axis, size_t numValues, const uint32_
 #endif
 	}
 	driveDriverBits[axis] = bitmap;
+
+	if (axis == Z_AXIS)
+	{
+		UpdateZMotorDriverBits();
+	}
+}
+
+// Set up the driver bits for the individual Z motors
+void Platform::UpdateZMotorDriverBits()
+{
+	const AxisDriversConfig& cfg = axisDrivers[Z_AXIS];
+	for (size_t i = 0; i < MaxDriversPerAxis; ++i)
+	{
+		driveDriverBits[MaxAxesPlusExtruders + i] = (i < cfg.numDrivers) ? StepPins::CalcDriverBitmap(cfg.driverNumbers[i]) : 0;
+	}
 }
 
 // Map an extruder to a driver
@@ -3136,9 +3166,9 @@ void Platform::SetExtruderDriver(size_t extruder, uint8_t driver)
 {
 	extruderDrivers[extruder] = driver;
 #if HAS_SMART_DRIVERS
-	SmartDrivers::SetAxisNumber(driver, extruder + reprap.GetGCodes().GetTotalAxes());
+	SmartDrivers::SetAxisNumber(driver, extruder + MaxAxes);
 #endif
-	driveDriverBits[extruder + reprap.GetGCodes().GetTotalAxes()] = StepPins::CalcDriverBitmap(driver);
+	driveDriverBits[extruder + MaxAxes] = StepPins::CalcDriverBitmap(driver);
 }
 
 void Platform::SetDriverStepTiming(size_t driver, const float microseconds[4])
