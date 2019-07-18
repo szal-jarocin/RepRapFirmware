@@ -25,7 +25,7 @@ extern char _end;
 // The main task currently runs GCodes, so it needs to be large enough to hold the matrices used for auto calibration.
 // The timer and idle tasks currently never do I/O, so they can be much smaller.
 #if defined(LPC_NETWORKING)
-constexpr unsigned int MainTaskStackWords = 1600-424;
+constexpr unsigned int MainTaskStackWords = 1600-410;
 #else
 constexpr unsigned int MainTaskStackWords = 1600;
 #endif

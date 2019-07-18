@@ -154,8 +154,9 @@ constexpr size_t NumSdCards = _DRIVES; //_DRIVES is defined in CoreLPC (and used
 extern Pin SdCardDetectPins[NumSdCards];
 constexpr Pin SdWriteProtectPins[NumSdCards] = { NoPin, NoPin }; //unused on LPC boards
 extern Pin SdSpiCSPins[NumSdCards];
-extern uint32_t ExternalSDCardFrequency;
 extern uint32_t InternalSDCardFrequency;
+extern uint32_t ExternalSDCardFrequency;
+extern SSPChannel ExternalSDCardSSPChannel;
 
 
 //LCD

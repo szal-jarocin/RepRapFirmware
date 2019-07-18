@@ -9,13 +9,8 @@
 //LPC Pins output High by default. Heater Pins are Active High.
 //The Smoothie Bootloader turns off Pins 2.4, 2.5, 2.6 and 2.7 which are used as Heater pins
 //Therefore, heaters do not need to be turned off immediately and can wait until they are locaed in config file to initialise.
+//Except Mosfets on Smoothieboard Q5 and Q4?
 
-//Except Mosfets on Smoothieboard Q5 and Q4
-
-
-
-//Pin Z_PROBE_PIN = NoPin;
-//Pin Z_PROBE_MOD_PIN = NoPin;
 
 Pin TEMP_SENSE_PINS[NumThermistorInputs] =   {NoPin, NoPin, NoPin};
 Pin SpiTempSensorCsPins[MaxSpiTempSensors] = { NoPin, NoPin };
@@ -30,6 +25,7 @@ uint16_t Timer3Frequency = 250; // default for Timer2 (fastPWM) for Hotends/fans
 Pin SdCardDetectPins[NumSdCards] =  { NoPin, NoPin };
 Pin SdSpiCSPins[NumSdCards] =       { P0_6, NoPin };    // Internal, external. Note:: ("slot" 0 in CORE is configured to be LCP SSP1 to match default RRF behaviour)
 uint32_t ExternalSDCardFrequency =  4000000;            //default to 4MHz
+SSPChannel ExternalSDCardSSPChannel = SSP0;             //default to SSP0
 uint32_t InternalSDCardFrequency =  25000000;           //default to 25MHz
 
 

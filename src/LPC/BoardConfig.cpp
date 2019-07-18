@@ -42,36 +42,22 @@ static const boardConfigEntry_t boardConfigs[]=
     {"stepper.digipotFactor", &digipotFactor, nullptr, cvFloatType},
 
     
-    //{"endstop.pins", END_STOP_PINS, &NumEndstops, cvPinType},
-    //{"zProbe.pin", &Z_PROBE_PIN, nullptr, cvPinType},
-    //{"zProbe.modulationPin", &Z_PROBE_MOD_PIN, nullptr, cvPinType},
-
     {"heat.tempSensePins", TEMP_SENSE_PINS, &NumThermistorInputs, cvPinType},
-    //{"heat.heatOnPins", HEAT_ON_PINS, &NumHeaters, cvPinType},
     {"heat.spiTempSensorCSPins", SpiTempSensorCsPins, &MaxSpiTempSensors, cvPinType},
-    
-    //{"fan.pins", COOLING_FAN_PINS, &NUM_FANS, cvPinType},
-    //{"fan.tachoPins", TachoPins, &NumTachos, cvPinType},
     
     {"atxPowerPin", &ATX_POWER_PIN, nullptr, cvPinType},
     {"atxPowerPinInverted", &ATX_POWER_INVERTED, nullptr, cvBoolType},
     
     {"lpc.HWPWM.frequencyHz", &HardwarePWMFrequency, nullptr, cvUint16Type},
-    
     {"lpc.slowPWM.frequencyHz", &Timer1Frequency, nullptr, cvUint16Type},
-    //{"lpc.slowPWM.pins", Timer1PWMPins, &MaxTimerEntries, cvPinType},
 
     {"lpc.fastPWM.frequencyHz", &Timer3Frequency, nullptr, cvUint16Type},
-    //{"lpc.fastPWM.pins", Timer3PWMPins, &MaxTimerEntries, cvPinType},
-
-    //{"lpc.servoPins", Timer2PWMPins, &MaxTimerEntries, cvPinType},
-
-    //{"specialPinMap", SpecialPinMap, &MaxNumberSpecialPins, cvPinType},
-    //{"lpc.externalInterruptPins", ExternalInterruptPins, &MaxExtIntEntries, cvPinType},
     
     {"externalSDCard.csPin", &SdSpiCSPins[1], nullptr, cvPinType},
     {"externalSDCard.cardDetectPin", &SdCardDetectPins[1], nullptr, cvPinType},
     {"lpc.externalSDCard.spiFrequencyHz", &ExternalSDCardFrequency, nullptr, cvUint32Type},
+    {"lpc.externalSDCard.spiChannel", &ExternalSDCardSSPChannel, nullptr, cvUint8Type},
+    
     
     {"lcd.lcdCSPin", &LcdCSPin, nullptr, cvPinType},
     {"lcd.lcdBeepPin", &LcdBeepPin, nullptr, cvPinType},
@@ -188,6 +174,10 @@ void BoardConfig::Init() {
         if(SdSpiCSPins[1] != NoPin)
         {
             setPullup(SdCardDetectPins[1], true);
+            //set the SSP Channel for External SDCard
+            if(ExternalSDCardSSPChannel == SSP0 || ExternalSDCardSSPChannel == SSP1){
+                sd_mmc_setSSPChannel(1, ExternalSDCardSSPChannel); //must be called before reinit
+            }
             //set the CSPin and the frequency for the External SDCard
             sd_mmc_reinit_slot(1, SdSpiCSPins[1], ExternalSDCardFrequency);
         }

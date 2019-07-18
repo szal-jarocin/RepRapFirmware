@@ -20,7 +20,7 @@ Version 3.0 beta3
     * The generic board has no defaults. 
 * Added new option do enable/disable RRF Panel Due mode for the AUX serial port (default is false). For example: lpc.uartPanelDueMode = true; 
 * Added new atxPowerPinInverted entry which is set to true or false.  Set to true if the PSON needs to be inverted. Default is False.
-
+* Added new lpc.externalSDCard.spiChannel to select which hardware SSP pins are used for SDCard. Must be 0 to select SSP0 or 1 to select SSP1. Default is SSP1.
 
 
 
