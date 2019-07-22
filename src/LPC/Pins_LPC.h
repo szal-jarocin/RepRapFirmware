@@ -72,7 +72,6 @@ const size_t NumFirmwareUpdateModules = 1;
 
 // The physical capabilities of the machine
 constexpr size_t NumDirectDrivers = 5;                // The maximum number of drives supported by the electronics
-constexpr size_t MaxTotalDrivers = NumDirectDrivers;
 constexpr size_t MaxSmartDrivers = 0;                // The maximum number of smart drivers
 
 constexpr size_t NumTotalHeaters = 3;                // The maximum number of heaters in the machine
@@ -83,10 +82,10 @@ constexpr size_t MaxGpioPorts = 10;
 
 constexpr size_t MinAxes = 3;                        // The minimum and default number of axes
 constexpr size_t MaxAxes = 5;                        // The maximum number of movement axes in the machine, usually just X, Y and Z, <= DRIVES
+constexpr size_t MaxDriversPerAxis = 2;              // The maximum number of stepper drivers assigned to one axis
 
-constexpr size_t MaxExtruders = NumDirectDrivers - MinAxes;    // The maximum number of extruders
+constexpr size_t MaxExtruders = 2;                   // The maximum number of extruders
 constexpr size_t NumDefaultExtruders = 1;            // The number of drivers that we configure as extruders by default
-constexpr size_t MaxDriversPerAxis = 2;                // The maximum number of stepper drivers assigned to one axis
 
 constexpr size_t MaxHeatersPerTool = 2;
 constexpr size_t MaxExtrudersPerTool = 2;
@@ -335,9 +334,9 @@ namespace StepPins
     static inline void StepDriversHigh(uint32_t driverMap)
     {
         if(hasStepPinsOnDifferentPorts == true ){
-            //Using driver pos in bitmap to match positio in STEP_PINS
+            //Using driver pos in bitmap to match position in STEP_PINS
             uint8_t pos=0;
-            while (driverMap!=0 && pos < MaxTotalDrivers){
+            while (driverMap!=0 && pos < NumDirectDrivers){
                 if(driverMap & 0x01)
                 {
                     if(STEP_PINS[pos] != NoPin) GPIO_PinWrite(STEP_PINS[pos], 1); //set high
@@ -357,7 +356,7 @@ namespace StepPins
     static inline void StepDriversLow()
     {
         if(hasStepPinsOnDifferentPorts == true ){
-            for(size_t d=0; d<MaxTotalDrivers; d++){
+            for(size_t d=0; d<NumDirectDrivers; d++){
                 if(STEP_PINS[d] != NoPin) GPIO_PinWrite(STEP_PINS[d], 0); //set low
             }
         }
