@@ -74,9 +74,9 @@ const size_t NumFirmwareUpdateModules = 1;
 constexpr size_t NumDirectDrivers = 5;                // The maximum number of drives supported by the electronics
 constexpr size_t MaxSmartDrivers = 0;                // The maximum number of smart drivers
 
-constexpr size_t NumTotalHeaters = 3;                // The maximum number of heaters in the machine
 constexpr size_t NumExtraHeaterProtections = 3;     // The number of extra heater protection instances
-constexpr size_t NumThermistorInputs = 3;
+constexpr size_t NumThermistorInputs = 4;
+constexpr size_t MaxHeaters = 4;                    // The maximum number of heaters in the machine
 
 constexpr size_t MaxGpioPorts = 10;
 
@@ -223,7 +223,7 @@ bool LookupPinName(const char *pn, LogicalPin& lpin, bool& hardwareInverted);
 //constexpr const char *DefaultFanPinNames[] = { "fan0", "fan1", "fan2" };
 constexpr const char *DefaultEndstopPinNames[] = { "nil", "nil", "nil" };
 constexpr const char *DefaultZProbePinNames = "nil";
-constexpr const char *DefaultHeaterPinNames[] = {  };
+//constexpr const char *DefaultHeaterPinNames[] = {  };
 constexpr const char *DefaultFanPinNames[] = { "nil", "nil" };
 constexpr PwmFrequency DefaultFanPwmFrequencies[] = { DefaultFanPwmFreq };
 

@@ -305,7 +305,7 @@ void Network::ResetWiFiForUpload(bool external)
 #endif
 }
 
-extern "C" void NetworkLoop(void *)
+extern "C" [[noreturn]]void NetworkLoop(void *)
 {
 	for (;;)
 	{

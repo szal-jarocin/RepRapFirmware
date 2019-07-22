@@ -16,7 +16,8 @@ class GCodeBuffer;
 class Fan
 {
 public:
-	typedef uint32_t HeatersMonitoredBitmap;				// needs to be wide enough for 8 real heaters + 10 virtual heaters
+	static constexpr unsigned int MaxFanSensorNumber = 31;	// the highest sensor number that a fan can monitor
+	typedef uint32_t SensorsMonitoredBitmap;				// needs to be wide enough for 0..MaxFanSensorNumber
 
 	Fan();
 
@@ -39,9 +40,10 @@ public:
 #else
 	void SetPwmFrequency(PwmFrequency freq) { port.SetFrequency(freq); }
 #endif
-	bool HasMonitoredHeaters() const { return heatersMonitored != 0; }
-	void SetHeatersMonitored(HeatersMonitoredBitmap h);
-	const char *GetName() const { return name.c_str(); }
+	bool HasMonitoredSensors() const { return sensorsMonitored != 0; }
+	void SetSensorsMonitored(SensorsMonitoredBitmap h);
+
+    const char *GetName() const { return name.c_str(); }
 	void AppendPortDetails(const StringRef& str) { port.AppendDetails(str); }
 
 	bool Check();											// update the fan PWM returning true if it is a thermostatic fan that is on
@@ -79,7 +81,7 @@ private:
 	volatile uint32_t fanInterval;							// written by ISR, read outside the ISR
 
 	// More fan control variables
-	HeatersMonitoredBitmap heatersMonitored;
+	SensorsMonitoredBitmap sensorsMonitored;
 	String<MaxFanNameLength> name;
 	bool isConfigured;
 	bool blipping;
