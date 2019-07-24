@@ -102,7 +102,18 @@ GCodeResult PID::ConfigurePortAndSensor(GCodeBuffer& gb, const StringRef& reply)
 	}
 	if (seenPin || seenFreq)
 	{
-		port.SetFrequency(freq);
+#ifdef __LPC17xx__
+        //check if the frequency can be set
+        if(!port.SetFrequency(freq))
+        {
+            SwitchOff();
+            reply.printf("Failed to set frequency for pin");
+            port.Release();
+            return GCodeResult::error;
+        }
+#else
+        port.SetFrequency(freq);
+#endif
 	}
 
 	const bool seenSensor = gb.Seen('T');
