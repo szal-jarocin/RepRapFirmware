@@ -6,8 +6,6 @@
 #include "RepRapFirmware.h"
 
 
-const size_t NumFirmwareUpdateModules = 1;
-
 #ifndef UNUSED
 #define UNUSED(x) (void)(x)
 #endif
@@ -21,6 +19,8 @@ const size_t NumFirmwareUpdateModules = 1;
 #define LPC_BOARD_STRING "LPC176x"
 
 #define FIRMWARE_FILE "firmware.bin"
+const size_t NumFirmwareUpdateModules = 1;
+
 
 // Features definition
 #define SUPPORT_OBJECT_MODEL             1
@@ -30,13 +30,14 @@ const size_t NumFirmwareUpdateModules = 1;
 #define ACTIVE_LOW_HEAT_ON		         0
 #define HAS_LWIP_NETWORKING              0
 #define HAS_VREF_MONITOR                 0
-#define SUPPORT_NONLINEAR_EXTRUSION      0
+
 #define SUPPORT_INKJET		             0	// set nonzero to support inkjet control
 #define SUPPORT_ROLAND		             0	// set nonzero to support Roland mill
 #define SUPPORT_SCANNER		             0	// set nonzero to support FreeLSS scanners
 #define SUPPORT_IOBITS		             0	// set to support P parameter in G0/G1 commands
 #define SUPPORT_DHT_SENSOR	             0	// set nonzero to support DHT temperature/humidity sensors
 #define SUPPORT_WORKPLACE_COORDINATES    1
+
 #define SUPPORT_TELNET                   0
 #define SUPPORT_FTP                      0
 #define HAS_MASS_STORAGE                 1
@@ -49,17 +50,16 @@ const size_t NumFirmwareUpdateModules = 1;
     //LPC Ethernet
     #define HAS_RTOSPLUSTCP_NETWORKING   1
     #define SUPPORT_12864_LCD            1
-#elif defined(ESP8266_NETWORKING)
-    #define HAS_WIFI_NETWORKING          1
-    #define HAS_RTOSPLUSTCP_NETWORKING   0
-    #define SUPPORT_12864_LCD            1
-
-    #define WIFI_FIRMWARE_FILE    "DuetWiFiServer.bin"
-    extern Pin EspDataReadyPin;
-    extern Pin EspResetPin;
-    extern Pin SamTfrReadyPin;
-    extern Pin SamCsPin;
-
+//#elif defined(ESP8266_NETWORKING)
+//    #define HAS_WIFI_NETWORKING          1
+//    #define HAS_RTOSPLUSTCP_NETWORKING   0
+//    #define SUPPORT_12864_LCD            1
+//
+//    #define WIFI_FIRMWARE_FILE    "DuetWiFiServer.bin"
+//    extern Pin EspDataReadyPin;
+//    extern Pin EspResetPin;
+//    extern Pin SamTfrReadyPin;
+//    extern Pin SamCsPin;
 #else
     #define HAS_RTOSPLUSTCP_NETWORKING   0
     #define SUPPORT_12864_LCD            1
@@ -71,12 +71,12 @@ const size_t NumFirmwareUpdateModules = 1;
 
 
 // The physical capabilities of the machine
-constexpr size_t NumDirectDrivers = 5;                // The maximum number of drives supported by the electronics
+constexpr size_t NumDirectDrivers = 5;               // The maximum number of drives supported by the electronics
 constexpr size_t MaxSmartDrivers = 0;                // The maximum number of smart drivers
 
-constexpr size_t NumExtraHeaterProtections = 3;     // The number of extra heater protection instances
+constexpr size_t NumExtraHeaterProtections = 3;      // The number of extra heater protection instances
 constexpr size_t NumThermistorInputs = 4;
-constexpr size_t MaxHeaters = 4;                    // The maximum number of heaters in the machine
+constexpr size_t MaxHeaters = 3;                     // The maximum number of heaters in the machine
 
 constexpr size_t MaxGpioPorts = 10;
 
@@ -95,7 +95,7 @@ constexpr size_t MaxExtrudersPerTool = 2;
 extern Pin ENABLE_PINS[NumDirectDrivers];
 extern Pin STEP_PINS[NumDirectDrivers];
 extern Pin DIRECTION_PINS[NumDirectDrivers];
-extern uint32_t STEP_DRIVER_MASK; // Mask for parallel write to all steppers on port 2 (calculated in firmware)
+extern uint32_t STEP_DRIVER_MASK; // Mask for parallel write to all steppers on port 2 (calculated in after loading board.txt)
 extern bool hasStepPinsOnDifferentPorts;
 extern bool hasDriverCurrentControl;
 extern float digipotFactor;
@@ -104,9 +104,6 @@ extern float digipotFactor;
 // Indices for motor current digipots (X,Y,Z,E) - E is on 2nd digipot chip
 constexpr uint8_t POT_WIPES[5] = { 0, 1, 2, 3, 0};
 
-
-//extern Pin Z_PROBE_PIN; // Z Probe pin
-//extern Pin Z_PROBE_MOD_PIN; // Digital pin number to turn the IR LED on (high) or off (low)
 
 // HEATERS - The bed is assumed to be the at index 0
 extern Pin TEMP_SENSE_PINS[NumThermistorInputs];
@@ -125,13 +122,13 @@ extern Pin SpiTempSensorCsPins[MaxSpiTempSensors]; // Digital pins the 31855s ha
 constexpr SSPChannel TempSensorSSPChannel = SSP0; //Conect SPI Temp sensor to SSP0
 
 
+//Hardware LPC Timers
 //Timer 0 is used for the Step Generation
+//Timer 1 is slowPWM in board config
 //Timer 2 is fixed at 50Hz for servos
-//Timer Freqs for 1 and 3 set in config.
+//Timer 3 is fastPWM in board config.
 extern uint16_t Timer1Frequency;
 extern uint16_t Timer3Frequency;
-
-
 
 
 extern Pin ATX_POWER_PIN;// Digital pin number that controls the ATX power on/off
@@ -169,10 +166,30 @@ extern Pin EncoderPinB;
 extern Pin EncoderPinSw;
 extern Pin PanelButtonPin;
 
-
 extern Pin DiagPin;
+
+
+
 constexpr size_t NUM_SERIAL_CHANNELS = 2;
 extern bool UARTPanelDueMode;
+
+
+// Use TX0/RX0 for the auxiliary serial line
+#if defined(__MBED__)
+    #define SERIAL_MAIN_DEVICE  Serial0 //TX0/RX0 connected to via seperate USB
+    #define SERIAL_AUX_DEVICE   Serial  //USB pins unconnected.
+#else
+    #define SERIAL_MAIN_DEVICE  Serial  //USB
+    #define SERIAL_AUX_DEVICE   Serial0 //TX0/RX0
+#endif
+
+
+//Timer 0 is used for Step Generation
+#define STEP_TC             (LPC_TIM0)
+#define STEP_TC_IRQN        TIMER0_IRQn
+#define STEP_TC_HANDLER     TIMER0_IRQHandler
+
+
 
 
 // Enum to represent allowed types of pin access
@@ -217,33 +234,11 @@ extern PinEntry *PinTable;
 
 bool LookupPinName(const char *pn, LogicalPin& lpin, bool& hardwareInverted);
 
-//constexpr const char *DefaultEndstopPinNames[] = { "xstop", "ystop", "zstop" };
-//constexpr const char *DefaultZProbePinNames = "^zprobe";
-//constexpr const char *DefaultHeaterPinNames[] = { "bedheat", "e0heat", "e1heat" };
-//constexpr const char *DefaultFanPinNames[] = { "fan0", "fan1", "fan2" };
 constexpr const char *DefaultEndstopPinNames[] = { "nil", "nil", "nil" };
 constexpr const char *DefaultZProbePinNames = "nil";
-//constexpr const char *DefaultHeaterPinNames[] = {  };
 constexpr const char *DefaultFanPinNames[] = { "nil", "nil" };
 constexpr PwmFrequency DefaultFanPwmFrequencies[] = { DefaultFanPwmFreq };
 
-
-
-
-// Use TX0/RX0 for the auxiliary serial line
-#if defined(__MBED__)
-    #define SERIAL_MAIN_DEVICE Serial0 //TX0/RX0 connected to via seperate USB
-    #define SERIAL_AUX_DEVICE Serial //USB pins unconnected.
-#else
-    #define SERIAL_MAIN_DEVICE Serial //USB
-    #define SERIAL_AUX_DEVICE Serial0 //TX0/RX0
-#endif
-
-
-//Timer 0 is used for Step Generation
-#define STEP_TC				(LPC_TIM0)
-#define STEP_TC_IRQN		TIMER0_IRQn
-#define STEP_TC_HANDLER		TIMER0_IRQHandler
 
 
 //Boards
@@ -260,9 +255,6 @@ struct BoardDefaults
     const Pin dirPins[NumDirectDrivers];
     const bool hasDriverCurrentControl;
     const float digipotFactor;    
-    //const Pin slowPwmPins[MaxTimerEntries];
-    //const Pin fastPwmPins[MaxTimerEntries];
-    //const Pin servoPwmPins[MaxTimerEntries];
 };
 
 struct BoardEntry
@@ -274,7 +266,7 @@ struct BoardEntry
 };
 
 
-//#include "Boards/AzteegX5Mini.h"
+#include "Boards/AzteegX5Mini.h"
 #include "Boards/ReArm.h"
 #include "Boards/Mbed.h"
 #include "Boards/Smoothieboard.h"
@@ -287,22 +279,25 @@ struct BoardEntry
 
 constexpr BoardEntry LPC_Boards[] =
 {
-    {"mbed", PinTable_Mbed, ARRAY_SIZE(PinTable_Mbed), mbedDefaults}, //for debugging
-    {"generic", PinTable_Generic, ARRAY_SIZE(PinTable_Generic), genericDefaults},
+    {"mbed",             PinTable_Mbed,             ARRAY_SIZE(PinTable_Mbed),             mbedDefaults}, //for debugging
+    {"generic",          PinTable_Generic,          ARRAY_SIZE(PinTable_Generic),          genericDefaults},
 
     //known boards
-    {"smoothieboard", PinTable_Smoothieboard, ARRAY_SIZE(PinTable_Smoothieboard), smoothieBoardDefaults},
-    {"rearm", PinTable_Rearm, ARRAY_SIZE(PinTable_Rearm), rearmDefaults},
-    {"mkssbase", PinTable_MKSSbase, ARRAY_SIZE(PinTable_MKSSbase), mkssbaseDefaults},
-    {"azsmzmini", PinTable_AZSMZ, ARRAY_SIZE(PinTable_AZSMZ), mkssbaseDefaults},
-    {"biquskr_1.1", PinTable_BIQU_SKR_v1_1, ARRAY_SIZE(PinTable_BIQU_SKR_v1_1), biquskr_1_1_Defaults},
-    {"biquskr_1.3", PinTable_BIQU_SKR_v1_3, ARRAY_SIZE(PinTable_BIQU_SKR_v1_3), biquskr_1_3_Defaults},
+    {"smoothieboard",    PinTable_Smoothieboard,    ARRAY_SIZE(PinTable_Smoothieboard),    smoothieBoardDefaults},
+    {"rearm",            PinTable_Rearm,            ARRAY_SIZE(PinTable_Rearm),            rearmDefaults},
+    {"mkssbase_1.3",     PinTable_MKSSbase1_3,      ARRAY_SIZE(PinTable_MKSSbase1_3),      mkssbase1_3_Defaults},
+    {"azsmzmini",        PinTable_AZSMZ,            ARRAY_SIZE(PinTable_AZSMZ),            azsmzDefaults},
+    {"biquskr_1.1",      PinTable_BIQU_SKR_v1_1,    ARRAY_SIZE(PinTable_BIQU_SKR_v1_1),    biquskr_1_1_Defaults},
+    {"biquskr_1.3",      PinTable_BIQU_SKR_v1_3,    ARRAY_SIZE(PinTable_BIQU_SKR_v1_3),    biquskr_1_3_Defaults},
+    {"azteegx5mini_1.1", PinTable_AzteegX5MiniV1_1, ARRAY_SIZE(PinTable_AzteegX5MiniV1_1), azteegX5Mini1_1Defaults},
 };
 
 
 //This needs to be const as its used in other places to create arrays
-//Use the largest size for the "generic" table
+//Use the largest size which is the "generic" pintable
 constexpr unsigned int NumNamedPins = ARRAY_SIZE(PinTable_Generic);
+
+
 
 namespace StepPins
 {
@@ -320,7 +315,8 @@ namespace StepPins
         }
 
         if(STEP_PINS[driver] == NoPin ) return 0;
-        if(hasStepPinsOnDifferentPorts == true ){
+        if(hasStepPinsOnDifferentPorts == true )
+        {
             //treat these pins one by one instead of parallel writes for now. Using driver pos in bitmap
             return 1u << driver ;
         }
@@ -333,10 +329,12 @@ namespace StepPins
     // We rely on only those port bits that are step pins being set in the PIO_OWSR register of each port
     static inline void StepDriversHigh(uint32_t driverMap)
     {
-        if(hasStepPinsOnDifferentPorts == true ){
+        if(hasStepPinsOnDifferentPorts == true )
+        {
             //Using driver pos in bitmap to match position in STEP_PINS
             uint8_t pos=0;
-            while (driverMap!=0 && pos < NumDirectDrivers){
+            while (driverMap!=0 && pos < NumDirectDrivers)
+            {
                 if(driverMap & 0x01)
                 {
                     if(STEP_PINS[pos] != NoPin) GPIO_PinWrite(STEP_PINS[pos], 1); //set high
@@ -344,7 +342,9 @@ namespace StepPins
                 driverMap = driverMap >> 1;
                 pos++;
             }
-        } else {
+        }
+        else
+        {
             //pins all on port 2, parallel write
             LPC_GPIO2->FIOSET = driverMap;
         }
@@ -355,8 +355,10 @@ namespace StepPins
     // We rely on only those port bits that are step pins being set in the STEP_DRIVER_MASK variable
     static inline void StepDriversLow()
     {
-        if(hasStepPinsOnDifferentPorts == true ){
-            for(size_t d=0; d<NumDirectDrivers; d++){
+        if(hasStepPinsOnDifferentPorts == true )
+        {
+            for(size_t d=0; d<NumDirectDrivers; d++)
+            {
                 if(STEP_PINS[d] != NoPin) GPIO_PinWrite(STEP_PINS[d], 0); //set low
             }
         }

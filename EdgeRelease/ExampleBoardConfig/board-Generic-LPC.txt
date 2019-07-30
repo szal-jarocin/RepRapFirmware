@@ -47,37 +47,19 @@ heat.spiTempSensorCSPins = { } // max of 2 entries
 atxPowerPin = NoPin;
         
         
-// **PWM on LPC**. 
-// There are a number of HW PWM pins on the LPC, however, they all share the same frequency.
-// RRF makes use of different frequencies so to support that, 3 HW Timers are also configured to perform
-// PWM. This also allows the use of any GPIO pin to support PWM. To use the Timers, add the pins
-// to the slowPWM, fastPWM and servoPins arrays below.  Each timer can support up to 3 Pins and 
-// they all also share the same frequency.
-// servoPins run at 50Hz. Fast/Slow PWM Frequency can be changed below.
-                
-lpc.slowPWM.pins = {2.5}; 
+lpc.HWPWM.frequencyHz = 250;  //Hardware PWM              
 lpc.slowPWM.frequencyHz = 10; //10Hz (for Bed PWM)
-
-lpc.fastPWM.pins = {2.7, 2.6}; 
 lpc.fastPWM.frequencyHz = 250; //250Hz (for Hotend/Fan PWM)
-
-//Pins which will need 50Hz PWM
-lpc.servoPins = { }; 
-
 
 
 
 //**SPI Devices**
-    
-// SPI devices should be connected to using SSP0:
-//    MOSI, MISO, SCLK
-//    0.18  0.17  0.15
-
 
 //Only supports 1 External SDCard
 externalSDCard.csPin         = 0.28;
 externalSDCard.cardDetectPin = 0.27;
 lpc.externalSDCard.spiFrequencyHz  = 4000000;
+lpc.externalSDCard.spiChannel = 0; 
 
 
 //LCD Pins (only ST9720 SPI currently supported)
@@ -92,6 +74,6 @@ lcd.panelButtonPin = 2.11; //Extra button on Viki and RRD Panels (reset/back etc
 
 lpc.uartPanelDueMode = false;
 
-lpc.internalSDCard.spiFrequencyHz  = 10000000;
+lpc.internalSDCard.spiFrequencyHz  = 25000000;
 
 

@@ -12,7 +12,7 @@ Version 3.0 beta3
 * Removed lpc.externalInterruptPins config. It is now done automatially when attempting to attach an interrupt to a pin on port 0 or port 2 (i.e. for Fan Tacho pin or configuring a filament detector).
 * Removed lpc.slowPWM.pins, lpc.fastPWM.pins and lpc.servoPins. They are now assigned automatically. When using M950 ensure the Frequency matches either the HWPWM frequency or the Timer Frequencies
 * Added new entry: lpc.HWPWM.frequencyHz. To allow setting HW PWM to a different frequency. Default is 250.
-* Added new entry: lpc.board. Currently supported values are: smoothieboard, rearm,  mkssbase, azsmzmini, biquskr_1.1, biquskr_1.3 and generic.  For example: lpc.board = smoothieboard;
+* Added new entry: lpc.board. Currently supported values are: smoothieboard, rearm,  mkssbase_1.3, azsmzmini, biquskr_1.1, biquskr_1.3, azteegx5mini_1.1 and generic.  For example: lpc.board = smoothieboard;
     * Currently does not support control of drivers via UART/SPI on Biqu SKR 1.3. 
     * When defining a board, the names on the silk screen (or official pinout if there is no names on the silk) can be used in M950. LPC style of port.pin (i.e. 1.23) can also be used if desired, however.
     * For ReArm, the silk on the RAMPs shield is used and additionally support from the official pinout that uses arduino mega naming can be used, i.e. D8, etc.

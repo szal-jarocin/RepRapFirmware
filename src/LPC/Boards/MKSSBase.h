@@ -10,7 +10,7 @@
 // If a pin name is prefixed by ! then this means the pin is hardware inverted. The same pin may have names for both the inverted and non-inverted cases,
 // for example the inverted heater pins on the expansion connector are available as non-inverted servo pins on a DFueX.
 
-constexpr PinEntry PinTable_MKSSbase[] =
+constexpr PinEntry PinTable_MKSSbase1_3[] =
 {
     //Thermistors
     {P0_23, PinCapability::ainrw, "th1"},
@@ -68,15 +68,12 @@ constexpr PinEntry PinTable_MKSSbase[] =
 };
 
 
-constexpr BoardDefaults mkssbaseDefaults = {
+constexpr BoardDefaults mkssbase1_3_Defaults = {
     {P0_4,  P0_10, P0_19, P0_21,  P4_29},   //enablePins
     {P2_0,  P2_1,  P2_2,  P2_3,   P2_8},    //stepPins
     {P0_5,  P0_11, P0_20, P0_22,  P2_13},   //dirPins
     true,                                   //currentControl
     113.33,                                 //digiPot Factor
-//    {P2_5, NoPin, NoPin},                   //slowPWM
-//    {P2_7, P2_6, NoPin},                    //fastPWM
-//    {NoPin, NoPin, NoPin},                  //ServoPWM
 };
 
 #endif

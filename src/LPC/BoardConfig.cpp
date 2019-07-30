@@ -50,14 +50,12 @@ static const boardConfigEntry_t boardConfigs[]=
     
     {"lpc.HWPWM.frequencyHz", &HardwarePWMFrequency, nullptr, cvUint16Type},
     {"lpc.slowPWM.frequencyHz", &Timer1Frequency, nullptr, cvUint16Type},
-
     {"lpc.fastPWM.frequencyHz", &Timer3Frequency, nullptr, cvUint16Type},
     
     {"externalSDCard.csPin", &SdSpiCSPins[1], nullptr, cvPinType},
     {"externalSDCard.cardDetectPin", &SdCardDetectPins[1], nullptr, cvPinType},
     {"lpc.externalSDCard.spiFrequencyHz", &ExternalSDCardFrequency, nullptr, cvUint32Type},
     {"lpc.externalSDCard.spiChannel", &ExternalSDCardSSPChannel, nullptr, cvUint8Type},
-    
     
     {"lcd.lcdCSPin", &LcdCSPin, nullptr, cvPinType},
     {"lcd.lcdBeepPin", &LcdBeepPin, nullptr, cvPinType},
@@ -69,6 +67,7 @@ static const boardConfigEntry_t boardConfigs[]=
 
     {"lpc.uartPanelDueMode", &UARTPanelDueMode, nullptr, cvBoolType},
     
+    //{"lpc.softwareSPI.pins", &SoftwareSPIPins, 3, cvPinType}, //MISO, MOSI, SCK
 };
 
 
@@ -124,19 +123,13 @@ void BoardConfig::Init() {
         
         reprap.GetPlatform().MessageF(UsbMessage, "Loading config from %sboard.txt...\n", DEFAULT_SYS_DIR );
 
-        //uint32_t time = millis();
         BoardConfig::GetConfigKeys(configFile);
         configFile->Close();
-        
-        //time = millis() - time;
-        //reprap.GetPlatform().MessageF(UsbMessage, "Took %ld ms to load config\n", time );
-
         
         if(!SetBoard(lpcBoardName)) // load the Correct PinTable for the defined Board (RRF3)
         {
             reprap.GetPlatform().MessageF(UsbMessage, "Unknown board: %s\n", lpcBoardName );
         }
-        
         
         
         //Calculate STEP_DRIVER_MASK (used for parallel writes)
@@ -175,7 +168,8 @@ void BoardConfig::Init() {
         {
             setPullup(SdCardDetectPins[1], true);
             //set the SSP Channel for External SDCard
-            if(ExternalSDCardSSPChannel == SSP0 || ExternalSDCardSSPChannel == SSP1){
+            if(ExternalSDCardSSPChannel == SSP0 || ExternalSDCardSSPChannel == SSP1)
+            {
                 sd_mmc_setSSPChannel(1, ExternalSDCardSSPChannel); //must be called before reinit
             }
             //set the CSPin and the frequency for the External SDCard
@@ -189,24 +183,26 @@ void BoardConfig::Init() {
         if(LcdBeepPin != NoPin) pinMode(LcdBeepPin, OUTPUT_LOW);
         // Set the 12864 display CS pin low to prevent it from receiving garbage due to other SPI traffic
         if(LcdCSPin != NoPin) pinMode(LcdCSPin, OUTPUT_LOW);
-
-        
     }
 }
 
 
 //Convert a pin string into a RRF Pin
-Pin BoardConfig::StringToPin(const char *strvalue){
+Pin BoardConfig::StringToPin(const char *strvalue)
+{
     //check size.. should be 3chars or 4 chars i.e. 0.1, 2.25, 2nd char should always be .
     uint8_t len = strlen(strvalue);
-    if((len == 3 || len == 4) && strvalue[1] == '.' ){
+    if((len == 3 || len == 4) && strvalue[1] == '.' )
+    {
         const char *ptr = NULL;
         
         uint8_t port = SafeStrtol(strvalue, &ptr, 10);
-        if(ptr > strvalue && port <= 4){
+        if(ptr > strvalue && port <= 4)
+        {
             uint8_t pin = SafeStrtol(strvalue+2, &ptr, 10);
             
-            if(ptr > strvalue+2 && pin < 32){
+            if(ptr > strvalue+2 && pin < 32)
+            {
                 //Convert the Port and Pin to match the arrays in CoreLPC
                 Pin lpcpin = (Pin) ( (port << 5) | pin);
                 return lpcpin;
@@ -222,7 +218,8 @@ Pin BoardConfig::StringToPin(const char *strvalue){
 
 void BoardConfig::PrintValue(MessageType mtype, configValueType configType, void *variable)
 {
-    switch(configType){
+    switch(configType)
+    {
         case cvPinType:
             {
                 Pin pin = *(Pin *)(variable);
@@ -260,13 +257,12 @@ void BoardConfig::PrintValue(MessageType mtype, configValueType configType, void
     }
 }
 
+
+//Information printed by M122 P200
 void BoardConfig::Diagnostics(MessageType mtype)
 {
-
-    
     reprap.GetPlatform().MessageF(mtype, "== Configurable Board.txt Settings ==\n");
 
-    
     //Pin Array Configs
     const size_t numConfigs = ARRAY_SIZE(boardConfigs);
     for(size_t i=0; i<numConfigs; i++)
@@ -329,7 +325,7 @@ void BoardConfig::PrintPinArray(MessageType mtype, Pin arr[], uint16_t numEntrie
 }
 
 
-                  
+//Set a variable from a string using the specified data type
 void BoardConfig::SetValueFromString(configValueType type, void *variable, const char *valuePtr)
 {
     switch(type)
@@ -412,21 +408,23 @@ bool BoardConfig::GetConfigKeys(FileStore *configFile){
 
     FilePosition fileSize = configFile->Length();
     size_t len = configFile->ReadLine(line, maxLineLength);
-    while(len >= 0 && configFile->Position() != fileSize ) //
+    while(len >= 0 && configFile->Position() != fileSize )
     {
         size_t pos = 0;
-        while(pos < len && isSpaceOrTab(line[pos] && line[pos] != 0) == true) pos++;
+        while(pos < len && isSpaceOrTab(line[pos] && line[pos] != 0) == true) pos++; //eat leading whitespace
 
         if(pos < len){
 
             //check for comments
-            if(line[pos] == '/' || line[pos] == '#'){
+            if(line[pos] == '/' || line[pos] == '#')
+            {
                 //Comment - Skipping
-            } else {
-
+            }
+            else
+            {
                 const char* key = line + pos;
                 while(pos < len && !isSpaceOrTab(line[pos]) && line[pos] != '=' && line[pos] != 0) pos++;
-                line[pos] = 0;// null terminate the string
+                line[pos] = 0;// null terminate the string (now contains the "key")
 
                 pos++;
 
@@ -435,7 +433,10 @@ bool BoardConfig::GetConfigKeys(FileStore *configFile){
 
                 //debugPrintf("Key: %s", key);
 
-                if(pos < len && line[pos] == '{'){
+                if(pos < len && line[pos] == '{')
+                {
+                    // { indicates the start of an array
+                    
                     pos++; //skip the {
 
                     //Array of Values:
@@ -446,8 +447,10 @@ bool BoardConfig::GetConfigKeys(FileStore *configFile){
                     {
                         boardConfigEntry_t next = boardConfigs[i];
                         //Currently only handles Arrays of Pins
+                        
+                        
                         if(next.maxArrayEntries != nullptr /*&& next.type == cvPinType*/ && StringEqualsIgnoreCase(key, next.key)){
-                            //match
+                            //matched an entry in BoardConfigs
 
                             //create a temp array to read into. Only copy the array entries into the final destination when we know the array is properly defined
                             const size_t maxArraySize = *next.maxArrayEntries;
@@ -458,20 +461,20 @@ bool BoardConfig::GetConfigKeys(FileStore *configFile){
                             //eat whitespace
                             while(pos < maxLineLength && line[pos] != 0 && isSpaceOrTab(line[pos]) == true ) pos++;
 
-
-                            //debugPrintf("[Array]: ");
-
                             bool searching = true;
 
                             size_t arrIdx = 0;
 
                             //search for values in Array
-                            while( searching ){
-                                if(pos < maxLineLength){
+                            while( searching )
+                            {
+                                if(pos < maxLineLength)
+                                {
 
                                     while(pos < maxLineLength && (isSpaceOrTab(line[pos]) == true)) pos++; // eat whitespace
 
-                                    if(pos == maxLineLength){
+                                    if(pos == maxLineLength)
+                                    {
                                         debugPrintf("Got to end of line before end of array, line must be longer than maxLineLength");
                                         searching = false;
                                         break;
@@ -487,7 +490,8 @@ bool BoardConfig::GetConfigKeys(FileStore *configFile){
                                     else
                                     {
 
-                                        if(arrIdx >= maxArraySize ) {
+                                        if(arrIdx >= maxArraySize )
+                                        {
                                             debugPrintf("Error : Too many entries defined in config for array\n");
                                             searching = false;
                                             break;
@@ -499,7 +503,8 @@ bool BoardConfig::GetConfigKeys(FileStore *configFile){
                                         const char *valuePtr = line+pos;
 
                                         //read until end condition - space,comma,}  or null / # ;
-                                        while(pos < maxLineLength && line[pos] != 0 && !isSpaceOrTab(line[pos]) && line[pos] != ',' && line[pos] != '}' && line[pos] != '/' && line[pos] != '#' && line[pos] != ';'){
+                                        while(pos < maxLineLength && line[pos] != 0 && !isSpaceOrTab(line[pos]) && line[pos] != ',' && line[pos] != '}' && line[pos] != '/' && line[pos] != '#' && line[pos] != ';')
+                                        {
                                             pos++;
                                         }
 
@@ -532,15 +537,15 @@ bool BoardConfig::GetConfigKeys(FileStore *configFile){
                                         }
                                     }
 
-                                    if(closedSuccessfully == true){
+                                    if(closedSuccessfully == true)
+                                    {
                                         //Array Closed - Finished Searching
-                                        //debugPrintf("]\n");
-
-                                        if(arrIdx >= 0 && arrIdx < maxArraySize){ //arrIndx will be -1 if closed before reading any values
-                                            //debugPrintf("Copying Array into dst (%d items)\n", arrIdx+1);
+                                        if(arrIdx >= 0 && arrIdx < maxArraySize) //arrIndx will be -1 if closed before reading any values
+                                        {
                                             //All values read successfully, copy temp array into Final destination
                                             //dest array may be larger, dont overrite the default values
-                                            for(size_t i=0; i<(arrIdx+1); i++ ){
+                                            for(size_t i=0; i<(arrIdx+1); i++ )
+                                            {
                                                 ((Pin *)(next.variable))[i] = readArray[i];
                                             }
                                             //Success!
@@ -551,28 +556,24 @@ bool BoardConfig::GetConfigKeys(FileStore *configFile){
                                         //failed to set values
                                         searching = false;
                                         break;
-
                                     }
                                     arrIdx++;
                                     pos++;
-
-                                } else {
+                                }
+                                else
+                                {
                                     debugPrintf("Unable to find values for Key\n");
                                     searching = false;
                                     break;
                                 }
                             }//end while(searching)
                         }//end if matched key
-
                     }//end for
 
-
-
-
-                } else {
+                }
+                else
+                {
                     //single value
-
-
                     if(pos < maxLineLength && line[pos] != 0)
                     {
                         //should be at first char of value now
@@ -582,9 +583,9 @@ bool BoardConfig::GetConfigKeys(FileStore *configFile){
                         while(pos < maxLineLength && line[pos] != 0 && !isSpaceOrTab(line[pos]) && line[pos] != ';' && line[pos] != '/') pos++;
 
                         //overrite the end condition with null....
-                        line[pos] = 0; // null terminate the string
+                        line[pos] = 0; // null terminate the string (the "value")
 
-                        //debugPrintf(" = %s\n", valuePtr);
+                        //Find the entry in boardConfigs using the key
                         const size_t numConfigs = ARRAY_SIZE(boardConfigs);
                         for(size_t i=0; i<numConfigs; i++)
                         {
@@ -599,14 +600,13 @@ bool BoardConfig::GetConfigKeys(FileStore *configFile){
                     }
                 }
             }
-
-        }else {
+        }
+        else
+        {
             //Empty Line - Nothing to do here
-            //debugPrintf("Empty Line\n");
         }
 
-
-        len = configFile->ReadLine(line, maxLineLength);
+        len = configFile->ReadLine(line, maxLineLength); //attempt to read the next line
     }
     return false;
 }

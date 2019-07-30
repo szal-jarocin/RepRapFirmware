@@ -9,7 +9,7 @@
 
 
 
-lpc.board = mkssbase
+lpc.board = mkssbase_1.3
 
 
 //LED blinks to indicate Platform is spinning or other diagnostic 
@@ -25,11 +25,6 @@ atxPowerPin = NoPin;
         
   
 //**SPI Devices**
-    
-// SPI devices should be connected to using SSP0:
-//    MOSI, MISO, SCLK
-//    0.18  0.17  0.15
-
 
 //Only supports 1 External SDCard
 externalSDCard.csPin         = 0.28;
@@ -47,9 +42,7 @@ lcd.lcdDCPin =       NoPin;  //DataControl Pin (A0) if none used set to NoPin
 lcd.panelButtonPin = 2.11; //Extra button on Viki and RRD Panels (reset/back etc configurable)
     
 
-
-//EXPERIMENTAL
-lpc.internalSDCard.spiFrequencyHz  = 10000000;
+lpc.internalSDCard.spiFrequencyHz  = 25000000;
 
 
 

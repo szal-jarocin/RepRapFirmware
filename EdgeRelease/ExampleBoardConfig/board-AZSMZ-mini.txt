@@ -28,15 +28,7 @@ heat.spiTempSensorCSPins = { }
 atxPowerPin = NoPin;
         
         
-lpc.externalInterruptPins = {}; //Max of 3 pins for Ext Interrupts. Must be on Port 0 or Port 2.
-
-
 //**SPI Devices**
-    
-// SPI devices should be connected to using SSP0:
-//    MOSI, MISO, SCLK
-//    0.18  0.17  0.15
-
 
 //Only supports 1 External SDCard (set CS and CD to no Pin if not used)
 externalSDCard.csPin         = 0.16;
@@ -53,10 +45,7 @@ lcd.encoderPinSw =   3.26; //click
 lcd.lcdDCPin =       2.6;  //DataControl Pin (A0) if none used set to NoPin
 lcd.panelButtonPin = NoPin; //Extra button on Viki and RRD Panels (reset/back etc configurable)
     
-
-
-//EXPERIMENTAL
-lpc.internalSDCard.spiFrequencyHz  = 10000000;
+lpc.internalSDCard.spiFrequencyHz  = 25000000;
 
 
 

@@ -18,7 +18,6 @@ leds.diagnostic = 1.18; //RRF Diagnostics Pin (LED1 on Smoothie)
 
 //                    Bed   E0    E1
 heat.tempSensePins = {0.24, 0.23, 0.25}; //Max of 3 entries
-
 heat.spiTempSensorCSPins = { }
         
  
@@ -27,10 +26,6 @@ atxPowerPin = NoPin;
 
 //**SPI Devices**
     
-// SPI devices should be connected to using SSP0:
-// MOSI (P0.18), MISO (0.17), SCLK (0.15)
-
-
 //Only supports 1 External SDCard
 externalSDCard.csPin         = 0.28;
 externalSDCard.cardDetectPin = 0.27;

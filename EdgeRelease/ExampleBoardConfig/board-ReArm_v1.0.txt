@@ -30,11 +30,6 @@ atxPowerPin = 2.12;
 
 //**SPI Devices**
     
-// SPI devices should be connected to using SSP0:
-//    MOSI, MISO, SCLK
-//    0.18  0.17  0.15
-
-
 //Only supports 1 External SDCard
 externalSDCard.csPin         = 1.23;
 externalSDCard.cardDetectPin = 1.31;
@@ -51,9 +46,7 @@ lcd.lcdDCPin =       2.6;  //DataControl Pin (A0) if none used set to NoPin
 lcd.panelButtonPin = 1.22; //Extra button on Viki and RRD Panels (reset/back etc configurable)
     
 
-
-//EXPERIMENTAL
-lpc.internalSDCard.spiFrequencyHz  = 10000000;
+lpc.internalSDCard.spiFrequencyHz  = 25000000;
 
 
 
