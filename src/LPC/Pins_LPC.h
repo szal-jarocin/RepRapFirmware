@@ -33,7 +33,7 @@ const size_t NumFirmwareUpdateModules = 1;
 #define HAS_LWIP_NETWORKING          0
 #define HAS_WIFI_NETWORKING          0
 #define HAS_VREF_MONITOR             0
-#define SUPPORT_NONLINEAR_EXTRUSION  0
+#define SUPPORT_NONLINEAR_EXTRUSION  1
 #define SUPPORT_INKJET		         0					// set nonzero to support inkjet control
 #define SUPPORT_ROLAND		         0					// set nonzero to support Roland mill
 #define SUPPORT_SCANNER		         0					// set nonzero to support FreeLSS scanners
@@ -42,7 +42,6 @@ const size_t NumFirmwareUpdateModules = 1;
 
 #define SUPPORT_TELNET               0
 #define SUPPORT_FTP                  0
-#define NO_PANELDUE                  1
 
 
 #if defined(LPC_NETWORKING)
@@ -168,6 +167,7 @@ extern Pin DiagPin;
 
 
 constexpr size_t NUM_SERIAL_CHANNELS = 2;
+extern bool UARTPanelDueMode;
 
 
 // Use TX0/RX0 for the auxiliary serial line

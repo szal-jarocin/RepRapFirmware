@@ -78,6 +78,9 @@ static const boardConfigEntry_t boardConfigs[]=
     {"lcd.lcdDCPin", &LcdDCPin, nullptr, cvPinType},
     {"lcd.panelButtonPin", &PanelButtonPin, nullptr, cvPinType},
 
+    {"lpc.uartPanelDueMode", &UARTPanelDueMode, nullptr, cvBoolType},
+
+    
 };
 
 

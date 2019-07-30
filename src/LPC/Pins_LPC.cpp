@@ -65,6 +65,7 @@ bool hasStepPinsOnDifferentPorts = false; //for boards that don't have all step 
 bool hasDriverCurrentControl = false;
 float digipotFactor = 113.33; //factor for converting current to digipot value
 
+bool UARTPanelDueMode = false;              //disable PanelDue support by default
 
 
 
