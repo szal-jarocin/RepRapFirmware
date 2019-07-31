@@ -1,12 +1,23 @@
 Duet 3 work list
-- Configure ESP SPI pins and channel from Pins.h
+- [done] Configure ESP SPI pins and channel on 0.3 board from Pins.h
+- [done] Fan/heater output flexible configuration
+- [done] Endstop/Z probe flexible configuration
+- [done, test] Leadscrew adjustment moves not implemented on remote drivers
+- [done] Separate temperature sensors from heaters
+- [done] Remote temperature sensors
+- [part done] Remote heaters
+- HeaterProtection objects probably don't work
 - Driver on/off voltages to be defined in Pins.h, they depend on the board
 - Enable dotstar support
 - SWdebug stuff for main board
-- fan/heater output flexible configuration
-- endstop/Z probe flexible configuration
-- leadscrew adjustment moves not implemented on remote drivers
-- hiccup delay times will need sending to CAN drivers
+- Hiccup delay times will need sending to CAN drivers
+- Remote fans
+- Remote GPIO and servo ports
+- Driver numbers to be specified using board.driver format in M584 and M569
+- Remote M906 and M913
+- Remote M569
+- Remote M915
+- Move M912 function to sensor creation
 
 Done in 2.03beta1:
 - [done, ok] MBytes/sec -> Mbytes/sec in M122 P104 report
@@ -202,7 +213,8 @@ Outstanding issues:
 - [defer] When writing resurrect.g after a pause, the G92 coordinates are wrong
 
 Duet 3:
-- Bug: code queue ont always used then it should be, https://github.com/chrishamm/DuetSoftwareFramework/issues/1
+- Bug: code queue not always used when it should be, https://github.com/chrishamm/DuetSoftwareFramework/issues/1
+- Bug: M308 Y"mcutemp" or "drivers" doesn't work without P"nil" parameter
 
 Planned for 3.0:
 -  M291 not displaying on PanelDue as well as web interface, https://forum.duet3d.com/topic/11240/m291-display-on-lcd-not-always-working-when-web-session-is-open
