@@ -457,13 +457,17 @@ void RTOSPlusTCPEthernetInterface::Diagnostics(MessageType mtype)
             break;
     }
     
+    platform.MessageF(mtype, "Socket States: ");
+    for (RTOSPlusTCPEthernetSocket*& skt : sockets)
+    {
+        if(skt != nullptr) skt->Diagnostics(mtype);
+    }
+    platform.MessageF(mtype, "\n");
+    
 #if( ipconfigCHECK_IP_QUEUE_SPACE != 0 )
     platform.MessageF(mtype, "NetBuffers: %lu lowest: %lu\n", uxGetNumberOfFreeNetworkBuffers(), uxGetMinimumFreeNetworkBuffers() );
     //Print out the minimum IP Queue space left since boot
     platform.MessageF(mtype, "IP Event Queue lowest: %d\n", (int)uxGetMinimumIPQueueSpace());
-
-    //platform.MessageF(mtype, "EthDrv: EthFrameSize: %d (LPC Buffer Size: %d)\n", (uint16_t)(ipTOTAL_ETHERNET_FRAME_SIZE), (uint16_t)(ipTOTAL_ETHERNET_FRAME_SIZE+ipBUFFER_PADDING) );
-
 # if defined(COLLECT_NETDRIVER_ERROR_STATS)
     //defined in driver for debugging
     extern uint32_t numNetworkRXIntOverrunErrors; //hardware producted overrun error

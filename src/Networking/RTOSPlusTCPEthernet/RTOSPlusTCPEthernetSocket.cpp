@@ -15,6 +15,7 @@
 
 #include "NetworkBuffer.h"
 #include "RepRap.h"
+#include "Platform.h"
 
 #include "FreeRTOS_IP_Private.h"
 
@@ -25,8 +26,10 @@
 //***************************************************************************************************
 // Socket class
 
-const unsigned int MaxBuffersPerSocket = 1;
-const unsigned int SocketShutdownTimeoutMillis = 50;//how long to wait before we force close the socket after last send
+static const unsigned int MaxBuffersPerSocket = 1;
+static const unsigned int SocketShutdownTimeoutMillis = 50;//how long to wait before we force close the socket after sending graceful disconnect
+static const uint32_t SocketActivityTimeout = 10000;    // Send timeout in milliseconds
+
 
 //function to check socket: (requires FreeRTOS_IP_Private.h)
 bool isSocketClosing(Socket_t xSocket)
@@ -198,6 +201,40 @@ void RTOSPlusTCPEthernetSocket::Terminate()
 	}
 }
 
+void RTOSPlusTCPEthernetSocket::Diagnostics(MessageType mt) const
+{
+    
+    switch(state){
+        case SocketState::disabled:
+            reprap.GetPlatform().MessageF(mt, "Disabled  ");
+            break;
+        case SocketState::inactive:
+            reprap.GetPlatform().MessageF(mt, "Inactive  ");
+            break;
+
+        case SocketState::listening:
+            reprap.GetPlatform().MessageF(mt, "Listening  ");
+            break;
+
+        case SocketState::connected:
+            reprap.GetPlatform().MessageF(mt, "Connected");
+            reprap.GetPlatform().MessageF(mt, "(%dms)  ", (int)(millis() - whenConnected)); //Last Activity
+            break;
+
+        case SocketState::clientDisconnecting:
+        case SocketState::closing:
+        case SocketState::closing2:
+            reprap.GetPlatform().MessageF(mt, "Closing  ");
+            break;
+
+        case SocketState::aborted:
+            reprap.GetPlatform().MessageF(mt, "Aborted  ");
+            break;
+
+    }
+    
+}
+
 // Return true if there is or may soon be more data to read
 bool RTOSPlusTCPEthernetSocket::CanRead() const
 {
@@ -207,7 +244,7 @@ bool RTOSPlusTCPEthernetSocket::CanRead() const
 
 bool RTOSPlusTCPEthernetSocket::CanSend() const
 {
-	return state == SocketState::connected;
+	return ((state == SocketState::connected) && (FreeRTOS_issocketconnected(xConnectedSocket) == pdTRUE));
 }
 
 // Read 1 character from the receive buffers, returning true if successful
@@ -329,6 +366,8 @@ void RTOSPlusTCPEthernetSocket::Poll(bool full)
                     if (reprap.GetNetwork().FindResponder(this, protocol))
                     {
                         state = SocketState::connected;
+                        whenConnected = millis(); //reset timer
+
                     }
                     else if (millis() - whenConnected >= FindResponderTimeout)
                     {
@@ -347,6 +386,13 @@ void RTOSPlusTCPEthernetSocket::Poll(bool full)
 
             case SocketState::connected:
             {
+                
+                //check the timer to see if we haven't sent or received data over SocketActivityTimeout
+                if( (millis() - whenConnected) > SocketActivityTimeout)
+                {
+                    Close(); //close the socket
+                    return;
+                }
                 
                 if( isSocketEstablished(xConnectedSocket) == true)
                 {
@@ -370,15 +416,7 @@ void RTOSPlusTCPEthernetSocket::Poll(bool full)
                     {
                         debugPrintf("Unknown socket state on Skt: %d\n", socketNum);
                     }
-
-                    //test the socket to see if its really in an error state
-                    uint8_t tmp;
-                    BaseType_t ret = FreeRTOS_recv( xConnectedSocket, &tmp, 1, 0 );
-                    if( ret < 0 )
-                    {
-                        CheckSocketError(ret);
-                        Close(); //close the socket
-                    }
+                    Close(); //close the socket
                 }
             } break;
                 
@@ -471,6 +509,8 @@ void RTOSPlusTCPEthernetSocket::ReceiveData()
     
 	if (len > 0)
 	{
+        whenConnected = millis(); //reset timer
+        
 		NetworkBuffer * const lastBuffer = NetworkBuffer::FindLast(receivedData);
 
         if (lastBuffer != nullptr && lastBuffer->SpaceLeft() >= (uint16_t) len)
@@ -576,6 +616,8 @@ size_t RTOSPlusTCPEthernetSocket::Send(const uint8_t *data, size_t length)
         }
         else
         {
+            if(ret == -pdFREERTOS_ERRNO_EWOULDBLOCK) ret = 0;
+
             if (reprap.Debug(moduleNetwork))
             {
                 debugPrintf("Queued %d bytes (of %d bytes) on Skt: %d\n", (int16_t )ret, length, socketNum );
@@ -583,7 +625,10 @@ size_t RTOSPlusTCPEthernetSocket::Send(const uint8_t *data, size_t length)
         }
         
         length = (size_t) ret; //ret holds how much data we actually were able to send
-    
+        
+        
+        if(length > 0) whenConnected = millis(); //reset timer
+        
 		return length;
 	}
 	return 0;

@@ -17,6 +17,8 @@
 #include "FreeRTOS_IP.h"
 #include "FreeRTOS_Sockets.h"
 
+#include "MessageType.h"
+
 // Socket structure that we use to track TCP connections
 class RTOSPlusTCPEthernetSocket : public Socket
 {
@@ -35,6 +37,8 @@ public:
 	bool CanSend() const override;
 	size_t Send(const uint8_t *data, size_t length) override;
 	void Send() override;
+    void Diagnostics(MessageType mt) const;
+
 
 private:
 	void ReInit();
