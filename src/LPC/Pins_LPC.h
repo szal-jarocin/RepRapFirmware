@@ -144,6 +144,7 @@ constexpr Pin SdWriteProtectPins[NumSdCards] = { NoPin, NoPin }; //unused on LPC
 extern Pin SdSpiCSPins[NumSdCards];
 extern uint32_t ExternalSDCardFrequency;
 extern uint32_t InternalSDCardFrequency;
+extern SSPChannel ExternalSDCardSSPChannel;
 
 
 // Definition of which pins we allow to be controlled using M42 etc
@@ -151,7 +152,7 @@ constexpr size_t MaxNumberSpecialPins = 10;
 extern Pin SpecialPinMap[MaxNumberSpecialPins];
 
 constexpr uint32_t LcdSpiClockFrequency = 2000000;    // 2.0MHz
-constexpr SSPChannel LcdSpiChannel = SSP0;
+extern SSPChannel LcdSpiChannel;
 extern Pin LcdCSPin;
 extern Pin LcdDCPin;
 extern Pin LcdBeepPin;
@@ -159,7 +160,6 @@ extern Pin EncoderPinA;
 extern Pin EncoderPinB;
 extern Pin EncoderPinSw;
 extern Pin PanelButtonPin;
-
 
 //LEDs
 extern Pin StatusLEDPin;
@@ -169,6 +169,8 @@ extern Pin DiagPin;
 constexpr size_t NUM_SERIAL_CHANNELS = 2;
 extern bool UARTPanelDueMode;
 
+constexpr size_t NumSoftwareSPIPins = 3;
+extern Pin SoftwareSPIPins[3]; //GPIO pins for softwareSPI (used with SharedSPI)
 
 // Use TX0/RX0 for the auxiliary serial line
 #if defined(__MBED__)

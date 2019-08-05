@@ -16,6 +16,7 @@
 #include "RepRapFirmware.h"
 #include "GCodes/GCodeResult.h"
 #include "sd_mmc.h"
+#include "SharedSPI.h"
 
 #include "Platform.h"
 
@@ -68,7 +69,7 @@ static const boardConfigEntry_t boardConfigs[]=
     {"externalSDCard.csPin", &SdSpiCSPins[1], nullptr, cvPinType},
     {"externalSDCard.cardDetectPin", &SdCardDetectPins[1], nullptr, cvPinType},
     {"lpc.externalSDCard.spiFrequencyHz", &ExternalSDCardFrequency, nullptr, cvUint32Type},
-
+    {"lpc.externalSDCard.spiChannel", &ExternalSDCardSSPChannel, nullptr, cvUint8Type},
     
     {"lcd.lcdCSPin", &LcdCSPin, nullptr, cvPinType},
     {"lcd.lcdBeepPin", &LcdBeepPin, nullptr, cvPinType},
@@ -77,10 +78,12 @@ static const boardConfigEntry_t boardConfigs[]=
     {"lcd.encoderPinSw", &EncoderPinSw, nullptr, cvPinType},
     {"lcd.lcdDCPin", &LcdDCPin, nullptr, cvPinType},
     {"lcd.panelButtonPin", &PanelButtonPin, nullptr, cvPinType},
+    {"lcd.spiChannel", &LcdSpiChannel, nullptr, cvUint8Type},
 
+    {"lpc.softwareSPI.pins", SoftwareSPIPins, &NumSoftwareSPIPins, cvPinType}, //SCK, MISO, MOSI
+    
     {"lpc.uartPanelDueMode", &UARTPanelDueMode, nullptr, cvBoolType},
 
-    
 };
 
 
@@ -164,6 +167,8 @@ void BoardConfig::Init() {
             }
         }
         
+        //Setup the Software SPI Pins
+        sspi_setPinsForChannel(SWSPI0, SoftwareSPIPins[0], SoftwareSPIPins[1], SoftwareSPIPins[2]);
 
         //Configure the HW Timers
         ConfigureTimerForPWM(0, Timer1Frequency); //Timer1 is channel 0
@@ -177,15 +182,22 @@ void BoardConfig::Init() {
         //Configure the External SDCard
         if(SdSpiCSPins[1] != NoPin)
         {
+            setPullup(SdCardDetectPins[1], true);
+            //set the SSP Channel for External SDCard
+            if(ExternalSDCardSSPChannel == SSP0 || ExternalSDCardSSPChannel == SSP1 || ExternalSDCardSSPChannel == SWSPI0){
+                sd_mmc_setSSPChannel(1, ExternalSDCardSSPChannel); //must be called before reinit
+            }
             //set the CSPin and the frequency for the External SDCard
             sd_mmc_reinit_slot(1, SdSpiCSPins[1], ExternalSDCardFrequency);
         }
         
-        //Init Extra pins from LCD (not used anywhere yet)
+        //Init pins from LCD (not used anywhere yet)
         //make sure to init ButtonPin as input incase user presses button
-        if(PanelButtonPin != NoPin) pinMode(PanelButtonPin, INPUT);
-        if(LcdDCPin != NoPin) pinMode(LcdDCPin, OUTPUT_HIGH);
-        
+        if(PanelButtonPin != NoPin) pinMode(PanelButtonPin, INPUT); //unused
+        if(LcdDCPin != NoPin) pinMode(LcdDCPin, OUTPUT_HIGH); //unused
+        if(LcdBeepPin != NoPin) pinMode(LcdBeepPin, OUTPUT_LOW);
+        // Set the 12864 display CS pin low to prevent it from receiving garbage due to other SPI traffic
+        if(LcdCSPin != NoPin) pinMode(LcdCSPin, OUTPUT_LOW);
 
         
     }

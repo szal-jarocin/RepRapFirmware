@@ -30,8 +30,9 @@ Pin TachoPins[NumTachos] = { NoPin };
 Pin SdCardDetectPins[NumSdCards] = { NoPin, NoPin };
 Pin SdSpiCSPins[NumSdCards] = { P0_6, NoPin };// Internal, external. Note:: ("slot" 0 in CORE is configured to be LCP SSP1 to match default RRF behaviour)
 uint32_t ExternalSDCardFrequency = 2000000; //default to 2MHz
+uint32_t InternalSDCardFrequency = 25000000; //default to 25MHz
+SSPChannel ExternalSDCardSSPChannel = SSP0;
 
-uint32_t InternalSDCardFrequency = 10000000; //default to 10MHz
 
 Pin SpecialPinMap[MaxNumberSpecialPins] = { NoPin, NoPin, NoPin, NoPin, NoPin, NoPin, NoPin, NoPin, NoPin, NoPin };
 
@@ -43,6 +44,8 @@ Pin EncoderPinA =    NoPin;
 Pin EncoderPinB =    NoPin;
 Pin EncoderPinSw =   NoPin; //click
 Pin PanelButtonPin = NoPin; //Extra button on Viki and RRD Panels (reset/back etc)
+SSPChannel LcdSpiChannel = SSP0;
+
 
 //Pin LED1 = NoPin;
 //Pin LED2 = NoPin;
@@ -67,5 +70,6 @@ float digipotFactor = 113.33; //factor for converting current to digipot value
 
 bool UARTPanelDueMode = false;              //disable PanelDue support by default
 
+Pin SoftwareSPIPins[3] = {NoPin, NoPin, NoPin}; //GPIO pins for softwareSPI (used with SharedSPI)
 
 
