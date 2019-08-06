@@ -1,0 +1,52 @@
+ 
+
+stepper.enablePins =               {2.1, 2.8,  0.21, 2.12, 0.10};
+stepper.stepPins =                 {2.2, 0.19, 0.22, 2.13, 0.1};    
+stepper.directionPins =            {2.6, 0.20, 2.11, 0.11, 0.0};
+stepper.hasDriverCurrentControl = false; 
+
+//1.29 X-
+//1.28 X+
+//1.27 Y-
+//1.26 Y+
+//1.25 Z-
+//1.24 Z+
+endstop.pins = {1.29, 1.27, 1.25}; //X, Y, Z Endstops
+
+//                    Bed   E0    E1
+heat.tempSensePins = {0.23, 0.24, 0.25}; //tb, th0, th1
+heat.heatOnPins =    {2.5, 2.7, 2.4}; //hbed, he0, he1
+
+fan.pins = {2.3}; //cooling fan
+
+lpc.slowPWM.pins = {2.5}; 
+lpc.slowPWM.frequencyHz = 10; //10Hz (for Bed PWM)
+lpc.fastPWM.pins = {2.7, 2.4};
+lpc.fastPWM.frequencyHz = 250; //250Hz (for Hotend/Fan PWM)
+
+lpc.servoPins = {2.0};
+specialPinMap = {2.0};
+
+externalSDCard.csPin         = 0.16;
+externalSDCard.cardDetectPin = 1.31;
+
+lpc.externalSDCard.spiFrequencyHz  = 4000000;
+lpc.externalSDCard.spiChannel = 0; 
+
+
+
+
+
+//LCD Pins (only ST9720 SPI currently supported)
+
+//setup the Software SPI Pins for LCD
+lpc.softwareSPI.pins = {1.20, NoPin, 1.18}; //Set to GPIO pins to use as SCK, MISO, MOSI
+
+lcd.spiChannel = 2; //2 = SWSPI - Use Software SPI Channel
+lcd.lcdCSPin =       1.19; //LCD Chip Select
+lcd.lcdBeepPin =     1.30;
+lcd.encoderPinA =    3.26;
+lcd.encoderPinB =    3.25;
+lcd.encoderPinSw =   0.28; //click
+lcd.lcdDCPin =       NoPin;  //DataControl Pin (A0) if none used set to NoPin
+lcd.panelButtonPin = NoPin; 
