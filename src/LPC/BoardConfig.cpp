@@ -16,6 +16,7 @@
 #include "RepRapFirmware.h"
 #include "GCodes/GCodeResult.h"
 #include "sd_mmc.h"
+#include "SharedSPI.h"
 
 #include "Platform.h"
 
@@ -64,10 +65,11 @@ static const boardConfigEntry_t boardConfigs[]=
     {"lcd.encoderPinSw", &EncoderPinSw, nullptr, cvPinType},
     {"lcd.lcdDCPin", &LcdDCPin, nullptr, cvPinType},
     {"lcd.panelButtonPin", &PanelButtonPin, nullptr, cvPinType},
-
+    {"lcd.spiChannel", &LcdSpiChannel, nullptr, cvUint8Type},
+    
     {"lpc.uartPanelDueMode", &UARTPanelDueMode, nullptr, cvBoolType},
     
-    //{"lpc.softwareSPI.pins", &SoftwareSPIPins, 3, cvPinType}, //MISO, MOSI, SCK
+    {"lpc.softwareSPI.pins", SoftwareSPIPins, &NumSoftwareSPIPins, cvPinType}, //SCK, MISO, MOSI
 };
 
 
@@ -153,6 +155,8 @@ void BoardConfig::Init() {
             }
         }
         
+        //Setup the Software SPI Pins
+        sspi_setPinsForChannel(SWSPI0, SoftwareSPIPins[0], SoftwareSPIPins[1], SoftwareSPIPins[2]);
 
         //Configure the HW Timers
         ConfigureTimerForPWM(0, Timer1Frequency); //Timer1 is channel 0
@@ -272,7 +276,7 @@ void BoardConfig::Diagnostics(MessageType mtype)
         reprap.GetPlatform().MessageF(mtype, "%s = ", next.key );
         if(next.maxArrayEntries != nullptr)
         {
-            reprap.GetPlatform().MessageF(mtype, "[ ");
+            reprap.GetPlatform().MessageF(mtype, "{ ");
             for(size_t p=0; p<*(next.maxArrayEntries); p++)
             {
                 //TODO:: handle other values
@@ -280,7 +284,7 @@ void BoardConfig::Diagnostics(MessageType mtype)
                     BoardConfig::PrintValue(mtype, next.type, (void *)&((Pin *)(next.variable))[p]);
                 }
             }
-            reprap.GetPlatform().MessageF(mtype, "]\n");
+            reprap.GetPlatform().MessageF(mtype, "}\n");
         }
         else
         {

@@ -36,6 +36,7 @@ Pin EncoderPinA =    NoPin;
 Pin EncoderPinB =    NoPin;
 Pin EncoderPinSw =   NoPin; //click
 Pin PanelButtonPin = NoPin; //Extra button on Viki and RRD Panels (reset/back etc)
+SSPChannel LcdSpiChannel = SSP0;
 
 Pin DiagPin = NoPin;
 
@@ -49,6 +50,7 @@ bool hasDriverCurrentControl = false;
 float digipotFactor = 113.33;               //defualt factor for converting current to digipot value
 bool UARTPanelDueMode = false;              //disable PanelDue support by default
 
+Pin SoftwareSPIPins[3] = {NoPin, NoPin, NoPin}; //GPIO pins for softwareSPI (used with SharedSPI)
 
 //Default to the Generic PinTable
 PinEntry *PinTable = (PinEntry *) PinTable_Generic;

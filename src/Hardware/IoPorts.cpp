@@ -568,13 +568,14 @@ bool PwmPort::SetFrequency(PwmFrequency freq){
     //Only a limited number of PWM frequencies avail
     //Check if we can use the requested frequency, returning true if successful
 
-    if(frequency!=0) return false; // cant change an already configured Pin frequency on LPC
-    
-    frequency = freq;
-    
-    return ConfigurePinForPWM(PinTable[logicalPin].pin, freq);
+    if(frequency == freq || frequency == 0)
+    {
+        //frequency is the same as previously configured or freq has not been set
+        frequency = freq;
+        return ConfigurePinForPWM(PinTable[logicalPin].pin, freq);
+    }
+    return false; // cant change an already configured Pin frequency on LPC
 }
-
 #endif
 
 

@@ -157,7 +157,7 @@ extern SSPChannel ExternalSDCardSSPChannel;
 
 //LCD
 constexpr uint32_t LcdSpiClockFrequency = 2000000;    // 2.0MHz
-constexpr SSPChannel LcdSpiChannel = SSP0;
+extern SSPChannel LcdSpiChannel;
 extern Pin LcdCSPin;
 extern Pin LcdDCPin;
 extern Pin LcdBeepPin;
@@ -168,7 +168,8 @@ extern Pin PanelButtonPin;
 
 extern Pin DiagPin;
 
-
+constexpr size_t NumSoftwareSPIPins = 3;
+extern Pin SoftwareSPIPins[3]; //GPIO pins for softwareSPI (used with SharedSPI)
 
 constexpr size_t NUM_SERIAL_CHANNELS = 2;
 extern bool UARTPanelDueMode;
