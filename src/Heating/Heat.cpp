@@ -73,6 +73,7 @@ Heater *Heat::FindHeater(int heater) const
 	return (heater < 0 || heater >= (int)MaxHeaters) ? nullptr : heaters[heater];
 }
 
+// Process M307
 GCodeResult Heat::SetOrReportHeaterModel(GCodeBuffer& gb, const StringRef& reply)
 {
 	if (gb.Seen('H'))
@@ -132,6 +133,7 @@ GCodeResult Heat::SetOrReportHeaterModel(GCodeBuffer& gb, const StringRef& reply
 					reply.catf("\nComputed PID parameters for load change: P%.1f, I%.3f, D%.1f", (double)params.kP, (double)params.kI, (double)params.kD);
 				}
 			}
+			return GCodeResult::ok;
 		}
 
 		reply.printf("Heater %u not found", heater);
@@ -390,7 +392,7 @@ GCodeResult Heat::ConfigureHeater(size_t heater, GCodeBuffer& gb, const StringRe
 {
 	if (heater < MaxHeaters)
 	{
-		Heater *h = heaters[heater];
+		Heater *oldHeater = heaters[heater];
 
 #if SUPPORT_CAN_EXPANSION
 		CanAddress boardAddr = CanId::NoCanAddress;
@@ -399,7 +401,7 @@ GCodeResult Heat::ConfigureHeater(size_t heater, GCodeBuffer& gb, const StringRe
 			String<StringLength20> portName;
 			if (!gb.GetReducedString(portName.GetRef()))
 			{
-				reply.copy("missing port name");
+				reply.copy("Missing port name");
 				return GCodeResult::error;
 			}
 			boardAddr = IoPort::RemoveBoardAddress(portName.GetRef());
@@ -408,31 +410,28 @@ GCodeResult Heat::ConfigureHeater(size_t heater, GCodeBuffer& gb, const StringRe
 		if (boardAddr == CanId::NoCanAddress)
 		{
 			// No port given, so just configure the existing heater if there is one
-			if (h == nullptr)
+			if (oldHeater == nullptr)
 			{
-				reply.printf("port name needed to create new heater %u", heater);
+				reply.printf("Port name needed to create new heater %u", heater);
 				return GCodeResult::error;
 			}
 		}
 		else
 		{
 			// A port has been provided, so create a new heater
-			if (boardAddr == 0)
+			if (oldHeater == nullptr)
 			{
-				heaters[heater] = (h == nullptr) ? new LocalHeater(heater) : new LocalHeater(*h);
+				heaters[heater] = (boardAddr == 0) ? (Heater *)new LocalHeater(heater) : new RemoteHeater(heater, boardAddr);
 			}
 			else
 			{
-				heaters[heater] = (h == nullptr) ? new RemoteHeater(heater, boardAddr) : new RemoteHeater(*h, boardAddr);
-			}
-			if (h != nullptr)
-			{
-				h->SwitchOff();
-				delete h;
+				oldHeater->ReleasePort();
+				heaters[heater] = (boardAddr == 0) ? (Heater *)new LocalHeater(*oldHeater) : new RemoteHeater(*oldHeater, boardAddr);
+				delete oldHeater;
 			}
 		}
 #else
-		if (h == nullptr)
+		if (oldHeater == nullptr)
 		{
 			heaters[heater] = new LocalHeater(heater);
 		}
@@ -807,7 +806,7 @@ GCodeResult Heat::ConfigureSensor(GCodeBuffer& gb, const StringRef& reply)
 		const unsigned sensorNum = gb.GetUIValue();
 
 #if SUPPORT_CAN_EXPANSION
-		// Set boardAddress to the board number that the port is on, or -1 if the port was not given
+		// Set boardAddress to the board number that the port is on, or NoCanAddress if the port was not given
 		CanAddress boardAddress;
 		String<StringLength20> portName;
 		if (gb.Seen('P'))

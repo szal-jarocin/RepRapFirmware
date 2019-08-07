@@ -139,8 +139,23 @@ GCodeResult LocalHeater::ConfigurePortAndSensor(GCodeBuffer& gb, const StringRef
 	{
 		reply.printf("Heater %u", GetHeaterNumber());
 		port.AppendDetails(reply);
+		if (GetSensorNumber() >= 0)
+		{
+			reply.catf(", sensor %d", GetSensorNumber());
+		}
+		else
+		{
+			reply.cat(", no sensor configured");
+		}
 	}
 	return GCodeResult::ok;
+}
+
+// If it's a local heater, turn it off and release its port. If it is remote, delete the remote heater.
+void LocalHeater::ReleasePort()
+{
+	SwitchOff();
+	port.Release();
 }
 
 // Read and store the temperature of this heater and returns the error code.

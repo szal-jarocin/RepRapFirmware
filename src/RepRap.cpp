@@ -230,12 +230,12 @@ void RepRap::Init()
 		// I have a theory that the converse is also true, i.e. after enabling the watchdog you mustn't kick it within 3 slow clocks
 		// So I've added a delay call before we set 'active' true (which enables kicking the watchdog), and that seems to fix the problem.
 		const uint16_t timeout = 32768/128;											// set watchdog timeout to 1 second (max allowed value is 4095 = 16 seconds)
-		wdt_init(WDT, WDT_MR_WDRSTEN, timeout, timeout);							// reset the processor on a watchdog fault
+		wdt_init(WDT, WDT_MR_WDRSTEN | WDT_MR_WDDBGHLT, timeout, timeout);			// reset the processor on a watchdog fault, stop it when debugging
 
 #if SAM4E || SAME70
 		// The RSWDT must be initialised *after* the main WDT
 		const uint16_t rsTimeout = 16384/128;										// set secondary watchdog timeout to 0.5 second (max allowed value is 4095 = 16 seconds)
-		rswdt_init(RSWDT, RSWDT_MR_WDFIEN, rsTimeout, rsTimeout);					// generate an interrupt on a watchdog fault
+		rswdt_init(RSWDT, RSWDT_MR_WDFIEN | RSWDT_MR_WDDBGHLT, rsTimeout, rsTimeout);	// generate an interrupt on a watchdog fault
 		NVIC_EnableIRQ(WDT_IRQn);													// enable the watchdog interrupt
 #endif
 		delayMicroseconds(200);														// 200us is about 6 slow clocks
@@ -547,7 +547,6 @@ void RepRap::SetDebug(Module m, bool enable)
 			debug &= ~(1u << m);
 		}
 	}
-	PrintDebug();
 }
 
 void RepRap::ClearDebug()
@@ -555,26 +554,26 @@ void RepRap::ClearDebug()
 	debug = 0;
 }
 
-void RepRap::PrintDebug()
+void RepRap::PrintDebug(MessageType mt)
 {
-	platform->Message(GenericMessage, "Debugging enabled for modules:");
+	platform->Message((MessageType)(mt | PushFlag), "Debugging enabled for modules:");
 	for (size_t i = 0; i < numModules; i++)
 	{
 		if ((debug & (1u << i)) != 0)
 		{
-			platform->MessageF(GenericMessage, " %s(%u)", moduleName[i], i);
+			platform->MessageF((MessageType)(mt | PushFlag), " %s(%u)", moduleName[i], i);
 		}
 	}
 
-	platform->Message(GenericMessage, "\nDebugging disabled for modules:");
+	platform->Message((MessageType)(mt | PushFlag), "\nDebugging disabled for modules:");
 	for (size_t i = 0; i < numModules; i++)
 	{
 		if ((debug & (1u << i)) == 0)
 		{
-			platform->MessageF(GenericMessage, " %s(%u)", moduleName[i], i);
+			platform->MessageF((MessageType)(mt | PushFlag), " %s(%u)", moduleName[i], i);
 		}
 	}
-	platform->Message(GenericMessage, "\n");
+	platform->Message(mt, "\n");
 }
 
 // Add a tool.
@@ -1254,7 +1253,7 @@ OutputBuffer *RepRap::GetStatusResponse(uint8_t type, ResponseSource source)
 		response->catf(",\"volumes\":%u,\"mountedVolumes\":%u", NumSdCards, mountedCards);
 #endif
 
-		// Machine mode
+		// Machine mode,
 		const char *machineMode = gCodes->GetMachineModeString();
 		response->cat(",\"mode\":");
 		response->EncodeString(machineMode, strlen(machineMode), false);
@@ -1455,7 +1454,12 @@ OutputBuffer *RepRap::GetStatusResponse(uint8_t type, ResponseSource source)
 			response->EncodeReply(reply);												// also releases the OutputBuffer chain
 		}
 	}
-	response->cat('}');
+
+	if (response->cat('}') == 0)
+	{
+		OutputBuffer::ReleaseAll(response);
+		return nullptr;
+	}
 
 	return response;
 }

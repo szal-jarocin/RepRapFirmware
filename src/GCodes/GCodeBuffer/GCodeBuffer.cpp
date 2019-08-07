@@ -17,19 +17,18 @@
 #include "Platform.h"
 
 // Create a default GCodeBuffer
-GCodeBuffer::GCodeBuffer(const char* id, GCodeInput *normalIn, FileGCodeInput *fileIn, MessageType stringMt, MessageType binaryMt, bool usesCodeQueue)
-	: identity(id), normalInput(normalIn),
+GCodeBuffer::GCodeBuffer(GCodeChannel channel, GCodeInput *normalIn, FileGCodeInput *fileIn, MessageType mt, Compatibility c)
+	: codeChannel(channel), normalInput(normalIn),
 #if HAS_MASS_STORAGE
 	  fileInput(fileIn),
 #endif
-	  responseMessageTypeString(stringMt),
-	  responseMessageTypeBinary((MessageType)(binaryMt | MessageType::BinaryCodeReplyFlag)),
-	  queueCodes(usesCodeQueue), toolNumberAdjust(0),
-	  isBinaryBuffer(false), binaryParser(*this), stringParser(*this), machineState(new GCodeMachineState())
+	  responseMessageType(mt), toolNumberAdjust(0), isBinaryBuffer(false), binaryParser(*this), stringParser(*this),
+	  machineState(new GCodeMachineState())
 #if HAS_LINUX_INTERFACE
-	  , reportMissingMacro(false), abortFile(false), reportStack(false)
+	  , reportMissingMacro(false), isMacroFromCode(false), abortFile(false), abortAllFiles(false), reportStack(false)
 #endif
 {
+	machineState->compatibility = c;
 	Init();
 }
 
@@ -37,6 +36,7 @@ GCodeBuffer::GCodeBuffer(const char* id, GCodeInput *normalIn, FileGCodeInput *f
 void GCodeBuffer::Reset()
 {
 	while (PopState(false)) { }
+	isBinaryBuffer = false;
 	Init();
 }
 
@@ -45,7 +45,6 @@ void GCodeBuffer::Init()
 {
 	binaryParser.Init();
 	stringParser.Init();
-
 	timerRunning = false;
 }
 
@@ -78,14 +77,40 @@ bool GCodeBuffer::DoDwellTime(uint32_t dwellMillis)
 // Write some debug info
 void GCodeBuffer::Diagnostics(MessageType mtype)
 {
-	if (isBinaryBuffer)
+	String<ScratchStringLength> scratchString;
+	scratchString.copy(GetIdentity());
+	scratchString.cat(IsBinary() ? "* " : " ");
+	switch (bufferState)
 	{
-		binaryParser.Diagnostics(mtype);
+	case GCodeBufferState::parseNotStarted:
+		scratchString.cat("is idle");
+		break;
+
+	case GCodeBufferState::ready:
+		scratchString.cat("is ready with \"");
+		AppendFullCommand(scratchString.GetRef());
+		scratchString.cat('"');
+		break;
+
+	case GCodeBufferState::executing:
+		scratchString.printf("is doing \"");
+		AppendFullCommand(scratchString.GetRef());
+		scratchString.cat('"');
+		break;
+
+	default:
+		scratchString.cat("is assembling a command");
 	}
-	else
+
+	scratchString.cat(" in state(s)");
+	const GCodeMachineState *ms = machineState;
+	do
 	{
-		stringParser.Diagnostics(mtype);
-	}
+		scratchString.catf(" %d", (int)ms->state);
+		ms = ms->previous;
+	} while (ms != nullptr);
+	scratchString.cat('\n');
+	reprap.GetPlatform().Message(mtype, scratchString.c_str());
 }
 
 // Add a character to the end
@@ -404,33 +429,40 @@ DriverId GCodeBuffer::GetDriverId()
 
 bool GCodeBuffer::IsIdle() const
 {
-	return isBinaryBuffer ? binaryParser.IsIdle() : stringParser.IsIdle();
+	return bufferState != GCodeBufferState::ready && bufferState != GCodeBufferState::executing;
 }
 
 bool GCodeBuffer::IsCompletelyIdle() const
 {
-	return isBinaryBuffer ? binaryParser.IsCompletelyIdle() : stringParser.IsCompletelyIdle();
+	return GetState() == GCodeState::normal && IsIdle();
 }
 
 bool GCodeBuffer::IsReady() const
 {
-	return isBinaryBuffer ? binaryParser.IsReady() : stringParser.IsReady();
+	return bufferState == GCodeBufferState::ready;
 }
 
 bool GCodeBuffer::IsExecuting() const
 {
-	return isBinaryBuffer ? binaryParser.IsExecuting() : stringParser.IsExecuting();
+	return bufferState == GCodeBufferState::executing;
 }
 
 void GCodeBuffer::SetFinished(bool f)
 {
-	if (isBinaryBuffer)
+	if (f)
 	{
-		binaryParser.SetFinished(f);
+		if (isBinaryBuffer)
+		{
+			binaryParser.SetFinished();
+		}
+		else
+		{
+			stringParser.SetFinished();
+		}
 	}
 	else
 	{
-		stringParser.SetFinished(f);
+		bufferState = GCodeBufferState::executing;
 	}
 }
 
@@ -491,6 +523,7 @@ bool GCodeBuffer::PushState(bool preserveLineNumber)
 #endif
 	ms->lockedResources = machineState->lockedResources;
 	ms->lineNumber = (preserveLineNumber) ? machineState->lineNumber : 0;
+	ms->compatibility = machineState->compatibility;
 	ms->drivesRelative = machineState->drivesRelative;
 	ms->axesRelative = machineState->axesRelative;
 	ms->usingInches = machineState->usingInches;
@@ -534,7 +567,7 @@ bool GCodeBuffer::PopState(bool preserveLineNumber)
 
 // Abort execution of any files or macros being executed, returning true if any files were closed
 // We now avoid popping the state if we were not executing from a file, so that if DWC or PanelDue is used to jog the axes before they are homed, we don't report stack underflow.
-void GCodeBuffer::AbortFile(bool requestAbort)
+void GCodeBuffer::AbortFile(bool abortAll, bool requestAbort)
 {
 	if (machineState->DoingFile())
 	{
@@ -547,11 +580,12 @@ void GCodeBuffer::AbortFile(bool requestAbort)
 #endif
 				machineState->CloseFile();
 			}
-		} while (PopState(false));							// abandon any macros
+		} while (PopState(false) && (!machineState->DoingFile() || abortAll));
 	}
 
 #if HAS_LINUX_INTERFACE
 	abortFile = requestAbort;
+	abortAllFiles = abortAll;
 #endif
 }
 
@@ -569,23 +603,25 @@ void GCodeBuffer::SetPrintFinished()
 	{
 		if (ms->fileId == fileId)
 		{
-			ms->SetFileFinished();
+			ms->SetFileFinished(false);
 		}
 	}
 }
 
-void GCodeBuffer::RequestMacroFile(const char *filename, bool reportMissing)
+void GCodeBuffer::RequestMacroFile(const char *filename, bool reportMissing, bool fromCode)
 {
 	machineState->SetFileExecuting();
 
 	requestedMacroFile.copy(filename);
 	reportMissingMacro = reportMissing;
-	abortFile = false;
+	isMacroFromCode = fromCode;
+	abortFile = abortAllFiles = false;
 }
 
-const char *GCodeBuffer::GetRequestedMacroFile(bool& reportMissing) const
+const char *GCodeBuffer::GetRequestedMacroFile(bool& reportMissing, bool& fromCode) const
 {
 	reportMissing = reportMissingMacro;
+	fromCode = isMacroFromCode;
 	return requestedMacroFile.IsEmpty() ? nullptr : requestedMacroFile.c_str();
 }
 
@@ -594,9 +630,14 @@ bool GCodeBuffer::IsAbortRequested() const
 	return abortFile;
 }
 
+bool GCodeBuffer::IsAbortAllRequested() const
+{
+	return abortAllFiles;
+}
+
 void GCodeBuffer::AcknowledgeAbort()
 {
-	abortFile = false;
+	abortFile = abortAllFiles = false;
 }
 
 bool GCodeBuffer::IsStackEventFlagged() const
@@ -626,15 +667,19 @@ void GCodeBuffer::MessageAcknowledged(bool cancelled)
 	}
 }
 
-// Return true if we can queue gcodes from this source
+// Return true if we can queue gcodes from this source. This is the case if a file is being executed
 bool GCodeBuffer::CanQueueCodes() const
 {
-	return queueCodes || IsDoingFile() || IsDoingFileMacro();		// return true if we queue commands from this source or we are executing a macro
+	return machineState->DoingFile();
 }
 
 MessageType GCodeBuffer::GetResponseMessageType() const
 {
-	return isBinaryBuffer ? responseMessageTypeBinary : responseMessageTypeString;
+	if (isBinaryBuffer)
+	{
+		return (MessageType)((1 << (size_t)codeChannel) | BinaryCodeReplyFlag);
+	}
+	return responseMessageType;
 }
 
 FilePosition GCodeBuffer::GetFilePosition() const
