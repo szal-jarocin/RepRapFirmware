@@ -172,7 +172,7 @@ void BoardConfig::Init() {
         {
             setPullup(SdCardDetectPins[1], true);
             //set the SSP Channel for External SDCard
-            if(ExternalSDCardSSPChannel == SSP0 || ExternalSDCardSSPChannel == SSP1)
+            if(ExternalSDCardSSPChannel == SSP0 || ExternalSDCardSSPChannel == SSP1 || ExternalSDCardSSPChannel == SWSPI0)
             {
                 sd_mmc_setSSPChannel(1, ExternalSDCardSSPChannel); //must be called before reinit
             }
