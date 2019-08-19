@@ -23,6 +23,18 @@ Version 3.0 beta3
 * Added new lpc.externalSDCard.spiChannel to select which hardware SSP pins are used for SDCard. Must be 0 to select SSP0 or 1 to select SSP1. Default is SSP1.
 
 
+Version 2.04RC1
+=================
+
+###Board Config (Board.txt)
+* Software SPI added. New pin arrary option:  lpc.softwareSPI.pins
+    * Assigns GPIO pins to operate as SoftwareSPI.
+    * Default Value: lpc.softwareSPI.pins = {NoPin, NoPin, NoPin} ; //Set to GPIO pins to use as SCK, MISO, MOSI
+* New SPI Channel options added for ExternalSDCard and LCD. Channel 0 = SSP0, 1 = SSP1 and 2 = SoftwareSPI
+    * lpc.externalSDCard.spiChannel option added to select SPI Channel external SDCard uses.
+    * lcd.spiChannel option added to select SPI Channel LCD uses (typically 0 or 2). Default
+
+
 
 Version 2.03
 =================

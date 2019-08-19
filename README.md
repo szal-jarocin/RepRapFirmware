@@ -12,7 +12,7 @@ The CPUs targeted in this port only have 64K RAM which is less than those that r
 * External interrupts (i.e., fan rpm etc) are limited to 3.
 * Hardware Timers may be used generate 3 PWM frequencies used by RepRapFirmware: 10Hz, 50Hz and 250Hz by default, to provide PWM to non-PWM pins or support multiple PWM frequencies to run at the same time. This is in addition to the Hardware PWM which is configured to generally run at 250Hz.
 * Reduced number of networking buffers and reduced MTU to save memory.
-* Only 1 HTTP session at a time.
+* Only 2 HTTP Sockets and Responders. Only 1 HTTP session at a time.
 * Disabled Ftp and Telnet interfaces
 * Configuration:
   * GCode [M350](https://duet3d.dozuki.com/Wiki/Gcode#Section_M350_Set_microstepping_mode) - Microstepping for boards included in this port is done via hardware and thus M350 is not required. You may include it in your config.g if you like, but the command has no effect on the operation of the firmware.
@@ -21,7 +21,7 @@ The CPUs targeted in this port only have 64K RAM which is less than those that r
     * Maximum number of probe points of 121; and
     * Delta maximum calibration points of 16
   * To support the number of different boards, a /sys/board.txt config file on the SDCard is used to configure the hardware pin assignments. Some example board config files [can be found here](https://github.com/sdavi/RepRapFirmware/tree/v2-dev-lpc/EdgeRelease/ExampleBoardConfig)
-
+    * M122 P200 command is used to print the mappings have been loaded by board.txt  and displays all options supported by board.txt
 
 **The LPC port is experimental and is likely to contain bugs - Use at your own risk**
 

@@ -9,6 +9,7 @@
 #include "FreeRTOS_IP.h"
 #include "FreeRTOS_Sockets.h"
 #include "FreeRTOS_DHCP.h"
+#include "FreeRTOS_DNS.h"
 
 class NetworkResponder;
 class HttpResponder;
@@ -116,11 +117,14 @@ private:
     void ProcessIPApplication( eIPCallbackEvent_t eNetworkEvent );
     eDHCPCallbackAnswer_t ProcessDHCPHook( eDHCPCallbackPhase_t eDHCPPhase, uint32_t ulIPAddress );
     const char *ProcessApplicationHostnameHook();
+    BaseType_t ProcessDNSQueryHook(const char *pcName);
     
     friend void vApplicationIPNetworkEventHook( eIPCallbackEvent_t eNetworkEvent );
     friend eDHCPCallbackAnswer_t xApplicationDHCPHook( eDHCPCallbackPhase_t eDHCPPhase, uint32_t ulIPAddress );
     friend const char *pcApplicationHostnameHook( void );
+    friend BaseType_t xApplicationDNSQueryHook( const char *pcName );
     
+
     
 	NetworkState state;
 	bool activated;
