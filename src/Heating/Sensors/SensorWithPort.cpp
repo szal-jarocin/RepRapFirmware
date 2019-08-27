@@ -18,6 +18,12 @@ SensorWithPort::~SensorWithPort()
 	port.Release();
 }
 
+void SensorWithPort::FlagForDeletion()
+{
+	port.Release();
+	TemperatureSensor::FlagForDeletion();
+}
+
 // Try to configure the port. Return true if the port is valid at the end, else return false and set the error message in 'reply'. Set 'seen' if we saw the P parameter.
 bool SensorWithPort::ConfigurePort(GCodeBuffer& gb, const StringRef& reply, PinAccess access, bool& seen)
 {
@@ -44,7 +50,7 @@ void SensorWithPort::CopyBasicDetails(const StringRef& reply) const
 	}
 	reply.catf(" type %s using pin ", GetSensorType());
 	port.AppendPinName(reply);
-	reply.catf(", last error: %s", TemperatureErrorString(GetLastError()));
+	reply.catf(", reading %.1f, last error: %s", (double)GetStoredReading(), TemperatureErrorString(GetLastError()));
 }
 
 // End

@@ -9,14 +9,21 @@
 
 #if SUPPORT_CAN_EXPANSION
 
+#include "RepRap.h"
+#include "Heat.h"
 #include "CAN/CanMessageGenericConstructor.h"
+#include "CAN/CanInterface.h"
+#include <CanMessageFormats.h>
+#include <CanMessageBuffer.h>
 
 void RemoteHeater::Spin()
 {
+	// Nothing needed here unless we want to copy the sensor temperature across. For now we don't store the temperature locally.
 }
 
 void RemoteHeater::ResetHeater()
 {
+	//TODO
 }
 
 GCodeResult RemoteHeater::ConfigurePortAndSensor(GCodeBuffer& gb, const StringRef& reply)
@@ -37,38 +44,46 @@ void RemoteHeater::ReleasePort()
 
 void RemoteHeater::SwitchOff()
 {
+	//TODO
 }
 
 void RemoteHeater::ResetFault()
 {
+	//TODO
 }
 
 float RemoteHeater::GetTemperature() const
 {
-	return 0.0;
+	TemperatureError err;
+	return reprap.GetHeat().GetSensorTemperature(GetSensorNumber(), err);
 }
 
 float RemoteHeater::GetAveragePWM() const
 {
+	//TODO
 	return 0.0;		// not yet supported
 }
 
 // Return the integral accumulator
 float RemoteHeater::GetAccumulator() const
 {
+	//TODO
 	return 0.0;		// not yet supported
 }
 
 void RemoteHeater::StartAutoTune(float targetTemp, float maxPwm, const StringRef& reply)
 {
+	//TODO
 }
 
 void RemoteHeater::GetAutoTuneStatus(const StringRef& reply) const
 {
+	//TODO
 }
 
 void RemoteHeater::Suspend(bool sus)
 {
+	//TODO
 }
 
 Heater::HeaterMode RemoteHeater::GetMode() const
@@ -78,13 +93,25 @@ Heater::HeaterMode RemoteHeater::GetMode() const
 
 void RemoteHeater::SwitchOn()
 {
+	if (!GetModel().IsEnabled())
+	{
+		SetModelDefaults();
+	}
+	//TODO
 }
 
-// This is called when the heater model has been updated. Returns true if successful.
+// This is called when the heater model has been updated
 GCodeResult RemoteHeater::UpdateModel(const StringRef& reply)
 {
-	//TODO send UpdateModel message
-	reply.copy("UpdateModel not implemented yet");
+	CanMessageBuffer *buf = CanMessageBuffer::Allocate();
+	if (buf != nullptr)
+	{
+		CanMessageUpdateHeaterModel * const msg = buf->SetupRequestMessage<CanMessageUpdateHeaterModel>(CanInterface::GetCanAddress(), boardAddress);
+		model.SetupCanMessage(GetHeaterNumber(), *msg);
+		return CanInterface::SendRequestAndGetStandardReply(buf, reply);
+	}
+
+	reply.copy("No CAN buffer available");
 	return GCodeResult::error;
 }
 

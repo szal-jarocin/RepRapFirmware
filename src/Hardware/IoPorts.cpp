@@ -178,7 +178,7 @@ bool IoPort::Allocate(const char *pn, const StringRef& reply, PinUsedBy neededFo
 
 	const char *const fullPinName = pn;			// the full pin name less the inversion and pullup flags
 
-#if defined(DUET3_V03) || defined(DUET3_V05)
+#if defined(DUET3_V03) || defined(DUET3_V05) || defined(DUET3_V06)
 	uint32_t expansionNumber;
 	if (isdigit(*pn))
 	{
@@ -244,6 +244,11 @@ bool IoPort::Allocate(const char *pn, const StringRef& reply, PinUsedBy neededFo
 // Set the specified pin mode returning true if successful
 bool IoPort::SetMode(PinAccess access)
 {
+	if (!IsValid())
+	{
+		return false;
+	}
+
 	// Check that the pin mode has been defined suitably
 	PinMode desiredMode;
 	switch (access)
@@ -277,8 +282,8 @@ bool IoPort::SetMode(PinAccess access)
 		{
 			if (access == PinAccess::readAnalog)
 			{
-				IoPort::SetPinMode(PinTable[logicalPin].pin, AIN);				// SAME70 errata says we must disable the pullup resistor before enabling the AFEC channel
-				AnalogInEnableChannel(chan, access == PinAccess::readAnalog);
+				IoPort::SetPinMode(PinTable[logicalPin].pin, AIN);		// SAME70 errata says we must disable the pullup resistor before enabling the AFEC channel
+				AnalogInEnableChannel(chan, true);
 				analogChannel = chan;
 				logicalPinModes[logicalPin] = (int8_t)desiredMode;
 				return true;
@@ -468,12 +473,12 @@ uint16_t IoPort::ReadAnalog() const
 		boardAddress = (boardAddress * 10) + (portName[numToSkip] - '0');
 		++numToSkip;
 	}
-	if (numToSkip != prefix && portName[numToSkip] == '.' && boardAddress <= CanId::MaxCanAddress)
+	if (numToSkip != prefix && portName[numToSkip] == '.' && boardAddress <= CanId::MaxNormalAddress)
 	{
 		portName.Erase(prefix, numToSkip - prefix + 1);			// remove the board address prefix
 		return (CanAddress)boardAddress;
 	}
-	return 0;
+	return CanId::MasterAddress;
 }
 
 #endif

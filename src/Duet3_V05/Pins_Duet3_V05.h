@@ -2,7 +2,7 @@
 #define PINS_SAME70_H__
 
 #define FIRMWARE_NAME		"RepRapFirmware for Duet 3 v0.5"
-#define DEFAULT_BOARD_TYPE BoardType::Duet3_05
+#define DEFAULT_BOARD_TYPE	BoardType::Duet3_05
 const size_t NumFirmwareUpdateModules = 1;
 #define IAP_FIRMWARE_FILE	"Duet3Firmware.bin"
 #define IAP_UPDATE_FILE		"iapduet3.bin"
@@ -33,6 +33,7 @@ const size_t NumFirmwareUpdateModules = 1;
 #define SUPPORT_FTP				0					// no point in supporting FTP because we have no mass storage
 #define SUPPORT_TELNET			1
 #define SUPPORT_ASYNC_MOVES		1
+#define ALLOCATE_DEFAULT_PORTS	0
 
 #define USE_CACHE				0					// Cache controller disabled for now
 
@@ -43,6 +44,10 @@ const size_t NumFirmwareUpdateModules = 1;
 constexpr size_t NumDirectDrivers = 6;				// The maximum number of drives supported by the electronics inc. direct expansion
 constexpr size_t MaxSmartDrivers = 6;				// The maximum number of direct smart drivers
 constexpr size_t MaxCanDrivers = 18;
+constexpr float MaxTmc5160Current = 3200.0;			// The maximum current we allow the TMC5160/5161 drivers to be set to
+
+constexpr size_t MaxSensorsInSystem = 64;
+typedef uint64_t SensorsBitmap;
 
 constexpr size_t MaxHeaters = 12;
 constexpr size_t NumExtraHeaterProtections = 8;		// The number of extra heater protection instances
@@ -233,10 +238,6 @@ constexpr unsigned int NumNamedPins = ARRAY_SIZE(PinTable);
 
 // Function to look up a pin name pass back the corresponding index into the pin table
 bool LookupPinName(const char *pn, LogicalPin& lpin, bool& hardwareInverted);
-
-// Default pin allocations
-constexpr const char *DefaultEndstopPinNames[] = { "nil" };
-constexpr const char *DefaultZProbePinNames = "^io8.in+io8.out";
 
 // SAME70 Flash locations
 // These are designed to work with 1Mbyte flash processors as well as 2Mbyte

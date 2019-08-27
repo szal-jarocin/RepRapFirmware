@@ -9,21 +9,26 @@
 #define SRC_CAN_CANINTERFACE_H_
 
 #include "RepRapFirmware.h"
+#include "GCodes/GCodeResult.h"
 
 #if SUPPORT_CAN_EXPANSION
 
+#include <CanId.h>
+
+class CanMessageBuffer;
 class DDA;
 class DriveMovement;
 struct PrepParams;
 
 namespace CanInterface
 {
+	static constexpr uint32_t CanResponseTimeout = 300;
+
 	void Init();
-	void StartMovement(const DDA& dda);
-	void AddMovement(const DDA& dda, const PrepParams& params, DriverId canDriver, int32_t steps);
-	void FinishMovement(uint32_t moveStartTime);
-	bool CanPrepareMove();
-	void InsertHiccup(uint32_t numClocks);
+	CanAddress GetCanAddress();
+	void SendMotion(CanMessageBuffer *buf);
+	GCodeResult SendRequestAndGetStandardReply(CanMessageBuffer *buf, const StringRef& reply);
+	void SendResponse(CanMessageBuffer *buf);
 }
 
 #endif

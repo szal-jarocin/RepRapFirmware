@@ -19,10 +19,10 @@ public:
 
 	GCodeResult Configure(GCodeBuffer& gb, const StringRef& reply) override;
 	CanAddress GetBoardAddress() const override { return boardAddress; }
+	void UpdateRemoteTemperature(const CanTemperatureReport& report) override;
 
-protected:
 	// Try to get a temperature reading
-	TemperatureError TryGetTemperature(float& t) override;
+	void Poll() override { }				// nothing to do here because reception of CAN messages update the reading
 
 private:
 	CanAddress boardAddress;

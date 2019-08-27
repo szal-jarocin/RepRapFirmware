@@ -1130,7 +1130,7 @@ OutputBuffer *RepRap::GetStatusResponse(uint8_t type, ResponseSource source)
 				response->cat("{\"name\":");
 				response->EncodeString(nm, false, true);
 				float temp;
-				(void)sensor->GetTemperature(temp);
+				(void)sensor->GetLatestTemperature(temp);
 				response->catf(",\"temp\":%.1f}", (double)temp);
 			}
 			nextSensorNumber = sensor->GetSensorNumber() + 1;
@@ -1386,6 +1386,15 @@ OutputBuffer *RepRap::GetStatusResponse(uint8_t type, ResponseSource source)
 			float minV, currV, maxV;
 			platform->GetPowerVoltages(minV, currV, maxV);
 			response->catf(",\"vin\":{\"min\":%.1f,\"cur\":%.1f,\"max\":%.1f}", (double)minV, (double)currV, (double)maxV);
+		}
+#endif
+
+#if HAS_12V_MONITOR
+		// Power in voltages
+		{
+			float minV, currV, maxV;
+			platform->GetV12Voltages(minV, currV, maxV);
+			response->catf(",\"v12\":{\"min\":%.1f,\"cur\":%.1f,\"max\":%.1f}", (double)minV, (double)currV, (double)maxV);
 		}
 #endif
 	}

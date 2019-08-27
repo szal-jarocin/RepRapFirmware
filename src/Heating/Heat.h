@@ -34,6 +34,7 @@ Licence: GPL
 class TemperatureSensor;
 class HeaterProtection;
 class GCodeBuffer;
+struct CanTemperatureReport;
 
 class Heat
 {
@@ -90,7 +91,7 @@ public:
 	void Diagnostics(MessageType mtype);						// Output useful information
 
 	// Methods that relate to a particular heater
-	const char *GetHeaterSensorName(size_t heater) const;		// Get the name of the sensor associated with heater, or nullptr if it hasn't been named
+	const char *GetHeaterSensorName(size_t heater) const;				// Get the name of the sensor associated with heater, or nullptr if it hasn't been named
 	float GetAveragePWM(size_t heater) const					// Return the running average PWM to the heater as a fraction in [0, 1].
 	pre(heater < MaxHeaters);
 
@@ -125,20 +126,24 @@ public:
 	void Standby(int heater, const Tool* tool);					// Set a heater to standby
 	void SwitchOff(int heater);									// Turn off a specific heater
 
+	bool NewSensorsPending() const { return newSensors != nullptr; }
+
 #if HAS_MASS_STORAGE
 	bool WriteModelParameters(FileStore *f) const;				// Write heater model parameters to file returning true if no error
 	bool WriteBedAndChamberTempSettings(FileStore *f) const;	// Save some resume information
 #endif
 
+#if SUPPORT_CAN_EXPANSION
+	void UpdateRemoteSensorTemperature(unsigned int sensor, const CanTemperatureReport& report);
+#endif
+
 private:
 	Heat(const Heat&) = delete;									// Private copy constructor to prevent copying
 
-	Heater * FindHeater(int heater) const;
+	Heater *FindHeater(int heater) const;
 
-	void RemoveSensor(unsigned int sensorNum);
-	void InsertSensor(TemperatureSensor *sensor);
-
-	TemperatureSensor *sensorsRoot;								// The sensor list
+	TemperatureSensor * volatile sensorsRoot;					// The sensor list
+	TemperatureSensor * volatile newSensors;					// Sensors recently created
 	HeaterProtection *heaterProtections[MaxHeaters + NumExtraHeaterProtections];	// Heater protection instances to guarantee legal heater temperature ranges
 
 	Heater* heaters[MaxHeaters];								// A local or remote heater

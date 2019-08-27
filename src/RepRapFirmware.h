@@ -94,23 +94,23 @@ struct DriverId
 	{
 		localDriver = val & 0x000000FF;
 		const uint32_t brdNum = val >> 16;
-		boardAddress = (brdNum <= CanId::MaxCanAddress) ? (CanAddress)brdNum : CanId::NoCanAddress;
+		boardAddress = (brdNum <= CanId::MaxNormalAddress) ? (CanAddress)brdNum : CanId::NoAddress;
 	}
 
 	void SetLocal(unsigned int driver)
 	{
 		localDriver = (uint8_t)driver;
-		boardAddress = 0;
+		boardAddress = CanId::MasterAddress;
 	}
 
 	void Clear()
 	{
 		localDriver = 0;
-		boardAddress = CanId::NoCanAddress;
+		boardAddress = CanId::NoAddress;
 	}
 
-	bool IsLocal() const { return boardAddress == 0; }
-	bool IsRemote() const { return boardAddress != 0; }
+	bool IsLocal() const { return boardAddress == CanId::MasterAddress; }
+	bool IsRemote() const { return boardAddress != CanId::MasterAddress; }
 #else
 	void SetFromBinary(uint32_t val)
 	{
@@ -411,8 +411,8 @@ namespace TaskPriority
 const uint32_t NvicPriorityWatchdog = 0;		// the secondary watchdog has the highest priority
 const uint32_t NvicPriorityPanelDueUart = 1;	// UART is highest to avoid character loss (it has only a 1-character receive buffer)
 const uint32_t NvicPriorityWiFiUart = 2;		// UART used to receive debug data from the WiFi module
-const uint32_t NvicPriorityMCan = 2;			// CAN interface
 
+const uint32_t NvicPriorityMCan = 3;			// CAN interface
 const uint32_t NvicPriorityPins = 3;			// priority for GPIO pin interrupts - filament sensors must be higher than step
 const uint32_t NvicPriorityStep = 4;			// step interrupt is next highest, it can preempt most other interrupts
 const uint32_t NvicPriorityUSB = 5;				// USB interrupt

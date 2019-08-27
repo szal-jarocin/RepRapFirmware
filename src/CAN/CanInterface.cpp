@@ -9,108 +9,480 @@
 
 #if SUPPORT_CAN_EXPANSION
 
-#include "CanMessageBuffer.h"
-#include "CanSender.h"
+#include "CanMotion.h"
+#include "CommandProcessor.h"
+#include <CanMessageBuffer.h>
 #include "Movement/DDA.h"
 #include "Movement/DriveMovement.h"
+#include "Movement/StepTimer.h"
+#include <RTOSIface/RTOSIface.h>
+
+extern "C"
+{
+	#include "mcan/mcan.h"
+	#include "pmc/pmc.h"
+}
 
 const unsigned int NumCanBuffers = 40;
-const unsigned int DriversPerCanBoard = 3;	// TEMPORARY until we do this dynamically!
 
-const size_t NumCanBoards = (MaxCanDrivers + DriversPerCanBoard - 1)/DriversPerCanBoard;
+constexpr uint32_t MaxMotionSendWait = 20;		// milliseconds
+constexpr uint32_t MaxTimeSyncSendWait = 20;	// milliseconds
+constexpr uint32_t MaxResponseSendWait = 50;	// milliseconds
+constexpr uint32_t MaxRequestSendWait = 50;		// milliseconds
 
-static CanMessageBuffer *movementBuffers[NumCanBoards];
+#define USE_BIT_RATE_SWITCH		0
 
-// The following function is referenced by CanMessageBuffer in the CAN library
-CanAddress GetCanAddress()
+//#define CAN_DEBUG
+
+#ifdef USE_CAN0
+
+Mcan* const MCAN_MODULE = MCAN0;
+constexpr IRQn MCanIRQn = MCAN0_INT0_IRQn;
+#define MCAN_INT0_Handler	MCAN0_INT0_Handler
+
+#else
+
+Mcan* const MCAN_MODULE = MCAN1;
+constexpr IRQn MCanIRQn = MCAN1_INT0_IRQn;
+#define MCAN_INT0_Handler	MCAN1_INT0_Handler
+
+#endif
+
+static mcan_module mcan_instance;
+
+static volatile uint32_t canStatus = 0;
+
+enum class CanStatusBits : uint32_t
 {
-	return 0;				// the main board is always address 0
+	receivedStandardFDMessage = 1,
+	receivedExtendedFDMessage = 2,
+	receivedStandardFDMessageInFIFO = 4,
+	receivedStandardNormalMessageInFIFO0 = 8,
+	receivedStandardFDMessageInFIFO0 = 16,
+	receivedExtendedFDMessageInFIFO1 = 32,
+	acknowledgeError = 0x10000,
+	formatError = 0x20000,
+	busOff = 0x40000
+};
+
+#ifdef CAN_DEBUG
+static uint32_t GetAndClearStatusBits()
+{
+	const uint32_t st = canStatus;
+	canStatus = 0;
+	return st;
 }
+#endif
+
+/* mcan_transfer_message_setting */
+constexpr uint32_t TxBufferIndexEmergency = 0;
+constexpr uint32_t TxBufferIndexTimeSync = 1;
+// We should probably use a FIFO or a queue for the remainder, but for now each has its own message buffer
+constexpr uint32_t TxBufferIndexMotion = 2;
+constexpr uint32_t TxBufferIndexRequest = 3;
+constexpr uint32_t TxBufferIndexResponse = 4;
+
+/* mcan_receive_message_setting */
+constexpr uint32_t RxFifoIndexBroadcast = 0;
+constexpr uint32_t RxFifoIndexRequest = 0;
+constexpr uint32_t RxFifoIndexResponse = 1;
+
+constexpr uint32_t CanClockIntervalMillis = 10000; //20;
+
+// CanSender management task
+constexpr size_t CanSenderTaskStackWords = 400;
+static Task<CanSenderTaskStackWords> canSenderTask;
+
+constexpr size_t CanReceiverTaskStackWords = 1000;
+static Task<CanReceiverTaskStackWords> canReceiverTask;
+
+constexpr size_t CanClockTaskStackWords = 300;
+static Task<CanSenderTaskStackWords> canClockTask;
+
+static CanMessageBuffer * volatile pendingBuffers;
+static CanMessageBuffer * volatile lastBuffer;			// only valid when pendingBuffers != nullptr
+
+static TaskHandle taskWaitingOnFifo0 = nullptr;
+static TaskHandle taskWaitingOnFifo1 = nullptr;
+
+// MCAN module initialization.
+static void configure_mcan()
+{
+	// Initialise the CAN hardware
+	mcan_config config_mcan;
+	mcan_get_config_defaults(&config_mcan);
+	mcan_init(&mcan_instance, MCAN_MODULE, &config_mcan);
+	mcan_enable_fd_mode(&mcan_instance);
+
+	mcan_extended_message_filter_element et_filter;
+
+	// Set up a filter to receive all request messages addressed to us in FIFO 0
+	mcan_get_extended_message_filter_element_default(&et_filter);
+	et_filter.F0.bit.EFID1 = (CanId::MasterAddress << CanId::DstAddressShift);
+	et_filter.F0.bit.EFEC = MCAN_EXTENDED_MESSAGE_FILTER_ELEMENT_F0_EFEC_STF0M_Val;		// RxFifoIndexRequest
+	et_filter.F1.bit.EFID2 = (CanId::BoardAddressMask << CanId::DstAddressShift) | CanId::ResponseBit;
+	et_filter.F1.bit.EFT = 2;
+	mcan_set_rx_extended_filter(&mcan_instance, &et_filter, 0);
+
+	// Set up a filter to receive all broadcast messages also in FIFO 0 (does this include broadcasts that we send?)
+	mcan_get_extended_message_filter_element_default(&et_filter);
+	et_filter.F0.bit.EFID1 = CanId::BroadcastAddress << CanId::DstAddressShift;
+	et_filter.F0.bit.EFEC = MCAN_EXTENDED_MESSAGE_FILTER_ELEMENT_F0_EFEC_STF0M_Val;		// RxFifoIndexBroadcast
+	et_filter.F1.bit.EFID2 = (CanId::BoardAddressMask << CanId::DstAddressShift);
+	et_filter.F1.bit.EFT = 2;
+	mcan_set_rx_extended_filter(&mcan_instance, &et_filter, 1);
+
+	// Set up a filter to receive response messages in FIFO 1
+	mcan_get_extended_message_filter_element_default(&et_filter);
+	et_filter.F0.bit.EFID1 = (CanId::MasterAddress << CanId::DstAddressShift) | CanId::ResponseBit;
+	et_filter.F0.bit.EFEC = MCAN_EXTENDED_MESSAGE_FILTER_ELEMENT_F0_EFEC_STF1M_Val;		// RxFifoIndexResponse
+	et_filter.F1.bit.EFID2 = (CanId::BoardAddressMask << CanId::DstAddressShift) | CanId::ResponseBit;
+	et_filter.F1.bit.EFT = 2;
+	mcan_set_rx_extended_filter(&mcan_instance, &et_filter, 2);
+
+	mcan_enable_interrupt(&mcan_instance, (mcan_interrupt_source)(MCAN_FORMAT_ERROR | MCAN_ACKNOWLEDGE_ERROR | MCAN_BUS_OFF | MCAN_RX_FIFO_0_NEW_MESSAGE | MCAN_RX_FIFO_1_NEW_MESSAGE));
+	NVIC_ClearPendingIRQ(MCanIRQn);
+	NVIC_SetPriority(MCanIRQn, NvicPriorityMCan);
+	NVIC_EnableIRQ(MCanIRQn);
+
+	mcan_start(&mcan_instance);
+}
+
+extern "C" void CanSenderLoop(void *);
+extern "C" void CanClockLoop(void *);
+extern "C" void CanReceiverLoop(void *);
 
 void CanInterface::Init()
 {
 	CanMessageBuffer::Init(NumCanBuffers);
-	CanSender::Init();
-	for (size_t i = 0; i < NumCanBoards; ++i)
-	{
-		movementBuffers[i] = nullptr;
-	}
+	pendingBuffers = nullptr;
+
+#ifdef USE_CAN0
+	ConfigurePin(APIN_CAN0_TX);
+	ConfigurePin(APIN_CAN0_RX);
+#else
+	ConfigurePin(APIN_CAN1_TX);
+	ConfigurePin(APIN_CAN1_RX);
+#endif
+	pmc_enable_upll_clock();			// configure_mcan sets up PCLK5 to be the UPLL divided by something, so make sure the UPLL is running
+	configure_mcan();
+
+	CanMotion::Init();
+
+	// Create the task that sends CAN messages
+	canClockTask.Create(CanClockLoop, "CanClock", nullptr, TaskPriority::CanClockPriority);
+	canSenderTask.Create(CanSenderLoop, "CanSender", nullptr, TaskPriority::CanSenderPriority);
+	canReceiverTask.Create(CanReceiverLoop, "CanReceiver", nullptr, TaskPriority::CanReceiverPriority);
 }
 
-// This is called by DDA::Prepare at the start of preparing a movement
-void CanInterface::StartMovement(const DDA& dda)
+CanAddress CanInterface::GetCanAddress()
 {
-	for (CanMessageBuffer*& mb : movementBuffers)
-	{
-		CanMessageBuffer::Free(mb);
-	}
+	return CanId::MasterAddress;
 }
 
-// This is called by DDA::Prepare for each active CAN DM in the move
-// If steps == 0 then the drivers just need to be enabled
-void CanInterface::AddMovement(const DDA& dda, const PrepParams& params, DriverId canDriver, int32_t steps)
+// Wait for a specified buffer to become free. If it's still not free after the timeout, cancel the pending transmission.
+static void WaitForTxBufferFree(uint32_t whichTxBuffer, uint32_t maxWait)
 {
-	const size_t expansionBoardNumber = canDriver.boardAddress;
-	CanMessageBuffer*& buf = movementBuffers[expansionBoardNumber - 1];
-	if (buf == nullptr)
+	const uint32_t trigMask = (uint32_t)1 << whichTxBuffer;
+	if ((mcan_instance.hw->MCAN_TXBRP & trigMask) != 0)
 	{
-		buf = CanMessageBuffer::Allocate();
-		if (buf == nullptr)
+		// Wait for the timeout period for the message to be sent
+		const uint32_t startTime = millis();
+		do
 		{
-			return;		//TODO error handling
-		}
+			delay(1);
+			if ((mcan_instance.hw->MCAN_TXBRP & trigMask) == 0)
+			{
+				return;
+			}
+		} while (millis() - startTime < maxWait);
 
-		auto move = buf->SetupRequestMessage<CanMessageMovement>(expansionBoardNumber);
-
-		// Common parameters
-		move->accelerationClocks = lrintf(params.accelTime * StepTimer::StepClockRate);
-		move->steadyClocks = lrintf(params.steadyTime * StepTimer::StepClockRate);
-		move->decelClocks = lrintf(params.decelTime * StepTimer::StepClockRate);
-		move->initialSpeedFraction = params.initialSpeedFraction;
-		move->finalSpeedFraction = params.finalSpeedFraction;
-		move->deltaDrives = 0;								//TODO
-		move->endStopsToCheck = 0;							//TODO
-		move->pressureAdvanceDrives = 0;					//TODO
-		move->stopAllDrivesOnEndstopHit = false;			//TODO
-		// Additional parameters for delta movements
-		move->initialX = params.initialX;
-		move->finalX = params.finalX;
-		move->initialY = params.initialY;
-		move->finalY = params.finalY;
-		move->zMovement = params.zMovement;
-
-		// Clear out the per-drive fields
-		for (size_t drive = 0; drive < DriversPerCanBoard; ++drive)
+		// The last message still hasn't been sent, so cancel it
+		mcan_instance.hw->MCAN_TXBCR = trigMask;
+		while ((mcan_instance.hw->MCAN_TXBRP & trigMask) != 0)
 		{
-			move->perDrive[drive].steps = 0;
+			delay(1);
 		}
 	}
-
-	buf->msg.move.perDrive[canDriver.localDriver].steps = steps;
 }
 
-// This is called by DDA::Prepare when all DMs for CAN drives have been processed
-void CanInterface::FinishMovement(uint32_t moveStartTime)
+// Send extended CAN message in fd mode. The Tx buffer must alrrady be free.
+static status_code mcan_fd_send_ext_message_no_wait(uint32_t id_value, const uint8_t *data, size_t dataLength, uint32_t whichTxBuffer)
 {
-	for (CanMessageBuffer*& buf : movementBuffers)
+	const uint32_t dlc = (dataLength <= 8) ? dataLength
+							: (dataLength <= 24) ? ((dataLength + 3) >> 2) + 6
+								: ((dataLength + 15) >> 4) + 11;
+	mcan_tx_element tx_element;
+	tx_element.T0.reg = MCAN_TX_ELEMENT_T0_EXTENDED_ID(id_value) | MCAN_TX_ELEMENT_T0_XTD;
+	tx_element.T1.reg = MCAN_TX_ELEMENT_T1_DLC(dlc)
+						| MCAN_TX_ELEMENT_T1_EFC
+#if USE_BIT_RATE_SWITCH
+						| MCAN_TX_ELEMENT_T1_BRS
+#endif
+						| MCAN_TX_ELEMENT_T1_FDF;
+
+	memcpy(tx_element.data, data, dataLength);
+
+	status_code rc = mcan_set_tx_buffer_element(&mcan_instance, &tx_element, whichTxBuffer);
+	if (rc == STATUS_OK)
 	{
+		rc = mcan_tx_transfer_request(&mcan_instance, (uint32_t)1 << whichTxBuffer);
+	}
+	return rc;
+}
+
+// Send extended CAN message in fd mode
+static status_code mcan_fd_send_ext_message(uint32_t id_value, const uint8_t *data, size_t dataLength, uint32_t whichTxBuffer, uint32_t maxWait)
+{
+	WaitForTxBufferFree(whichTxBuffer, maxWait);
+	return mcan_fd_send_ext_message_no_wait(id_value, data, dataLength, whichTxBuffer);
+}
+
+// Interrupt handler for MCAN, including RX,TX,ERROR and so on processes
+void MCAN_INT0_Handler(void)
+{
+	const uint32_t status = mcan_read_interrupt_status(&mcan_instance);
+
+	if (status & MCAN_RX_BUFFER_NEW_MESSAGE)
+	{
+#if 1
+		// We don't enable this interrupt, so it should never happen
+		mcan_clear_interrupt_status(&mcan_instance, MCAN_RX_BUFFER_NEW_MESSAGE);
+#else
+		mcan_clear_interrupt_status(&mcan_instance, MCAN_RX_BUFFER_NEW_MESSAGE);
+		for (unsigned int i = 0; i < CONF_MCAN1_RX_BUFFER_NUM; i++)
+		{
+			if (mcan_rx_get_buffer_status(&mcan_instance, i))
+			{
+				const uint32_t rx_buffer_index = i;
+				mcan_rx_clear_buffer_status(&mcan_instance, i);
+				mcan_get_rx_buffer_element(&mcan_instance, &rx_element_buffer, rx_buffer_index);
+				if (rx_element_buffer.R0.bit.XTD)
+				{
+					canStatus |= (uint32_t)CanStatusBits::receivedExtendedFDMessage;
+				}
+				else
+				{
+					canStatus |= (uint32_t)CanStatusBits::receivedStandardFDMessage;
+				}
+			}
+		}
+#endif
+	}
+
+	if (status & MCAN_RX_FIFO_0_NEW_MESSAGE)
+	{
+		mcan_clear_interrupt_status(&mcan_instance, MCAN_RX_FIFO_0_NEW_MESSAGE);
+		if (taskWaitingOnFifo0 != nullptr)
+		{
+			TaskBase::GiveFromISR(taskWaitingOnFifo0);
+		}
+	}
+
+	if (status & MCAN_RX_FIFO_1_NEW_MESSAGE)
+	{
+		mcan_clear_interrupt_status(&mcan_instance, MCAN_RX_FIFO_1_NEW_MESSAGE);
+		if (taskWaitingOnFifo1 != nullptr)
+		{
+			TaskBase::GiveFromISR(taskWaitingOnFifo1);
+		}
+	}
+
+	if ((status & MCAN_ACKNOWLEDGE_ERROR))
+	{
+		mcan_clear_interrupt_status(&mcan_instance, (mcan_interrupt_source)(MCAN_ACKNOWLEDGE_ERROR));
+		canStatus |= (uint32_t)CanStatusBits::acknowledgeError;
+	}
+
+	if ((status & MCAN_FORMAT_ERROR))
+	{
+		mcan_clear_interrupt_status(&mcan_instance, (mcan_interrupt_source)(MCAN_FORMAT_ERROR));
+		canStatus |= (uint32_t)CanStatusBits::formatError;
+	}
+
+	if (status & MCAN_BUS_OFF)
+	{
+		mcan_clear_interrupt_status(&mcan_instance, MCAN_BUS_OFF);
+		mcan_stop(&mcan_instance);
+		canStatus |= (uint32_t)CanStatusBits::busOff;
+		configure_mcan();
+	}
+}
+
+// -------------------- End of code adapted from Atmel quick start example ----------------------------------
+
+static_assert(CONF_MCAN_ELEMENT_DATA_SIZE == sizeof(CanMessage), "Mismatched message sizes");
+
+//TODO can we get rid of the CanSender task if we send movement messages via the Tx FIFO?
+// This task picks up motion messages and sends them
+extern "C" void CanSenderLoop(void *)
+{
+	for (;;)
+	{
+		TaskBase::Take(Mutex::TimeoutUnlimited);
+		while (pendingBuffers != nullptr)
+		{
+			CanMessageBuffer *buf;
+			{
+				TaskCriticalSectionLocker lock;
+				buf = pendingBuffers;
+				pendingBuffers = buf->next;
+			}
+
+			// Send the message
+			mcan_fd_send_ext_message(buf->id.GetWholeId(), reinterpret_cast<uint8_t*>(&(buf->msg)), buf->dataLength, TxBufferIndexMotion, MaxMotionSendWait);
+
+#ifdef CAN_DEBUG
+			// Display a debug message too
+			debugPrintf("CCCR %08" PRIx32 ", PSR %08" PRIx32 ", ECR %08" PRIx32 ", TXBRP %08" PRIx32 ", TXBTO %08" PRIx32 ", st %08" PRIx32 "\n",
+						MCAN1->MCAN_CCCR, MCAN1->MCAN_PSR, MCAN1->MCAN_ECR, MCAN1->MCAN_TXBRP, MCAN1->MCAN_TXBTO, GetAndClearStatusBits());
+			buf->msg.DebugPrint();
+			delay(50);
+			debugPrintf("CCCR %08" PRIx32 ", PSR %08" PRIx32 ", ECR %08" PRIx32 ", TXBRP %08" PRIx32 ", TXBTO %08" PRIx32 ", st %08" PRIx32 "\n",
+						MCAN1->MCAN_CCCR, MCAN1->MCAN_PSR, MCAN1->MCAN_ECR, MCAN1->MCAN_TXBRP, MCAN1->MCAN_TXBTO, GetAndClearStatusBits());
+#else
+			delay(2);		// until we have the transmit fifo working, we need to delay to allow the message to be sent
+#endif
+			// Free the message buffer.
+			CanMessageBuffer::Free(buf);
+		}
+	}
+}
+
+extern "C" void CanClockLoop(void *)
+{
+	uint32_t lastWakeTime = xTaskGetTickCount();
+
+	for (;;)
+	{
+		CanMessageBuffer * buf = CanMessageBuffer::Allocate();
 		if (buf != nullptr)
 		{
-			buf->msg.move.whenToExecute = moveStartTime;
-			CanSender::Send(buf);					// queues the buffer for sending and frees it when done
-			buf = nullptr;
+			CanMessageTimeSync * const msg = buf->SetupBroadcastMessage<CanMessageTimeSync>(CanId::MasterAddress);
+			WaitForTxBufferFree(TxBufferIndexTimeSync, MaxTimeSyncSendWait);			// make sure we can send immediately
+			msg->timeSent = StepTimer::GetInterruptClocks();
+			mcan_fd_send_ext_message_no_wait(buf->id.GetWholeId(), reinterpret_cast<uint8_t*>(&(buf->msg)), buf->dataLength, TxBufferIndexTimeSync);
+			CanMessageBuffer::Free(buf);
 		}
+		// Delay until it is time again
+		vTaskDelayUntil(&lastWakeTime, CanClockIntervalMillis);
 	}
 }
 
-bool CanInterface::CanPrepareMove()
+// Add a buffer to the end of the send queue
+void CanInterface::SendMotion(CanMessageBuffer *buf)
 {
-	return CanMessageBuffer::FreeBuffers() >= NumCanBoards;
+	buf->next = nullptr;
+	TaskCriticalSectionLocker lock;
+
+	if (pendingBuffers == nullptr)
+	{
+		pendingBuffers = buf;
+	}
+	else
+	{
+		lastBuffer->next = buf;
+	}
+	lastBuffer = buf;
+	canSenderTask.Give();
 }
 
-void CanInterface::InsertHiccup(uint32_t numClocks)
+// Send a request to an expansion board
+GCodeResult CanInterface::SendRequestAndGetStandardReply(CanMessageBuffer *buf, const StringRef& reply)
 {
-	//TODO
+	taskWaitingOnFifo1 = TaskBase::GetCallerTaskHandle();
+	const CanAddress dest = buf->id.Dst();
+	mcan_fd_send_ext_message(buf->id.GetWholeId(), reinterpret_cast<uint8_t*>(&(buf->msg)), buf->dataLength, TxBufferIndexRequest, MaxRequestSendWait);
+	const uint32_t whenStartedWaiting = millis();
+	for (;;)
+	{
+		const uint32_t rxf1s = mcan_instance.hw->MCAN_RXF1S;						// get FIFO 1 status
+		if (((rxf1s & MCAN_RXF1S_F1FL_Msk) >> MCAN_RXF1S_F1FL_Pos) != 0)			// if there are any messages
+		{
+			const uint32_t getIndex = (rxf1s & MCAN_RXF1S_F1GI_Msk) >> MCAN_RXF1S_F1GI_Pos;
+			mcan_rx_element_fifo_1 elem;
+			mcan_get_rx_fifo_1_element(&mcan_instance, &elem, getIndex);			// copy the data (TODO use our own driver, avoid double copying)
+			mcan_instance.hw->MCAN_RXF1A = getIndex;								// acknowledge it, release the FIFO entry
+
+			if (elem.R0.bit.XTD == 1 && elem.R0.bit.RTR != 1)						// if extended address and not a remote frame
+			{
+				// Copy the message and accompanying data to a buffer
+				buf->id.SetReceivedId(elem.R0.bit.ID);
+				static constexpr uint8_t dlc2len[] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 12, 16, 20, 24, 32, 48, 64};
+				buf->dataLength = dlc2len[elem.R1.bit.DLC];
+				memcpy(buf->msg.raw, elem.data, buf->dataLength);
+
+				if (buf->id.MsgType() == CanMessageType::standardReply && buf->id.Src() == dest)
+				{
+					//TODO check sequence number
+					reply.copy(buf->msg.standardReply.text, buf->msg.standardReply.GetTextLength(buf->dataLength));
+					const GCodeResult rslt = (GCodeResult)buf->msg.standardReply.resultCode;
+					CanMessageBuffer::Free(buf);
+					return rslt;
+				}
+			}
+		}
+		else
+		{
+			const uint32_t timeWaiting = millis() - whenStartedWaiting;
+			if (timeWaiting >= CanResponseTimeout)
+			{
+				break;
+			}
+			TaskBase::Take(CanResponseTimeout - timeWaiting);
+		}
+	}
+
+	CanMessageBuffer::Free(buf);
+	reply.copy("Timed out waiting for response from CAN-connected device");
+	return GCodeResult::error;
+}
+
+// Send a response to an expansion board
+void CanInterface::SendResponse(CanMessageBuffer *buf)
+{
+	mcan_fd_send_ext_message(buf->id.GetWholeId(), reinterpret_cast<uint8_t*>(&(buf->msg)), buf->dataLength, TxBufferIndexResponse, MaxResponseSendWait);
+	CanMessageBuffer::Free(buf);
+}
+
+// The CanReceiver task
+extern "C" void CanReceiverLoop(void *)
+{
+	taskWaitingOnFifo0 = TaskBase::GetCallerTaskHandle();
+	for (;;)
+	{
+		const uint32_t rxf0s = mcan_instance.hw->MCAN_RXF0S;						// get FIFO 0 status
+		if (((rxf0s & MCAN_RXF0S_F0FL_Msk) >> MCAN_RXF0S_F0FL_Pos) != 0)			// if there are any messages
+		{
+			CanMessageBuffer *buf = CanMessageBuffer::Allocate();
+			if (buf == nullptr)
+			{
+				delay(2);
+			}
+			else
+			{
+				const uint32_t getIndex = (rxf0s & MCAN_RXF0S_F0GI_Msk) >> MCAN_RXF0S_F0GI_Pos;
+				mcan_rx_element_fifo_0 elem;
+				mcan_get_rx_fifo_0_element(&mcan_instance, &elem, getIndex);		// copy the data (TODO use our own driver, avoid double copying)
+				mcan_instance.hw->MCAN_RXF0A = getIndex;							// acknowledge it, release the FIFO entry
+
+				if (elem.R0.bit.XTD == 1 && elem.R0.bit.RTR != 1)					// if extended address and not a remote frame
+				{
+					// Copy the message and accompanying data to a buffer
+					buf->id.SetReceivedId(elem.R0.bit.ID);
+					static constexpr uint8_t dlc2len[] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 12, 16, 20, 24, 32, 48, 64};
+					buf->dataLength = dlc2len[elem.R1.bit.DLC];
+					memcpy(buf->msg.raw, elem.data, buf->dataLength);
+
+					CommandProcessor::ProcessReceivedMessage(buf);
+				}
+			}
+		}
+		else
+		{
+			TaskBase::Take();
+		}
+	}
 }
 
 #endif
