@@ -50,8 +50,8 @@ static const boardConfigEntry_t boardConfigs[]=
     {"atxPowerPinInverted", &ATX_POWER_INVERTED, nullptr, cvBoolType},
     
     {"lpc.HWPWM.frequencyHz", &HardwarePWMFrequency, nullptr, cvUint16Type},
-    {"lpc.slowPWM.frequencyHz", &Timer1Frequency, nullptr, cvUint16Type},
-    {"lpc.fastPWM.frequencyHz", &Timer3Frequency, nullptr, cvUint16Type},
+    //{"lpc.slowPWM.frequencyHz", &Timer1Frequency, nullptr, cvUint16Type},
+    //{"lpc.fastPWM.frequencyHz", &Timer3Frequency, nullptr, cvUint16Type},
     
     {"externalSDCard.csPin", &SdSpiCSPins[1], nullptr, cvPinType},
     {"externalSDCard.cardDetectPin", &SdCardDetectPins[1], nullptr, cvPinType},
@@ -159,9 +159,10 @@ void BoardConfig::Init() {
         sspi_setPinsForChannel(SWSPI0, SoftwareSPIPins[0], SoftwareSPIPins[1], SoftwareSPIPins[2]);
 
         //Configure the HW Timers
-        ConfigureTimerForPWM(0, Timer1Frequency); //Timer1 is channel 0
-        ConfigureTimerForPWM(1, 50);              //Setup Servos for 50Hz. Timer2 is channel 1
-        ConfigureTimerForPWM(2, Timer3Frequency); //Timer3 is channel 2
+        //ConfigureTimerForPWM(0, Timer1Frequency); //Timer1 is channel 0
+        //ConfigureTimerForPWM(1, 50);              //Setup Servos for 50Hz. Timer2 is channel 1
+        //ConfigureTimerForPWM(2, Timer3Frequency); //Timer3 is channel 2
+        //ConfigureServoTimer(50);
 
 
         //Internal SDCard SPI Frequency
@@ -302,12 +303,12 @@ void BoardConfig::Diagnostics(MessageType mtype)
     reprap.GetPlatform().MessageF(mtype, "Hardware PWM=%dHz ", freqs.hwPWMFreq );
     PrintPinArray(mtype, UsedHardwarePWMChannel, NumPwmChannels);
 
-    reprap.GetPlatform().MessageF(mtype, "Timer 1 PWM=%dHz ", freqs.tim1Freq );
-    PrintPinArray(mtype, Timer1PWMPins, MaxTimerEntries);
-    reprap.GetPlatform().MessageF(mtype, "Timer 2 PWM=%dHz ", freqs.tim2Freq );
+    //reprap.GetPlatform().MessageF(mtype, "Timer 1 PWM=%dHz ", freqs.tim1Freq );
+    //PrintPinArray(mtype, Timer1PWMPins, MaxTimerEntries);
+    reprap.GetPlatform().MessageF(mtype, "Servo PWM (Timer2)=%dHz ", freqs.tim2Freq );
     PrintPinArray(mtype, Timer2PWMPins, MaxTimerEntries);
-    reprap.GetPlatform().MessageF(mtype, "Timer 3 PWM=%dHz ", freqs.tim3Freq );
-    PrintPinArray(mtype, Timer3PWMPins, MaxTimerEntries);
+    //reprap.GetPlatform().MessageF(mtype, "Timer 3 PWM=%dHz ", freqs.tim3Freq );
+    //PrintPinArray(mtype, Timer3PWMPins, MaxTimerEntries);
 }
 
 void BoardConfig::PrintPinArray(MessageType mtype, Pin arr[], uint16_t numEntries)

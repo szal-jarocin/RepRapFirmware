@@ -19,9 +19,6 @@ Pin ATX_POWER_PIN = NoPin;
 bool ATX_POWER_INVERTED = false;
 
 
-uint16_t Timer1Frequency = 10;  // default for Timer1 (slowPWM) for HeatBeds
-uint16_t Timer3Frequency = 250; // default for Timer2 (fastPWM) for Hotends/fans etc
-
 Pin SdCardDetectPins[NumSdCards] =  { NoPin, NoPin };
 Pin SdSpiCSPins[NumSdCards] =       { P0_6, NoPin };    // Internal, external. Note:: ("slot" 0 in CORE is configured to be LCP SSP1 to match default RRF behaviour)
 uint32_t ExternalSDCardFrequency =  4000000;            //default to 4MHz
@@ -99,11 +96,7 @@ bool SetBoard(const char* bn)
 
             hasDriverCurrentControl = LPC_Boards[i].defaults.hasDriverCurrentControl;
             digipotFactor = LPC_Boards[i].defaults.digipotFactor;
-            
-            //SetDefaultPinArray(LPC_Boards[i].defaults.slowPwmPins, Timer1PWMPins, MaxTimerEntries);
-            //SetDefaultPinArray(LPC_Boards[i].defaults.fastPwmPins, Timer3PWMPins, MaxTimerEntries);
-            //SetDefaultPinArray(LPC_Boards[i].defaults.servoPwmPins, Timer2PWMPins, MaxTimerEntries);
-            
+                        
             return true;
         }
     }

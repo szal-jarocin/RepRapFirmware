@@ -81,13 +81,7 @@ public:
 	PwmPort();
 
 	void AppendDetails(const StringRef& str);
-
-	
-#ifdef __LPC17xx__
-    bool SetFrequency(PwmFrequency freq);
-#else
     void SetFrequency(PwmFrequency freq){ frequency = freq; }
-#endif
     void WriteAnalog(float pwm) const;
 
 private:

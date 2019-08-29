@@ -10,7 +10,8 @@ Version 3.0 beta3
 * Removed Fan Pins, Heater Pins, Tacho pins and Endstops configuration options as they are now configurable by GCode (See GCode M950) and needs to be set in config.g (See https://duet3d.dozuki.com/Wiki/RepRapFirmware_3_overview).
 * Removed SpecialPins as it's no longer required in RRF3. M950 is now used to create a "gpio port number", and that gpio port number is used in M42 and M280.
 * Removed lpc.externalInterruptPins config. It is now done automatially when attempting to attach an interrupt to a pin on port 0 or port 2 (i.e. for Fan Tacho pin or configuring a filament detector).
-* Removed lpc.slowPWM.pins, lpc.fastPWM.pins and lpc.servoPins. They are now assigned automatically. When using M950 ensure the Frequency matches either the HWPWM frequency or the Timer Frequencies
+* Removed lpc.slowPWM.pins, lpc.fastPWM.pins and lpc.servoPins. They are now assigned automatically when using M950.
+* PWM now uses a single microsecond free running on Timer 3. This allows creating different PWM with frequencies instead of being limited to 2 options.  
 * Added new entry: lpc.HWPWM.frequencyHz. To allow setting HW PWM to a different frequency. Default is 250.
 * Added new entry: lpc.board. Currently supported values are: smoothieboard, rearm,  mkssbase_1.3, azsmzmini, biquskr_1.1, biquskr_1.3, azteegx5mini_1.1 and generic.  For example: lpc.board = smoothieboard;
     * Currently does not support control of drivers via UART/SPI on Biqu SKR 1.3. 

@@ -1993,6 +1993,17 @@ void Platform::InitialiseInterrupts()
 	NVIC_SetPriority(I2C1_IRQn, NvicPriorityTwi);
 #endif
 
+    
+#if __LPC17xx__
+    //set rest of the Timer Ints)
+    //Timer 0 is used for step generation
+    NVIC_SetPriority(TIMER1_IRQn, 8);
+    NVIC_SetPriority(TIMER2_IRQn, 8);
+    NVIC_SetPriority(TIMER3_IRQn, 8);
+
+    
+#endif
+    
 	// Tick interrupt for ADC conversions
 	tickState = 0;
 	currentFilterNumber = 0;
@@ -4556,17 +4567,7 @@ GCodeResult Platform::ConfigureFan(uint32_t fanNum, GCodeBuffer& gb, const Strin
 		}
 		if (gb.Seen('Q'))
 		{
-#ifdef __LPC17xx__
-            //check if the frequency can be set
-            if(!fan.SetPwmFrequency(gb.GetPwmFrequency()))
-            {
-                reply.printf("Failed to set frequency for pin");
-                fan.AssignPorts("nil", reply);
-                return GCodeResult::error;
-            }
-#else
             fan.SetPwmFrequency(gb.GetPwmFrequency());
-#endif
 		}
 		else if (!seenPin)
 		{
@@ -4602,27 +4603,11 @@ GCodeResult Platform::ConfigureGpioOrServo(uint32_t gpioNumber, bool isServo, GC
 			{
 				freq = (isServo) ? ServoRefreshFrequency : DefaultPinWritePwmFreq;
 			}
-#ifdef __LPC17xx__
-            //check if the frequency can be set
-            if(!port.SetFrequency(freq))
-            {
-                reply.printf("Failed to set frequency for pin");
-                port.Release();
-                return GCodeResult::error;
-            }
-#else
             port.SetFrequency(freq);
-#endif
 		}
 		else if (seenFreq)
 		{
-#ifdef __LPC17xx__
-            reply.printf("Unable to change PWM frequency after it has already been configured on LPC");
-            return GCodeResult::error;
-#else
             port.SetFrequency(freq);
-#endif
-
 		}
 		else
 		{

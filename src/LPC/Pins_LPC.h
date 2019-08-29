@@ -127,11 +127,9 @@ constexpr SSPChannel TempSensorSSPChannel = SSP0; //Conect SPI Temp sensor to SS
 
 //Hardware LPC Timers
 //Timer 0 is used for the Step Generation
-//Timer 1 is slowPWM in board config
+//Timer 1 is unused
 //Timer 2 is fixed at 50Hz for servos
-//Timer 3 is fastPWM in board config.
-extern uint16_t Timer1Frequency;
-extern uint16_t Timer3Frequency;
+//Timer 3 is software pwm
 
 
 extern Pin ATX_POWER_PIN;// Digital pin number that controls the ATX power on/off
