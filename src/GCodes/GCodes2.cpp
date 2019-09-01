@@ -40,6 +40,10 @@
 # include "Fans/DotStarLed.h"
 #endif
 
+#if SUPPORT_CAN_EXPANSION
+# include "CAN/CanInterface.h"
+#endif
+
 #include <utility>			// for std::swap
 
 // If the code to act on is completed, this returns true, otherwise false.
@@ -354,6 +358,12 @@ bool GCodes::HandleGcode(GCodeBuffer& gb, const StringRef& reply)
 		// See if there is a file in /sys named Gxx.g
 		if (code >= 0 && code < 10000)
 		{
+#if HAS_LINUX_INTERFACE
+			if (reprap.UsingLinuxInterface())
+			{
+				gb.SetState(GCodeState::doingUnsupportedCode);
+			}
+#endif
 			String<StringLength20> macroName;
 			macroName.printf("G%d.g", code);
 			if (DoFileMacro(gb, macroName.c_str(), false, 98))
@@ -943,12 +953,20 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply)
 
 #if HAS_MASS_STORAGE || HAS_LINUX_INTERFACE
 	case 36:	// Return file information
-# if HAS_MASS_STORAGE
-		if (!LockFileSystem(gb))									// getting file info takes several calls and isn't reentrant
+# if HAS_LINUX_INTERFACE
+		if (reprap.UsingLinuxInterface())
 		{
-			return false;
+			reprap.GetFileInfoResponse(nullptr, outBuf, true);
 		}
+		else
+# endif
 		{
+# if HAS_MASS_STORAGE
+			if (!LockFileSystem(gb))									// getting file info takes several calls and isn't reentrant
+			{
+				return false;
+			}
+
 			String<MaxFilenameLength> filename;
 			const bool gotFilename = gb.GetUnprecedentedString(filename.GetRef());
 			const bool done = reprap.GetFileInfoResponse((gotFilename) ? filename.c_str() : nullptr, outBuf, false);
@@ -957,15 +975,13 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply)
 				outBuf->cat('\n');
 			}
 			result = (done) ? GCodeResult::ok : GCodeResult::notFinished;
-		}
-# else
-		reprap.GetFileInfoResponse(nullptr, outBuf, true);
 # endif
+		}
 		break;
 
 	case 37:	// Simulation mode on/off, or simulate a whole file
 # if HAS_LINUX_INTERFACE
-		if (!gb.IsBinary())
+		if (reprap.UsingLinuxInterface() && !gb.IsBinary())
 		{
 			reply.copy("M37 can be only started from the Linux interface");
 			result = GCodeResult::error;
@@ -1204,7 +1220,10 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply)
 		if (gb.Seen('P'))
 		{
 #if HAS_LINUX_INTERFACE
-			gb.SetState(GCodeState::doingUserMacro);
+			if (reprap.UsingLinuxInterface())
+			{
+				gb.SetState(GCodeState::doingUserMacro);
+			}
 #endif
 			String<MaxFilenameLength> filename;
 			gb.GetPossiblyQuotedString(filename.GetRef());
@@ -1645,7 +1664,19 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply)
 			if (val == 0)
 			{
 				// Set the Push flag to combine multiple messages into a single OutputBuffer chain
-				reprap.Diagnostics((MessageType)(gb.GetResponseMessageType() | PushFlag));
+				const MessageType mt = (MessageType)(gb.GetResponseMessageType() | PushFlag);
+#if SUPPORT_CAN_EXPANSION
+				if (gb.Seen('B'))
+				{
+					const CanAddress board = gb.GetUIValue();
+					if (board != CanId::MasterAddress)
+					{
+						result = CanInterface::RemoteDiagnostics(mt, board, reply);
+						break;
+					}
+				}
+#endif
+				reprap.Diagnostics(mt);
 			}
 			else
 			{
@@ -2454,13 +2485,12 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply)
 					}
 					seen = true;
 					const unsigned int microsteps = gb.GetUIValue();
-					if (ChangeMicrostepping(axis, microsteps, interp))
+					if (ChangeMicrostepping(axis, microsteps, interp, reply))
 					{
 						SetAxisNotHomed(axis);
 					}
 					else
 					{
-						reply.printf("Drive %c does not support %ux microstepping%s", axisLetters[axis], microsteps, ((interp) ? " with interpolation" : ""));
 						result = GCodeResult::error;
 					}
 				}
@@ -2478,9 +2508,8 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply)
 				gb.GetUnsignedArray(eVals, eCount, true);
 				for (size_t e = 0; e < eCount; e++)
 				{
-					if (!ChangeMicrostepping(MaxAxes + e, eVals[e], interp))
+					if (!ChangeMicrostepping(MaxAxes + e, eVals[e], interp, reply))
 					{
-						reply.printf("Drive E%u does not support %ux microstepping%s", e, (unsigned int)eVals[e], ((interp) ? " with interpolation" : ""));
 						result = GCodeResult::error;
 					}
 				}
@@ -2892,7 +2921,7 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply)
 
 	case 550: // Set/report machine name
 #if HAS_LINUX_INTERFACE
-		if (!gb.IsBinary())
+		if (reprap.UsingLinuxInterface() && !gb.IsBinary())
 		{
 			result = GCodeResult::errorNotSupported;
 		}
@@ -4135,7 +4164,10 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply)
 			{
 				if (gb.Seen(axisLetters[axis]))
 				{
-					platform.SetMotorCurrent(axis, gb.GetFValue(), code);
+					if (!platform.SetMotorCurrent(axis, gb.GetFValue(), code, reply))
+					{
+						result = GCodeResult::error;
+					}
 					seen = true;
 				}
 			}
@@ -4148,7 +4180,10 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply)
 				gb.GetFloatArray(eVals, eCount, true);
 				for (size_t e = 0; e < eCount; e++)
 				{
-					platform.SetMotorCurrent(MaxAxes + e, eVals[e], code);
+					if (!platform.SetMotorCurrent(MaxAxes + e, eVals[e], code, reply))
+					{
+						result = GCodeResult::error;
+					}
 				}
 			}
 
@@ -4374,9 +4409,11 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply)
 		if (code >= 0 && code < 10000)
 		{
 #if HAS_LINUX_INTERFACE
-			gb.SetState(GCodeState::doingUnsupportedCode);
+			if (reprap.UsingLinuxInterface())
+			{
+				gb.SetState(GCodeState::doingUnsupportedCode);
+			}
 #endif
-
 			String<StringLength20> macroName;
 			macroName.printf("M%d.g", code);
 			if (DoFileMacro(gb, macroName.c_str(), false, code))

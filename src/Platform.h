@@ -394,13 +394,13 @@ public:
 	void DisableOneLocalDriver(size_t driver);
 	void EmergencyDisableDrivers();
 	void SetDriversIdle();
-	void SetMotorCurrent(size_t axisOrExtruder, float current, int code);
+	bool SetMotorCurrent(size_t axisOrExtruder, float current, int code, const StringRef& reply);
 	float GetMotorCurrent(size_t axisOrExtruder, int code) const;
 	void SetIdleCurrentFactor(float f);
 	float GetIdleCurrentFactor() const
 		{ return idleCurrentFactor; }
 	bool SetDriverMicrostepping(size_t driver, unsigned int microsteps, int mode);
-	bool SetMicrostepping(size_t axisOrExtruder, int microsteps, bool mode);
+	bool SetMicrostepping(size_t axisOrExtruder, int microsteps, bool mode, const StringRef& reply);
 	unsigned int GetMicrostepping(size_t axisOrExtruder, bool& interpolation) const;
 	void SetDriverStepTiming(size_t driver, const float microseconds[4]);
 	bool GetDriverStepTiming(size_t driver, float microseconds[4]) const;
@@ -593,14 +593,16 @@ private:
 	GCodeResult ConfigureFan(uint32_t fanNum, GCodeBuffer& gb, const StringRef& reply);
 	GCodeResult ConfigureGpioOrServo(uint32_t gpioNumber, bool isServo, GCodeBuffer& gb, const StringRef& reply);
 
-	void IterateLocalDrivers(size_t axisOrExtruder, std::function<void(uint8_t)> func);
+#if SUPPORT_CAN_EXPANSION
+	void IterateDrivers(size_t axisOrExtruder, std::function<void(uint8_t)> localFunc, std::function<void(DriverId)> remoteFunc);
+	void IterateLocalDrivers(size_t axisOrExtruder, std::function<void(uint8_t)> func) { IterateDrivers(axisOrExtruder, func, [](DriverId){}); }
+#else
+	void IterateDrivers(size_t axisOrExtruder, std::function<void(uint8_t)> localFunc);
+	void IterateLocalDrivers(size_t axisOrExtruder, std::function<void(uint8_t)> func) { IterateDrivers(axisOrExtruder, func); }
+#endif
 
 #if HAS_SMART_DRIVERS
 	void ReportDrivers(MessageType mt, DriversBitmap& whichDrivers, const char* text, bool& reported);
-#endif
-#if HAS_STALL_DETECT
-	bool AnyAxisMotorStalled(size_t drive) const pre(drive < DRIVES);
-	bool ExtruderMotorStalled(size_t extruder) const pre(extruder < MaxExtruders);
 #endif
 
     

@@ -15,14 +15,23 @@
 #include "Movement/Move.h"
 #include "Movement/StepTimer.h"
 #include "Endstops/Endstop.h"
+#include <General/Portability.h>
 
-#ifdef SAME51
+#if SAME51 || SAMC21
+
 # include "HAL/IoPorts.h"
 # include "HAL/DmacManager.h"
 # include "peripheral_clk_config.h"
 # include "HAL/SAME5x.h"
+
+static inline const Move& GetMoveInstance() { return *moveInstance; }
+
 #elif SAME70
+
 # include "Hardware/DmacManager.h"
+
+static inline const Move& GetMoveInstance() { return reprap.GetMove(); }
+
 #endif
 
 //#define TMC_TYPE	5130
@@ -35,7 +44,7 @@ constexpr bool DefaultInterpolation = true;					// interpolation enabled
 constexpr uint32_t DefaultTpwmthrsReg = 2000;				// low values (high changeover speed) give horrible jerk at the changeover from stealthChop to spreadCycle
 const int DefaultStallDetectThreshold = 1;
 const bool DefaultStallDetectFiltered = false;
-const unsigned int DefaultMinimumStepsPerSecond = 200;		// for stall detection: 1 rev per second assuming 1.8deg/step, as per the TMC2660 datasheet
+const unsigned int DefaultMinimumStepsPerSecond = 200;		// for stall detection: 1 rev per second assuming 1.8deg/step, as per the TMC5160 datasheet
 const uint32_t DefaultTcoolthrs = 2000;						// max interval between 1/256 microsteps for stall detection to be enabled
 const uint32_t DefaultThigh = 200;
 
@@ -225,7 +234,7 @@ constexpr uint32_t DefaultChopConfReg = (1 << CHOPCONF_TBL_SHIFT) | (3 << CHOPCO
 constexpr uint8_t REGNUM_COOLCONF = 0x6D;
 constexpr uint32_t COOLCONF_SGFILT = 1 << 24;				// set to update stallGuard status every 4 full steps instead of every full step
 constexpr uint32_t COOLCONF_SGT_SHIFT = 16;
-constexpr uint32_t COOLCONF_SGT_MASK = 128 << COOLCONF_SGT_SHIFT;	// stallguard threshold (signed)
+constexpr uint32_t COOLCONF_SGT_MASK = 127 << COOLCONF_SGT_SHIFT;	// stallguard threshold (signed)
 
 constexpr uint32_t DefaultCoolConfReg = 0;
 
@@ -391,11 +400,11 @@ const uint8_t TmcDriverState::ReadRegNumbers[NumReadRegisters] =
 uint16_t TmcDriverState::numTimeouts = 0;								// how many times a transfer timed out
 
 // Initialise the state of the driver and its CS pin
-void TmcDriverState::Init(uint32_t p_axisNumber)
+void TmcDriverState::Init(uint32_t p_driverNumber)
 pre(!driversPowered)
 {
-	axisNumber = p_axisNumber;
-	driverBit = 1ul << p_axisNumber;
+	axisNumber = p_driverNumber;										// axes are mapped straight through to drivers initially
+	driverBit = 1ul << p_driverNumber;
 	enabled = false;
 	registersToUpdate = newRegistersToUpdate = 0;
 	motorCurrent = 0;
@@ -688,7 +697,7 @@ void TmcDriverState::Enable(bool en)
 // Read the status
 uint32_t TmcDriverState::ReadLiveStatus() const
 {
-	return readRegisters[ReadDrvStat] & (TMC_RR_OT | TMC_RR_OTPW | TMC_RR_S2G | TMC_RR_OLA | TMC_RR_OLB | TMC_RR_STST);
+	return readRegisters[ReadDrvStat] & (TMC_RR_SG | TMC_RR_OT | TMC_RR_OTPW | TMC_RR_S2G | TMC_RR_OLA | TMC_RR_OLB | TMC_RR_STST);
 }
 
 // Read the status
@@ -697,7 +706,7 @@ uint32_t TmcDriverState::ReadAccumulatedStatus(uint32_t bitsToKeep)
 	TaskCriticalSectionLocker lock;
 	const uint32_t status = accumulatedReadRegisters[ReadDrvStat];
 	accumulatedReadRegisters[ReadDrvStat] = (status & bitsToKeep) | readRegisters[ReadDrvStat];		// so that the next call to ReadAccumulatedStatus isn't missing some bits
-	return status & (TMC_RR_OT | TMC_RR_OTPW | TMC_RR_S2G | TMC_RR_OLA | TMC_RR_OLB | TMC_RR_STST);
+	return status & (TMC_RR_SG | TMC_RR_OT | TMC_RR_OTPW | TMC_RR_S2G | TMC_RR_OLA | TMC_RR_OLB | TMC_RR_STST);
 }
 
 // Append the driver status to a string, and reset the min/max load values
@@ -810,10 +819,7 @@ void TmcDriverState::GetSpiCommand(uint8_t *sendDataBlock)
 		// Kick off a transfer for that register
 		regIndexBeingUpdated = regNum;
 		sendDataBlock[0] = WriteRegNumbers[regNum] | 0x80;
-		sendDataBlock[1] = (uint8_t)(writeRegisters[regNum] >> 24);
-		sendDataBlock[2] = (uint8_t)(writeRegisters[regNum] >> 16);
-		sendDataBlock[3] = (uint8_t)(writeRegisters[regNum] >> 8);
-		sendDataBlock[4] = (uint8_t)(writeRegisters[regNum]);
+		StoreBE32(sendDataBlock + 1, writeRegisters[regNum]);
 	}
 }
 
@@ -827,18 +833,13 @@ void TmcDriverState::TransferSucceeded(const uint8_t *rcvDataBlock)
 	}
 
 	// Get the full step interval, we will need it later
-	const uint32_t interval =
-#if defined(SAME51) || defined(SAMC21)
-								reprap.GetMove().GetStepInterval(axisNumber, microstepShiftFactor);		// get the full step interval
-#else
-								reprap.GetMove().GetStepInterval(axisNumber, microstepShiftFactor);		// get the full step interval
-#endif
+	const uint32_t interval = GetMoveInstance().GetStepInterval(axisNumber, microstepShiftFactor);		// get the full step interval
 
 	// If we read a register, update our copy
 	if (previousRegIndexRequested < NumReadRegisters)
 	{
 		++numReads;
-		uint32_t regVal = ((uint32_t)rcvDataBlock[1] << 24) | ((uint32_t)rcvDataBlock[2] << 16) | ((uint32_t)rcvDataBlock[3] << 8) | ((uint32_t)rcvDataBlock[4]);
+		uint32_t regVal = LoadBE32(rcvDataBlock + 1);
 		if (previousRegIndexRequested == ReadDrvStat)
 		{
 			// We treat the DRV_STATUS register separately
@@ -886,14 +887,14 @@ void TmcDriverState::TransferSucceeded(const uint8_t *rcvDataBlock)
 #endif
 	}
 
-// Deal with the stall status
+	// Deal with the stall status
 	if (   (rcvDataBlock[0] & (1u << 2)) != 0							// if the status indicates stalled
 		&& interval != 0
 		&& interval <= maxStallStepInterval								// if the motor speed is high enough to get a reliable stall indication
 	   )
-
 	{
 		readRegisters[ReadDrvStat] |= TMC_RR_SG;
+		accumulatedReadRegisters[ReadDrvStat] |= TMC_RR_SG;
 		EndstopOrZProbe::UpdateStalledDrivers(driverBit, true);
 	}
 	else
@@ -1318,7 +1319,7 @@ namespace SmartDrivers
 		driversState = DriversState::noPower;
 		for (size_t driver = 0; driver < numTmc51xxDrivers; ++driver)
 		{
-			driverStates[driver].Init(driver);						// axes are mapped straight through to drivers initially
+			driverStates[driver].Init(driver);
 		}
 
 #if SAME70

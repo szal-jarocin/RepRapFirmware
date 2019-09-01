@@ -8,7 +8,9 @@
 #ifndef SRC_LINUX_DATATRANSFER_H_
 #define SRC_LINUX_DATATRANSFER_H_
 
-#include <cstddef>
+#include "RepRapFirmware.h"
+
+#if HAS_LINUX_INTERFACE
 
 #include "GCodes/GCodeFileInfo.h"
 #include "MessageFormats.h"
@@ -41,6 +43,7 @@ public:
 	void ReadHeightMap();									// Read heightmap parameters
 	void ReadLockUnlockRequest(GCodeChannel& channel);		// Read a lock/unlock request
 	void ReadAssignFilament(int& extruder, StringRef& filamentName);	// Read a request to assign the given filament to an extruder drive
+	void ReadFileChunk(char *buffer, int32_t& dataLength, uint32_t& fileLength);	// Read another chunk of a file
 
 	void ResendPacket(const PacketHeader *packet);
 	bool WriteObjectModel(uint8_t module, OutputBuffer *data);
@@ -52,6 +55,7 @@ public:
 	bool WritePrintPaused(FilePosition position, PrintPausedReason reason);
 	bool WriteHeightMap();
 	bool WriteLocked(GCodeChannel channel);
+	bool WriteFileChunkRequest(const char *filename, uint32_t offset, uint32_t maxLength);
 
 	static void SpiInterrupt();
 
@@ -132,5 +136,7 @@ inline size_t DataTransfer::AddPadding(size_t length) const
 	size_t padding = 4 - length % 4;
 	return length + ((padding == 4) ? 0 : padding);
 }
+
+#endif	// HAS_LINUX_INTERFACE
 
 #endif /* SRC_LINUX_DATATRANSFER_H_ */
