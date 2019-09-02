@@ -20,13 +20,13 @@ constexpr PinEntry PinTable_Rearm[] =
     {P0_24, PinCapability::ainrw, "t1,a14"},        //Bed Therm
     {P0_25, PinCapability::ainrw, "t2,a15"},        //Ext1 Therm
     
-    //Endstops
-    {P1_24, PinCapability::rwpwm, "xmin,d3,x"},//Label is "X-", but we list as X as the "-" gets stripped in RRF3
-    {P1_25, PinCapability::rwpwm, "xmax,d2,x+"},
-    {P1_26, PinCapability::rwpwm, "ymin,d14,y"},
-    {P1_27, PinCapability::rwpwm, "ymax,d15,y+"},
-    {P1_29, PinCapability::rwpwm, "zmin,d18,z"},
-    {P1_28, PinCapability::rwpwm, "zmax,d19,z+"},
+    //Endstops (although they are labeled x- and x+ on the - and + get stripped out in RRF so we will use i.e. xmin/xmax
+    {P1_24, PinCapability::rwpwm, "xmin,d3"},
+    {P1_25, PinCapability::rwpwm, "xmax,d2"},
+    {P1_26, PinCapability::rwpwm, "ymin,d14"},
+    {P1_27, PinCapability::rwpwm, "ymax,d15"},
+    {P1_29, PinCapability::rwpwm, "zmin,d18"},
+    {P1_28, PinCapability::rwpwm, "zmax,d19"},
 
     //Heaters and Fans (Mosfets)
     {P2_7, PinCapability::rwpwm, "d8"  },            //HB Mosfet

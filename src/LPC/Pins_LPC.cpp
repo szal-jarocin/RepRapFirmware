@@ -12,7 +12,7 @@
 //Except Mosfets on Smoothieboard Q5 and Q4?
 
 
-Pin TEMP_SENSE_PINS[NumThermistorInputs] =   {NoPin, NoPin, NoPin};
+Pin TEMP_SENSE_PINS[NumThermistorInputs] =   {NoPin, NoPin, NoPin, NoPin};
 Pin SpiTempSensorCsPins[MaxSpiTempSensors] = { NoPin, NoPin };
 
 Pin ATX_POWER_PIN = NoPin;

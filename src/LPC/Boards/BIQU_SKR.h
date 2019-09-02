@@ -21,12 +21,12 @@ constexpr PinEntry PinTable_BIQU_SKR_v1_1[] =
     {P0_25, PinCapability::ainrw, "th1"},
 
     //Endstops
-    {P1_29, PinCapability::rw, "xmin,x"},
-    {P1_28, PinCapability::rw, "xmax,x+"},
-    {P1_27, PinCapability::rw, "ymin,y"},
-    {P1_26, PinCapability::rw, "ymax,y+"},
-    {P1_25, PinCapability::rw, "zmin,z"},
-    {P1_24, PinCapability::rw, "zmax,z+"},
+    {P1_29, PinCapability::rw, "xmin"},
+    {P1_28, PinCapability::rw, "xmax"},
+    {P1_27, PinCapability::rw, "ymin"},
+    {P1_26, PinCapability::rw, "ymax"},
+    {P1_25, PinCapability::rw, "zmin"},
+    {P1_24, PinCapability::rw, "zmax"},
 
     //Heaters and Fans (Big and Small Mosfets}
     {P2_5,  PinCapability::wpwm, "hbed" },

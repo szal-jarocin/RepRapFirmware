@@ -45,11 +45,11 @@ constexpr PinEntry PinTable_Mbed[] =
     
 
     //Spare pins (or used for LCD)
-    {P0_4, PinCapability::rwpwm, "p0.4"},
-    {P0_5, PinCapability::rwpwm, "p0.5"},
+    {P0_4, PinCapability::rwpwm,  "p0.4"},
+    {P0_5, PinCapability::rwpwm,  "p0.5"},
     {P0_10, PinCapability::rwpwm, "p0.10"},
-    {P2_0, PinCapability::rwpwm, "p2.0"},
-    {P2_1, PinCapability::rwpwm, "p2.1"},
+    {P2_0, PinCapability::rwpwm,  "p2.0"},
+    {P2_1, PinCapability::rwpwm,  "p2.1"},
 
     {P0_26, PinCapability::rwpwm, "p0.26"},
     {P1_30, PinCapability::rwpwm, "p1.30"},

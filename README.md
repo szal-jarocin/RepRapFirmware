@@ -10,7 +10,6 @@ The CPUs targeted in this port only have 64K RAM which is less than those that r
 * A maximum of 4 files can be open at a time.
 * Reduced write buffers for SDCard to save memory.
 * External interrupts (i.e., fan rpm etc) are limited to 3.
-* Hardware Timers may be used generate 3 PWM frequencies used by RepRapFirmware: 10Hz, 50Hz and 250Hz by default, to provide PWM to non-PWM pins or support multiple PWM frequencies to run at the same time. This is in addition to the Hardware PWM which is configured to generally run at 250Hz.
 * Reduced number of networking buffers and reduced MTU to save memory.
 * Only 2 HTTP Sockets and Responders. Only 1 HTTP session at a time.
 * Disabled Ftp and Telnet interfaces

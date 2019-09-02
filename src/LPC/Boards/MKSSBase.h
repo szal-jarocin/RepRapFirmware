@@ -18,13 +18,13 @@ constexpr PinEntry PinTable_MKSSbase1_3[] =
     {P0_25, PinCapability::ainrw, "th3"},
     {P0_26, PinCapability::ainrw, "th4"},
 
-    //Endstops
-    {P1_24, PinCapability::rwpwm, "xmin,x"}, //X-. X as the - gets stripped in RRF3
-    {P1_25, PinCapability::rwpwm, "xmax,x+"}, //X+
-    {P1_26, PinCapability::rwpwm, "ymin,y"},
-    {P1_27, PinCapability::rwpwm, "ymax,y+"},
-    {P1_28, PinCapability::rwpwm, "zmin,z"},
-    {P1_29, PinCapability::rwpwm, "zmax,z+"},
+    //Endstops (although they are labeled x- and x+ on the - and + get stripped out in RRF so we will use i.e. xmin/xmax
+    {P1_24, PinCapability::rwpwm, "xmin"},
+    {P1_25, PinCapability::rwpwm, "xmax"},
+    {P1_26, PinCapability::rwpwm, "ymin"},
+    {P1_27, PinCapability::rwpwm, "ymax"},
+    {P1_28, PinCapability::rwpwm, "zmin"},
+    {P1_29, PinCapability::rwpwm, "zmax"},
 
     //Heaters and Fans
     {P2_5, PinCapability::rwpwm, "bed"},

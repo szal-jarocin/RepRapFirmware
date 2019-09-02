@@ -20,7 +20,10 @@
 
 #include "Platform.h"
 
-struct boardConfigEntry_t{
+#include "SoftwarePWM.h"
+
+struct boardConfigEntry_t
+{
     const char* key;
     void *variable;
     const size_t *maxArrayEntries;
@@ -49,10 +52,6 @@ static const boardConfigEntry_t boardConfigs[]=
     {"atxPowerPin", &ATX_POWER_PIN, nullptr, cvPinType},
     {"atxPowerPinInverted", &ATX_POWER_INVERTED, nullptr, cvBoolType},
     
-    {"lpc.HWPWM.frequencyHz", &HardwarePWMFrequency, nullptr, cvUint16Type},
-    //{"lpc.slowPWM.frequencyHz", &Timer1Frequency, nullptr, cvUint16Type},
-    //{"lpc.fastPWM.frequencyHz", &Timer3Frequency, nullptr, cvUint16Type},
-    
     {"externalSDCard.csPin", &SdSpiCSPins[1], nullptr, cvPinType},
     {"externalSDCard.cardDetectPin", &SdCardDetectPins[1], nullptr, cvPinType},
     {"lpc.externalSDCard.spiFrequencyHz", &ExternalSDCardFrequency, nullptr, cvUint32Type},
@@ -67,9 +66,10 @@ static const boardConfigEntry_t boardConfigs[]=
     {"lcd.panelButtonPin", &PanelButtonPin, nullptr, cvPinType},
     {"lcd.spiChannel", &LcdSpiChannel, nullptr, cvUint8Type},
     
-    {"lpc.uartPanelDueMode", &UARTPanelDueMode, nullptr, cvBoolType},
-    
     {"lpc.softwareSPI.pins", SoftwareSPIPins, &NumSoftwareSPIPins, cvPinType}, //SCK, MISO, MOSI
+    
+    //TODO:: think this is currently not working
+    {"lpc.uartPanelDueMode", &UARTPanelDueMode, nullptr, cvBoolType},
 };
 
 
@@ -84,7 +84,8 @@ BoardConfig::BoardConfig()
 }
 
 
-void BoardConfig::Init() {
+void BoardConfig::Init()
+{
 
     GCodeResult rslt;
     String<100> reply;
@@ -121,7 +122,8 @@ void BoardConfig::Init() {
         return;
     }
     
-    if(configFile != nullptr){
+    if(configFile != nullptr)
+    {
         
         reprap.GetPlatform().MessageF(UsbMessage, "Loading config from %sboard.txt...\n", DEFAULT_SYS_DIR );
 
@@ -294,21 +296,26 @@ void BoardConfig::Diagnostics(MessageType mtype)
 
         }
     }
-    
-    reprap.GetPlatform().MessageF(mtype, "\n=== Other LPC Hardware Settings ===\n");
-    
-    //Print out the PWM and timers freq
-    LPCPWMInfo freqs = {};
-    GetTimerInfo(&freqs);
-    reprap.GetPlatform().MessageF(mtype, "Hardware PWM=%dHz ", freqs.hwPWMFreq );
-    PrintPinArray(mtype, UsedHardwarePWMChannel, NumPwmChannels);
 
-    //reprap.GetPlatform().MessageF(mtype, "Timer 1 PWM=%dHz ", freqs.tim1Freq );
-    //PrintPinArray(mtype, Timer1PWMPins, MaxTimerEntries);
-    reprap.GetPlatform().MessageF(mtype, "Servo PWM (Timer2)=%dHz ", freqs.tim2Freq );
+    reprap.GetPlatform().MessageF(mtype, "== Software PWM ==\n");
+    for(uint8_t i=0; i<MaxNumberSoftwarePWMPins; i++){
+        SoftwarePWM *next = softwarePWMEntries[i];
+        if(next != nullptr)
+        {
+            const Pin pin = next->GetPin();
+            reprap.GetPlatform().MessageF(mtype, "Pin %d.%d @ %dHz\n", (pin >> 5), (pin & 0x1f), next->GetFrequency() );
+        }
+    };
+    
+    
+    //Print Servo PWM Timer or HW PWM assignments
+    reprap.GetPlatform().MessageF(mtype, "== Servo PWM ==\n");
+    reprap.GetPlatform().MessageF(mtype, "Hardware PWM = %dHz ", HardwarePWMFrequency );
+    PrintPinArray(mtype, UsedHardwarePWMChannel, NumPwmChannels);
+    reprap.GetPlatform().MessageF(mtype, "Timer2 PWM = 50Hz ");
     PrintPinArray(mtype, Timer2PWMPins, MaxTimerEntries);
-    //reprap.GetPlatform().MessageF(mtype, "Timer 3 PWM=%dHz ", freqs.tim3Freq );
-    //PrintPinArray(mtype, Timer3PWMPins, MaxTimerEntries);
+    
+    
 }
 
 void BoardConfig::PrintPinArray(MessageType mtype, Pin arr[], uint16_t numEntries)
@@ -406,7 +413,8 @@ void BoardConfig::SetValueFromString(configValueType type, void *variable, const
 
 
 
-bool BoardConfig::GetConfigKeys(FileStore *configFile){
+bool BoardConfig::GetConfigKeys(FileStore *configFile)
+{
 
     size_t maxLineLength = 120;
     char line[maxLineLength];

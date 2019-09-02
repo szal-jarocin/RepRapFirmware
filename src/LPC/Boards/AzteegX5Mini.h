@@ -14,7 +14,14 @@
 //http://files.panucatt.com/datasheets/x5mini_wiring_v1_1.pdf
 constexpr PinEntry PinTable_AzteegX5MiniV1_1[] =
 {
-
+    //LEDs
+    {P1_18, PinCapability::wpwm, "led1"},
+    {P1_19, PinCapability::wpwm, "led2"},
+    {P1_20, PinCapability::wpwm, "led3"},
+    {P1_21, PinCapability::wpwm, "led4"},
+    {P4_28, PinCapability::wpwm, "play"},
+    
+    
     //Thermistors
     {P0_23, PinCapability::ainrw, "th0"},
     {P0_24, PinCapability::ainrw, "th1"},
@@ -59,9 +66,9 @@ constexpr PinEntry PinTable_AzteegX5MiniV1_1[] =
 };
 
 constexpr BoardDefaults azteegX5Mini1_1Defaults = {
-    {P0_10, P0_19, P0_21, P0_4},   //enablePins
-    {P2_1,  P2_2,  P2_3,  P2_0},   //stepPins
-    {P0_11, P0_20, P0_22, P0_5},   //dirPins
+    {P0_10, P0_19, P0_21, P0_4, NoPin},   //enablePins
+    {P2_1,  P2_2,  P2_3,  P2_0, NoPin},   //stepPins
+    {P0_11, P0_20, P0_22, P0_5, NoPin},   //dirPins
     true,                          //currentControl
     106.0,                         //digiPot Factor
 };
