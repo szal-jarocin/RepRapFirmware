@@ -21,7 +21,7 @@
 
 // Read a port name parameter and assign some ports. Caller must call gb.Seen() with the appropriate letter and get 'true' returned before calling this.
 // Return the number of ports allocated, or 0 if there was an error with the error message in 'reply'.
-size_t IoPort::AssignPorts(GCodeBuffer& gb, const StringRef& reply, PinUsedBy neededFor, size_t numPorts, IoPort* const ports[], const PinAccess access[])
+/*static*/ size_t IoPort::AssignPorts(GCodeBuffer& gb, const StringRef& reply, PinUsedBy neededFor, size_t numPorts, IoPort* const ports[], const PinAccess access[])
 {
 	// Get the full port names string
 	String<StringLength20> portNames;
@@ -43,7 +43,7 @@ bool IoPort::AssignPort(GCodeBuffer& gb, const StringRef& reply, PinUsedBy neede
 }
 
 // Try to assign ports, returning the number of ports successfully assigned
-size_t IoPort::AssignPorts(const char* pinNames, const StringRef& reply, PinUsedBy neededFor, size_t numPorts, IoPort* const ports[], const PinAccess access[])
+/*static*/ size_t IoPort::AssignPorts(const char* pinNames, const StringRef& reply, PinUsedBy neededFor, size_t numPorts, IoPort* const ports[], const PinAccess access[])
 {
 	// Release any existing assignments
 	for (size_t i = 0; i < numPorts; ++i)
@@ -204,7 +204,7 @@ bool IoPort::Allocate(const char *pn, const StringRef& reply, PinUsedBy neededFo
 
 	const char *const fullPinName = pn;			// the full pin name less the inversion and pullup flags
 
-#if defined(DUET3_V03) || defined(DUET3_V05) || defined(DUET3_V06)
+#if defined(DUET3)
 	uint32_t expansionNumber;
 	if (isdigit(*pn))
 	{
@@ -373,7 +373,7 @@ void IoPort::ToggleInvert(bool pInvert)
 	}
 }
 
-void IoPort::AppendDetails(const StringRef& str)
+void IoPort::AppendDetails(const StringRef& str) const
 {
 	if (IsValid())
 	{
@@ -390,7 +390,7 @@ void IoPort::AppendDetails(const StringRef& str)
 	}
 	else
 	{
-		str.cat(" is not assigned to a pin");
+		str.cat(" has no pin");
 	}
 }
 
@@ -607,12 +607,12 @@ PwmPort::PwmPort()
 	frequency = DefaultPinWritePwmFreq;
 }
 
-void PwmPort::AppendDetails(const StringRef& str)
+void PwmPort::AppendDetails(const StringRef& str) const
 {
 	IoPort::AppendDetails(str);
 	if (IsValid())
 	{
-		str.catf(", frequency %uHz", frequency);
+		str.catf(" frequency %uHz", frequency);
 	}
 }
 

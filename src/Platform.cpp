@@ -295,7 +295,7 @@ void Platform::Init()
 	auxMutex.Create("Aux");
 	auxDetected = false;
 	auxSeq = 0;
-	SERIAL_AUX_DEVICE.begin(baudRates[1]);		// this can't be done in the constructor because the Arduino port initialisation isn't complete at that point
+	SERIAL_AUX_DEVICE.begin(baudRates[1]);		// this can't be done in the constructor because the port initialisation in CoreNG isn't complete at that point
 #endif
 
 #ifdef SERIAL_AUX2_DEVICE
@@ -367,7 +367,7 @@ void Platform::Init()
 	numSmartDrivers = MaxSmartDrivers;							// for now we assume that expansion drivers are smart too
 #elif defined(PCCB)
 	numSmartDrivers = MaxSmartDrivers;
-#elif defined(DUET3_V03) || defined(DUET3_V05) || defined(DUET3_V06)
+#elif defined(DUET3)
 	numSmartDrivers = MaxSmartDrivers;
 #endif
 
@@ -475,7 +475,7 @@ void Platform::Init()
 		// Set up the control pins
 		pinMode(STEP_PINS[driver], OUTPUT_LOW);
 		pinMode(DIRECTION_PINS[driver], OUTPUT_LOW);
-#if !(defined(DUET3_V03) || defined(DUET3_V05) || defined(DUET3_V06))
+#if !defined(DUET3)
 		pinMode(ENABLE_PINS[driver], OUTPUT_HIGH);				// this is OK for the TMC2660 CS pins too
 #endif
 
@@ -524,7 +524,7 @@ void Platform::Init()
 	{
 		extruderDrivers[extr].SetLocal(extr + MinAxes);			// set up default extruder drive mapping
 		driveDriverBits[extr + MaxAxes] = StepPins::CalcDriverBitmap(extr + MinAxes);
-		SetPressureAdvance(extr, 0.0);							// no pressure advance
+		pressureAdvance[extr] = 0.0;
 #if SUPPORT_NONLINEAR_EXTRUSION
 		nonlinearExtrusionA[extr] = nonlinearExtrusionB[extr] = 0.0;
 		nonlinearExtrusionLimit[extr] = DefaultNonlinearExtrusionLimit;
@@ -621,7 +621,7 @@ void Platform::Init()
 	}
 
 	// Fans
-	InitFans();
+	fman.Init();
 
 	// Hotend configuration
 	nozzleDiameter = NOZZLE_DIAMETER;
@@ -759,7 +759,7 @@ void Platform::UpdateFirmware()
     FileStore * const iapFile = OpenFile(DEFAULT_SYS_DIR, IAP_UPDATE_FILE, OpenMode::read);
 	if (iapFile == nullptr)
 	{
-		MessageF(FirmwareUpdateMessage, "IAP not found\n");
+		MessageF(FirmwareUpdateMessage, "IAP file '" IAP_UPDATE_FILE "' not found\n");
 		return;
 	}
 
@@ -1152,7 +1152,7 @@ void Platform::Spin()
 		return;
 	}
 
-#if defined(DUET3_V03) || defined(DUET3_V05) || defined(DUET3_V06) || defined(__LPC17xx__)
+#if defined(DUET3) || defined(__LPC17xx__)
 	// Blink the LED at about 2Hz. The expansion boards will blink in sync when they have established clock sync with us.
 	digitalWrite(DiagPin, (StepTimer::GetInterruptClocks() & (1u << 19)) != 0);
 #endif
@@ -1366,14 +1366,7 @@ void Platform::Spin()
 	if (now - lastFanCheckTime >= FanCheckInterval)
 	{
 		lastFanCheckTime = now;
-		bool thermostaticFanRunning = false;
-		for (size_t fan = 0; fan < NumTotalFans; ++fan)
-		{
-			if (fans[fan].Check())
-			{
-				thermostaticFanRunning = true;
-			}
-		}
+		bool thermostaticFanRunning = fman.CheckFans();
 
 		if (deferredPowerDown && !thermostaticFanRunning)
 		{
@@ -1611,20 +1604,6 @@ bool Platform::GetAutoSaveSettings(float& saveVoltage, float&resumeVoltage)
 
 #endif
 
-#if HAS_MASS_STORAGE
-
-// Save some resume information
-bool Platform::WriteFanSettings(FileStore *f) const
-{
-	bool ok = true;
-	for (size_t fanNum = 0; ok && fanNum < NumTotalFans; ++fanNum)
-	{
-		ok = fans[fanNum].WriteSettings(f, fanNum);
-	}
-	return ok;
-}
-
-#endif
 #if HAS_CPU_TEMP_SENSOR
 
 float Platform::AdcReadingToCpuTemperature(uint32_t adcVal) const
@@ -2837,7 +2816,7 @@ void Platform::EnableOneLocalDriver(size_t driver, float requiredCurrent)
 #endif
 		UpdateMotorCurrent(driver, requiredCurrent);
 
-#if (defined(DUET3_V03) || defined(DUET3_V05) || defined(DUET3_V06)) && HAS_SMART_DRIVERS
+#if defined(DUET3) && HAS_SMART_DRIVERS
 		SmartDrivers::EnableDrive(driver, true);		// all drivers driven directly by the main board are smart
 #elif HAS_SMART_DRIVERS
 		if (driver < numSmartDrivers)
@@ -2861,7 +2840,7 @@ void Platform::DisableOneLocalDriver(size_t driver)
 {
 	if (driver < NumDirectDrivers)
 	{
-#if (defined(DUET3_V03) || defined(DUET3_V05) || defined(DUET3_V06)) && HAS_SMART_DRIVERS
+#if defined(DUET3) && HAS_SMART_DRIVERS
 		SmartDrivers::EnableDrive(driver, false);		// all drivers driven directly by the main board are smart
 #elif HAS_SMART_DRIVERS
 		if (driver < numSmartDrivers)
@@ -3229,7 +3208,7 @@ bool Platform::SetMicrostepping(size_t axisOrExtruder, int microsteps, bool inte
 					},
 					[microsteps, interp, &canDriversToUpdate](DriverId driver)
 					{
-						canDriversToUpdate.AddEntry(driver, (interp) ? microsteps | 0x8000 : interp);
+						canDriversToUpdate.AddEntry(driver, (interp) ? microsteps | 0x8000 : microsteps);
 					}
 				  );
 	return CanInterface::SetRemoteDriverMicrostepping(canDriversToUpdate, reply) && ok;
@@ -3371,80 +3350,6 @@ bool Platform::GetDriverStepTiming(size_t driver, float microseconds[4]) const
 								: 0.0;
 	}
 	return isSlowDriver;
-}
-
-// Set or report the parameters for the specified fan
-// If 'mCode' is an M-code used to set parameters for the current kinematics (which should only ever be 106 or 107)
-// then search for parameters used to configure the fan. If any are found, perform appropriate actions and return true.
-// If errors were discovered while processing parameters, put an appropriate error message in 'reply' and set 'error' to true.
-// If no relevant parameters are found, print the existing ones to 'reply' and return false.
-bool Platform::ConfigureFan(unsigned int mcode, size_t fanNum, GCodeBuffer& gb, const StringRef& reply, bool& error)
-{
-	if (fanNum >= NumTotalFans)
-	{
-		reply.printf("Fan number %u is invalid, must be between 0 and %u", fanNum, NumTotalFans - 1);
-		error = true;
-		return false;
-	}
-
-	return fans[fanNum].Configure(mcode, fanNum, gb, reply, error);
-}
-
-// Get current cooling fan speed on a scale between 0 and 1
-float Platform::GetFanValue(size_t fan) const
-{
-	return (fan < NumTotalFans) ? fans[fan].GetConfiguredPwm() : -1;
-}
-
-void Platform::SetFanValue(size_t fan, float speed)
-{
-	if (fan < NumTotalFans)
-	{
-		fans[fan].SetPwm(speed);
-	}
-}
-
-// Check if the given fan can be controlled manually so that DWC can decide whether or not to show the corresponding fan
-// controls. This is the case if no thermostatic control is enabled and if the fan was configured at least once before.
-bool Platform::IsFanControllable(size_t fan) const
-{
-	return fan < NumTotalFans && !fans[fan].HasMonitoredSensors() && fans[fan].IsConfigured();
-}
-
-// Return the fan's name
-const char *Platform::GetFanName(size_t fan) const
-{
-	return fan < NumTotalFans ? fans[fan].GetName() : "";
-}
-
-// Get current fan RPM, or -1 if the fan is invalid or doesn't have a tacho pin
-int32_t Platform::GetFanRPM(size_t fanIndex) const
-{
-	return (fanIndex < NumTotalFans) ? fans[fanIndex].GetRPM() : -1;
-}
-
-void Platform::InitFans()
-{
-#if ALLOCATE_DEFAULT_PORTS
-	for (size_t i = 0; i < NumTotalFans; ++i)
-	{
-		if (i < ARRAY_SIZE(DefaultFanPinNames))
-		{
-			String<1> dummy;
-			(void)fans[i].AssignPorts(DefaultFanPinNames[i], dummy.GetRef());
-		}
-		if (i < ARRAY_SIZE(DefaultFanPwmFrequencies))
-		{
-			fans[i].SetPwmFrequency(DefaultFanPwmFrequencies[i]);
-		}
-	}
-
-	// Handle board-specific fan configuration
-# if defined(PCCB)
-	// Fan 3 needs to be set explicitly to zero PWM, otherwise it turns on because the MCU output pin isn't set low
-	fans[3].SetPwm(0.0);
-# endif
-#endif
 }
 
 //-----------------------------------------------------------------------------------------------------
@@ -3905,12 +3810,73 @@ void Platform::AtxPowerOff(bool defer)
 	}
 }
 
-void Platform::SetPressureAdvance(size_t extruder, float factor)
+GCodeResult Platform::SetPressureAdvance(float advance, GCodeBuffer& gb, const StringRef& reply)
 {
-	if (extruder < MaxExtruders)
+	GCodeResult rslt = GCodeResult::ok;
+
+#if SUPPORT_CAN_EXPANSION
+	CanDriversData canDriversToUpdate;
+#endif
+
+	if (gb.Seen('D'))
 	{
-		pressureAdvance[extruder] = factor;
+		uint32_t eDrive[MaxExtruders];
+		size_t eCount = MaxExtruders;
+		gb.GetUnsignedArray(eDrive, eCount, false);
+		for (size_t i = 0; i < eCount; i++)
+		{
+			const uint32_t extruder = eDrive[i];
+			if (extruder >= reprap.GetGCodes().GetNumExtruders())
+			{
+				reply.printf("Invalid extruder number '%" PRIu32 "'", extruder);
+				rslt = GCodeResult::error;
+				break;
+			}
+			pressureAdvance[extruder] = advance;
+#if SUPPORT_CAN_EXPANSION
+			if (extruderDrivers[extruder].IsRemote())
+			{
+				canDriversToUpdate.AddEntry(extruderDrivers[extruder], (uint16_t)(advance * 1000.0));
+			}
+#endif
+		}
 	}
+	else
+	{
+		const Tool * const ct = reprap.GetCurrentTool();
+		if (ct == nullptr)
+		{
+			reply.copy("No tool selected");
+			rslt = GCodeResult::error;
+		}
+		else
+		{
+#if SUPPORT_CAN_EXPANSION
+			ct->IterateExtruders([this, advance, &canDriversToUpdate](unsigned int extruder)
+									{
+										pressureAdvance[extruder] = advance;
+										if (extruderDrivers[extruder].IsRemote())
+										{
+											canDriversToUpdate.AddEntry(extruderDrivers[extruder], (uint16_t)(advance * 1000.0));
+										}
+									}
+								);
+#else
+			ct->IterateExtruders([this, advance](unsigned int extruder)
+									{
+										pressureAdvance[extruder] = advance;
+									}
+								);
+#endif
+		}
+	}
+
+#if SUPPORT_CAN_EXPANSION
+	const bool remoteOk = CanInterface::SetRemotePressureAdvance(canDriversToUpdate, reply);
+	return (remoteOk) ? rslt : GCodeResult::error;
+#else
+	return rslt;
+#endif
 }
 
 #if SUPPORT_NONLINEAR_EXTRUSION
@@ -4067,11 +4033,6 @@ void Platform::SetBoardType(BoardType bt)
 	else
 	{
 		board = bt;
-	}
-
-	if (active)
-	{
-		InitFans();								// select whether cooling is inverted or not
 	}
 }
 
@@ -4655,13 +4616,10 @@ GCodeResult Platform::ConfigurePort(GCodeBuffer& gb, const StringRef& reply)
 		return ConfigureGpioOrServo(deviceNumber, false, gb, reply);
 
 	case 4:
-		{
-			Heat& heat = reprap.GetHeat();
-			return (heat.NewSensorsPending()) ? GCodeResult::notFinished : heat.ConfigureHeater(deviceNumber, gb, reply);
-		}
+		return reprap.GetHeat().ConfigureHeater(deviceNumber, gb, reply);
 
 	case 8:
-		return ConfigureFan(deviceNumber, gb, reply);
+		return fman.ConfigureFanPort(deviceNumber, gb, reply);
 
 	default:
 		reply.copy("exactly one of FHPS must be given");
@@ -4690,34 +4648,6 @@ GCodeResult Platform::ConfigurePort(GCodeBuffer& gb, const StringRef& reply)
 	}
 #endif
 
-GCodeResult Platform::ConfigureFan(uint32_t fanNum, GCodeBuffer& gb, const StringRef& reply)
-{
-	if (fanNum < NumTotalFans)
-	{
-		Fan& fan = fans[fanNum];
-		const bool seenPin = gb.Seen('C');
-		if (seenPin)
-		{
-			if (!fan.AssignPorts(gb, reply))
-			{
-				return GCodeResult::error;
-			}
-		}
-		if (gb.Seen('Q'))
-		{
-            fan.SetPwmFrequency(gb.GetPwmFrequency());
-		}
-		else if (!seenPin)
-		{
-			reply.printf("Fan %" PRIu32, fanNum);
-			fan.AppendPortDetails(reply);
-		}
-		return GCodeResult::ok;
-	}
-
-	reply.copy("Fan number out of range");
-	return GCodeResult::error;
-}
 
 GCodeResult Platform::ConfigureGpioOrServo(uint32_t gpioNumber, bool isServo, GCodeBuffer& gb, const StringRef& reply)
 {

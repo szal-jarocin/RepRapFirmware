@@ -1282,7 +1282,7 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply)
 				const float f = gb.GetPwmValue();
 				if (seenFanNum)
 				{
-					platform.SetFanValue(fanNum, f);
+					result = platform.SetFanValue(fanNum, f, reply);
 					if (IsMappedFan(fanNum))
 					{
 						lastDefaultFanSpeed = f;
@@ -1302,7 +1302,7 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply)
 				// Restore fan speed to value when print was paused
 				if (seenFanNum)
 				{
-					platform.SetFanValue(fanNum, pausedFanSpeeds[fanNum]);
+					result = platform.SetFanValue(fanNum, pausedFanSpeeds[fanNum], reply);
 				}
 				else
 				{
@@ -1475,6 +1475,17 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply)
 		}
 		else
 		{
+#if SUPPORT_CAN_EXPANSION
+			if (gb.Seen('B'))
+			{
+				const uint32_t board = gb.GetUIValue();
+				if (board != CanId::MasterAddress)
+				{
+					result = CanInterface::GetRemoteFirmwareDetails(board, gb, reply);
+					break;
+				}
+			}
+#endif
 			reply.printf("FIRMWARE_NAME: %s FIRMWARE_VERSION: %s ELECTRONICS: %s", FIRMWARE_NAME, VERSION, platform.GetElectronicsString());
 #ifdef DUET_NG
 			const char* const expansionName = DuetExpansion::GetExpansionBoardName();
@@ -1668,10 +1679,10 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply)
 #if SUPPORT_CAN_EXPANSION
 				if (gb.Seen('B'))
 				{
-					const CanAddress board = gb.GetUIValue();
+					const uint32_t board = gb.GetUIValue();
 					if (board != CanId::MasterAddress)
 					{
-						result = CanInterface::RemoteDiagnostics(mt, board, reply);
+						result = CanInterface::RemoteDiagnostics(mt, board, gb, reply);
 						break;
 					}
 				}
@@ -1754,11 +1765,12 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply)
 					else
 					{
 						heat.SetActiveTemperature(currentHeater, temperature);
-						heat.Activate(currentHeater);
+						result = heat.Activate(currentHeater, reply);
 					}
 				}
 			}
 
+			// Standby temperature
 			if (gb.Seen('R'))
 			{
 				seen = true;
@@ -1807,7 +1819,7 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply)
 			{
 				if (gb.Seen('S') && gb.GetIValue() == 1)
 				{
-					reprap.GetHeat().Activate(bedHeater);
+					result = reprap.GetHeat().Activate(bedHeater, reply);
 				}
 				else
 				{
@@ -1864,7 +1876,7 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply)
 				}
 
 				reprap.GetHeat().SetActiveTemperature(heater, temperature);
-				reprap.GetHeat().Activate(heater);
+				result = reprap.GetHeat().Activate(heater, reply);
 				if (cancelWait || reprap.GetHeat().HeaterAtSetTemperature(heater, waitWhenCooling, TEMPERATURE_CLOSE_ENOUGH))
 				{
 					cancelWait = isWaiting = false;
@@ -3188,7 +3200,7 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply)
 			const unsigned int heater = gb.GetUIValue();
 			if (heater < MaxHeaters)
 			{
-				reprap.ClearTemperatureFault(heater);
+				result = reprap.ClearTemperatureFault(heater, reply);
 			}
 			else
 			{
@@ -3201,7 +3213,7 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply)
 			// Clear all heater faults
 			for (unsigned int heater = 0; heater < MaxHeaters; ++heater)
 			{
-				reprap.ClearTemperatureFault(heater);
+				result = max<GCodeResult>(result, reprap.ClearTemperatureFault(heater, reply));
 			}
 		}
 		heaterFaultState = HeaterFaultState::noFault;
@@ -3357,40 +3369,12 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply)
 	case 572: // Set/report pressure advance
 		if (gb.Seen('S'))
 		{
+			const float advance = gb.GetFValue();
 			if (!LockMovementAndWaitForStandstill(gb))
 			{
 				return false;
 			}
-			const float advance = gb.GetFValue();
-			if (gb.Seen('D'))
-			{
-				uint32_t eDrive[MaxExtruders];
-				size_t eCount = MaxExtruders;
-				gb.GetUnsignedArray(eDrive, eCount, false);
-				for (size_t i = 0; i < eCount; i++)
-				{
-					if (eDrive[i] >= numExtruders)
-					{
-						reply.printf("Invalid extruder number '%" PRIu32 "'", eDrive[i]);
-						result = GCodeResult::error;
-						break;
-					}
-					platform.SetPressureAdvance(eDrive[i], advance);
-				}
-			}
-			else
-			{
-				const Tool * const ct = reprap.GetCurrentTool();
-				if (ct == nullptr)
-				{
-					reply.copy("No tool selected");
-					result = GCodeResult::error;
-				}
-				else
-				{
-					ct->IterateExtruders([advance](unsigned int extruder) { reprap.GetPlatform().SetPressureAdvance(extruder, advance); });
-				}
-			}
+			result = platform.SetPressureAdvance(advance, gb, reply);
 		}
 		else
 		{
@@ -4557,7 +4541,18 @@ bool GCodes::HandleResult(GCodeBuffer& gb, GCodeResult rslt, const StringRef& re
 		rslt = GCodeResult::error;
 		break;
 
+	case GCodeResult::remoteInternalError:
+		if (!gb.IsBinary() && gb.IsDoingFile())
+		{
+			gb.PrintCommand(reply);
+			reply.cat(": ");
+		}
+		reply.cat("CAN-connected board reported internal error");
+		rslt = GCodeResult::error;
+		break;
+
 	case GCodeResult::error:
+	case GCodeResult::warning:
 		if (!gb.IsBinary() && gb.IsDoingFile())
 		{
 			String<ShortScratchStringLength> scratchString;

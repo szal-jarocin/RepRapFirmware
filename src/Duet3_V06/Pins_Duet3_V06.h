@@ -1,11 +1,13 @@
 #ifndef PINS_SAME70_H__
 #define PINS_SAME70_H__
 
+#define BOARD_SHORT_NAME	"MB6HC"
 #define FIRMWARE_NAME		"RepRapFirmware for Duet 3 v0.6"
 #define DEFAULT_BOARD_TYPE	BoardType::Duet3_06
 const size_t NumFirmwareUpdateModules = 1;
-#define IAP_FIRMWARE_FILE	"Duet3Firmware.bin"
-#define IAP_UPDATE_FILE		"iapduet3.bin"
+
+#define IAP_FIRMWARE_FILE	"Duet3Firmware_" BOARD_SHORT_NAME ".bin"
+#define IAP_UPDATE_FILE		"Duet3iap_sd_" BOARD_SHORT_NAME ".bin"
 
 // Features definition
 #define HAS_LWIP_NETWORKING		1
@@ -127,9 +129,9 @@ constexpr Pin DiagPin = PortCPin(20);
 
 // SD cards
 constexpr size_t NumSdCards = 1;
-constexpr Pin SdCardDetectPins[1] = { NoPin };
+constexpr Pin SdCardDetectPins[1] = { PortAPin(29) };
 constexpr Pin SdWriteProtectPins[1] = { NoPin };
-constexpr Pin SdSpiCSPins[1] = { PortAPin(29) };
+constexpr Pin SdSpiCSPins[1] = { NoPin };
 constexpr uint32_t ExpectedSdCardSpeed = 25000000;
 
 // Ethernet

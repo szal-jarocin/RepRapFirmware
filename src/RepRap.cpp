@@ -1133,9 +1133,13 @@ OutputBuffer *RepRap::GetStatusResponse(uint8_t type, ResponseSource source)
 		response->cat("]},\"extra\":[");
 		bool first = true;
 		unsigned int nextSensorNumber = 0;
-		TemperatureSensor *sensor;
-		while ((sensor = heat->GetSensorAtOrAbove(nextSensorNumber)) != nullptr)
+		for (;;)
 		{
+			const auto sensor = heat->FindSensorAtOrAbove(nextSensorNumber);
+			if (sensor.IsNull())
+			{
+				break;
+			}
 			const char * const nm = sensor->GetSensorName();
 			if (nm != nullptr)
 			{
@@ -1281,7 +1285,7 @@ OutputBuffer *RepRap::GetStatusResponse(uint8_t type, ResponseSource source)
 
 		/* Probe */
 		{
-			const ZProbe zp = platform->GetCurrentZProbe();
+			const ZProbe& zp = platform->GetCurrentZProbe();
 
 			// Trigger threshold, trigger height, type
 			response->catf(",\"probe\":{\"threshold\":%d,\"height\":%.2f,\"type\":%u}",
@@ -1533,7 +1537,7 @@ OutputBuffer *RepRap::GetConfigResponse()
 	ch = '[';
 	for (size_t drive = 0; drive < MaxAxesPlusExtruders; drive++)
 	{
-		response->catf("%c%.2f", ch, (double)(platform->GetMotorCurrent(drive, 906)));
+		response->catf("%c%d", ch, (int)platform->GetMotorCurrent(drive, 906));
 		ch = ',';
 	}
 
@@ -1553,6 +1557,10 @@ OutputBuffer *RepRap::GetConfigResponse()
 #endif
 	response->cat("\",\"firmwareName\":");
 	response->EncodeString(FIRMWARE_NAME, false);
+#ifdef BOARD_SHORT_NAME
+	response->cat(",\"boardName\":");
+	response->EncodeString(BOARD_SHORT_NAME, false);
+#endif
 	response->cat(",\"firmwareVersion\":");
 	response->EncodeString(VERSION, false);
 
@@ -2235,14 +2243,15 @@ void RepRap::FlagTemperatureFault(int8_t dudHeater)
 	}
 }
 
-void RepRap::ClearTemperatureFault(int8_t wasDudHeater)
+GCodeResult RepRap::ClearTemperatureFault(int8_t wasDudHeater, const StringRef& reply)
 {
-	heat->ResetFault(wasDudHeater);
+	const GCodeResult rslt = heat->ResetFault(wasDudHeater, reply);
 	MutexLocker lock(toolListMutex);
 	if (toolList != nullptr)
 	{
 		toolList->ClearTemperatureFault(wasDudHeater);
 	}
+	return rslt;
 }
 
 // Get the current axes used as X axes

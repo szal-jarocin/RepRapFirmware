@@ -41,12 +41,9 @@ pre(buf->id.MsgType() == CanMessageType::FirmwareBlockRequest)
 			// Request another chunk of data from the given file
 			while (lreq > 0)
 			{
-				reprap.GetLinuxInterface().RequestFileChunk(fname.c_str(), fileOffset, lreq, RTOSIface::GetCurrentTask());
-				TaskBase::Take();
-
-				int bytesRead;
-				uint32_t fileLength = 0;
-				const char *data = reprap.GetLinuxInterface().GetFileChunk(bytesRead, fileLength);
+				uint32_t fileLength;
+				int32_t bytesRead;
+				const char *data = reprap.GetLinuxInterface().GetFileChunk(fname.c_str(), fileOffset, lreq, bytesRead, fileLength);
 				if (bytesRead < 0)
 				{
 					break;
@@ -55,7 +52,7 @@ pre(buf->id.MsgType() == CanMessageType::FirmwareBlockRequest)
 				size_t bytesSent = 0;
 				for (;;)
 				{
-					CanMessageFirmwareUpdateResponse * const msgp = buf->SetupResponseMessage<CanMessageFirmwareUpdateResponse>(CanId::MasterAddress, src);
+					CanMessageFirmwareUpdateResponse * const msgp = buf->SetupResponseMessage<CanMessageFirmwareUpdateResponse>(0, CanId::MasterAddress, src);
 					const size_t lengthToSend = min<size_t>(lreq, sizeof(msgp->data));
 					memcpy(msgp->data, data + bytesSent, lengthToSend);
 					bytesSent += lengthToSend;
@@ -67,7 +64,7 @@ pre(buf->id.MsgType() == CanMessageType::FirmwareBlockRequest)
 					CanInterface::SendResponse(buf);
 					fileOffset += lengthToSend;
 					lreq -= lengthToSend;
-					if (lreq == 0)
+					if ((int32_t)bytesSent == bytesRead)
 					{
 						break;
 					}
@@ -89,7 +86,7 @@ pre(buf->id.MsgType() == CanMessageType::FirmwareBlockRequest)
 				const uint32_t fileLength = f->Length();
 				if (fileOffset >= fileLength)
 				{
-					CanMessageFirmwareUpdateResponse * const msgp = buf->SetupResponseMessage<CanMessageFirmwareUpdateResponse>(CanId::MasterAddress, src);
+					CanMessageFirmwareUpdateResponse * const msgp = buf->SetupResponseMessage<CanMessageFirmwareUpdateResponse>(0, CanId::MasterAddress, src);
 					msgp->dataLength = 0;
 					msgp->err = CanMessageFirmwareUpdateResponse::ErrBadOffset;
 					msgp->fileLength = fileLength;
@@ -110,7 +107,7 @@ pre(buf->id.MsgType() == CanMessageType::FirmwareBlockRequest)
 
 					for (;;)
 					{
-						CanMessageFirmwareUpdateResponse * const msgp = buf->SetupResponseMessage<CanMessageFirmwareUpdateResponse>(CanId::MasterAddress, src);
+						CanMessageFirmwareUpdateResponse * const msgp = buf->SetupResponseMessage<CanMessageFirmwareUpdateResponse>(0, CanId::MasterAddress, src);
 						const size_t lengthToSend = min<size_t>(lreq, sizeof(msgp->data));
 						if (f->Read(msgp->data, lengthToSend) != (int)lengthToSend)
 						{
@@ -148,20 +145,20 @@ pre(buf->id.MsgType() == CanMessageType::FirmwareBlockRequest)
 
 		if (lreq != 0)			// if we didn't complete the request
 		{
-			CanMessageFirmwareUpdateResponse * const msgp = buf->SetupResponseMessage<CanMessageFirmwareUpdateResponse>(CanId::MasterAddress, src);
+			CanMessageFirmwareUpdateResponse * const msgp = buf->SetupResponseMessage<CanMessageFirmwareUpdateResponse>(0, CanId::MasterAddress, src);
 			msgp->dataLength = 0;
 			msgp->err = CanMessageFirmwareUpdateResponse::ErrNoFile;
 			msgp->fileLength = 0;
 			msgp->fileOffset = 0;
 			buf->dataLength = msgp->GetActualDataLength();
 			CanInterface::SendResponse(buf);
-			reprap.GetPlatform().MessageF(ErrorMessage, "Received firmware update request for unknown file '%s'\n", fname.c_str());
+			reprap.GetPlatform().MessageF(ErrorMessage, "Received firmware update request for missing file '%s'\n", fname.c_str());
 		}
 	}
 	else
 	{
 		const uint32_t bootloaderVersion = msg.bootloaderVersion;
-		CanMessageFirmwareUpdateResponse * const msgp = buf->SetupResponseMessage<CanMessageFirmwareUpdateResponse>(CanId::MasterAddress, src);
+		CanMessageFirmwareUpdateResponse * const msgp = buf->SetupResponseMessage<CanMessageFirmwareUpdateResponse>(0, CanId::MasterAddress, src);
 		msgp->dataLength = 0;
 		msgp->err = CanMessageFirmwareUpdateResponse::ErrOther;
 		msgp->fileLength = 0;
@@ -172,47 +169,39 @@ pre(buf->id.MsgType() == CanMessageType::FirmwareBlockRequest)
 	}
 }
 
-// Handle a temperature report and free the buffer
-static void HandleTemperatureReport(CanMessageBuffer *buf)
-pre(buf->id.MsgType() == CanMessageType::temperatureReport)
-{
-	const CanMessageSensorTemperatures& msg = buf->msg.sensorTemperaturesBroadcast;
-	uint64_t sensorsReported = msg.whichSensors;
-	size_t index = 0;
-	for (unsigned int sensor = 0; sensor < 64 && sensorsReported != 0; ++sensor)
-	{
-		if (((uint32_t)sensorsReported & 1u) != 0)
-		{
-			if (index < ARRAY_SIZE(msg.temperatureReports))
-			{
-				reprap.GetHeat().UpdateRemoteSensorTemperature(sensor, msg.temperatureReports[index]);
-			}
-			++index;
-		}
-		sensorsReported >>= 1;
-	}
-	CanMessageBuffer::Free(buf);
-}
-
-// Process a received broadcast or request message amd free the message buffer
+// Process a received broadcast or request message and free the message buffer
 void CommandProcessor::ProcessReceivedMessage(CanMessageBuffer *buf)
 {
-	// In the following switch, each case must release the message buffer, either directly or by re-using it to send a response
-	switch (buf->id.MsgType())
+	if (buf->id.Src() == CanId::MasterAddress)
 	{
-	case CanMessageType::FirmwareBlockRequest:
-		HandleFirmwareBlockRequest(buf);
-		break;
-
-	case CanMessageType::sensorTemperaturesReport:
-		HandleTemperatureReport(buf);
-		break;
-
-	case CanMessageType::statusReport:
-	default:
-//		buf->DebugPrint("Rec: ");
+		// I don't think we should receive our own broadcasts, but in case we do...
 		CanMessageBuffer::Free(buf);
-		break;
+	}
+	else
+	{
+		// In the following switch, each case must release the message buffer, either directly or by re-using it to send a response
+		switch (buf->id.MsgType())
+		{
+		case CanMessageType::FirmwareBlockRequest:
+			HandleFirmwareBlockRequest(buf);
+			break;
+
+		case CanMessageType::sensorTemperaturesReport:
+			reprap.GetHeat().ProcessRemoteSensorsReport(buf->id.Src(), buf->msg.sensorTemperaturesBroadcast);
+			CanMessageBuffer::Free(buf);
+			break;
+
+		case CanMessageType::heatersStatusReport:
+			reprap.GetHeat().ProcessRemoteHeatersReport(buf->id.Src(), buf->msg.heatersStatusBroadcast);
+			CanMessageBuffer::Free(buf);
+			break;
+
+		case CanMessageType::statusReport:
+		default:
+//			buf->DebugPrint("Rec: ");
+			CanMessageBuffer::Free(buf);
+			break;
+		}
 	}
 }
 

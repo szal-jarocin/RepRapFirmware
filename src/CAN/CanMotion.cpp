@@ -41,7 +41,7 @@ void CanMotion::StartMovement(const DDA& dda)
 
 // This is called by DDA::Prepare for each active CAN DM in the move
 // If steps == 0 then the drivers just need to be enabled
-void CanMotion::AddMovement(const DDA& dda, const PrepParams& params, DriverId canDriver, int32_t steps)
+void CanMotion::AddMovement(const DDA& dda, const PrepParams& params, DriverId canDriver, int32_t steps, bool usePressureAdvance)
 {
 	// Search for the correct movement buffer
 	CanMessageBuffer* buf = movementBufferList;
@@ -62,7 +62,8 @@ void CanMotion::AddMovement(const DDA& dda, const PrepParams& params, DriverId c
 		buf->next = movementBufferList;
 		movementBufferList = buf;
 
-		auto move = buf->SetupRequestMessage<CanMessageMovement>(CanId::MasterAddress, canDriver.boardAddress);
+		const CanRequestId rid = CanInterface::AllocateRequestId(canDriver.boardAddress);
+		auto move = buf->SetupRequestMessage<CanMessageMovement>(rid, CanId::MasterAddress, canDriver.boardAddress);
 
 		// Common parameters
 		move->accelerationClocks = lrintf(params.accelTime * StepTimer::StepClockRate);
@@ -70,9 +71,9 @@ void CanMotion::AddMovement(const DDA& dda, const PrepParams& params, DriverId c
 		move->decelClocks = lrintf(params.decelTime * StepTimer::StepClockRate);
 		move->initialSpeedFraction = params.initialSpeedFraction;
 		move->finalSpeedFraction = params.finalSpeedFraction;
+		move->pressureAdvanceDrives = 0;
 		move->deltaDrives = 0;								//TODO
 		move->endStopsToCheck = 0;							//TODO
-		move->pressureAdvanceDrives = 0;					//TODO
 		move->stopAllDrivesOnEndstopHit = false;			//TODO
 
 		// Additional parameters for delta movements
@@ -83,13 +84,17 @@ void CanMotion::AddMovement(const DDA& dda, const PrepParams& params, DriverId c
 		move->zMovement = params.zMovement;
 
 		// Clear out the per-drive fields
-		for (size_t drive = 0; drive < DriversPerCanBoard; ++drive)
+		for (size_t drive = 0; drive < ARRAY_SIZE(move->perDrive); ++drive)
 		{
 			move->perDrive[drive].steps = 0;
 		}
 	}
 
 	buf->msg.move.perDrive[canDriver.localDriver].steps = steps;
+	if (usePressureAdvance)
+	{
+		buf->msg.move.pressureAdvanceDrives |= 1u << canDriver.localDriver;
+	}
 }
 
 // This is called by DDA::Prepare when all DMs for CAN drives have been processed

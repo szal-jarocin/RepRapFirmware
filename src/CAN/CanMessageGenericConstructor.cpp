@@ -93,6 +93,13 @@ bool CanMessageGenericConstructor::PopulateFromCommand(GCodeBuffer& gb, const St
 				}
 				break;
 
+			case ParamDescriptor::localDriver:
+				{
+					const DriverId id = gb.GetDriverId();
+					overflowed = StoreValue(id.localDriver);
+				}
+				break;
+
 			case ParamDescriptor::int8:
 				{
 					const int8_t val = (int8_t)gb.GetIValue();
@@ -196,6 +203,66 @@ bool CanMessageGenericConstructor::PopulateFromCommand(GCodeBuffer& gb, const St
 	return true;
 }
 
+//TODO factor out the common code in the following several routines
+void CanMessageGenericConstructor::AddU64Param(char c, uint64_t v)
+{
+	unsigned int pos = 0;
+	uint32_t paramBit = 1;
+	for (const ParamDescriptor *d = paramTable; d->letter != 0; ++d)
+	{
+		const bool present = (msg.paramMap & paramBit) != 0;
+		if (d->letter == c)
+		{
+			if (present)
+			{
+				err = "duplicate parameter";
+				return;
+			}
+			else
+			{
+				switch (d->type)
+				{
+				case ParamDescriptor::uint64:
+					break;
+
+				default:
+					err = "uval wrong parameter type";
+					return;
+				}
+
+				if (InsertValue(&v, d->ItemSize(), pos))
+				{
+					err = "overflow";
+				}
+				else
+				{
+					msg.paramMap |= paramBit;
+				}
+			}
+			return;
+		}
+
+		if (present)
+		{
+			// This parameter is present, so skip it
+			const size_t size = d->ItemSize();
+			if (size != 0)
+			{
+				pos += size;
+			}
+			else
+			{
+				// The only item with size 0 is string, so skip up to and including the null terminator
+				do
+				{
+				} while (msg.data[pos++] != 0);
+			}
+		}
+		paramBit <<= 1;
+	}
+	err = "wrong parameter letter";
+}
+
 void CanMessageGenericConstructor::AddUParam(char c, uint32_t v)
 {
 	unsigned int pos = 0;
@@ -218,6 +285,7 @@ void CanMessageGenericConstructor::AddUParam(char c, uint32_t v)
 					break;
 
 				case ParamDescriptor::uint16:
+				case ParamDescriptor::pwmFreq:
 					if (v >= (1u << 16))
 					{
 						err = "uval too large";
@@ -452,17 +520,25 @@ void CanMessageGenericConstructor::AddStringParam(char c, const char *v)
 			{
 				err = "duplicate parameter";
 			}
-			else if (d->type != ParamDescriptor::string)
-			{
-				err = "sval wrong parameter type";
-			}
-			else if (InsertValue(&v, strlen(v) + 1, pos))
-			{
-				err = "overflow";
-			}
 			else
 			{
-				msg.paramMap |= paramBit;
+				switch (d->type)
+				{
+				case ParamDescriptor::string:
+				case ParamDescriptor::reducedString:			//TODO currently we don't reduce the string, but it should already be reduced
+					if (InsertValue(v, strlen(v) + 1, pos))
+					{
+						err = "overflow";
+					}
+					else
+					{
+						msg.paramMap |= paramBit;
+					}
+					break;
+
+				default:
+					err = "sval wrong parameter type";
+				}
 			}
 			return;
 		}
@@ -497,11 +573,12 @@ GCodeResult CanMessageGenericConstructor::SendAndGetResponse(CanMessageType msgT
 		return GCodeResult::error;
 	}
 
+	const CanRequestId rid = CanInterface::AllocateRequestId(dest);
 	const size_t actualMessageLength = CanMessageGeneric::GetActualDataLength(dataLen);
-	CanMessageGeneric *m2 = buf->SetupGenericMessage(msgType, CanInterface::GetCanAddress(), dest, actualMessageLength);
+	CanMessageGeneric *m2 = buf->SetupGenericRequestMessage(rid, CanInterface::GetCanAddress(), dest, msgType, actualMessageLength);
 	memcpy(m2, &msg, actualMessageLength);
-//	m2->DebugPrint(paramTable);		//DEBUG
-	return CanInterface::SendRequestAndGetStandardReply(buf, reply);
+	m2->requestId = rid;
+	return CanInterface::SendRequestAndGetStandardReply(buf, rid, reply);
 }
 
 #endif

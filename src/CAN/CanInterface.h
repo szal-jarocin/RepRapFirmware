@@ -60,11 +60,15 @@ namespace CanInterface
 	static constexpr uint32_t CanResponseTimeout = 300;
 
 	void Init();
-	CanAddress GetCanAddress();
-	GCodeResult SendRequestAndGetStandardReply(CanMessageBuffer *buf, const StringRef& reply);
+	inline CanAddress GetCanAddress() { return CanId::MasterAddress; }
+	CanRequestId AllocateRequestId(CanAddress destination);
+	GCodeResult SendRequestAndGetStandardReply(CanMessageBuffer *buf, CanRequestId rid, const StringRef& reply);
 	void SendResponse(CanMessageBuffer *buf);
+	void SendBroadcast(CanMessageBuffer *buf);
 
-	GCodeResult RemoteDiagnostics(MessageType mt, CanAddress board, const StringRef& reply);
+	GCodeResult GetRemoteFirmwareDetails(uint32_t boardAddress, GCodeBuffer& gb, const StringRef& reply);
+	GCodeResult RemoteDiagnostics(MessageType mt, uint32_t boardAddress, GCodeBuffer& gb, const StringRef& reply);
+	GCodeResult UpdateRemoteFirmware(uint32_t boardAddress, GCodeBuffer& gb, const StringRef& reply);
 
 	// Motor control functions
 	void SendMotion(CanMessageBuffer *buf);
@@ -73,6 +77,7 @@ namespace CanInterface
 	bool SetRemoteStandstillCurrentPercent(const CanDriversData& data, const StringRef& reply);
 	bool SetRemoteDriverCurrents(const CanDriversData& data, const StringRef& reply);
 	bool SetRemoteDriverMicrostepping(const CanDriversData& data, const StringRef& reply);
+	bool SetRemotePressureAdvance(const CanDriversData& data, const StringRef& reply);
 	GCodeResult ConfigureRemoteDriver(DriverId driver, GCodeBuffer& gb, const StringRef& reply);
 	GCodeResult SetRemoteDriverStallParameters(const CanDriversList& drivers, GCodeBuffer& gb, const StringRef& reply);
 }
