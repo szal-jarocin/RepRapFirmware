@@ -68,6 +68,10 @@ static const boardConfigEntry_t boardConfigs[]=
     
     {"lpc.softwareSPI.pins", SoftwareSPIPins, &NumSoftwareSPIPins, cvPinType}, //SCK, MISO, MOSI
     
+#if HAS_LINUX_INTERFACE
+    {"linuxTfrReadyPin", &LinuxTfrReadyPin, nullptr, cvPinType},
+#endif
+    
     //TODO:: think this is currently not working
     {"lpc.uartPanelDueMode", &UARTPanelDueMode, nullptr, cvBoolType},
 };

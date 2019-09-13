@@ -49,6 +49,10 @@ bool UARTPanelDueMode = false;              //disable PanelDue support by defaul
 
 Pin SoftwareSPIPins[3] = {NoPin, NoPin, NoPin}; //GPIO pins for softwareSPI (used with SharedSPI)
 
+#if defined(HAS_LINUX_INTERFACE)
+Pin LinuxTfrReadyPin = NoPin;
+#endif
+
 //Default to the Generic PinTable
 PinEntry *PinTable = (PinEntry *) PinTable_Generic;
 size_t NumNamedLPCPins = ARRAY_SIZE(PinTable_Generic);

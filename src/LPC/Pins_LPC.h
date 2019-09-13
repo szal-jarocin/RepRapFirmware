@@ -41,7 +41,6 @@ const size_t NumFirmwareUpdateModules = 1;
 #define SUPPORT_TELNET                   0
 #define SUPPORT_FTP                      0
 #define HAS_MASS_STORAGE                 1
-#define HAS_LINUX_INTERFACE              0
 
 
 #define ALLOCATE_DEFAULT_PORTS           0
@@ -50,16 +49,6 @@ const size_t NumFirmwareUpdateModules = 1;
     //LPC Ethernet
     #define HAS_RTOSPLUSTCP_NETWORKING   1
     #define SUPPORT_12864_LCD            1
-//#elif defined(ESP8266_NETWORKING)
-//    #define HAS_WIFI_NETWORKING          1
-//    #define HAS_RTOSPLUSTCP_NETWORKING   0
-//    #define SUPPORT_12864_LCD            1
-//
-//    #define WIFI_FIRMWARE_FILE    "DuetWiFiServer.bin"
-//    extern Pin EspDataReadyPin;
-//    extern Pin EspResetPin;
-//    extern Pin SamTfrReadyPin;
-//    extern Pin SamCsPin;
 #else
     #define HAS_RTOSPLUSTCP_NETWORKING   0
     #define SUPPORT_12864_LCD            1
@@ -124,6 +113,9 @@ constexpr size_t MaxSpiTempSensors = 2;
 extern Pin SpiTempSensorCsPins[MaxSpiTempSensors]; // Digital pins the 31855s have their select lines tied to
 constexpr SSPChannel TempSensorSSPChannel = SSP0; //Conect SPI Temp sensor to SSP0
 
+#if HAS_LINUX_INTERFACE
+extern Pin LinuxTfrReadyPin;
+#endif
 
 //Hardware LPC Timers
 //Timer 0 is used for the Step Generation

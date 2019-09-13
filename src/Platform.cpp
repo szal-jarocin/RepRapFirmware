@@ -1855,7 +1855,7 @@ void NETWORK_TC_HANDLER()
 
 void Platform::InitialiseInterrupts()
 {
-#if SAM4E || SAM7E || __LPC17xx__
+#if SAM4E || SAME70 || defined(__LPC17xx__)
 	NVIC_SetPriority(WDT_IRQn, NvicPriorityWatchdog);			// set priority for watchdog interrupts
 #endif
 
@@ -1918,7 +1918,7 @@ void Platform::InitialiseInterrupts()
 # endif
 #endif
 
-#if __LPC17xx__
+#ifdef __LPC17xx__
 	//SD: Int for GPIO pins on port 0 and 2 share EINT3
 	NVIC_SetPriority(EINT3_IRQn, NvicPriorityPins);
 #else
@@ -1947,7 +1947,7 @@ void Platform::InitialiseInterrupts()
 
 #if defined(DUET_NG) || defined(DUET_M) || defined(DUET_06_085)
 	NVIC_SetPriority(I2C_IRQn, NvicPriorityTwi);
-#elif __LPC17xx__
+#elif defined(__LPC17xx__)
 	NVIC_SetPriority(I2C0_IRQn, NvicPriorityTwi);
 	NVIC_SetPriority(I2C1_IRQn, NvicPriorityTwi);
 #endif
@@ -2073,7 +2073,7 @@ void Platform::Diagnostics(MessageType mtype)
     
 	// Show the reset code stored at the last software reset
 	{
-#if __LPC17xx__
+#ifdef __LPC17xx__
         //Reset Reason
         MessageF(mtype, "Last reset %02d:%02d:%02d ago, cause: ",
                  (unsigned int)(now/3600), (unsigned int)((now % 3600)/60), (unsigned int)(now % 60));
@@ -2086,9 +2086,8 @@ void Platform::Diagnostics(MessageType mtype)
         if(LPC_SC->RSID & RSID_LOCKUP) MessageF(mtype, "[lockup]");
         
         MessageF(mtype, "\n");
-        
-        
-		SoftwareResetData srdBuf[1];
+
+        SoftwareResetData srdBuf[1];
 		int slot = -1;
 
 		for (int s = SoftwareResetData::numberOfSlots - 1; s >= 0; s--)
@@ -3187,7 +3186,7 @@ bool Platform::SetDriverMicrostepping(size_t driver, unsigned int microsteps, in
 		}
 #elif defined(__ALLIGATOR__)
 		return Microstepping::Set(driver, microsteps); // no mode in Alligator board
-#elif __LPC17xx__
+#elif defined(__LPC17xx__)
 		return Microstepping::Set(driver, microsteps);
 #else
 		// Assume only x16 microstepping supported
