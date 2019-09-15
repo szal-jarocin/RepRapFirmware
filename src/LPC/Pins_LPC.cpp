@@ -132,7 +132,14 @@ bool LookupPinName(const char*pn, LogicalPin& lpin, bool& hardwareInverted)
             {
                 ++q;
             }
-            while (*q != ',' && *q != 0 && *p == *q)
+            while (*q != ',' && *q != 0 &&
+#if 1
+#warning TODO: Temp fix as Heaters/Fans pin names are currently not passed as lower case
+                   tolower(*p) == *q
+#else
+                   *p == *q
+#endif
+                   )
             {
                 ++p;
                 ++q;

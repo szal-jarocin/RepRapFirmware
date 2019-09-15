@@ -22,7 +22,8 @@ typedef uint8_t NetworkProtocol;
 constexpr uint8_t DefaultMacAddress[6] = { 0xBE, 0xEF, 0xDE, 0xAD, 0xFE, 0xED };
 
 constexpr IPAddress DefaultIpAddress;		// will be initialised to 0 by constructor
-const IPAddress DefaultNetMask((const uint8_t[]){ 255, 255, 255, 0 });
+//const IPAddress DefaultNetMask((const uint8_t[]){ 255, 255, 255, 0 });
+constexpr IPAddress DefaultNetMask(0xFFFFFF00); //initialised to 255.255.255.0 - SD:: added as the above was being alloated into memory 14 times
 constexpr IPAddress DefaultGateway;			// will be initialised to 0 by constructor
 
 constexpr size_t NumProtocols = 3;					// number of network protocols we support, not counting FtpDataProtocol or AnyProtocol
@@ -37,7 +38,7 @@ constexpr Port DefaultPortNumbers[NumProtocols] = { DefaultHttpPort, DefaultFtpP
 constexpr const char * ProtocolNames[NumProtocols] = { "HTTP", "FTP", "TELNET" };
 
 #if defined(__LPC17xx__)
-const size_t NetworkBufferCount = 2;				// number of MSS sized buffers
+constexpr size_t NetworkBufferCount = 2;				// number of MSS sized buffers
 #else
 constexpr size_t NetworkBufferCount = 6;			// number of 2K network buffers
 #endif

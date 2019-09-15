@@ -11,15 +11,13 @@ Version 3.0 beta3
 * Removed SpecialPins as it's no longer required in RRF3. M950 is now used to create a "gpio port number", and that gpio port number is used in M42 and M280.
 * Removed lpc.externalInterruptPins config. It is now done automatially when attempting to attach an interrupt to a pin on port 0 or port 2 (i.e. for Fan Tacho pin or configuring a filament detector).
 * Removed lpc.slowPWM.pins, lpc.fastPWM.pins and lpc.servoPins. They are now assigned automatically when using M950.
-* PWM now uses a single microsecond free running on Timer 3. This allows creating different PWM with frequencies instead of being limited to 2 options.  
-* Added new entry: lpc.HWPWM.frequencyHz. To allow setting HW PWM to a different frequency. Default is 250.
+* PWM for heaters and fans are now generated using a free running timer. This allows creating different PWM with frequencies instead of being limited to 2 options.  
 * Added new entry: lpc.board. Currently supported values are: smoothieboard, rearm,  mkssbase_1.3, azsmzmini, biquskr_1.1, biquskr_1.3, azteegx5mini_1.1 and generic.  For example: lpc.board = smoothieboard;
     * Currently does not support control of drivers via UART/SPI on Biqu SKR 1.3. 
     * When defining a board, the names on the silk screen (or official pinout if there is no names on the silk) can be used in M950. LPC style of port.pin (i.e. 1.23) can also be used if desired, however.
     * For ReArm, the silk on the RAMPs shield is used and additionally support from the official pinout that uses arduino mega naming can be used, i.e. D8, etc.
     * For the above boards (except generic), some defaults are included in the firmware for stepper pins (en/step/dir), current control and will be used as the default. They can be overriden by defining those variables in board.txt.
     * The generic board has no defaults. 
-* Added new option do enable/disable RRF Panel Due mode for the AUX serial port (default is false). For example: lpc.uartPanelDueMode = true; 
 * Added new atxPowerPinInverted entry which is set to true or false.  Set to true if the PSON needs to be inverted. Default is False.
 * Added new lpc.externalSDCard.spiChannel to select which hardware SSP pins are used for SDCard. Must be 0 to select SSP0 or 1 to select SSP1. Default is SSP1.
 
@@ -27,7 +25,7 @@ Version 3.0 beta3
 Version 2.04RC1
 =================
 
-###Board Config (Board.txt)
+### Board Config (Board.txt)
 * Software SPI added. New pin arrary option:  lpc.softwareSPI.pins
     * Assigns GPIO pins to operate as SoftwareSPI.
     * Default Value: lpc.softwareSPI.pins = {NoPin, NoPin, NoPin} ; //Set to GPIO pins to use as SCK, MISO, MOSI

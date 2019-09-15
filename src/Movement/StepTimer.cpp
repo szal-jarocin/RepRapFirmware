@@ -36,14 +36,9 @@ namespace StepTimer
 
 #ifdef __LPC17xx__
 		//LPC has 32bit timers
-		//Using the same 128 divisor (as also specified in DDA)
-		//LPC Timers default to /4 -->  (SystemCoreClock/4)
-		//const uint32_t res = (VARIANT_MCK/128);						// 1.28us for 100MHz (LPC1768) and 1.067us for 120MHz (LPC1769)
-
-        
-        
 		//Start a free running Timer using Match Registers 0 and 1 to generate interrupts
-		LPC_SC->PCONP |= ((uint32_t) 1<<SBIT_PCTIM0);				// Ensure the Power bit is set for the Timer
+		//LPC_SC->PCONP |= ((uint32_t) 1<<SBIT_PCTIM0);				// Ensure the Power bit is set for the Timer
+        Chip_Clock_EnablePeriphClock(SYSCTL_CLOCK_TIMER0); //enable power and clocking
 		STEP_TC->MCR = 0;											// disable all MRx interrupts
 		STEP_TC->PR   =  (getPclk(PCLK_TIMER0) / StepClockRate) - 1;			// Set the LPC Prescaler (i.e. TC increment every 32 TimerClock Ticks)
 		STEP_TC->TC  = 0x00;  										// Restart the Timer Count
@@ -126,7 +121,7 @@ namespace StepTimer
 		stepInterruptIsScheduled = true;
 
 #ifdef __LPC17xx__
-		STEP_TC->MR0 = tim;
+		STEP_TC->MR[0] = tim;
 		STEP_TC->MCR  |= (1 << SBIT_MR0I);     						// enable Int on MR0 match
 #else
 		STEP_TC->TC_CHANNEL[STEP_TC_CHAN].TC_RA = tim;				// set up the compare register
@@ -174,7 +169,7 @@ namespace StepTimer
 		}
 
 #ifdef __LPC17xx__
-		STEP_TC->MR1 = tim; //set MR1 compare register
+		STEP_TC->MR[1] = tim; //set MR1 compare register
 		STEP_TC->MCR  |= (1<<SBIT_MR1I);     // Int on MR1 match
 #else
 		STEP_TC->TC_CHANNEL[STEP_TC_CHAN].TC_RB = tim;					// set up the compare register

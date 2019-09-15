@@ -1712,7 +1712,7 @@ float Platform::AdcReadingToCpuTemperature(uint32_t adcVal) const
        }
         
         //clear bits in reset reasons in RSID
-        LPC_SC->RSID = 0x3F;
+        LPC_SYSCTL->RSID = 0x3F;
         
         Reset();
         for(;;) {}
@@ -2078,12 +2078,12 @@ void Platform::Diagnostics(MessageType mtype)
         MessageF(mtype, "Last reset %02d:%02d:%02d ago, cause: ",
                  (unsigned int)(now/3600), (unsigned int)((now % 3600)/60), (unsigned int)(now % 60));
         
-        if(LPC_SC->RSID & RSID_POR) MessageF(mtype, "[power up]");
-        if(LPC_SC->RSID & RSID_EXTR) MessageF(mtype, "[reset button]");
-        if(LPC_SC->RSID & RSID_WDTR) MessageF(mtype, "[watchdog]");
-        if(LPC_SC->RSID & RSID_BODR) MessageF(mtype, "[brownout]");
-        if(LPC_SC->RSID & RSID_SYSRESET) MessageF(mtype, "[software]");
-        if(LPC_SC->RSID & RSID_LOCKUP) MessageF(mtype, "[lockup]");
+        if(LPC_SYSCTL->RSID & RSID_POR) MessageF(mtype, "[power up]");
+        if(LPC_SYSCTL->RSID & RSID_EXTR) MessageF(mtype, "[reset button]");
+        if(LPC_SYSCTL->RSID & RSID_WDTR) MessageF(mtype, "[watchdog]");
+        if(LPC_SYSCTL->RSID & RSID_BODR) MessageF(mtype, "[brownout]");
+        if(LPC_SYSCTL->RSID & RSID_SYSRESET) MessageF(mtype, "[software]");
+        if(LPC_SYSCTL->RSID & RSID_LOCKUP) MessageF(mtype, "[lockup]");
         
         MessageF(mtype, "\n");
 

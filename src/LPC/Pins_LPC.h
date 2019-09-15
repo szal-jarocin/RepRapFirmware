@@ -4,7 +4,7 @@
 #include "Microstepping.h"
 #include "sd_mmc.h"
 #include "RepRapFirmware.h"
-
+#include "chip.h"
 
 #ifndef UNUSED
 #define UNUSED(x) (void)(x)
@@ -179,7 +179,7 @@ extern bool UARTPanelDueMode;
 
 
 //Timer 0 is used for Step Generation
-#define STEP_TC             (LPC_TIM0)
+#define STEP_TC             (LPC_TIMER0)
 #define STEP_TC_IRQN        TIMER0_IRQn
 #define STEP_TC_HANDLER     TIMER0_IRQHandler
 
@@ -340,7 +340,7 @@ namespace StepPins
         else
         {
             //pins all on port 2, parallel write
-            LPC_GPIO2->FIOSET = driverMap;
+            LPC_GPIO2->SET = driverMap;
         }
     }
     
@@ -358,7 +358,7 @@ namespace StepPins
         }
         else
         {
-            LPC_GPIO2->FIOCLR = STEP_DRIVER_MASK; //clear only pins that are 1 in the mask
+            LPC_GPIO2->CLR = STEP_DRIVER_MASK; //clear only pins that are 1 in the mask
         }
     }
 }
