@@ -47,24 +47,24 @@ constexpr PinEntry PinTable_Generic[] =
     //{P0_31, PinCapability::ainrwpwm, "0.31"}, //N/A
     
     //Pins P1.[0,1,4,8,9,10,14,15,16,17] used by Ethernet
-    //{P1_0,  PinCapability::rwpwm, "1.0"},  //ENET_TXD0
-    //{P1_1,  PinCapability::rwpwm, "1.1"},  //ENET_TXD1
-    //{P1_2,  PinCapability::rwpwm, "1.2"},  //N/A
-    //{P1_3,  PinCapability::rwpwm, "1.3"},  //N/A
-    //{P1_4,  PinCapability::rwpwm, "1.4"},  //ENET_TX_EN
-    //{P1_5,  PinCapability::rwpwm, "1.5"},  //N/A
-    //{P1_6,  PinCapability::rwpwm, "1.6"},  //N/A
-    //{P1_7,  PinCapability::rwpwm, "1.7"},  //N/A
-    //{P1_8,  PinCapability::rwpwm, "1.8"},  //ENET_CRS
-    //{P1_9,  PinCapability::rwpwm, "1.9"},  //ENET_RXD0
-    //{P1_10, PinCapability::rwpwm, "1.10"},  //ENET_RXD1
-    //{P1_11, PinCapability::rwpwm, "1.11"},  //N/A
-    //{P1_12, PinCapability::rwpwm, "1.12"},  //N/A
-    //{P1_13, PinCapability::rwpwm, "1.13"},  //N/A
-    //{P1_14, PinCapability::rwpwm, "1.14"},  //ENET_RX_ER
-    //{P1_15, PinCapability::rwpwm, "1.15"},  //ENET_REF_CLK
-    //{P1_16, PinCapability::rwpwm, "1.16"},  //ENET_MDC
-    //{P1_17, PinCapability::rwpwm, "1.17"},  //ENET_MDIO
+    {P1_0,  PinCapability::rwpwm, "1.0"},  //ENET_TXD0
+    {P1_1,  PinCapability::rwpwm, "1.1"},  //ENET_TXD1
+    {P1_2,  PinCapability::rwpwm, "1.2"},  //N/A
+    {P1_3,  PinCapability::rwpwm, "1.3"},  //N/A
+    {P1_4,  PinCapability::rwpwm, "1.4"},  //ENET_TX_EN
+    {P1_5,  PinCapability::rwpwm, "1.5"},  //N/A
+    {P1_6,  PinCapability::rwpwm, "1.6"},  //N/A
+    {P1_7,  PinCapability::rwpwm, "1.7"},  //N/A
+    {P1_8,  PinCapability::rwpwm, "1.8"},  //ENET_CRS
+    {P1_9,  PinCapability::rwpwm, "1.9"},  //ENET_RXD0
+    {P1_10, PinCapability::rwpwm, "1.10"},  //ENET_RXD1
+    {P1_11, PinCapability::rwpwm, "1.11"},  //N/A
+    {P1_12, PinCapability::rwpwm, "1.12"},  //N/A
+    {P1_13, PinCapability::rwpwm, "1.13"},  //N/A
+    {P1_14, PinCapability::rwpwm, "1.14"},  //ENET_RX_ER
+    {P1_15, PinCapability::rwpwm, "1.15"},  //ENET_REF_CLK
+    {P1_16, PinCapability::rwpwm, "1.16"},  //ENET_MDC
+    {P1_17, PinCapability::rwpwm, "1.17"},  //ENET_MDIO
     {P1_18, PinCapability::rwpwm, "1.18"},
     {P1_19, PinCapability::rwpwm, "1.19"},
     {P1_20, PinCapability::rwpwm, "1.20"},

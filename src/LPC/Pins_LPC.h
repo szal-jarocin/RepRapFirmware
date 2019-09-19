@@ -19,7 +19,7 @@
 #define LPC_BOARD_STRING "LPC176x"
 
 #define FIRMWARE_FILE "firmware.bin"
-const size_t NumFirmwareUpdateModules = 1;
+constexpr size_t NumFirmwareUpdateModules = 1;
 
 
 // Features definition
@@ -28,7 +28,6 @@ const size_t NumFirmwareUpdateModules = 1;
 #define HAS_HIGH_SPEED_SD		         0
 #define HAS_VOLTAGE_MONITOR		         0
 #define ACTIVE_LOW_HEAT_ON		         0
-#define HAS_LWIP_NETWORKING              0
 #define HAS_VREF_MONITOR                 0
 
 #define SUPPORT_INKJET		             0	// set nonzero to support inkjet control
@@ -114,7 +113,7 @@ extern Pin SpiTempSensorCsPins[MaxSpiTempSensors]; // Digital pins the 31855s ha
 constexpr SSPChannel TempSensorSSPChannel = SSP0; //Conect SPI Temp sensor to SSP0
 
 #if HAS_LINUX_INTERFACE
-extern Pin LinuxTfrReadyPin;
+    extern Pin LinuxTfrReadyPin;
 #endif
 
 //Hardware LPC Timers

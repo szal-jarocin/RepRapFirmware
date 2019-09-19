@@ -132,14 +132,7 @@ bool LookupPinName(const char*pn, LogicalPin& lpin, bool& hardwareInverted)
             {
                 ++q;
             }
-            while (*q != ',' && *q != 0 &&
-#if 1
-#warning TODO: Temp fix as Heaters/Fans pin names are currently not passed as lower case
-                   tolower(*p) == *q
-#else
-                   *p == *q
-#endif
-                   )
+            while (*q != ',' && *q != 0 && *p == *q)
             {
                 ++p;
                 ++q;
@@ -199,13 +192,9 @@ bool PinEntry::CanDo(PinAccess access) const
             return ((uint8_t)cap & (uint8_t)PinCapability::write) != 0;
             
         case PinAccess::readAnalog:
-            //return (ulADCChannelNumber != NO_ADC);
             return ((uint8_t)cap & (uint8_t)PinCapability::ain) != 0;
             
         case PinAccess::pwm:
-            //return ((uint8_t)cap & (uint8_t)PinCapability::pwm) != 0;
-            //any GPIO pin can be a PWM by using TimerPWM (assuming there is a free Slot)
-            //TODO:: we also need the Frequency here so we can check availability
             return IsPwmCapable(pin);
             
         case PinAccess::servo:
