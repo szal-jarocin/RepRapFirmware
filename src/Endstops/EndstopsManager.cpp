@@ -6,12 +6,24 @@
  */
 
 #include "EndstopsManager.h"
+
 #include "Endstop.h"
+#include "LocalSwitchEndstop.h"
+#include "StallDetectionEndstop.h"
+#include "ZProbeEndstop.h"
+
 #include "ZProbe.h"
+#include "LocalZProbe.h"
+#include "RemoteZProbe.h"
+
 #include "RepRap.h"
 #include "GCodes/GCodeBuffer/GCodeBuffer.h"
 #include "GCodes/GCodes.h"
 #include "Movement/Move.h"
+
+#if SUPPORT_CAN_EXPANSION
+# include "CanMessageBuffer.h"
+#endif
 
 ReadWriteLock EndstopsManager::endstopsLock;					// used to lock both endstops and Z probes
 
@@ -36,7 +48,7 @@ void EndstopsManager::Init()
 	String<1> dummy;
 	for (size_t axis = 0; axis < ARRAY_SIZE(DefaultEndstopPinNames); ++axis)
 	{
-		SwitchEndstop * const sw = new SwitchEndstop(axis, EndStopPosition::lowEndStop);
+		LocalSwitchEndstop * const sw = new LocalSwitchEndstop(axis, EndStopPosition::lowEndStop);
 		sw->Configure(DefaultEndstopPinNames[axis], dummy.GetRef(), EndStopInputType::activeHigh);
 		axisEndstops[axis] = sw;
 	}
@@ -186,27 +198,17 @@ GCodeResult EndstopsManager::HandleM574(GCodeBuffer& gb, const StringRef& reply)
 		char sep = ':';
 		for (size_t axis = 0; axis < reprap.GetGCodes().GetTotalAxes(); ++axis)
 		{
-			const char c = reprap.GetGCodes().GetAxisLetters()[axis];
+			reply.catf("%c %c: ", sep, reprap.GetGCodes().GetAxisLetters()[axis]);
+			sep = ',';
 			if (axisEndstops[axis] == nullptr)
 			{
-				reply.catf("%c %c: none", sep, c);
+				reply.cat("none");
 			}
 			else
 			{
-				EndStopInputType inputType = axisEndstops[axis]->GetEndstopType();
-				reply.catf("%c %c: %s %s",
-							sep, c,
-							(axisEndstops[axis]->GetAtHighEnd()) ? "high end" : "low end",
-							(inputType == EndStopInputType::activeHigh) ? "active high switch"
-								: (inputType == EndStopInputType::activeLow) ? "active low switch"
-									: (inputType == EndStopInputType::zProbeAsEndstop) ? "Z probe"
-										: (inputType == EndStopInputType::motorStallAny) ? "motor stall (any motor)"
-											: (inputType == EndStopInputType::motorStallIndividual) ? "motor stall (individual motors)"
-											 : "unknown type"
-						 );
-				axisEndstops[axis]->AppendPinNames(reply);
+				reply.cat((axisEndstops[axis]->GetAtHighEnd()) ? "high end " : "low end ");
+				axisEndstops[axis]->AppendDetails(reply);
 			}
-			sep = ',';
 		}
 		return GCodeResult::ok;
 	}
@@ -237,12 +239,12 @@ GCodeResult EndstopsManager::HandleM574(GCodeBuffer& gb, const StringRef& reply)
 
 		delete axisEndstops[lastAxisSeen];
 		axisEndstops[lastAxisSeen] = nullptr;
-		SwitchEndstop * const sw = new SwitchEndstop(lastAxisSeen, lastPosSeen);
-		const bool ok = sw->Configure(gb, reply, inputType);
+		LocalSwitchEndstop * const sw = new LocalSwitchEndstop(lastAxisSeen, lastPosSeen);
+		GCodeResult rslt = sw->Configure(gb, reply, inputType);
 		axisEndstops[lastAxisSeen] = sw;
-		if (!ok)
+		if (rslt != GCodeResult::ok && rslt != GCodeResult::warning)
 		{
-			return GCodeResult::error;
+			return rslt;
 		}
 	}
 	else
@@ -293,7 +295,7 @@ GCodeResult EndstopsManager::HandleM574(GCodeBuffer& gb, const StringRef& reply)
 						}
 						else
 						{
-							((SwitchEndstop *)axisEndstops[axis])->Reconfigure(pos, inputType);
+							((LocalSwitchEndstop *)axisEndstops[axis])->Reconfigure(pos, inputType);
 						}
 						break;
 
@@ -375,6 +377,14 @@ void EndstopsManager::SetZProbeDefaults()
 // Program the Z probe
 GCodeResult EndstopsManager::ProgramZProbe(GCodeBuffer& gb, const StringRef& reply)
 {
+	const uint32_t probeNumber = (gb.Seen('K')) ? gb.GetUIValue() : currentZProbeNumber;
+	if (probeNumber >= MaxZProbes || zProbes[probeNumber] == nullptr)
+	{
+		reply.copy("Invalid Z probe index");
+		return GCodeResult::error;
+	}
+
+	ZProbe * const zProbe = zProbes[probeNumber];
 	if (gb.Seen('S'))
 	{
 		uint32_t zProbeProgram[MaxZProbeProgramBytes];
@@ -390,8 +400,7 @@ GCodeResult EndstopsManager::ProgramZProbe(GCodeBuffer& gb, const StringRef& rep
 					return GCodeResult::error;
 				}
 			}
-			zProbeProg.SendProgram(zProbeProgram, len);
-			return GCodeResult::ok;
+			return zProbe->SendProgram(zProbeProgram, len, reply);
 		}
 	}
 	reply.copy("No program bytes provided");
@@ -475,6 +484,7 @@ GCodeResult EndstopsManager::HandleM558(GCodeBuffer& gb, const StringRef &reply)
 								)
 							|| (seenPort && existingProbe->GetProbeType() != ZProbeType::zMotorStall && existingProbe->GetProbeType() != ZProbeType::none);
 
+	bool seen = seenType || seenPort;
 	if (needNewProbe)
 	{
 		if (!seenType)
@@ -507,11 +517,18 @@ GCodeResult EndstopsManager::HandleM558(GCodeBuffer& gb, const StringRef &reply)
 #if SUPPORT_CAN_EXPANSION
 				String<StringLength20> pinNames;
 				gb.Seen('C');
-				gb.GetQuotedString(pinNames.GetRef());
+				gb.GetReducedString(pinNames.GetRef());
 				const CanAddress boardAddress = IoPort::RemoveBoardAddress(pinNames.GetRef());
 				if (boardAddress != CanId::MasterAddress)
 				{
-					newProbe = new RemoteZProbe(probeNumber, boardAddress);
+					RemoteZProbe *newRemoteProbe = new RemoteZProbe(probeNumber, boardAddress, (ZProbeType)probeType);
+					const GCodeResult rslt = newRemoteProbe->Create(pinNames.GetRef(), reply);
+					if (rslt != GCodeResult::ok)
+					{
+						delete newRemoteProbe;
+						return rslt;
+					}
+					newProbe = newRemoteProbe;
 				}
 				else
 #endif
@@ -522,7 +539,7 @@ GCodeResult EndstopsManager::HandleM558(GCodeBuffer& gb, const StringRef &reply)
 			break;
 		}
 
-		const GCodeResult rslt = newProbe->Configure(gb, reply, true);
+		const GCodeResult rslt = newProbe->Configure(gb, reply, seen);
 		if (rslt == GCodeResult::ok || rslt == GCodeResult::warning)
 		{
 			zProbes[probeNumber] = newProbe;
@@ -531,7 +548,7 @@ GCodeResult EndstopsManager::HandleM558(GCodeBuffer& gb, const StringRef &reply)
 	}
 
 	// If we get get then there is an existing probe and we just need to change its configuration
-	return zProbes[probeNumber]->Configure(gb, reply, seenType);
+	return zProbes[probeNumber]->Configure(gb, reply, seen);
 }
 
 // Set or print the Z probe. Called by G31.
@@ -549,5 +566,24 @@ GCodeResult EndstopsManager::HandleG31(GCodeBuffer& gb, const StringRef& reply)
 
 	return zProbes[probeNumber]->HandleG31(gb, reply);
 }
+
+#if SUPPORT_CAN_EXPANSION
+
+// Handle signalling of a remote switch change, when the handle indicates that it is being used as an endstop.
+// We must re-use or free the buffer.
+void EndstopsManager::HandleRemoteInputChange(CanAddress src, uint8_t handleMajor, uint8_t handleMinor, bool state, CanMessageBuffer* buf)
+{
+	if (handleMajor < ARRAY_SIZE(axisEndstops))
+	{
+		Endstop * const es = axisEndstops[handleMajor];
+		if (es != nullptr && es->HandleRemoteInputChange(src, handleMinor, state, buf))
+		{
+			return;					// buffer has been re-used
+		}
+	}
+	CanMessageBuffer::Free(buf);
+}
+
+#endif
 
 // End

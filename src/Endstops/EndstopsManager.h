@@ -10,9 +10,13 @@
 
 #include "RepRapFirmware.h"
 #include "EndstopDefs.h"
-#include "ZProbeProgrammer.h"
 #include "GCodes/GCodeResult.h"
 #include <RTOSIface/RTOSIface.h>
+
+#if SUPPORT_CAN_EXPANSION
+# include "CanId.h"
+class CanMessageBuffer;
+#endif
 
 // Endstop manager class
 class EndstopsManager
@@ -56,6 +60,10 @@ public:
 	void SetZProbeDefaults();
 	GCodeResult ProgramZProbe(GCodeBuffer& gb, const StringRef& reply);
 
+#if SUPPORT_CAN_EXPANSION
+	void HandleRemoteInputChange(CanAddress src, uint8_t handleMajor, uint8_t handleMinor, bool state, CanMessageBuffer *buf);
+#endif
+
 #if HAS_MASS_STORAGE
 	bool WriteZProbeParameters(FileStore *f, bool includingG31) const;
 #endif
@@ -78,8 +86,6 @@ private:
 	Endstop *axisEndstops[MaxAxes];						// the endstops assigned to each axis (each one may have several switches), each may be null
 	ZProbe *zProbes[MaxZProbes];						// the Z probes used. The first one is always non-null.
 	ZProbe *defaultZProbe;
-
-	ZProbeProgrammer zProbeProg;
 
 	bool isHomingMove;									// true if calls to CheckEndstops are for the purpose of homing
 };
