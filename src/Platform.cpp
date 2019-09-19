@@ -283,7 +283,7 @@ void Platform::Init()
 	baudRates[0] = MAIN_BAUD_RATE;
 	commsParams[0] = 0;
 	usbMutex.Create("USB");
-#if __LPC17xx__
+#if defined(__LPC17xx__)
     SERIAL_MAIN_DEVICE.begin(baudRates[0]);
 #else
 	SERIAL_MAIN_DEVICE.Start(UsbVBusPin);
@@ -740,7 +740,7 @@ void Platform::UpdateFirmware()
 {
 #if HAS_MASS_STORAGE
 
-# if __LPC17xx__
+# if defined(__LPC17xx__)
     
 #  if LPC_NETWORKING
     //DWC will upload firmware to 0:/sys/ we need to move to 0:/firmware.bin and reboot
@@ -1628,7 +1628,7 @@ float Platform::AdcReadingToCpuTemperature(uint32_t adcVal) const
 #endif
 
     
-#if __LPC17xx__
+#if defined(__LPC17xx__)
     void Platform::SoftwareReset(uint16_t reason, const uint32_t *stk)
     {
             
@@ -1918,7 +1918,7 @@ void Platform::InitialiseInterrupts()
 #endif
 
 #ifdef __LPC17xx__
-	//SD: Int for GPIO pins on port 0 and 2 share EINT3
+	//Interrupt for GPIO pins. Only port 0 and 2 support interrupts and both share EINT3
 	NVIC_SetPriority(EINT3_IRQn, NvicPriorityPins);
 #else
 	NVIC_SetPriority(PIOA_IRQn, NvicPriorityPins);
@@ -1938,7 +1938,7 @@ void Platform::InitialiseInterrupts()
 	NVIC_SetPriority(UDP_IRQn, NvicPriorityUSB);
 #elif SAM3XA
 	NVIC_SetPriority(UOTGHS_IRQn, NvicPriorityUSB);
-#elif __LPC17xx__
+#elif defined(__LPC17xx__)
 	NVIC_SetPriority(USB_IRQn, NvicPriorityUSB);
 #else
 # error
@@ -1952,14 +1952,12 @@ void Platform::InitialiseInterrupts()
 #endif
 
     
-#if __LPC17xx__
-    //set rest of the Timer Ints)
-    //Timer 0 is used for step generation
-    NVIC_SetPriority(TIMER1_IRQn, 8);
-    NVIC_SetPriority(TIMER2_IRQn, 8);
-    NVIC_SetPriority(TIMER3_IRQn, 8);
-
-    
+#if defined(__LPC17xx__)
+    //set rest of the Timer Interrupt priorities
+    //Timer 0 is used for step generation (set elsewhere)
+    NVIC_SetPriority(TIMER1_IRQn, 8);                       //Timer 1 is currently unused
+    NVIC_SetPriority(TIMER2_IRQn, NvicPriorityTimerServo);  //Timer 2 runs the PWM for Servos at 50hz
+    NVIC_SetPriority(TIMER3_IRQn, NvicPriorityTimerPWM);    //Timer 3 runs the microsecond free running timer to generate heater/fan PWM
 #endif
     
 	// Tick interrupt for ADC conversions
@@ -2488,8 +2486,10 @@ GCodeResult Platform::DiagnosticTest(GCodeBuffer& gb, const StringRef& reply, in
 #elif SAM3XA
 		deliberateError = true;
 		(void)*(reinterpret_cast<const volatile char*>(0x20200000));
-#elif __LPC17xx__
-		Message(WarningMessage, "TODO:: Skipping test on LPC");//????
+#elif defined(__LPC17xx__)
+        deliberateError = true;
+        //The LPC176x/5x generates Bus Fault exception when accessing a reserved memory address
+        (void)*(reinterpret_cast<const volatile char*>(0x00080000));
 #else
 # error
 #endif
@@ -2597,6 +2597,7 @@ GCodeResult Platform::DiagnosticTest(GCodeBuffer& gb, const StringRef& reply, in
 #endif
 
 #ifdef __LPC17xx__
+    //Diagnostic for LPC board configuration
     case (int)DiagnosticTestType::PrintBoardConfiguration:
         BoardConfig::Diagnostics(gb.GetResponseMessageType());
         break;
@@ -3933,7 +3934,7 @@ void Platform::ResetChannel(size_t chan)
 	{
 	case 0:
 		SERIAL_MAIN_DEVICE.end();
-#if __LPC17xx__
+#if defined(__LPC17xx__)
         SERIAL_MAIN_DEVICE.begin(baudRates[0]);
 #else
 		SERIAL_MAIN_DEVICE.Start(UsbVBusPin);
