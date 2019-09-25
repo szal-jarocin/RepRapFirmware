@@ -192,10 +192,6 @@ constexpr BoardDefaults genericDefaults = {
     {NoPin, NoPin, NoPin, NoPin, NoPin},    //dirPins
     false,                                  //currentControl
     113.33,                                 //digiPot Factor    
-//    {NoPin, NoPin, NoPin},                  //slowPWM
-//    {NoPin, NoPin, NoPin},                  //fastPWM
-//    {NoPin, NoPin, NoPin},                  //ServoPWM
-    
 };
 
 #endif

@@ -64,10 +64,6 @@ constexpr BoardDefaults mbedDefaults =
     {P3_26,  P4_28, P0_20, P0_22,  P2_13},   //dirPins
     true,                                   //currentControl
     113.33,                                 //digiPot Factor
-//    {P2_5, NoPin, NoPin},                   //slowPWM
-//    {P2_7, P2_6, NoPin},                    //fastPWM
-//    {NoPin, NoPin, NoPin},                  //ServoPWM
-
 };
 
 #endif

@@ -159,10 +159,6 @@ constexpr BoardDefaults biquskr_1_3_Defaults = {
     {P2_6, P0_20, P2_11, P0_11,  P0_0},    //dirPins
     false,                                  //currentControl
     113.33                                 //digiPot Factor
-//    {P2_5, NoPin, NoPin},                   //slowPWM
-//    {P2_7, NoPin, NoPin},                   //fastPWM
-//    {P2_0, NoPin, NoPin},                   //ServoPWM
-    
 };
 
 #endif

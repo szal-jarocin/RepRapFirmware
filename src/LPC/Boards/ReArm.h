@@ -118,9 +118,6 @@ constexpr BoardDefaults rearmDefaults = {
     {P0_11, P0_20, P0_22, P0_5, P2_13},     //dirPins
     false,                                  //currentControl
     113.33,                                 //digiPot Factor
-//    {P2_7, NoPin, NoPin},                   //slowPWM
-//    {NoPin, NoPin, NoPin},                  //fastPWM
-//    {P1_20, P1_19, P1_21},                  //ServoPWM (Servo1,2,3)
 };
 
 
