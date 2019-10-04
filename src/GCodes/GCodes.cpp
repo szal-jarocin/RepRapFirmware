@@ -1161,8 +1161,15 @@ bool GCodes::ReHomeOnStall(DriversBitmap stalledDrivers)
 #endif
 
 #if HAS_MASS_STORAGE
+
 void GCodes::SaveResumeInfo(bool wasPowerFailure)
 {
+#if HAS_LINUX_INTERFACE
+	if (reprap.UsingLinuxInterface())
+	{
+		return;			// we can't yet save to the Pi
+	}
+#endif
 	const char* const printingFilename = reprap.GetPrintMonitor().GetPrintingFilename();
 	if (printingFilename != nullptr)
 	{
@@ -1202,6 +1209,16 @@ void GCodes::SaveResumeInfo(bool wasPowerFailure)
 				}
 				buf.cat("\nG60 S1\n");										// save the coordinates as restore point 1 too
 				ok = f->Write(buf.c_str());
+			}
+			if (ok)
+			{
+				// The resurrect-prologue file may undo some retraction, so make sure we have the correct tool selected, but don't run tool change files
+				const Tool * const ct = reprap.GetCurrentTool();
+				if (ct != nullptr)
+				{
+					buf.printf("T%d P0\n", ct->Number());
+					ok = f->Write(buf.c_str());
+				}
 			}
 			if (ok)
 			{
@@ -1344,6 +1361,7 @@ void GCodes::SaveResumeInfo(bool wasPowerFailure)
 		}
 	}
 }
+
 #endif
 
 void GCodes::Diagnostics(MessageType mtype)
@@ -1614,17 +1632,18 @@ const char* GCodes::DoStraightMove(GCodeBuffer& gb, bool isCoordinated)
 # if SUPPORT_LASER
 	else if (machineType == MachineType::laser)
 	{
-		if (!moveBuffer.isCoordinated || moveBuffer.moveType != 0)
-		{
-			moveBuffer.laserPwmOrIoBits.laserPwm = 0;
-		}
-		else if (gb.Seen('S'))
+		if (gb.Seen('S'))
 		{
 			moveBuffer.laserPwmOrIoBits.laserPwm = ConvertLaserPwm(gb.GetFValue());
 		}
+		else if (moveBuffer.moveType != 0)
+		{
+			moveBuffer.laserPwmOrIoBits.laserPwm = 0;			// it's a homing move or similar, so turn the laser off
+		}
 		else if (laserPowerSticky)
 		{
-			// leave the laser PWM alone because this is what LaserWeb expects
+			// Leave the laser PWM alone because this is what LaserWeb expects. If it is an uncoordinated move then the motion system will turn the laser off.
+			// This means that after a G0 move, the next G1 move will default to the same power as the previous G1 move, as LightBurn expects.
 		}
 		else
 		{
@@ -3722,7 +3741,12 @@ void GCodes::StopPrint(StopPrintReason reason)
 			(reason == StopPrintReason::normalCompletion) ? "Finished" : "Cancelled",
 			printingFilename, printMinutes/60u, printMinutes % 60u);
 #if HAS_MASS_STORAGE
-		if (reason == StopPrintReason::normalCompletion && simulationMode == 0)
+		if (   reason == StopPrintReason::normalCompletion
+			&& simulationMode == 0
+# if HAS_LINUX_INTERFACE
+			&& !reprap.UsingLinuxInterface()
+# endif
+		   )
 		{
 			platform.DeleteSysFile(RESUME_AFTER_POWER_FAIL_G);
 		}

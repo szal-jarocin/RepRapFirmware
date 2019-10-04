@@ -451,7 +451,11 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply)
 				break;
 
 			case MachineType::laser:
-				platform.SetLaserPwm(ConvertLaserPwm(gb.GetFValue()));
+				{
+					const Pwm_t laserPwm = ConvertLaserPwm(gb.GetFValue());
+					platform.SetLaserPwm(laserPwm);
+					moveBuffer.laserPwmOrIoBits.laserPwm = laserPwm;
+				}
 				break;
 
 			default:
@@ -524,6 +528,7 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply)
 
 		case MachineType::laser:
 			platform.SetLaserPwm(0);
+			moveBuffer.laserPwmOrIoBits.Clear();
 			break;
 
 		default:
@@ -2132,7 +2137,7 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply)
 		if (gb.Seen('S'))
 		{
 			float newSpeedFactor = gb.GetFValue();
-			if (newSpeedFactor > 10.0)
+			if (newSpeedFactor >= 1.0)
 			{
 				// Update the feed rate for ALL input sources, and all feed rates on the stack
 				const float speedFactorRatio = newSpeedFactor / speedFactor;
