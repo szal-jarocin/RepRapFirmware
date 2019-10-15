@@ -158,6 +158,10 @@ extern "C" void AppMain()
 
 	pinMode(DiagPin, OUTPUT_LOW);				// set up diag LED for debugging and turn it off
 
+#ifdef __LPC17xx__
+
+#else
+
 	// Check the integrity of the firmware by checking the firmware CRC
 	{
 #ifdef IFLASH_ADDR
@@ -184,9 +188,7 @@ extern "C" void AppMain()
 	// We could also trap unaligned memory access, if we change the gcc options to not generate code that uses unaligned memory access.
 	SCB->CCR |= SCB_CCR_DIV_0_TRP_Msk;
 
-#ifdef __LPC17xx__
 
-#else
 	// When doing a software reset, we disable the NRST input (User reset) to prevent the negative-going pulse that gets generated on it
 	// being held in the capacitor and changing the reset reason from Software to User. So enable it again here. We hope that the reset signal
 	// will have gone away by now.
