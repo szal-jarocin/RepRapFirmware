@@ -11,6 +11,10 @@
 #include "RemoteFan.h"
 #include "GCodes/GCodeBuffer/GCodeBuffer.h"
 
+#if SUPPORT_CAN_EXPANSION
+# include <CanMessageFormats.h>
+#endif
+
 #include <utility>
 
 FansManager::FansManager()
@@ -156,7 +160,7 @@ bool FansManager::ConfigureFan(unsigned int mcode, size_t fanNum, GCodeBuffer& g
 	auto fan = FindFan(fanNum);
 	if (fan.IsNull())
 	{
-		reply.printf("Fan number %u does not exist", fanNum);
+		reply.printf("Fan number %u not found", fanNum);
 		error = true;
 		return false;
 	}
@@ -177,7 +181,7 @@ GCodeResult FansManager::SetFanValue(size_t fanNum, float speed, const StringRef
 	{
 		return fan->SetPwm(speed, reply);
 	}
-	reply.copy("Fan %u not found", fanNum);
+	reply.printf("Fan number %u not found", fanNum);
 	return GCodeResult::error;
 }
 
@@ -229,5 +233,26 @@ void FansManager::Init()
 # endif
 #endif
 }
+
+#if SUPPORT_CAN_EXPANSION
+
+void FansManager::ProcessRemoteFanRpms(CanAddress src, const CanMessageFanRpms& msg)
+{
+	size_t numFansProcessed = 0;
+	uint64_t whichFans = msg.whichFans;
+	while (whichFans != 0)
+	{
+		const unsigned int fanNum = LowestSetBit(whichFans);
+		auto fan = FindFan(fanNum);
+		if (fan.IsNotNull())
+		{
+			fan->UpdateRpmFromRemote(src, msg.fanRpms[numFansProcessed]);
+		}
+		++numFansProcessed;
+		whichFans &= ~((uint64_t)1 << fanNum);
+	}
+}
+
+#endif
 
 // End

@@ -111,9 +111,10 @@ constexpr Pin VssaSensePin = PortAPin(20);
 constexpr Pin VrefSensePin = PortEPin(0);
 
 // Thermistor series resistor value in Ohms
-constexpr float THERMISTOR_SERIES_RS = 2200.0;
-
-// Digital pins the 31855s have their select lines tied to
+constexpr float DefaultThermistorSeriesR = 2200.0;
+constexpr float MinVrefLoadR = (DefaultThermistorSeriesR / 4) * 4700.0/((DefaultThermistorSeriesR / 4) + 4700.0);
+																			// there are 4 temperature sensing channels and a 4K7 load resistor
+// Digital pins the SPI temperature sensors have their select lines tied to
 constexpr Pin SpiTempSensorCsPins[] = { PortDPin(16), PortDPin(15), PortDPin(27), PortCPin(22) };
 
 // Pin that controls the ATX power on/off

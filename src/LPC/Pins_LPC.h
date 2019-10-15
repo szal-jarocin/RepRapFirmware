@@ -36,6 +36,7 @@ constexpr size_t NumFirmwareUpdateModules = 1;
 #define SUPPORT_IOBITS		             0	// set to support P parameter in G0/G1 commands
 #define SUPPORT_DHT_SENSOR	             0	// set nonzero to support DHT temperature/humidity sensors
 #define SUPPORT_WORKPLACE_COORDINATES    1
+#define SUPPORT_LASER                    1
 
 #define SUPPORT_TELNET                   0
 #define SUPPORT_FTP                      0
@@ -106,7 +107,9 @@ constexpr float BED_SHC = 0.0;
 constexpr float EXT_R25 = 100000.0;
 constexpr float EXT_BETA = 4388.0;
 constexpr float EXT_SHC = 0.0;
-constexpr float THERMISTOR_SERIES_RS = 4700.0; // Thermistor series resistor value in Ohms
+
+// Thermistor series resistor value in Ohms
+constexpr float DefaultThermistorSeriesR = 4700.0;
 
 constexpr size_t MaxSpiTempSensors = 2;
 extern Pin SpiTempSensorCsPins[MaxSpiTempSensors]; // Digital pins the 31855s have their select lines tied to

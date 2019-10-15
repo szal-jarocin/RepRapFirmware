@@ -64,7 +64,7 @@ constexpr size_t MinAxes = 3;						// The minimum and default number of axes
 constexpr size_t MaxAxes = 9;						// The maximum number of movement axes in the machine, usually just X, Y and Z, <= DRIVES
 constexpr size_t MaxDriversPerAxis = 5;				// The maximum number of stepper drivers assigned to one axis
 
-constexpr size_t MaxExtruders = 8;					// The maximum number of extruders
+constexpr size_t MaxExtruders = 6;					// The maximum number of extruders
 constexpr size_t NumDefaultExtruders = 2;			// The number of drivers that we configure as extruders by default
 
 constexpr size_t MaxHeatersPerTool = 8;
@@ -134,7 +134,8 @@ constexpr float EXT_BETA = 4388.0;
 constexpr float EXT_SHC = 0.0;
 
 // Thermistor series resistor value in Ohms
-constexpr float THERMISTOR_SERIES_RS = 4700.0;
+constexpr float DefaultThermistorSeriesR = 4700.0;
+constexpr float MinVrefLoadR = DefaultThermistorSeriesR / 8;		// there are 8 temperature sensing channels
 
 // Number of SPI temperature sensors to support
 

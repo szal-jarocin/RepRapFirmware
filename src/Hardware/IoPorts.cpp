@@ -134,7 +134,7 @@ int8_t IoPort::logicalPinModes[NumNamedPins];	// what mode each logical pin is s
 	}
 }
 
-IoPort::IoPort() : logicalPin(NoLogicalPin), analogChannel(NO_ADC), hardwareInvert(false), totalInvert(false), isSharedInput(false)
+IoPort::IoPort() : logicalPin(NoLogicalPin), hardwareInvert(false), totalInvert(false), isSharedInput(false)
 {
 }
 
@@ -158,7 +158,6 @@ void IoPort::Release()
 		logicalPinModes[logicalPin] = PIN_MODE_NOT_CONFIGURED;
 	}
 	logicalPin = NoLogicalPin;
-	analogChannel = NO_ADC;
 	hardwareInvert = totalInvert = false;
 }
 
@@ -194,6 +193,10 @@ bool IoPort::Allocate(const char *pn, const StringRef& reply, PinUsedBy neededFo
 			{
 				access = PinAccess::readWithPullup;
 			}
+		}
+		else if (*pn == '*')
+		{
+			alternateConfig = true;
 		}
 		else
 		{
@@ -319,14 +322,12 @@ bool IoPort::SetMode(PinAccess access)
 			{
 				IoPort::SetPinMode(PinTable[logicalPin].pin, AIN);		// SAME70 errata says we must disable the pullup resistor before enabling the AFEC channel
 				AnalogInEnableChannel(chan, true);
-				analogChannel = chan;
 				logicalPinModes[logicalPin] = (int8_t)desiredMode;
 				return true;
 			}
 			else
 			{
 				AnalogInEnableChannel(chan, false);
-				analogChannel = NO_ADC;
 			}
 		}
 		else if (access == PinAccess::readAnalog)
@@ -503,7 +504,7 @@ bool IoPort::Read() const
 // Note, for speed when this is called from the ISR we do not apply 'invert' to the analog reading
 uint16_t IoPort::ReadAnalog() const
 {
-	return (analogChannel != NO_ADC) ? AnalogInReadChannel((AnalogChannelNumber)analogChannel) : 0;
+	return AnalogInReadChannel(GetAnalogChannel());
 }
 
 #if SUPPORT_CAN_EXPANSION
@@ -512,7 +513,7 @@ uint16_t IoPort::ReadAnalog() const
 /*static*/ CanAddress IoPort::RemoveBoardAddress(const StringRef& portName)
 {
 	size_t prefix = 0;
-	while (portName[prefix] == '!' || portName[prefix] == '^')
+	while (portName[prefix] == '!' || portName[prefix] == '^' || portName[prefix] == '*')
 	{
 		++prefix;
 	}

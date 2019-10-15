@@ -213,7 +213,7 @@ Platform::Platform() :
 	sysDir(nullptr),
 #endif
 	tickState(0), debugCode(0),
-	lastWarningMillis(0), deliberateError(false)
+	lastWarningMillis(0), lastLaserPwm(0.0), deferredPowerDown(false), deliberateError(false)
 {
 #if HAS_MASS_STORAGE
 	massStorage = new MassStorage(this);
@@ -233,7 +233,6 @@ void Platform::Init()
 
 	// Deal with power first (we assume this doesn't depend on identifying the board type)
 	pinMode(ATX_POWER_PIN, OUTPUT_LOW);
-	deferredPowerDown = false;
 
 	SetBoardType(BoardType::Auto);
 
@@ -599,6 +598,14 @@ void Platform::Init()
 		pinMode(p, INPUT_PULLUP);
 	}
 
+	// If MISO from a MAX31856 board breaks after initialising the MAX31856 then if MISO floats low and reads as all zeros, this looks like a temperature of 0C and no error.
+	// Enable the pullup resistor, with luck this will make it float high instead.
+#if defined(APIN_USART_SSPI_MISO)
+	pinMode(APIN_USART_SSPI_MISO, INPUT_PULLUP);
+#elif defined(APIN_SHARED_SPI_MISO)
+	pinMode(APIN_SHARED_SPI_MISO, INPUT_PULLUP);
+#endif
+
 #ifdef PCCB
 	// Setup the LED ports as GPIO ports
 	for (size_t i = 0; i < ARRAY_SIZE(DefaultGpioPinNames); ++i)
@@ -633,9 +640,6 @@ void Platform::Init()
 		adcFilters[filter].Init(0);
 		AnalogInEnableChannel(filteredAdcChannels[filter], true);
 	}
-
-	// Fans
-	fman.Init();
 
 	// Hotend configuration
 	nozzleDiameter = NOZZLE_DIAMETER;
@@ -1380,7 +1384,7 @@ void Platform::Spin()
 	if (now - lastFanCheckTime >= FanCheckInterval)
 	{
 		lastFanCheckTime = now;
-		bool thermostaticFanRunning = fman.CheckFans();
+		bool thermostaticFanRunning = reprap.GetFansManager().CheckFans();
 
 		if (deferredPowerDown && !thermostaticFanRunning)
 		{
@@ -2588,11 +2592,11 @@ GCodeResult Platform::DiagnosticTest(GCodeBuffer& gb, const StringRef& reply, in
 
 	case (int)DiagnosticTestType::PrintObjectSizes:
 		reply.printf(
-				"DDA %u, DM %u, Tool %u"
+				"DDA %u, DM %u, Tool %u, GCodeBuffer %u, heater %u"
 #if HAS_NETWORKING && !HAS_LEGACY_NETWORKING
 				", HTTP resp %u, FTP resp %u, Telnet resp %u"
 #endif
-				, sizeof(DDA), sizeof(DriveMovement), sizeof(Tool)
+				, sizeof(DDA), sizeof(DriveMovement), sizeof(Tool), sizeof(GCodeBuffer), sizeof(Heater)
 #if HAS_NETWORKING && !HAS_LEGACY_NETWORKING
 				, sizeof(HttpResponder), sizeof(FtpResponder), sizeof(TelnetResponder)
 #endif
@@ -4225,12 +4229,24 @@ void Platform::GetSysDir(const StringRef & path) const
 
 void Platform::SetLaserPwm(Pwm_t pwm)
 {
-	laserPort.WriteAnalog((float)pwm/65535);			// we don't currently have an function that accepts an integer PWM fraction
+	lastLaserPwm = (float)pwm/65535;
+	laserPort.WriteAnalog(lastLaserPwm);			// we don't currently have an function that accepts an integer PWM fraction
+}
+
+// Return laser PWM in 0..1
+float Platform::GetLaserPwm() const
+{
+	return lastLaserPwm;
 }
 
 bool Platform::AssignLaserPin(GCodeBuffer& gb, const StringRef& reply)
 {
-	return laserPort.AssignPort(gb, reply, PinUsedBy::laser, PinAccess::pwm);
+	const bool ok = laserPort.AssignPort(gb, reply, PinUsedBy::laser, PinAccess::pwm);
+	if (ok)
+	{
+		SetLaserPwm(0);
+	}
+	return ok;
 }
 
 void Platform::SetLaserPwmFrequency(PwmFrequency freq)
@@ -4622,7 +4638,7 @@ GCodeResult Platform::ConfigurePort(GCodeBuffer& gb, const StringRef& reply)
 		return reprap.GetHeat().ConfigureHeater(deviceNumber, gb, reply);
 
 	case 8:
-		return fman.ConfigureFanPort(deviceNumber, gb, reply);
+		return reprap.GetFansManager().ConfigureFanPort(deviceNumber, gb, reply);
 
 	default:
 		reply.copy("exactly one of FHPS must be given");

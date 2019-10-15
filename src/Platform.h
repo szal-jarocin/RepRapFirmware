@@ -254,6 +254,8 @@ public:
 		return readings[indexOfLastReading];
 	}
 
+	static constexpr size_t NumAveraged() { return numAveraged; }
+
 private:
 	uint16_t readings[numAveraged];
 	size_t index;
@@ -484,59 +486,6 @@ public:
 
 	void UpdateConfiguredHeaters();
 
-	// Fans
-	bool ConfigureFan(unsigned int mcode, size_t fanNum, GCodeBuffer& gb, const StringRef& reply, bool& error)
-	{
-		return fman.ConfigureFan(mcode, fanNum, gb, reply, error);
-	}
-
-	float GetFanValue(size_t fanNum) const					// Result is returned in range 0..1
-	{
-		return fman.GetFanValue(fanNum);
-	}
-
-	GCodeResult SetFanValue(size_t fanNum, float speed, const StringRef& reply)			// Accepts values between 0..1
-	{
-		return fman.SetFanValue(fanNum, speed, reply);
-	}
-
-	// Simpler version of SetFanValue when there is nowhere obvious to report an error
-	void SetFanValue(size_t fanNum, float speed)			// Accepts values between 0..1
-	{
-		fman.SetFanValue(fanNum, speed);
-	}
-
-	// Check if the given fan can be controlled manually so that DWC can decide whether or not to show the corresponding fan
-	// controls. This is the case if no thermostatic control is enabled and if the fan was configured at least once before.
-	bool IsFanControllable(size_t fanNum) const
-	{
-		return fman.IsFanControllable(fanNum);
-	}
-
-	const char *GetFanName(size_t fanNum) const
-	{
-		return fman.GetFanName(fanNum);
-	}
-
-	// Get current fan RPM, or -1 if the fan is invalid or doesn't have a tacho pin
-	int32_t GetFanRPM(size_t fanNum) const
-	{
-		return fman.GetFanRPM(fanNum);
-	}
-
-	size_t GetHighestUsedFanNumber() const
-	{
-		return fman.GetHighestUsedFanNumber();
-	}
-
-#if HAS_MASS_STORAGE
-	// Save some resume information
-	bool WriteFanSettings(FileStore *f) const
-	{
-		return fman.WriteFanSettings(f);
-	}
-#endif
-
 	// Flash operations
 	void UpdateFirmware();
 	void StartIap();
@@ -609,6 +558,7 @@ public:
 	Spindle& AccessSpindle(size_t slot) { return spindles[slot]; }
 
 	void SetLaserPwm(Pwm_t pwm);
+	float GetLaserPwm() const;							// return laser PWM in 0..1
 	bool AssignLaserPin(GCodeBuffer& gb, const StringRef& reply);
 	void SetLaserPwmFrequency(PwmFrequency freq);
 
@@ -840,7 +790,6 @@ private:
 	HeatersBitmap configuredHeaters;										// bitmask of all real heaters in use
 
 	// Fans
-	FansManager fman;
 	uint32_t lastFanCheckTime;
 
   	// Serial/USB
@@ -950,6 +899,7 @@ private:
 	float extrusionAncilliaryPwmValue;
 	PwmPort extrusionAncilliaryPwmPort;
 	PwmPort laserPort;
+	float lastLaserPwm;
 
 	// Power on/off
 	bool deferredPowerDown;
