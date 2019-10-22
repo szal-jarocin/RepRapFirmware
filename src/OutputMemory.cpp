@@ -372,7 +372,8 @@ bool OutputBuffer::WriteToFile(FileData& f) const
 			buf->references = 1;					// assume it's only used once by default
 			buf->isReferenced = false;
 			buf->hadOverflow = false;
-
+            buf->whenQueued = millis();
+            
 			return true;
 		}
 	}
