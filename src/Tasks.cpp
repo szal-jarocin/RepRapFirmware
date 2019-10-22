@@ -29,7 +29,7 @@ extern uint32_t _estack;				// defined in linker script
 // MAIN task data
 // The main task currently runs GCodes, so it needs to be large enough to hold the matrices used for delta auto calibration.
 // The timer and idle tasks currently never do I/O, so they can be much smaller.
-#if defined(LPC_NETWORKING)
+#if defined(__LPC17xx__)
 constexpr unsigned int MainTaskStackWords = 1600-410;
 #else
 constexpr unsigned int MainTaskStackWords = 1600;

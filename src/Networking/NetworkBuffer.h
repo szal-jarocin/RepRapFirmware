@@ -85,6 +85,8 @@ public:
     #if HAS_RTOSPLUSTCP_NETWORKING
         static const size_t bufferSize =   1 * ipconfigTCP_MSS;
     #elif HAS_WIFI_NETWORKING
+        static const size_t bufferSize =   2048;
+    #else
         static const size_t bufferSize =   2 * 1024;
     #endif
     

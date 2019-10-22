@@ -1,6 +1,11 @@
 Summary of LPC specific changes
 ===============================================
 
+Version 3.0 beta11
+=================
+
+* Implemented DMA. SharedSPI updated to use DMA for SSP and also blocks while waiting to complete (or timeout) so RTOS can process other tasks while watiting
+
 Version 3.0 beta3
 =================
 

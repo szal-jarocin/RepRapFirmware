@@ -53,6 +53,13 @@ Pin SoftwareSPIPins[3] = {NoPin, NoPin, NoPin}; //GPIO pins for softwareSPI (use
 Pin LinuxTfrReadyPin = NoPin;
 #endif
 
+#if defined(ESP8266WIFI)
+    Pin EspDataReadyPin = NoPin;
+    Pin SamTfrReadyPin =  NoPin;
+    Pin EspResetPin =     NoPin;
+    //Pin SamCsPin =        NoPin; 
+#endif
+
 //Default to the Generic PinTable
 PinEntry *PinTable = (PinEntry *) PinTable_Generic;
 size_t NumNamedLPCPins = ARRAY_SIZE(PinTable_Generic);

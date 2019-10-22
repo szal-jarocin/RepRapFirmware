@@ -163,6 +163,8 @@ private:
 	bool debugPrintPending;
 	char debugMessageBuffer[200];
 	size_t debugMessageChars;
+    
+    BinarySemaphore sendCommandSemaphore;
 };
 
 #endif

@@ -72,6 +72,14 @@ static const boardConfigEntry_t boardConfigs[]=
     {"linuxTfrReadyPin", &LinuxTfrReadyPin, nullptr, cvPinType},
 #endif
     
+    
+#if defined(ESP8266WIFI)
+    {"8266wifi.EspDataReadyPin", &EspDataReadyPin, nullptr, cvPinType},
+    {"8266wifi.LpcTfrReadyPin", &SamTfrReadyPin, nullptr, cvPinType},
+    {"8266wifi.EspResetPin", &EspResetPin, nullptr, cvPinType},
+#endif
+
+    
     //TODO:: think this is currently not working
     {"lpc.uartPanelDueMode", &UARTPanelDueMode, nullptr, cvBoolType},
 };
@@ -163,13 +171,6 @@ void BoardConfig::Init()
         
         //Setup the Software SPI Pins
         sspi_setPinsForChannel(SWSPI0, SoftwareSPIPins[0], SoftwareSPIPins[1], SoftwareSPIPins[2]);
-
-        //Configure the HW Timers
-        //ConfigureTimerForPWM(0, Timer1Frequency); //Timer1 is channel 0
-        //ConfigureTimerForPWM(1, 50);              //Setup Servos for 50Hz. Timer2 is channel 1
-        //ConfigureTimerForPWM(2, Timer3Frequency); //Timer3 is channel 2
-        //ConfigureServoTimer(50);
-
 
         //Internal SDCard SPI Frequency
         sd_mmc_reinit_slot(0, SdSpiCSPins[0], InternalSDCardFrequency);

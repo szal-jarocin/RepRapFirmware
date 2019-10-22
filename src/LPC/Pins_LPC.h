@@ -19,8 +19,13 @@
 #define LPC_BOARD_STRING "LPC176x"
 
 #define FIRMWARE_FILE "firmware.bin"
-constexpr size_t NumFirmwareUpdateModules = 1;
+#define WIFI_FIRMWARE_FILE    "DuetWiFiServer.bin"
 
+#if defined(ESP8266WIFI)
+    constexpr size_t NumFirmwareUpdateModules = 2;
+#else
+    constexpr size_t NumFirmwareUpdateModules = 1;
+#endif
 
 // Features definition
 #define SUPPORT_OBJECT_MODEL             1
@@ -49,9 +54,15 @@ constexpr size_t NumFirmwareUpdateModules = 1;
     //LPC Ethernet
     #define HAS_RTOSPLUSTCP_NETWORKING   1
     #define SUPPORT_12864_LCD            1
+    #define HAS_WIFI_NETWORKING          0
+#elif defined(ESP8266WIFI)
+    #define HAS_RTOSPLUSTCP_NETWORKING   0
+    #define SUPPORT_12864_LCD            0
+    #define HAS_WIFI_NETWORKING          1
 #else
     #define HAS_RTOSPLUSTCP_NETWORKING   0
     #define SUPPORT_12864_LCD            1
+    #define HAS_WIFI_NETWORKING          0
 #endif
 
 
@@ -119,6 +130,16 @@ constexpr SSPChannel TempSensorSSPChannel = SSP0; //Conect SPI Temp sensor to SS
     extern Pin LinuxTfrReadyPin;
 #endif
 
+#if defined(ESP8266WIFI)
+    extern Pin EspDataReadyPin;
+    extern Pin SamTfrReadyPin;
+    extern Pin EspResetPin;
+    //extern Pin SamCsPin;
+    constexpr Pin SamCsPin = P0_16; //CS for SSP0
+    constexpr LPC175X_6X_IRQn_Type ESP_SPI_IRQn = SSP0_IRQn;
+#endif
+
+
 //Hardware LPC Timers
 //Timer 0 is used for the Step Generation
 //Timer 1 is unused
@@ -169,14 +190,27 @@ extern Pin SoftwareSPIPins[3]; //GPIO pins for softwareSPI (used with SharedSPI)
 constexpr size_t NUM_SERIAL_CHANNELS = 2;
 extern bool UARTPanelDueMode;
 
-
+#include "usart.h"
 // Use TX0/RX0 for the auxiliary serial line
 #if defined(__MBED__)
     #define SERIAL_MAIN_DEVICE  Serial0 //TX0/RX0 connected to via seperate USB
     #define SERIAL_AUX_DEVICE   Serial  //USB pins unconnected.
+    #if defined(ESP8266WIFI)
+        #define SERIAL_WIFI_DEVICE Serial3 //TXD3/RXD3 as uart0 is in use
+        static const Pin APIN_Serial1_TXD = USART3->channel->TxPin;
+        static const Pin APIN_Serial1_RXD = USART3->channel->RxPin;
+    #endif
 #else
     #define SERIAL_MAIN_DEVICE  Serial  //USB
-    #define SERIAL_AUX_DEVICE   Serial0 //TX0/RX0
+    #if defined(ESP8266WIFI)
+        //No AUX Serial, Serial0 is connected to the ESP8266
+        #define SERIAL_WIFI_DEVICE Serial0
+        static const Pin APIN_Serial1_TXD = USART0->channel->TxPin;
+        static const Pin APIN_Serial1_RXD = USART0->channel->RxPin;
+    #else
+        #define SERIAL_AUX_DEVICE   Serial0
+    #endif
+
 #endif
 
 
