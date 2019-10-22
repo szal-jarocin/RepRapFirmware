@@ -17,9 +17,8 @@
 /RADDS_RTOS/
 /SAME70XPLD/
 .settings/language.settings.xml
-/Driver/
-/Scripts/
-/Tools/
-/SD-image/
+Driver/
+Scripts/
+SD-image/
 /PCCB/
 /PCCB_X5/
