@@ -25,6 +25,7 @@
 #include "FreeRTOS_Sockets.h"
 #include "FreeRTOS_DHCP.h"
 #include "RTOSIface.h"
+#include "TaskPriorities.h"
 
 #include "lpc_phy.h"
 
