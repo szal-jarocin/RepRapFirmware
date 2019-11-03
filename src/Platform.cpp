@@ -1679,14 +1679,13 @@ float Platform::AdcReadingToCpuTemperature(uint32_t adcVal) const
                 {
                     reason |= (uint16_t)SoftwareResetReason::inUsbOutput;    // if we are resetting because we are stuck in a Spin function, record whether we are trying to send to USB
                 }
-                if (SERIAL_AUX_DEVICE.canWrite() == 0
-#ifdef SERIAL_AUX2_DEVICE
-                    || SERIAL_AUX2_DEVICE.canWrite() == 0
-#endif
-                    )
+#ifdef SERIAL_AUX_DEVICE
+                if (SERIAL_AUX_DEVICE.canWrite() == 0)
                 {
                     reason |= (uint16_t)SoftwareResetReason::inAuxOutput;    // if we are resetting because we are stuck in a Spin function, record whether we are trying to send to aux
                 }
+#endif
+
             }
             reason |= (uint8_t)reprap.GetSpinningModule();
             reason |= (softwareResetDebugInfo & 0x07) << 5;

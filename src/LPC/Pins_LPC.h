@@ -134,7 +134,6 @@ constexpr SSPChannel TempSensorSSPChannel = SSP0; //Conect SPI Temp sensor to SS
     extern Pin EspDataReadyPin;
     extern Pin SamTfrReadyPin;
     extern Pin EspResetPin;
-    //extern Pin SamCsPin;
     constexpr Pin SamCsPin = P0_16; //CS for SSP0
     constexpr LPC175X_6X_IRQn_Type ESP_SPI_IRQn = SSP0_IRQn;
 #endif
