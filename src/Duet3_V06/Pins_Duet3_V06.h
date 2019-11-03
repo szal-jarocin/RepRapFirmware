@@ -1,13 +1,13 @@
 #ifndef PINS_SAME70_H__
 #define PINS_SAME70_H__
 
-#define BOARD_SHORT_NAME	"MB6HC"
-#define FIRMWARE_NAME		"RepRapFirmware for Duet 3 MB6HC v0.6"
-#define DEFAULT_BOARD_TYPE	BoardType::Duet3_06
+#define BOARD_SHORT_NAME		"MB6HC"
+#define FIRMWARE_NAME			"RepRapFirmware for Duet 3 MB6HC v0.6 or 1.0"
+#define DEFAULT_BOARD_TYPE		BoardType::Duet3
 const size_t NumFirmwareUpdateModules = 1;
 
-#define IAP_FIRMWARE_FILE	"Duet3Firmware_" BOARD_SHORT_NAME ".bin"
-#define IAP_UPDATE_FILE		"Duet3iap_sd_" BOARD_SHORT_NAME ".bin"
+#define IAP_FIRMWARE_FILE		"Duet3Firmware_" BOARD_SHORT_NAME ".bin"
+#define IAP_UPDATE_FILE			"Duet3iap_sd_" BOARD_SHORT_NAME ".bin"
 
 // Features definition
 #define HAS_LWIP_NETWORKING		1
@@ -232,9 +232,9 @@ constexpr PinEntry PinTable[] =
 	{ PortAPin(3),	PinCapability::rw,		"io3.out" },
 	{ PortEPin(0),	PinCapability::rwpwm,	"io4.out" },
 	{ PortDPin(21),	PinCapability::rwpwm,	"io5.out" },
-	{ PortAPin(0),	PinCapability::rwpwm,	"io6.out" },
+	{ PortAPin(0),	PinCapability::rw,		"io6.out" },
 	{ PortCPin(23),	PinCapability::rwpwm,	"io7.out" },
-	{ PortEPin(1),	PinCapability::rwpwm,	"io8.out" },
+	{ PortEPin(1),	PinCapability::rw,		"io8.out" },	// this pin could be PWM capable but shares the TC with io7.out, so the PWM frequencies are not independent
 
 	// Thermistor inputs
 	{ PortCPin(15), PinCapability::ainr,	"temp0" },

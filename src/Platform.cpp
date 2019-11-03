@@ -2288,8 +2288,9 @@ void Platform::Diagnostics(MessageType mtype)
 
 #if 0
 	// Debugging temperature readings
-	MessageF(mtype, "Vssa %" PRIu32 " Vref %" PRIu32 " Temp0 %" PRIu32 "\n",
-			adcFilters[VssaFilterIndex].GetSum()/16, adcFilters[VrefFilterIndex].GetSum()/16, adcFilters[0].GetSum()/16);
+	const uint32_t div = ThermistorAveragingFilter::NumAveraged() >> 2;		// 2 oversample bits
+	MessageF(mtype, "Vssa %" PRIu32 " Vref %" PRIu32 " Temp0 %" PRIu32 " Temp1 %" PRIu32 "\n",
+			adcFilters[VssaFilterIndex].GetSum()/div, adcFilters[VrefFilterIndex].GetSum()/div, adcFilters[0].GetSum()/div, adcFilters[1].GetSum()/div);
 #endif
 
 #ifdef MOVE_DEBUG
@@ -3997,12 +3998,8 @@ void Platform::SetBoardType(BoardType bt)
 {
 	if (bt == BoardType::Auto)
 	{
-#if defined(DUET3_V03)
-		board = BoardType::Duet3_03;
-#elif defined(DUET3_V05)
-		board = BoardType::Duet3_05;
-#elif defined(DUET3_V06)
-		board = BoardType::Duet3_06;
+#if defined(DUET3)
+		board = BoardType::Duet3;
 #elif defined(SAME70XPLD)
 		board = BoardType::SAME70XPLD_0;
 #elif defined(DUET_NG)
@@ -4068,12 +4065,8 @@ const char* Platform::GetElectronicsString() const
 {
 	switch (board)
 	{
-#if defined(DUET3_V03)
-	case BoardType::Duet3_03:				return "Duet 3 prototype v0.3";
-#elif defined(DUET3_V05)
-	case BoardType::Duet3_05:				return "Duet 3 prototype v0.5";
-#elif defined(DUET3_V06)
-	case BoardType::Duet3_06:				return "Duet 3 version v0.6";
+#if defined(DUET3)
+	case BoardType::Duet3:					return "Duet 3 " BOARD_SHORT_NAME;
 #elif defined(SAME70XPLD)
 	case BoardType::SAME70XPLD_0:			return "SAME70-XPLD";
 #elif defined(DUET_NG)
@@ -4109,12 +4102,15 @@ const char* Platform::GetBoardString() const
 {
 	switch (board)
 	{
-#if defined(DUET3_V03)
-	case BoardType::Duet3_03:				return "duet3proto";
-#elif defined(DUET3_V05)
-	case BoardType::Duet3_05:				return "duet3proto";
-#elif defined(DUET3_V06)
-	case BoardType::Duet3_06:				return "duet3";
+#if defined(DUET3)
+	case BoardType::Duet3:
+# if defined(DUET3_V03)
+											return "duet3proto3";
+# elif defined(DUET3_V05)
+											return "duet3proto5";
+# elif defined(DUET3_V06)
+											return "duet3mb6hc";
+# endif
 #elif defined(SAME70XPLD)
 	case BoardType::SAME70XPLD_0:			return "same70xpld";
 #elif defined(DUET_NG)
@@ -4393,9 +4389,15 @@ float Platform::GetTmcDriversTemperature(unsigned int board) const
 #ifdef PCCB_10
 	const uint16_t mask = (board == 0)
 							? ((1u << 2) - 1)						// drivers 0, 1 are on-board
-								: ((1u << 5) - 1) << 2;				// drivers 2-7 or on the DueX5
-#else
+								: ((1u << 5) - 1) << 2;				// drivers 2-7 are on the DueX5
+#elif defined(DUET_NG)
 	const uint16_t mask = ((1u << 5) - 1) << (5 * board);			// there are 5 drivers on each board
+#elif defined(DUET_M)
+	const uint16_t mask = (board == 0)
+							? ((1u << 5) - 1)						// drivers 0-4 are on the main board
+								: ((1u << 2) - 1) << 5;				// drivers 5-6 are on the daughter board
+#elif defined(DUET3)
+	const uint16_t mask = ((1u << 6) - 1);							// there are 6 drivers, only one board
 #endif
 	return ((temperatureShutdownDrivers & mask) != 0) ? 150.0
 			: ((temperatureWarningDrivers & mask) != 0) ? 100.0
