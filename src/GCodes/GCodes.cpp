@@ -1519,7 +1519,7 @@ bool GCodes::LoadExtrusionAndFeedrateFromGCode(GCodeBuffer& gb, bool isPrintingM
 							rawExtruderTotalByDrive[extruder] += extrusionAmount;
 						}
 
-						moveBuffer.coords[extruder + MaxAxes] = extrusionAmount * extrusionFactors[extruder];
+						moveBuffer.coords[ExtruderToLogicalDrive(extruder)] = extrusionAmount * extrusionFactors[extruder];
 						if (moveBuffer.moveType == 1)
 						{
 							platform.GetEndstops().EnableExtruderEndstop(extruder);
@@ -1554,7 +1554,7 @@ bool GCodes::LoadExtrusionAndFeedrateFromGCode(GCodeBuffer& gb, bool isPrintingM
 								rawExtruderTotalByDrive[extruder] += extrusionAmount;
 								rawExtruderTotal += extrusionAmount;
 							}
-							moveBuffer.coords[extruder + MaxAxes] = extrusionAmount * extrusionFactors[extruder] * volumetricExtrusionFactors[extruder];
+							moveBuffer.coords[ExtruderToLogicalDrive(extruder)] = extrusionAmount * extrusionFactors[extruder] * volumetricExtrusionFactors[extruder];
 							if (moveBuffer.moveType == 1)
 							{
 								platform.GetEndstops().EnableExtruderEndstop(extruder);
@@ -1578,7 +1578,7 @@ bool GCodes::CheckEnoughAxesHomed(AxesBitmap axesMoved)
 	return (reprap.GetMove().GetKinematics().MustBeHomedAxes(axesMoved, noMovesBeforeHoming) & ~axesHomed) != 0;
 }
 
-// Execute a straight move returning true if an error was written to 'reply'
+// Execute a straight move returning an error message if the command was rejected, else nullptr
 // We have already acquired the movement lock and waited for the previous move to be taken.
 const char* GCodes::DoStraightMove(GCodeBuffer& gb, bool isCoordinated)
 {
@@ -1744,13 +1744,19 @@ const char* GCodes::DoStraightMove(GCodeBuffer& gb, bool isCoordinated)
 		break;
 
 	case 1:
-		platform.GetEndstops().EnableAxisEndstops(axesMentioned & LowestNBits<AxesBitmap>(numTotalAxes), true);
+		if (!platform.GetEndstops().EnableAxisEndstops(axesMentioned & LowestNBits<AxesBitmap>(numTotalAxes), true))
+		{
+			return "Failed to enable endstops";
+		}
 		moveBuffer.checkEndstops = true;
 		break;
 
 	case 3:
 		axesToSenseLength = axesMentioned & LowestNBits<AxesBitmap>(numTotalAxes);
-		platform.GetEndstops().EnableAxisEndstops(axesMentioned & LowestNBits<AxesBitmap>(numTotalAxes), false);
+		if (!platform.GetEndstops().EnableAxisEndstops(axesMentioned & LowestNBits<AxesBitmap>(numTotalAxes), false))
+		{
+			return "Failed to enable endstops";
+		}
 		moveBuffer.checkEndstops = true;
 		break;
 
@@ -2190,9 +2196,9 @@ bool GCodes::ReadMove(RawMove& m)
 		if (segmentsLeftToStartAt == 1 && firstSegmentFractionToSkip != 0.0)	// if this is the segment we are starting at and we need to skip some of it
 		{
 			// Reduce the extrusion by the amount to be skipped
-			for (size_t drive = MaxAxes; drive < MaxAxesPlusExtruders; ++drive)
+			for (size_t extruder = 0; extruder < numExtruders; ++extruder)
 			{
-				m.coords[drive] *= (1.0 - firstSegmentFractionToSkip);
+				m.coords[ExtruderToLogicalDrive(extruder)] *= (1.0 - firstSegmentFractionToSkip);
 			}
 		}
 		m.proportionLeft = 0.0;
@@ -2250,9 +2256,9 @@ bool GCodes::ReadMove(RawMove& m)
 		if (segmentsLeftToStartAt == segmentsLeft && firstSegmentFractionToSkip != 0.0)	// if this is the segment we are starting at and we need to skip some of it
 		{
 			// Reduce the extrusion by the amount to be skipped
-			for (size_t drive = MaxAxes; drive < MaxAxesPlusExtruders; ++drive)
+			for (size_t extruder = 0; extruder < numExtruders; ++extruder)
 			{
-				m.coords[drive] *= (1.0 - firstSegmentFractionToSkip);
+				m.coords[ExtruderToLogicalDrive(extruder)] *= (1.0 - firstSegmentFractionToSkip);
 			}
 		}
 		--segmentsLeft;
@@ -2696,7 +2702,7 @@ void GCodes::GetCurrentCoordinates(const StringRef& s) const
 	// Now the extruder coordinates
 	for (size_t i = 0; i < numExtruders; i++)
 	{
-		s.catf("E%u:%.1f ", i, (double)liveCoordinates[i + MaxAxes]);
+		s.catf("E%u:%.1f ", i, (double)liveCoordinates[ExtruderToLogicalDrive(i)]);
 	}
 
 	// Print the axis stepper motor positions as Marlin does, as an aid to debugging.
@@ -2744,11 +2750,13 @@ bool GCodes::QueueFileToPrint(const char* fileName, const StringRef& reply)
 // Start printing the file already selected
 void GCodes::StartPrinting(bool fromStart)
 {
-	fileGCode->SetToolNumberAdjust(0);								// clear tool number adjustment
-	fileGCode->MachineState().volumetricExtrusion = false;			// default to non-volumetric extrusion
+	if (fromStart)													// if not resurrecting a print
+	{
+		fileGCode->MachineState().volumetricExtrusion = false;		// default to non-volumetric extrusion
+		virtualExtruderPosition = 0.0;
+	}
 
-	// Reset all extruder positions when starting a new print
-	virtualExtruderPosition = 0.0;
+	fileGCode->SetToolNumberAdjust(0);								// clear tool number adjustment
 	for (size_t extruder = 0; extruder < MaxExtruders; extruder++)
 	{
 		rawExtruderTotalByDrive[extruder] = 0.0;
@@ -3377,7 +3385,7 @@ GCodeResult GCodes::RetractFilament(GCodeBuffer& gb, bool retract)
 			{
 				for (size_t i = 0; i < tool->DriveCount(); ++i)
 				{
-					moveBuffer.coords[MaxAxes + tool->Drive(i)] = -retractLength;
+					moveBuffer.coords[ExtruderToLogicalDrive(tool->Drive(i))] = -retractLength;
 				}
 				moveBuffer.feedRate = retractSpeed;
 				moveBuffer.canPauseAfter = false;			// don't pause after a retraction because that could cause too much retraction
@@ -3406,7 +3414,7 @@ GCodeResult GCodes::RetractFilament(GCodeBuffer& gb, bool retract)
 			{
 				for (size_t i = 0; i < tool->DriveCount(); ++i)
 				{
-					moveBuffer.coords[MaxAxes + tool->Drive(i)] = retractLength + retractExtra;
+					moveBuffer.coords[ExtruderToLogicalDrive(tool->Drive(i))] = retractLength + retractExtra;
 				}
 				moveBuffer.feedRate = unRetractSpeed;
 				moveBuffer.canPauseAfter = true;
@@ -3586,7 +3594,7 @@ void GCodes::StopPrint(StopPrintReason reason)
 #if HAS_MASS_STORAGE
 		if (updateFileWhenSimulationComplete && reason == StopPrintReason::normalCompletion)
 		{
-			platform.GetMassStorage()->RecordSimulationTime(printingFilename, lrintf(simSeconds));
+			MassStorage::RecordSimulationTime(printingFilename, lrintf(simSeconds));
 		}
 #endif
 
@@ -3826,7 +3834,7 @@ float GCodes::GetCurrentToolOffset(size_t axis) const
 // Get the current user coordinate and remove the workplace offset
 float GCodes::GetUserCoordinate(size_t axis) const
 {
-	return (axis < MaxAxes) ? currentUserPosition[axis] - GetWorkplaceOffset(axis) : 0.0;
+	return (axis < numTotalAxes) ? currentUserPosition[axis] - GetWorkplaceOffset(axis) : 0.0;
 }
 
 #if HAS_MASS_STORAGE

@@ -17,11 +17,54 @@
 #include <TaskPriorities.h>
 
 #if USE_CACHE
-# include "cmcc/cmcc.h"
+
+# if SAM4E
+#  include "cmcc/cmcc.h"
+# endif
+
+# if SAME70
+#  include <core_cm7.h>
+
+void EnableCache()
+{
+	SCB_EnableICache();
+	SCB_EnableDCache();
+}
+
+void DisableCache()
+{
+	SCB_DisableICache();
+	SCB_DisableDCache();
+}
+
+# endif
+
 #endif
 
-#if SAME70
+#if SAME70 && USE_MPU
 # include <mpu_armv7.h>
+
+// Macro ARM_MPU_RASR_EX is incorrectly defined in CMSIS 5.4.0, see https://github.com/ARM-software/CMSIS_5/releases. Redefine it here.
+
+# undef ARM_MPU_RASR_EX
+
+/**
+* MPU Region Attribute and Size Register Value
+*
+* \param DisableExec       Instruction access disable bit, 1= disable instruction fetches.
+* \param AccessPermission  Data access permissions, allows you to configure read/write access for User and Privileged mode.
+* \param AccessAttributes  Memory access attribution, see \ref ARM_MPU_ACCESS_.
+* \param SubRegionDisable  Sub-region disable field.
+* \param Size              Region size of the region to be configured, for example 4K, 8K.
+*/
+# define ARM_MPU_RASR_EX(DisableExec, AccessPermission, AccessAttributes, SubRegionDisable, Size)    \
+  ((((DisableExec)      << MPU_RASR_XN_Pos)   & MPU_RASR_XN_Msk)                                  | \
+   (((AccessPermission) << MPU_RASR_AP_Pos)   & MPU_RASR_AP_Msk)                                  | \
+   (((AccessAttributes) & (MPU_RASR_TEX_Msk | MPU_RASR_S_Msk | MPU_RASR_C_Msk | MPU_RASR_B_Msk))) | \
+   (((SubRegionDisable) << MPU_RASR_SRD_Pos)  & MPU_RASR_SRD_Msk)                                 | \
+   (((Size)             << MPU_RASR_SIZE_Pos) & MPU_RASR_SIZE_Msk)                                | \
+   (((MPU_RASR_ENABLE_Msk))))
+
 #endif
 
 const uint8_t memPattern = 0xA5;
@@ -134,9 +177,8 @@ extern "C" [[noreturn]] void AppMain()
 	// We could also trap unaligned memory access, if we change the gcc options to not generate code that uses unaligned memory access.
 	SCB->CCR |= SCB_CCR_DIV_0_TRP_Msk;
 
-#ifndef __LPC17xx__
+#if SAME70 && USE_MPU
 
-#if 0 //SAME70
 	// Set up the MPU so that we can have a non-cacheable RAM region, and so that we can trap accesses to non-existent memory
 	// Where regions overlap, the region with the highest region number takes priority
 	constexpr ARM_MPU_Region_t regionTable[] =
@@ -153,30 +195,40 @@ extern "C" [[noreturn]] void AppMain()
 		},
 		// Final 128kb RAM, read-write, cacheable, execute disabled
 		{
-			ARM_MPU_RBAR(3, IRAM_ADDR + 0x00040000),
+			ARM_MPU_RBAR(2, IRAM_ADDR + 0x00040000),
 			ARM_MPU_RASR_EX(1u, ARM_MPU_AP_FULL, ARM_MPU_ACCESS_NORMAL(ARM_MPU_CACHEP_WB_WRA, ARM_MPU_CACHEP_WB_WRA, 1u), 0u, ARM_MPU_REGION_SIZE_128KB)
 		},
 		// Non-cachable RAM. This must be before normal RAM because it includes CAN buffers which must be within first 64kb.
 		// Read write, execute disabled, non-cacheable
 		{
-			ARM_MPU_RBAR(4, IRAM_ADDR),
+			ARM_MPU_RBAR(3, IRAM_ADDR),
 			ARM_MPU_RASR_EX(1u, ARM_MPU_AP_FULL, ARM_MPU_ACCESS_ORDERED, 0, ARM_MPU_REGION_SIZE_64KB)
 		},
 		// RAMFUNC memory. Read-only (the code has already been written to it), execution allowed. The initialised data memory follows, so it must be RW.
 		// 256 bytes is enough at present (check the linker memory map if adding more RAMFUNCs).
 		{
-			ARM_MPU_RBAR(5, IRAM_ADDR + 0x00010000),
+			ARM_MPU_RBAR(4, IRAM_ADDR + 0x00010000),
 			ARM_MPU_RASR_EX(0u, ARM_MPU_AP_FULL, ARM_MPU_ACCESS_NORMAL(ARM_MPU_CACHEP_WB_WRA, ARM_MPU_CACHEP_WB_WRA, 1u), 0u, ARM_MPU_REGION_SIZE_256B)
 		},
 		// Peripherals
 		{
-			ARM_MPU_RBAR(6, 0x40000000),
-			ARM_MPU_RASR_EX(1u, ARM_MPU_AP_FULL, ARM_MPU_ACCESS_DEVICE(1u), 0u, ARM_MPU_REGION_SIZE_512MB),
+			ARM_MPU_RBAR(5, 0x40000000),
+			ARM_MPU_RASR_EX(1u, ARM_MPU_AP_FULL, ARM_MPU_ACCESS_DEVICE(1u), 0u, ARM_MPU_REGION_SIZE_16MB)
 		},
 		// USBHS
 		{
-			ARM_MPU_RBAR(7, 0xA0100000),
-			ARM_MPU_RASR_EX(1u, ARM_MPU_AP_FULL, ARM_MPU_ACCESS_DEVICE(1u), 0u, ARM_MPU_REGION_SIZE_1MB),
+			ARM_MPU_RBAR(6, 0xA0100000),
+			ARM_MPU_RASR_EX(1u, ARM_MPU_AP_FULL, ARM_MPU_ACCESS_DEVICE(1u), 0u, ARM_MPU_REGION_SIZE_1MB)
+		},
+		// ROM
+		{
+			ARM_MPU_RBAR(7, IROM_ADDR),
+			ARM_MPU_RASR_EX(0u, ARM_MPU_AP_RO, ARM_MPU_ACCESS_NORMAL(ARM_MPU_CACHEP_WB_WRA, ARM_MPU_CACHEP_WB_WRA, 1u), 0u, ARM_MPU_REGION_SIZE_4MB)
+		},
+		// ARM Private Peripheral Bus
+		{
+			ARM_MPU_RBAR(8, 0xE0000000),
+			ARM_MPU_RASR_EX(1u, ARM_MPU_AP_FULL, ARM_MPU_ACCESS_ORDERED, 0u, ARM_MPU_REGION_SIZE_1MB)
 		}
 	};
 
@@ -197,6 +249,7 @@ extern "C" [[noreturn]] void AppMain()
 	ARM_MPU_Enable(0x01);
 #endif
 
+#ifndef __LPC17xx__
 	// When doing a software reset, we disable the NRST input (User reset) to prevent the negative-going pulse that gets generated on it
 	// being held in the capacitor and changing the reset reason from Software to User. So enable it again here. We hope that the reset signal
 	// will have gone away by now.
@@ -208,10 +261,12 @@ extern "C" [[noreturn]] void AppMain()
 #endif //end ifndef lpc
 
 #if USE_CACHE
-	// Enable the cache
+# if SAM4E
+	// Initialise the cache controller
 	cmcc_config g_cmcc_cfg;
 	cmcc_get_config_defaults(&g_cmcc_cfg);
 	cmcc_init(CMCC, &g_cmcc_cfg);
+#endif
 	EnableCache();
 #endif
 
@@ -380,6 +435,31 @@ extern "C"
 	        " handler_hf_address_const: .word hardFaultDispatcher       \n"
 	    );
 	}
+
+#if USE_MPU
+
+	[[noreturn]] void memManageDispatcher(const uint32_t *pulFaultStackAddress)
+	{
+	    reprap.GetPlatform().SoftwareReset((uint16_t)SoftwareResetReason::memFault, pulFaultStackAddress + 5);
+	}
+
+	// The fault handler implementation calls a function called hardFaultDispatcher()
+    void MemManage_Handler() __attribute__((naked, noreturn));
+	void MemManage_Handler()
+	{
+	    __asm volatile
+	    (
+	        " tst lr, #4                                                \n"		/* test bit 2 of the EXC_RETURN in LR to determine which stack was in use */
+	        " ite eq                                                    \n"		/* load the appropriate stack pointer into R0 */
+	        " mrseq r0, msp                                             \n"
+	        " mrsne r0, psp                                             \n"
+	        " ldr r2, handler_mf_address_const                          \n"
+	        " bx r2                                                     \n"
+	        " handler_mf_address_const: .word memManageDispatcher       \n"
+	    );
+	}
+
+#endif
 
 	[[noreturn]] void wdtFaultDispatcher(const uint32_t *pulFaultStackAddress)
 	{

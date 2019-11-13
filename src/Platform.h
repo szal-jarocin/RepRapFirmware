@@ -142,27 +142,33 @@ enum class BoardType : uint8_t
 /***************************************************************************************************/
 
 // Enumeration describing the reasons for a software reset.
-// The spin state gets or'ed into this, so keep the lower 4 bits unused.
+// The spin state gets or'ed into this, so keep the lower 5 bits unused.
+// IMPORTANT! When changing this, also update table SoftwareResetReasonText
 enum class SoftwareResetReason : uint16_t
 {
-	user = 0,						// M999 command
-	erase = 0x10,					// special M999 command to erase firmware and reset
-	NMI = 0x20,
-	hardFault = 0x30,				// most exceptions get escalated to a hard fault
-	stuckInSpin = 0x40,				// we got stuck in a Spin() function in the Main task for too long
-	wdtFault = 0x50,				// secondary watchdog
-	usageFault = 0x60,
-	otherFault = 0x70,
-	stackOverflow = 0x80,			// FreeRTOS detected stack overflow
-	assertCalled = 0x90,			// FreeRTOS assertion failure
-	heaterWatchdog = 0xA0,			// the Heat task didn't kick the watchdog often enough
+	user = 0u,						// M999 command
+	erase = 1u << 5,				// special M999 command to erase firmware and reset
+	NMI = 2u << 5,
+	hardFault = 3u << 5,			// most exceptions get escalated to a hard fault
+	stuckInSpin = 4u << 5,			// we got stuck in a Spin() function in the Main task for too long
+	wdtFault = 5u << 5,				// secondary watchdog
+	usageFault = 6u << 5,
+	otherFault = 7u << 5,
+	stackOverflow = 8u << 5,		// FreeRTOS detected stack overflow
+	assertCalled = 9u << 5,			// FreeRTOS assertion failure
+	heaterWatchdog = 10 << 5,		// the Heat task didn't kick the watchdog often enough
+	memFault = 11 << 5,
 
 	// Bits that are or'ed in
+	unusedBit = 0x0200,				// spare bit
+	unused2 = 0x0400,				// spare bit
 	inAuxOutput = 0x0800,			// this bit is or'ed in if we were in aux output at the time
 	inLwipSpin = 0x2000,			// we got stuck in a call to LWIP for too long
 	inUsbOutput = 0x4000,			// this bit is or'ed in if we were in USB output at the time
 	deliberate = 0x8000				// this but it or'ed in if we deliberately caused a fault
 };
+
+extern const char *const SoftwareResetReasonText[];
 
 // Enumeration to describe various tests we do in response to the M122 command
 enum class DiagnosticTestType : int
@@ -354,7 +360,6 @@ public:
 	const char* GetConfigFile() const; 				// Where the configuration is stored (in the system dir).
 
 #if HAS_MASS_STORAGE
-	MassStorage* GetMassStorage() const;
 	FileStore* OpenFile(const char* folder, const char* fileName, OpenMode mode, uint32_t preAllocSize = 0) const;
 	bool Delete(const char* folder, const char *filename) const;
 	bool FileExists(const char* folder, const char *filename) const;
@@ -809,7 +814,6 @@ private:
 
 	// Files
 #if HAS_MASS_STORAGE
-	MassStorage* massStorage;
 	const char *sysDir;
 #endif
 
@@ -1082,15 +1086,6 @@ inline void Platform::SetNozzleDiameter(float diameter)
 {
 	nozzleDiameter = diameter;
 }
-
-#if HAS_MASS_STORAGE
-
-inline MassStorage* Platform::GetMassStorage() const
-{
-	return massStorage;
-}
-
-#endif
 
 inline OutputBuffer *Platform::GetAuxGCodeReply()
 {

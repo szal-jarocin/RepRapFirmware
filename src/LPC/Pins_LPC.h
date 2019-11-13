@@ -77,10 +77,11 @@ constexpr size_t MaxSmartDrivers = 0;                // The maximum number of sm
 constexpr size_t MaxSensorsInSystem = 32;
 typedef uint32_t SensorsBitmap;
 
+constexpr size_t MaxHeaters = 3;                     // The maximum number of heaters in the machine
 constexpr size_t NumExtraHeaterProtections = 3;      // The number of extra heater protection instances
 constexpr size_t NumThermistorInputs = 4;
-constexpr size_t MaxHeaters = 3;                     // The maximum number of heaters in the machine
 
+constexpr size_t MaxZProbes = 1;
 constexpr size_t MaxGpioPorts = 10;
 
 constexpr size_t MinAxes = 3;                        // The minimum and default number of axes
@@ -89,6 +90,8 @@ constexpr size_t MaxDriversPerAxis = 2;              // The maximum number of st
 
 constexpr size_t MaxExtruders = 2;                   // The maximum number of extruders
 constexpr size_t NumDefaultExtruders = 1;            // The number of drivers that we configure as extruders by default
+
+constexpr size_t MaxAxesPlusExtruders = 5;
 
 constexpr size_t MaxHeatersPerTool = 2;
 constexpr size_t MaxExtrudersPerTool = 2;
@@ -149,7 +152,6 @@ constexpr SSPChannel TempSensorSSPChannel = SSP0; //Conect SPI Temp sensor to SS
 extern Pin ATX_POWER_PIN;// Digital pin number that controls the ATX power on/off
 extern bool ATX_POWER_INVERTED;
 
-constexpr size_t MaxZProbes = 1;
 constexpr size_t NumTotalFans = 3;
 
 //SD: Internal SDCard is on SSP1

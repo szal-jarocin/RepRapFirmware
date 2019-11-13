@@ -108,7 +108,7 @@ void BoardConfig::Init()
     //Mount the Internal SDCard
     do
     {
-        rslt = reprap.GetPlatform().GetMassStorage()->Mount(0, reply.GetRef(), false);
+        rslt = MassStorage::Mount(0, reply.GetRef(), false);
     }
     while (rslt == GCodeResult::notFinished);
     

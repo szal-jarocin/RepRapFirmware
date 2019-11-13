@@ -42,7 +42,8 @@ const size_t NumFirmwareUpdateModules = 1;
 #define SUPPORT_ASYNC_MOVES		1
 #define ALLOCATE_DEFAULT_PORTS	0
 
-#define USE_CACHE				0					// Cache controller disabled for now
+#define USE_MPU					1					// Needed if USE_CACHE is set, so that we can have non-cacheable memory regions
+#define USE_CACHE				1
 
 #define NO_EXTRUDER_ENDSTOPS	1	// Temporary!!!
 
@@ -67,11 +68,13 @@ constexpr size_t MaxZProbes = 4;
 constexpr size_t MaxGpioPorts = 12;
 
 constexpr size_t MinAxes = 3;						// The minimum and default number of axes
-constexpr size_t MaxAxes = 9;						// The maximum number of movement axes in the machine, usually just X, Y and Z, <= DRIVES
+constexpr size_t MaxAxes = 10;						// The maximum number of movement axes in the machine
 constexpr size_t MaxDriversPerAxis = 5;				// The maximum number of stepper drivers assigned to one axis
 
 constexpr size_t MaxExtruders = 16;					// The maximum number of extruders
-constexpr size_t NumDefaultExtruders = 3;			// The number of drivers that we configure as extruders by default
+constexpr size_t NumDefaultExtruders = 1;			// The number of drivers that we configure as extruders by default
+
+constexpr size_t MaxAxesPlusExtruders = 20;			// May be <= MaxAxes + MaxExtruders
 
 constexpr size_t MaxHeatersPerTool = 4;
 constexpr size_t MaxExtrudersPerTool = 6;

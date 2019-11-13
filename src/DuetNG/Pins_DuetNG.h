@@ -41,6 +41,7 @@ constexpr size_t NumFirmwareUpdateModules = 4;		// 3 modules, plus one for manua
 #define ALLOCATE_DEFAULT_PORTS	1
 
 #define USE_CACHE				1					// set nonzero to enable the cache
+#define USE_MPU					0					// set nonzero to enable the memory protection unit
 
 #define NO_EXTRUDER_ENDSTOPS	1	// Temporary!!!
 
@@ -65,7 +66,9 @@ constexpr size_t MaxAxes = 9;						// The maximum number of movement axes in the
 constexpr size_t MaxDriversPerAxis = 5;				// The maximum number of stepper drivers assigned to one axis
 
 constexpr size_t MaxExtruders = 6;					// The maximum number of extruders
-constexpr size_t NumDefaultExtruders = 2;			// The number of drivers that we configure as extruders by default
+constexpr size_t NumDefaultExtruders = 1;			// The number of drivers that we configure as extruders by default
+
+constexpr size_t MaxAxesPlusExtruders = 12;
 
 constexpr size_t MaxHeatersPerTool = 8;
 constexpr size_t MaxExtrudersPerTool = 8;

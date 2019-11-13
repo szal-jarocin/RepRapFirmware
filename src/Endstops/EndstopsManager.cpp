@@ -8,7 +8,7 @@
 #include "EndstopsManager.h"
 
 #include "Endstop.h"
-#include "LocalSwitchEndstop.h"
+#include "SwitchEndstop.h"
 #include "StallDetectionEndstop.h"
 #include "ZProbeEndstop.h"
 
@@ -48,7 +48,7 @@ void EndstopsManager::Init()
 	String<1> dummy;
 	for (size_t axis = 0; axis < ARRAY_SIZE(DefaultEndstopPinNames); ++axis)
 	{
-		LocalSwitchEndstop * const sw = new LocalSwitchEndstop(axis, EndStopPosition::lowEndStop);
+		SwitchEndstop * const sw = new SwitchEndstop(axis, EndStopPosition::lowEndStop);
 		sw->Configure(DefaultEndstopPinNames[axis], dummy.GetRef(), EndStopInputType::activeHigh);
 		axisEndstops[axis] = sw;
 	}
@@ -74,24 +74,32 @@ void EndstopsManager::AddToActive(EndstopOrZProbe& e)
 	activeEndstops = &e;
 }
 
-// Set up the active endstop list according to the axes commanded to move in a G0/G1 S1/S3 command
-void EndstopsManager::EnableAxisEndstops(AxesBitmap axes, bool forHoming)
+// Set up the active endstop list according to the axes commanded to move in a G0/G1 S1/S3 command. Return true if successful.
+bool EndstopsManager::EnableAxisEndstops(AxesBitmap axes, bool forHoming)
 {
 	activeEndstops = nullptr;
 	isHomingMove = forHoming;
 	const Kinematics& kin = reprap.GetMove().GetKinematics();
 	for (size_t axis = 0; axis < reprap.GetGCodes().GetVisibleAxes(); ++axis)
 	{
-		if (IsBitSet(axes, axis) && axisEndstops[axis] != nullptr)
+		if (IsBitSet(axes, axis))
 		{
-			axisEndstops[axis]->Prime(kin, reprap.GetPlatform().GetAxisDriversConfig(axis));
-			AddToActive(*axisEndstops[axis]);
+			if (axisEndstops[axis] != nullptr && axisEndstops[axis]->Prime(kin, reprap.GetPlatform().GetAxisDriversConfig(axis)))
+			{
+				AddToActive(*axisEndstops[axis]);
+			}
+			else
+			{
+				activeEndstops = nullptr;
+				return false;
+			}
 		}
 	}
+	return true;
 }
 
-// Set up the active endstops for Z probing
-void EndstopsManager::EnableZProbe(size_t probeNumber, bool probingAway)
+// Set up the active endstops for Z probing, returning true if successful
+bool EndstopsManager::EnableZProbe(size_t probeNumber, bool probingAway)
 {
 	activeEndstops = nullptr;
 	isHomingMove = false;
@@ -100,13 +108,15 @@ void EndstopsManager::EnableZProbe(size_t probeNumber, bool probingAway)
 		zProbes[probeNumber]->SetProbingAway(probingAway);
 		AddToActive(*zProbes[probeNumber]);
 	}
+	return true;
 }
 
 // Enable extruder endstops
-void EndstopsManager::EnableExtruderEndstop(size_t extruder)
+bool EndstopsManager::EnableExtruderEndstop(size_t extruder)
 {
 #ifdef NO_EXTRUDER_ENDSTOPS
-	// do nothing for  now
+	// not supported for now
+	return false;
 #else
 	qq;		//TODO
 #endif
@@ -244,7 +254,7 @@ GCodeResult EndstopsManager::HandleM574(GCodeBuffer& gb, const StringRef& reply)
 
 		delete axisEndstops[lastAxisSeen];
 		axisEndstops[lastAxisSeen] = nullptr;
-		LocalSwitchEndstop * const sw = new LocalSwitchEndstop(lastAxisSeen, lastPosSeen);
+		SwitchEndstop * const sw = new SwitchEndstop(lastAxisSeen, lastPosSeen);
 		const GCodeResult rslt = sw->Configure(gb, reply, inputType);
 		axisEndstops[lastAxisSeen] = sw;
 		return rslt;
@@ -298,7 +308,7 @@ GCodeResult EndstopsManager::HandleM574(GCodeBuffer& gb, const StringRef& reply)
 					}
 					else
 					{
-						((LocalSwitchEndstop *)axisEndstops[axis])->Reconfigure(pos, inputType);
+						((SwitchEndstop *)axisEndstops[axis])->Reconfigure(pos, inputType);
 					}
 					break;
 
