@@ -178,7 +178,6 @@ extern "C" [[noreturn]] void AppMain()
 	SCB->CCR |= SCB_CCR_DIV_0_TRP_Msk;
 
 #if SAME70 && USE_MPU
-
 	// Set up the MPU so that we can have a non-cacheable RAM region, and so that we can trap accesses to non-existent memory
 	// Where regions overlap, the region with the highest region number takes priority
 	constexpr ARM_MPU_Region_t regionTable[] =
@@ -188,7 +187,7 @@ extern "C" [[noreturn]] void AppMain()
 			ARM_MPU_RBAR(0, IFLASH_ADDR),
 			ARM_MPU_RASR_EX(0u, ARM_MPU_AP_RO, ARM_MPU_ACCESS_NORMAL(ARM_MPU_CACHEP_WB_WRA, ARM_MPU_CACHEP_WB_WRA, 1u), 0u, ARM_MPU_REGION_SIZE_1MB)
 		},
-		// First 256kb RAM, read-write, cacheable, execute disabled. Parts of this are is overridden later.
+		// First 256kb RAM, read-write, cacheable, execute disabled. Parts of this are overridden later.
 		{
 			ARM_MPU_RBAR(1, IRAM_ADDR),
 			ARM_MPU_RASR_EX(1u, ARM_MPU_AP_FULL, ARM_MPU_ACCESS_NORMAL(ARM_MPU_CACHEP_WB_WRA, ARM_MPU_CACHEP_WB_WRA, 1u), 0u, ARM_MPU_REGION_SIZE_256KB)
@@ -250,9 +249,8 @@ extern "C" [[noreturn]] void AppMain()
 #endif
 
 #ifndef __LPC17xx__
-	// When doing a software reset, we disable the NRST input (User reset) to prevent the negative-going pulse that gets generated on it
-	// being held in the capacitor and changing the reset reason from Software to User. So enable it again here. We hope that the reset signal
-	// will have gone away by now.
+	// When doing a software reset, we disable the NRST input (User reset) to prevent the negative-going pulse that gets generated on it being held
+	// in the capacitor and changing the reset reason from Software to User. So enable it again here. We hope that the reset signal will have gone away by now.
 # ifndef RSTC_MR_KEY_PASSWD
 // Definition of RSTC_MR_KEY_PASSWD is missing in the SAM3X ASF files
 #  define RSTC_MR_KEY_PASSWD (0xA5u << 24)
@@ -270,8 +268,15 @@ extern "C" [[noreturn]] void AppMain()
 	EnableCache();
 #endif
 
-	// Add the FreeRTOS internal tasks to the task list
-	idleTask.AddToList();
+#if SAM4S
+	efc_enable_cloe(EFC0);			// enable code loop optimisation
+#endif
+
+#if SAM4E || SAME70
+	efc_enable_cloe(EFC);			// enable code loop optimisation
+#endif
+
+	idleTask.AddToList();			// add the FreeRTOS internal tasks to the task list
 
 #if configUSE_TIMERS
 	timerTask.AddToList();
@@ -280,7 +285,7 @@ extern "C" [[noreturn]] void AppMain()
 	// Create the startup task
 	mainTask.Create(MainTask, "MAIN", nullptr, TaskPriority::SpinPriority);
 	vTaskStartScheduler();			// doesn't return
-	for (;;) { }					// kep gcc happy
+	for (;;) { }					// keep gcc happy
 }
 
 extern "C" [[noreturn]] void MainTask(void *pvParameters)

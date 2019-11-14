@@ -33,7 +33,6 @@
 #include "RepRap.h"
 #include "Scanner.h"
 #include "Version.h"
-#include "SoftTimer.h"
 #include "Logger.h"
 #include "Tasks.h"
 #include "Hardware/DmacManager.h"
@@ -158,16 +157,6 @@ constexpr uint16_t driverV12OffAdcReading = V12VoltageToAdcReading(9.5);				// v
 #endif
 
 const float MinStepPulseTiming = 0.2;				// we assume that we always generate step high and low times at least this wide without special action
-
-//#define MOVE_DEBUG
-
-#ifdef MOVE_DEBUG
-unsigned int numInterruptsScheduled = 0;
-unsigned int numInterruptsExecuted = 0;
-uint32_t nextInterruptTime = 0;
-uint32_t nextInterruptScheduledAt = 0;
-uint32_t lastInterruptTime = 0;
-#endif
 
 //#define SOFT_TIMER_DEBUG
 
@@ -788,7 +777,7 @@ void Platform::UpdateFirmware()
     String<MaxFilenameLength> location;
     MassStorage::CombineName(location.GetRef(), DEFAULT_SYS_DIR, FIRMWARE_FILE);
     
-    if(!GetMassStorage()->Rename(location.c_str(), "0:/firmware.bin"))
+    if(!MassStorage::Rename(location.c_str(), "0:/firmware.bin"))
     {
         //failed to rename
         MessageF(FirmwareUpdateMessage, "Failed to move firmware file.\n");
@@ -1160,31 +1149,32 @@ bool Platform::FlushMessages()
 	{
 		MutexLocker lock(usbMutex);
 		OutputBuffer *usbOutputBuffer = usbOutput.GetFirstItem();
-		if (usbOutputBuffer != nullptr)
+		if (usbOutputBuffer == nullptr)
 		{
-			if (!SERIAL_MAIN_DEVICE)
+			(void) usbOutput.Pop();
+		}
+		else if (!SERIAL_MAIN_DEVICE)
+		{
+			// If the USB port is not opened, free the data left for writing
+			OutputBuffer::ReleaseAll(usbOutputBuffer);
+			(void) usbOutput.Pop();
+		}
+		else
+		{
+			// Write as much data as we can...
+			const size_t bytesToWrite = min<size_t>(SERIAL_MAIN_DEVICE.canWrite(), usbOutputBuffer->BytesLeft());
+			if (bytesToWrite != 0)
 			{
-				// If the USB port is not opened, free the data left for writing
-				OutputBuffer::ReleaseAll(usbOutputBuffer);
-				(void) usbOutput.Pop();
+				SERIAL_MAIN_DEVICE.write(usbOutputBuffer->Read(bytesToWrite), bytesToWrite);
+			}
+
+			if (usbOutputBuffer->BytesLeft() == 0)
+			{
+				usbOutput.ReleaseFirstItem();
 			}
 			else
 			{
-				// Write as much data as we can...
-				const size_t bytesToWrite = min<size_t>(SERIAL_MAIN_DEVICE.canWrite(), usbOutputBuffer->BytesLeft());
-				if (bytesToWrite > 0)
-				{
-					SERIAL_MAIN_DEVICE.write(usbOutputBuffer->Read(bytesToWrite), bytesToWrite);
-				}
-
-				if (usbOutputBuffer->BytesLeft() == 0)
-				{
-					usbOutput.ReleaseFirstItem();
-				}
-				else
-				{
-					usbOutput.ApplyTimeout(SERIAL_MAIN_TIMEOUT);
-				}
+				usbOutput.ApplyTimeout(SERIAL_MAIN_TIMEOUT);
 			}
 		}
 		usbHasMore = !usbOutput.IsEmpty();
@@ -1206,7 +1196,7 @@ void Platform::Spin()
 
 #if defined(DUET3) || defined(__LPC17xx__)
 	// Blink the LED at about 2Hz. The expansion boards will blink in sync when they have established clock sync with us.
-	digitalWrite(DiagPin, (StepTimer::GetInterruptClocks() & (1u << 19)) != 0);
+	digitalWrite(DiagPin, (StepTimer::GetTimerTicks() & (1u << 19)) != 0);
 #endif
 
 #if HAS_MASS_STORAGE
@@ -2326,14 +2316,9 @@ void Platform::Diagnostics(MessageType mtype)
 			adcFilters[VssaFilterIndex].GetSum()/div, adcFilters[VrefFilterIndex].GetSum()/div, adcFilters[0].GetSum()/div, adcFilters[1].GetSum()/div);
 #endif
 
-#ifdef MOVE_DEBUG
-	MessageF(mtype, "Interrupts scheduled %u, done %u, last %u, next %u sched at %u, now %u\n",
-			numInterruptsScheduled, numInterruptsExecuted, lastInterruptTime, nextInterruptTime, nextInterruptScheduledAt, GetInterruptClocks());
-#endif
-
 #ifdef SOFT_TIMER_DEBUG
 	MessageF(mtype, "Soft timer interrupts executed %u, next %u scheduled at %u, now %u\n",
-		numSoftTimerInterruptsExecuted, STEP_TC->TC_CHANNEL[STEP_TC_CHAN].TC_RB, lastSoftTimerInterruptScheduledAt, GetInterruptClocks());
+		numSoftTimerInterruptsExecuted, STEP_TC->TC_CHANNEL[STEP_TC_CHAN].TC_RB, lastSoftTimerInterruptScheduledAt, GetTimerTicks());
 #endif
 
 #ifdef I2C_IFACE
@@ -2578,9 +2563,9 @@ GCodeResult Platform::DiagnosticTest(GCodeBuffer& gb, const StringRef& reply, in
 				const uint32_t num1 = 0x7265ac3d + i;
 				const uint64_t sq = (uint64_t)num1 * num1;
 				cpu_irq_disable();
-				const uint32_t now1 = StepTimer::GetInterruptClocks();
+				const uint32_t now1 = StepTimer::GetTimerTicks();
 				const uint32_t num1a = isqrt64(sq);
-				tim1 += StepTimer::GetInterruptClocks() - now1;
+				tim1 += StepTimer::GetTimerTicks() - now1;
 				cpu_irq_enable();
 				if (num1a != num1)
 				{
@@ -2595,9 +2580,9 @@ GCodeResult Platform::DiagnosticTest(GCodeBuffer& gb, const StringRef& reply, in
 				const uint32_t num2 = 0x0000a4c5 + i;
 				const uint64_t sq = (uint64_t)num2 * num2;
 				cpu_irq_disable();
-				const uint32_t now2 = StepTimer::GetInterruptClocks();
+				const uint32_t now2 = StepTimer::GetTimerTicks();
 				const uint32_t num2a = isqrt64(sq);
-				tim2 += StepTimer::GetInterruptClocks() - now2;
+				tim2 += StepTimer::GetTimerTicks() - now2;
 				cpu_irq_enable();
 				if (num2a != num2)
 				{
@@ -2619,9 +2604,9 @@ GCodeResult Platform::DiagnosticTest(GCodeBuffer& gb, const StringRef& reply, in
 			{
 				const float angle = 0.01 * i;
 				cpu_irq_disable();
-				const uint32_t now1 = StepTimer::GetInterruptClocks();
+				const uint32_t now1 = StepTimer::GetTimerTicks();
 				const float f1 = RepRap::SinfCosf(angle);
-				tim1 += StepTimer::GetInterruptClocks() - now1;
+				tim1 += StepTimer::GetTimerTicks() - now1;
 				cpu_irq_enable();
 				if (f1 >= 1.5)
 				{
@@ -2634,9 +2619,9 @@ GCodeResult Platform::DiagnosticTest(GCodeBuffer& gb, const StringRef& reply, in
 			{
 				const double angle = (double)0.01 * i;
 				cpu_irq_disable();
-				const uint32_t now2 = StepTimer::GetInterruptClocks();
+				const uint32_t now2 = StepTimer::GetTimerTicks();
 				const double d1 = RepRap::SinCos(angle);
-				tim2 += StepTimer::GetInterruptClocks() - now2;
+				tim2 += StepTimer::GetTimerTicks() - now2;
 				cpu_irq_enable();
 				if (d1 >= (double)1.5)
 				{
@@ -2877,7 +2862,7 @@ void Platform::SetDirection(size_t axisOrExtruder, bool direction)
 	const bool isSlowDriver = (GetDriversBitmap(axisOrExtruder) & GetSlowDriversBitmap()) != 0;
 	if (isSlowDriver)
 	{
-		while (StepTimer::GetInterruptClocks() - DDA::lastStepLowTime < GetSlowDriverDirHoldClocks()) { }
+		while (StepTimer::GetTimerTicks() - DDA::lastStepLowTime < GetSlowDriverDirHoldClocks()) { }
 	}
 
 	if (axisOrExtruder < MaxAxesPlusExtruders)
@@ -2891,7 +2876,7 @@ void Platform::SetDirection(size_t axisOrExtruder, bool direction)
 
 	if (isSlowDriver)
 	{
-		DDA::lastDirChangeTime = StepTimer::GetInterruptClocks();
+		DDA::lastDirChangeTime = StepTimer::GetTimerTicks();
 	}
 }
 
@@ -4823,7 +4808,7 @@ GCodeResult Platform::GetSetAncillaryPwm(GCodeBuffer& gb, const StringRef& reply
 // Get a pseudo-random number
 uint32_t Platform::Random()
 {
-	const uint32_t clocks = StepTimer::GetInterruptClocks();
+	const uint32_t clocks = StepTimer::GetTimerTicks();
 	return clocks ^ uniqueId[0] ^ uniqueId[1] ^ uniqueId[2] ^ uniqueId[3];
 }
 
