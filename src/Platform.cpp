@@ -84,8 +84,6 @@
 #include <climits>
 #include <utility>					// for std::swap
 
-extern uint32_t _estack;			// defined in the linker script
-
 #if !defined(HAS_LWIP_NETWORKING) || !defined(HAS_WIFI_NETWORKING) || !defined(HAS_CPU_TEMP_SENSOR) || !defined(HAS_HIGH_SPEED_SD) \
  || !defined(HAS_SMART_DRIVERS) || !defined(HAS_STALL_DETECT) || !defined(HAS_VOLTAGE_MONITOR) || !defined(HAS_12V_MONITOR) || !defined(HAS_VREF_MONITOR) \
  || !defined(SUPPORT_NONLINEAR_EXTRUSION) || !defined(SUPPORT_ASYNC_MOVES) || !defined(HAS_MASS_STORAGE)
@@ -95,27 +93,6 @@ extern uint32_t _estack;			// defined in the linker script
 #if HAS_LWIP_NETWORKING && !defined(LWIP_GMAC_TASK)
 # error LWIP_GMAC_TASK must be defined in compiler settings
 #endif
-
-// The following must be kelp in line with enum class SoftwareResetReason
-const char *const SoftwareResetReasonText[] =
-{
-	"User",
-	"Erase",
-	"NMI",
-	"Hard fault",
-	"Stuck in spin loop",
-	"Watchdog timeout",
-	"Usage fault",
-	"Other fault",
-	"Stack overflow",
-	"Assertion failed",
-	"Heat task stuck",
-	"Memory protection fault",
-	"Unknown",
-	"Unknown",
-	"Unknown",
-	"Unknown"
-};
 
 #if HAS_VOLTAGE_MONITOR
 
@@ -214,8 +191,6 @@ DriversBitmap AxisDriversConfig::GetDriversBitmap() const
 
 //*************************************************************************************************
 // Platform class
-
-uint8_t Platform::softwareResetDebugInfo = 0;			// extra info for debugging
 
 Platform::Platform() :
 #if HAS_MASS_STORAGE
@@ -1674,96 +1649,7 @@ float Platform::AdcReadingToCpuTemperature(uint32_t adcVal) const
 
 #endif
 
-    
-#if defined(__LPC17xx__)
-    void Platform::SoftwareReset(uint16_t reason, const uint32_t *stk)
-    {
-            
-        cpu_irq_disable();                            // disable interrupts before we call any flash functions. We don't enable them again.
-        wdt_restart(WDT);                             // kick the watchdog
-        
-        if (reason == (uint16_t)SoftwareResetReason::erase)
-        {
-//            EraseAndReset();
-        }
-        else
-        {
-            if (reason != (uint16_t)SoftwareResetReason::user)
-            {
-                if (SERIAL_MAIN_DEVICE.canWrite() == 0)
-                {
-                    reason |= (uint16_t)SoftwareResetReason::inUsbOutput;    // if we are resetting because we are stuck in a Spin function, record whether we are trying to send to USB
-                }
-#ifdef SERIAL_AUX_DEVICE
-                if (SERIAL_AUX_DEVICE.canWrite() == 0)
-                {
-                    reason |= (uint16_t)SoftwareResetReason::inAuxOutput;    // if we are resetting because we are stuck in a Spin function, record whether we are trying to send to aux
-                }
-#endif
 
-            }
-            reason |= (uint8_t)reprap.GetSpinningModule();
-            reason |= (softwareResetDebugInfo & 0x07) << 5;
-            if (deliberateError)
-            {
-                reason |= (uint16_t)SoftwareResetReason::deliberate;
-            }
-            
-            // Record the reason for the software reset
-            // First find a free slot (wear levelling)
-            size_t slot = SoftwareResetData::numberOfSlots;
-            
-            SoftwareResetData srdBuf;
-            
-            for(uint8_t s=0; s<SoftwareResetData::numberOfSlots; s++)
-            {
-                if(LPC_IsSoftwareResetDataSlotVacant(s))
-                {
-                    slot = s;
-                    break; // found a free slot
-                }
-                else
-                {
-
-                }
-            }
-
-            if (slot == SoftwareResetData::numberOfSlots)
-            {
-                LPC_EraseSoftwareResetDataSlots(); // erase the sector
-                slot = 0;
-            }
-            
-            srdBuf.magic = SoftwareResetData::magicValue;
-            srdBuf.resetReason = reason;
-            srdBuf.when = (uint32_t)realTime;            // some compilers/libraries use 64-bit time_t
-            srdBuf.neverUsedRam = Tasks::GetNeverUsedRam();
-            srdBuf.hfsr = SCB->HFSR;
-            srdBuf.cfsr = SCB->CFSR;
-            srdBuf.icsr = SCB->ICSR;
-            srdBuf.bfar = SCB->BFAR;
-            if (stk != nullptr)
-            {
-                srdBuf.sp = reinterpret_cast<uint32_t>(stk);
-                for (size_t i = 0; i < ARRAY_SIZE(srdBuf.stack); ++i)
-                {
-                    srdBuf.stack[i] = (stk < &_estack) ? *stk : 0xFFFFFFFF;
-                    ++stk;
-                }
-            }
-            
-            // Save diagnostics data to Flash
-            LPC_WriteSoftwareResetData(slot, &srdBuf, sizeof(srdBuf));
-       }
-        
-        //clear bits in reset reasons in RSID
-        LPC_SYSCTL->RSID = 0x3F;
-        
-        Reset();
-        for(;;) {}
-    }
-
-#else
 // Perform a software reset. 'stk' points to the program counter on the stack if the cause is an exception, otherwise it is nullptr.
 void Platform::SoftwareReset(uint16_t reason, const uint32_t *stk)
 {
@@ -1778,8 +1664,6 @@ void Platform::SoftwareReset(uint16_t reason, const uint32_t *stk)
 	DisableCache();								// disable the cache, it seems to upset flash memory access
 
 #if USE_MPU
-	const uint16_t originalReason = reason;
-
 	//TODO set the flash memory to strongly-ordered or device instead
 	ARM_MPU_Disable();							// disable the MPU
 #endif
@@ -1815,7 +1699,6 @@ void Platform::SoftwareReset(uint16_t reason, const uint32_t *stk)
 #endif
 		}
 		reason |= (uint8_t)reprap.GetSpinningModule();
-		reason |= (softwareResetDebugInfo & 0x07) << 5;
 		if (deliberateError)
 		{
 			reason |= (uint16_t)SoftwareResetReason::deliberate;
@@ -1824,17 +1707,27 @@ void Platform::SoftwareReset(uint16_t reason, const uint32_t *stk)
 		// Record the reason for the software reset
 		// First find a free slot (wear levelling)
 		size_t slot = SoftwareResetData::numberOfSlots;
+#if defined(__LPC17xx__)
+        SoftwareResetData srdBuf[1];
+#else
 		SoftwareResetData srdBuf[SoftwareResetData::numberOfSlots];
-
+#endif
+        
 #if SAM4E || SAM4S || SAME70
 		if (flash_read_user_signature(reinterpret_cast<uint32_t*>(srdBuf), sizeof(srdBuf)/sizeof(uint32_t)) == FLASH_RC_OK)
 #elif SAM3XA
 		DueFlashStorage::read(SoftwareResetData::nvAddress, srdBuf, sizeof(srdBuf));
+#elif defined(__LPC17xx__)
+        
 #else
 # error
 #endif
 		{
+#if defined(__LPC17xx__)
+            while (slot != 0 && LPC_IsSoftwareResetDataSlotVacant(slot - 1))
+#else
 			while (slot != 0 && srdBuf[slot - 1].isVacant())
+#endif
 			{
 				--slot;
 			}
@@ -1845,46 +1738,24 @@ void Platform::SoftwareReset(uint16_t reason, const uint32_t *stk)
 			// No free slots, so erase the area
 #if SAM4E || SAM4S || SAME70
 			flash_erase_user_signature();
+#elif defined(__LPC17xx__)
+            LPC_EraseSoftwareResetDataSlots(); // erase the last flash sector
 #endif
 			memset(srdBuf, 0xFF, sizeof(srdBuf));
 			slot = 0;
 		}
-		srdBuf[slot].magic = SoftwareResetData::magicValue;
-		srdBuf[slot].resetReason = reason;
-		srdBuf[slot].when = (uint32_t)realTime;			// some compilers/libraries use 64-bit time_t
-		srdBuf[slot].neverUsedRam = Tasks::GetNeverUsedRam();
-		srdBuf[slot].hfsr = SCB->HFSR;
-		srdBuf[slot].cfsr = SCB->CFSR;
-		srdBuf[slot].icsr = SCB->ICSR;
-#if USE_MPU
-		if (originalReason == (uint16_t)SoftwareResetReason::memFault)
-		{
-			srdBuf[slot].bfar = SCB->MMFAR;				// on a memory fault we store the MMFAR instead of the BFAR
-		}
-		else
-		{
-			srdBuf[slot].bfar = SCB->BFAR;
-		}
+
+#if defined(__LPC17xx__)
+        srdBuf[0].Populate(reason, (uint32_t)realTime, stk);
 #else
-		srdBuf[slot].bfar = SCB->BFAR;
+		srdBuf[slot].Populate(reason, (uint32_t)realTime, stk);
 #endif
-		// Get the task name if we can. There may be no task executing, so we must allow for this.
-		const TaskHandle_t currentTask = xTaskGetCurrentTaskHandle();
-		srdBuf[slot].taskName = (currentTask == nullptr) ? 0 : *reinterpret_cast<const uint32_t*>(pcTaskGetName(currentTask));
-
-		if (stk != nullptr)
-		{
-			srdBuf[slot].sp = reinterpret_cast<uint32_t>(stk);
-			for (uint32_t& stval : srdBuf[slot].stack)
-			{
-				stval = (stk < &_estack) ? *stk : 0xFFFFFFFF;
-				++stk;
-			}
-		}
-
+        
 		// Save diagnostics data to Flash
 #if SAM4E || SAM4S || SAME70
 		flash_write_user_signature(srdBuf, sizeof(srdBuf)/sizeof(uint32_t));
+#elif defined(__LPC17xx__)
+        LPC_WriteSoftwareResetData(slot, srdBuf, sizeof(srdBuf));
 #else
 		DueFlashStorage::write(SoftwareResetData::nvAddress, srdBuf, sizeof(srdBuf));
 #endif
@@ -1894,14 +1765,14 @@ void Platform::SoftwareReset(uint16_t reason, const uint32_t *stk)
 // Definition of RSTC_MR_KEY_PASSWD is missing in the SAM3X ASF files
 # define RSTC_MR_KEY_PASSWD (0xA5u << 24)
 #endif
-    
+#if defined(__LPC17xx__)
+    LPC_SYSCTL->RSID = 0x3F; //clear bits in reset reasons stored in RSID
+#else
 	RSTC->RSTC_MR = RSTC_MR_KEY_PASSWD;			// ignore any signal on the NRST pin for now so that the reset reason will show as Software
-    
+#endif
 	Reset();
 	for(;;) {}
 }
-
-#endif
     
 //*****************************************************************************************************************
 // Interrupts
@@ -2197,7 +2068,7 @@ void Platform::Diagnostics(MessageType mtype)
 
 		if (slot >= 0 && srdBuf[slot].magic == SoftwareResetData::magicValue)
 		{
-			const char* const reasonText = SoftwareResetReasonText[(srdBuf[slot].resetReason >> 5) & 0x0F];
+			const char* const reasonText = SoftwareResetData::ReasonText[(srdBuf[slot].resetReason >> 5) & 0x0F];
 			String<ScratchStringLength> scratchString;
 			if (srdBuf[slot].when != 0)
 			{
