@@ -188,8 +188,11 @@ extern Pin DiagPin;
 constexpr size_t NumSoftwareSPIPins = 3;
 extern Pin SoftwareSPIPins[3]; //GPIO pins for softwareSPI (used with SharedSPI)
 
-constexpr size_t NUM_SERIAL_CHANNELS = 2;
-extern bool UARTPanelDueMode;
+#if defined(ESP8266WIFI)
+    constexpr size_t NUM_SERIAL_CHANNELS = 1;
+#else
+    constexpr size_t NUM_SERIAL_CHANNELS = 2;
+#endif
 
 #include "usart.h"
 // Use TX0/RX0 for the auxiliary serial line

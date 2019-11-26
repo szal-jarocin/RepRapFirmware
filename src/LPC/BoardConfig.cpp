@@ -45,7 +45,6 @@ static const boardConfigEntry_t boardConfigs[]=
     {"stepper.hasDriverCurrentControl", &hasDriverCurrentControl, nullptr, cvBoolType},
     {"stepper.digipotFactor", &digipotFactor, nullptr, cvFloatType},
 
-    
     {"heat.tempSensePins", TEMP_SENSE_PINS, &NumThermistorInputs, cvPinType},
     {"heat.spiTempSensorCSPins", SpiTempSensorCsPins, &MaxSpiTempSensors, cvPinType},
     
@@ -72,16 +71,11 @@ static const boardConfigEntry_t boardConfigs[]=
     {"linuxTfrReadyPin", &LinuxTfrReadyPin, nullptr, cvPinType},
 #endif
     
-    
 #if defined(ESP8266WIFI)
     {"8266wifi.EspDataReadyPin", &EspDataReadyPin, nullptr, cvPinType},
     {"8266wifi.LpcTfrReadyPin", &SamTfrReadyPin, nullptr, cvPinType},
     {"8266wifi.EspResetPin", &EspResetPin, nullptr, cvPinType},
 #endif
-
-    
-    //TODO:: think this is currently not working
-    {"lpc.uartPanelDueMode", &UARTPanelDueMode, nullptr, cvBoolType},
 };
 
 
@@ -192,7 +186,6 @@ void BoardConfig::Init()
             if(SamCsPin != NoPin) pinMode(SamCsPin, OUTPUT_LOW);
             if(EspResetPin != NoPin) pinMode(EspResetPin, OUTPUT_LOW);
         #else
-            
             //Init pins from LCD
             //make sure to init ButtonPin as input incase user presses button
             if(PanelButtonPin != NoPin) pinMode(PanelButtonPin, INPUT); //unused
@@ -311,7 +304,8 @@ void BoardConfig::Diagnostics(MessageType mtype)
     }
 
     reprap.GetPlatform().MessageF(mtype, "== Software PWM ==\n");
-    for(uint8_t i=0; i<MaxNumberSoftwarePWMPins; i++){
+    for(uint8_t i=0; i<MaxNumberSoftwarePWMPins; i++)
+    {
         SoftwarePWM *next = softwarePWMEntries[i];
         if(next != nullptr)
         {
@@ -363,10 +357,11 @@ void BoardConfig::SetValueFromString(configValueType type, void *variable, const
             {
                 bool res = false;
                 
-                if(strlen(valuePtr) == 1){
+                if(strlen(valuePtr) == 1)
+                {
                     //check for 0 or 1
                     if(valuePtr[0] == '1') res = true;
-                        }
+                }
                 else if(strlen(valuePtr) == 4 && StringEqualsIgnoreCase(valuePtr, "true"))
                 {
                     res = true;
@@ -413,7 +408,8 @@ void BoardConfig::SetValueFromString(configValueType type, void *variable, const
             {
                 
                 //TODO:: string Type only handles Board Name variable
-                if(strlen(valuePtr)+1 < MaxBoardNameLength){
+                if(strlen(valuePtr)+1 < MaxBoardNameLength)
+                {
                     strcpy((char *)(variable), valuePtr);
                 }
             }
@@ -475,7 +471,8 @@ bool BoardConfig::GetConfigKeys(FileStore *configFile)
                         //Currently only handles Arrays of Pins
                         
                         
-                        if(next.maxArrayEntries != nullptr /*&& next.type == cvPinType*/ && StringEqualsIgnoreCase(key, next.key)){
+                        if(next.maxArrayEntries != nullptr /*&& next.type == cvPinType*/ && StringEqualsIgnoreCase(key, next.key))
+                        {
                             //matched an entry in BoardConfigs
 
                             //create a temp array to read into. Only copy the array entries into the final destination when we know the array is properly defined

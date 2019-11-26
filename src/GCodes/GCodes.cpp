@@ -3248,7 +3248,7 @@ void GCodes::HandleReply(GCodeBuffer& gb, OutputBuffer *reply)
 #endif
 
 	// Second UART device, e.g. dc42's PanelDue. Do NOT use emulation for this one!
-	if (&gb == auxGCode && UARTPanelDueMode == true)
+	if (&gb == auxGCode)
 	{
 		platform.AppendAuxReply(reply, (*reply)[0] == '{');
 		return;
