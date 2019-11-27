@@ -96,6 +96,7 @@ constexpr size_t MaxAxesPlusExtruders = 5;
 constexpr size_t MaxHeatersPerTool = 2;
 constexpr size_t MaxExtrudersPerTool = 2;
 
+constexpr size_t MaxFans = 3;
 
 //Steppers
 extern Pin ENABLE_PINS[NumDirectDrivers];
@@ -151,8 +152,6 @@ constexpr SSPChannel TempSensorSSPChannel = SSP0; //Conect SPI Temp sensor to SS
 
 extern Pin ATX_POWER_PIN;// Digital pin number that controls the ATX power on/off
 extern bool ATX_POWER_INVERTED;
-
-constexpr size_t NumTotalFans = 3;
 
 //SD: Internal SDCard is on SSP1
 //    MOSI, MISO, SCLK, CS
