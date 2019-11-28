@@ -783,7 +783,6 @@ void GCodes::DoPause(GCodeBuffer& gb, PauseReason reason, const char *msg)
 		// Pausing a file print via another input source or for some other reason
 		pauseRestorePoint.feedRate = fileGCode->MachineState().feedRate;				// set up the default
 		const bool movesSkipped = reprap.GetMove().PausePrint(pauseRestorePoint);		// tell Move we wish to pause the current print
-
 		if (movesSkipped)
 		{
 			// The PausePrint call has filled in the restore point with machine coordinates
@@ -797,6 +796,8 @@ void GCodes::DoPause(GCodeBuffer& gb, PauseReason reason, const char *msg)
 			pauseRestorePoint.filePos = moveBuffer.filePos;
 			pauseRestorePoint.feedRate = moveBuffer.feedRate;
 			pauseRestorePoint.proportionDone = (float)(totalSegments - segmentsLeft)/(float)totalSegments;
+			pauseRestorePoint.initialUserX = moveBuffer.initialUserX;
+			pauseRestorePoint.initialUserY = moveBuffer.initialUserY;
 			ToolOffsetInverseTransform(pauseRestorePoint.moveCoords, currentUserPosition);	// transform the returned coordinates to user coordinates
 			ClearMove();
 		}
@@ -1010,6 +1011,8 @@ bool GCodes::DoEmergencyPause()
 		pauseRestorePoint.virtualExtruderPosition = moveBuffer.virtualExtruderPosition;
 		pauseRestorePoint.filePos = moveBuffer.filePos;
 		pauseRestorePoint.proportionDone = (float)(totalSegments - segmentsLeft)/(float)totalSegments;
+		pauseRestorePoint.initialUserX = moveBuffer.initialUserX;
+		pauseRestorePoint.initialUserY = moveBuffer.initialUserY;
 #if SUPPORT_LASER || SUPPORT_IOBITS
 		pauseRestorePoint.laserPwmOrIoBits = moveBuffer.laserPwmOrIoBits;
 #endif
@@ -1023,6 +1026,7 @@ bool GCodes::DoEmergencyPause()
 
 		pauseRestorePoint.filePos = fileGCode->GetFilePosition();
 		pauseRestorePoint.proportionDone = 0.0;
+
 #if SUPPORT_LASER || SUPPORT_IOBITS
 		pauseRestorePoint.laserPwmOrIoBits = moveBuffer.laserPwmOrIoBits;
 #endif
@@ -1294,8 +1298,13 @@ void GCodes::SaveResumeInfo(bool wasPowerFailure)
 			}
 			if (ok)
 			{
-				buf.printf("M23 \"%s\"\nM26 S%" PRIu32 " P%.3f\n", printingFilename, pauseRestorePoint.filePos, (double)pauseRestorePoint.proportionDone);
-				ok = f->Write(buf.c_str());									// write filename and file position
+				buf.printf("M23 \"%s\"\nM26 S%" PRIu32, printingFilename, pauseRestorePoint.filePos);
+				if (pauseRestorePoint.proportionDone > 0.0)
+				{
+					buf.catf(" P%.3f X%.3f Y%.3f", (double)pauseRestorePoint.proportionDone, (double)pauseRestorePoint.initialUserX, (double)pauseRestorePoint.initialUserY);
+				}
+				buf.cat('\n');
+				ok = f->Write(buf.c_str());									// write filename and file position, and if necessary proportion done and initial XY position
 			}
 			if (ok)
 			{
@@ -1581,6 +1590,17 @@ bool GCodes::CheckEnoughAxesHomed(AxesBitmap axesMoved)
 // We have already acquired the movement lock and waited for the previous move to be taken.
 const char* GCodes::DoStraightMove(GCodeBuffer& gb, bool isCoordinated)
 {
+	if (moveFractionToSkip > 0.0)
+	{
+		moveBuffer.initialUserX = restartInitialUserX;
+		moveBuffer.initialUserY = restartInitialUserY;
+	}
+	else
+	{
+		moveBuffer.initialUserX = currentUserPosition[X_AXIS];
+		moveBuffer.initialUserY = currentUserPosition[Y_AXIS];
+	}
+
 	// Set up default move parameters
 	moveBuffer.isCoordinated = isCoordinated;
 	moveBuffer.checkEndstops = false;
@@ -1697,7 +1717,7 @@ const char* GCodes::DoStraightMove(GCodeBuffer& gb, bool isCoordinated)
 				// Special moves update the move buffer directly, bypassing the user coordinates
 				if (gb.MachineState().axesRelative)
 				{
-					moveBuffer.coords[axis] += moveArg;
+					moveBuffer.coords[axis] += moveArg * (1.0 - moveFractionToSkip);
 				}
 				else
 				{
@@ -1713,7 +1733,7 @@ const char* GCodes::DoStraightMove(GCodeBuffer& gb, bool isCoordinated)
 			}
 			else if (gb.MachineState().axesRelative)
 			{
-				currentUserPosition[axis] += moveArg;
+				currentUserPosition[axis] += moveArg * (1.0 - moveFractionToSkip);
 			}
 			else if (gb.MachineState().g53Active)
 			{
@@ -1882,6 +1902,17 @@ const char* GCodes::DoStraightMove(GCodeBuffer& gb, bool isCoordinated)
 // Currently, we do not process new babystepping when executing an arc move
 const char* GCodes::DoArcMove(GCodeBuffer& gb, bool clockwise)
 {
+	if (moveFractionToSkip > 0.0)
+	{
+		moveBuffer.initialUserX = restartInitialUserX;
+		moveBuffer.initialUserY = restartInitialUserY;
+	}
+	else
+	{
+		moveBuffer.initialUserX = currentUserPosition[X_AXIS];
+		moveBuffer.initialUserY = currentUserPosition[Y_AXIS];
+	}
+
 	// Get the axis parameters
 	float newX, newY;
 	if (gb.Seen('X'))
@@ -1889,7 +1920,7 @@ const char* GCodes::DoArcMove(GCodeBuffer& gb, bool clockwise)
 		newX = gb.GetDistance();
 		if (gb.MachineState().axesRelative)
 		{
-			newX += currentUserPosition[X_AXIS];
+			newX += moveBuffer.initialUserX;
 		}
 		else if (gb.MachineState().g53Active)
 		{
@@ -1902,7 +1933,7 @@ const char* GCodes::DoArcMove(GCodeBuffer& gb, bool clockwise)
 	}
 	else
 	{
-		newX = currentUserPosition[X_AXIS];
+		newX = moveBuffer.initialUserX;
 	}
 
 	if (gb.Seen('Y'))
@@ -1910,7 +1941,7 @@ const char* GCodes::DoArcMove(GCodeBuffer& gb, bool clockwise)
 		newY = gb.GetDistance();
 		if (gb.MachineState().axesRelative)
 		{
-			newY += currentUserPosition[Y_AXIS];
+			newY += moveBuffer.initialUserY;
 		}
 		else if (gb.MachineState().g53Active)
 		{
@@ -1923,7 +1954,7 @@ const char* GCodes::DoArcMove(GCodeBuffer& gb, bool clockwise)
 	}
 	else
 	{
-		newY = currentUserPosition[Y_AXIS];
+		newY = moveBuffer.initialUserY;
 	}
 
 	float iParam, jParam;
@@ -1933,8 +1964,8 @@ const char* GCodes::DoArcMove(GCodeBuffer& gb, bool clockwise)
 		const float rParam = gb.GetDistance();
 
 		// Get the XY coordinates of the midpoints between the start and end points X and Y distances between start and end points
-		const float deltaX = newX - currentUserPosition[X_AXIS];
-		const float deltaY = newY - currentUserPosition[Y_AXIS];
+		const float deltaX = newX - moveBuffer.initialUserX;
+		const float deltaY = newY - moveBuffer.initialUserY;
 
 		const float dSquared = fsquare(deltaX) + fsquare(deltaY);	// square of the distance between start and end points
 		const float hSquared = fsquare(rParam) - dSquared/4;		// square of the length of the perpendicular from the mid point to the arc centre
@@ -1982,17 +2013,16 @@ const char* GCodes::DoArcMove(GCodeBuffer& gb, bool clockwise)
 	memcpy(moveBuffer.initialCoords, moveBuffer.coords, numVisibleAxes * sizeof(moveBuffer.initialCoords[0]));
 
 	// Save the arc centre user coordinates for later
-	const float userArcCentreX = currentUserPosition[X_AXIS] + iParam;
-	const float userArcCentreY = currentUserPosition[Y_AXIS] + jParam;
+	const float userArcCentreX = moveBuffer.initialUserX + iParam;
+	const float userArcCentreY = moveBuffer.initialUserY + jParam;
 
 	// Work out the new user position
-	const float initialX = currentUserPosition[X_AXIS], initialY = currentUserPosition[Y_AXIS];
 	currentUserPosition[X_AXIS] = newX;
 	currentUserPosition[Y_AXIS] = newY;
 
 	// CNC machines usually do a full circle if the initial and final XY coordinates are the same.
 	// Usually this is because X and Y were not given, but repeating the coordinates is permitted.
-	const bool wholeCircle = (initialX == currentUserPosition[X_AXIS] && initialY == currentUserPosition[Y_AXIS]);
+	const bool wholeCircle = (moveBuffer.initialUserX == currentUserPosition[X_AXIS] && moveBuffer.initialUserY == currentUserPosition[Y_AXIS]);
 
 	// Get any additional axes
 	AxesBitmap axesMentioned = MakeBitmap<AxesBitmap>(X_AXIS) | MakeBitmap<AxesBitmap>(Y_AXIS);
@@ -2003,7 +2033,7 @@ const char* GCodes::DoArcMove(GCodeBuffer& gb, bool clockwise)
 			const float moveArg = gb.GetDistance();
 			if (gb.MachineState().axesRelative)
 			{
-				currentUserPosition[axis] += moveArg;
+				currentUserPosition[axis] += moveArg * (1.0 - moveFractionToSkip);
 			}
 			else if (gb.MachineState().g53Active)
 			{
@@ -2054,11 +2084,11 @@ const char* GCodes::DoArcMove(GCodeBuffer& gb, bool clockwise)
 	{
 		if (IsBitSet(xAxes, axis))
 		{
-			arcCentre[axis] = moveBuffer.initialCoords[axis] + iParam;
+			arcCentre[axis] = (userArcCentreX * axisScaleFactors[axis]) + currentBabyStepOffsets[axis] - Tool::GetOffset(reprap.GetCurrentTool(), X_AXIS);
 		}
 		else if (IsBitSet(yAxes, axis))
 		{
-			arcCentre[axis] = moveBuffer.initialCoords[axis] + jParam;
+			arcCentre[axis] = (userArcCentreY * axisScaleFactors[axis]) + currentBabyStepOffsets[axis] - Tool::GetOffset(reprap.GetCurrentTool(), Y_AXIS);
 		}
 	}
 
@@ -2199,7 +2229,7 @@ bool GCodes::ReadMove(RawMove& m)
 				m.coords[ExtruderToLogicalDrive(extruder)] *= (1.0 - firstSegmentFractionToSkip);
 			}
 		}
-		m.proportionLeft = 0.0;
+		m.proportionDone = 1.0;
 		if (doingArcMove)
 		{
 			m.canPauseAfter = true;			// we can pause after the final segment of an arc move
@@ -2220,12 +2250,12 @@ bool GCodes::ReadMove(RawMove& m)
 			if (doingArcMove && drive != Z_AXIS && IsBitSet(Tool::GetYAxes(moveBuffer.tool), drive))
 			{
 				// Y axis or a substitute Y axis
-				moveBuffer.initialCoords[drive] = arcCentre[drive] + arcRadius * sinf(arcCurrentAngle);
+				moveBuffer.initialCoords[drive] = arcCentre[drive] + arcRadius * axisScaleFactors[drive] * sinf(arcCurrentAngle);
 			}
 			else if (doingArcMove && drive != Z_AXIS && IsBitSet(Tool::GetXAxes(moveBuffer.tool), drive))
 			{
 				// X axis or a substitute X axis
-				moveBuffer.initialCoords[drive] = arcCentre[drive] + arcRadius * cosf(arcCurrentAngle);
+				moveBuffer.initialCoords[drive] = arcCentre[drive] + arcRadius * axisScaleFactors[drive] * cosf(arcCurrentAngle);
 			}
 			else
 			{
@@ -2261,7 +2291,7 @@ bool GCodes::ReadMove(RawMove& m)
 		}
 		--segmentsLeft;
 
-		m.proportionLeft = (float)segmentsLeft/(float)totalSegments;
+		m.proportionDone = (float)(totalSegments - segmentsLeft)/(float)totalSegments;
 	}
 
 	return true;
@@ -2736,7 +2766,7 @@ bool GCodes::QueueFileToPrint(const char* fileName, const StringRef& reply)
 	{
 		fileToPrint.Set(f);
 		fileOffsetToPrint = 0;
-		moveFractionToStartAt = 0.0;
+		restartMoveFractionDone = 0.0;
 		return true;
 	}
 
@@ -3740,6 +3770,9 @@ void GCodes::RestorePosition(const RestorePoint& rp, GCodeBuffer *gb)
 		gb->MachineState().feedRate = rp.feedRate;
 	}
 
+	moveBuffer.initialUserX = rp.initialUserX;
+	moveBuffer.initialUserY = rp.initialUserY;
+
 #if SUPPORT_LASER || SUPPORT_IOBITS
 	moveBuffer.laserPwmOrIoBits = rp.laserPwmOrIoBits;
 #endif
@@ -4072,7 +4105,7 @@ void GCodes::GenerateTemperatureReport(const StringRef& reply) const
 		ReportToolTemperatures(reply, tool, true);
 	}
 
-	for (size_t hn = 0; hn < NumBedHeaters && heat.GetBedHeater(hn) >= 0; ++hn)
+	for (size_t hn = 0; hn < MaxBedHeaters && heat.GetBedHeater(hn) >= 0; ++hn)
 	{
 		if (hn == 0)
 		{
@@ -4090,7 +4123,7 @@ void GCodes::GenerateTemperatureReport(const StringRef& reply) const
 		reply.catf("%.1f /%.1f", (double)heat.GetHeaterTemperature(heater), (double)heat.GetTargetTemperature(heater));
 	}
 
-	for (size_t hn = 0; hn < NumChamberHeaters && heat.GetChamberHeater(hn) >= 0; ++hn)
+	for (size_t hn = 0; hn < MaxChamberHeaters && heat.GetChamberHeater(hn) >= 0; ++hn)
 	{
 		if (hn == 0)
 		{
@@ -4479,9 +4512,9 @@ int GCodes::GetHeaterNumber(unsigned int itemNumber) const
 	}
 	if (itemNumber < 90)
 	{
-		return (itemNumber < 80 + NumBedHeaters) ? reprap.GetHeat().GetBedHeater(itemNumber - 80) : -1;
+		return (itemNumber < 80 + MaxBedHeaters) ? reprap.GetHeat().GetBedHeater(itemNumber - 80) : -1;
 	}
-	return (itemNumber < 90 + NumChamberHeaters) ? reprap.GetHeat().GetChamberHeater(itemNumber - 90) : -1;
+	return (itemNumber < 90 + MaxChamberHeaters) ? reprap.GetHeat().GetChamberHeater(itemNumber - 90) : -1;
 }
 
 float GCodes::GetItemCurrentTemperature(unsigned int itemNumber) const
