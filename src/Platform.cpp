@@ -1383,31 +1383,32 @@ bool Platform::FlushMessages()
 	{
 		MutexLocker lock(usbMutex);
 		OutputBuffer *usbOutputBuffer = usbOutput.GetFirstItem();
-		if (usbOutputBuffer != nullptr)
+		if (usbOutputBuffer == nullptr)
 		{
-			if (!SERIAL_MAIN_DEVICE)
+			(void) usbOutput.Pop();
+		}
+		else if (!SERIAL_MAIN_DEVICE.IsConnected())
+		{
+			// If the USB port is not opened, free the data left for writing
+			OutputBuffer::ReleaseAll(usbOutputBuffer);
+			(void) usbOutput.Pop();
+		}
+		else
+		{
+			// Write as much data as we can...
+			const size_t bytesToWrite = min<size_t>(SERIAL_MAIN_DEVICE.canWrite(), usbOutputBuffer->BytesLeft());
+			if (bytesToWrite > 0)
 			{
-				// If the USB port is not opened, free the data left for writing
-				OutputBuffer::ReleaseAll(usbOutputBuffer);
-				(void) usbOutput.Pop();
+				SERIAL_MAIN_DEVICE.write(usbOutputBuffer->Read(bytesToWrite), bytesToWrite);
+			}
+
+			if (usbOutputBuffer->BytesLeft() == 0)
+			{
+				usbOutput.ReleaseFirstItem();
 			}
 			else
 			{
-				// Write as much data as we can...
-				const size_t bytesToWrite = min<size_t>(SERIAL_MAIN_DEVICE.canWrite(), usbOutputBuffer->BytesLeft());
-				if (bytesToWrite > 0)
-				{
-					SERIAL_MAIN_DEVICE.write(usbOutputBuffer->Read(bytesToWrite), bytesToWrite);
-				}
-
-				if (usbOutputBuffer->BytesLeft() == 0)
-				{
-					usbOutput.ReleaseFirstItem();
-				}
-				else
-				{
-					usbOutput.ApplyTimeout(SERIAL_MAIN_TIMEOUT);
-				}
+				usbOutput.ApplyTimeout(SERIAL_MAIN_TIMEOUT);
 			}
 		}
 		usbHasMore = !usbOutput.IsEmpty();
@@ -1697,7 +1698,7 @@ void Platform::Spin()
 				ListDrivers(scratchString.GetRef(), stalledDriversToLog);
 				stalledDriversToLog = 0;
 				float liveCoordinates[MaxTotalDrivers];
-				reprap.GetMove().LiveCoordinates(liveCoordinates, reprap.GetCurrentXAxes(), reprap.GetCurrentYAxes());
+				reprap.GetMove().LiveCoordinates(liveCoordinates, reprap.GetCurrentTool());
 				MessageF(WarningMessage, "Driver(s)%s stalled at Z height %.2f", scratchString.c_str(), (double)liveCoordinates[Z_AXIS]);
 				reported = true;
 			}
@@ -3893,7 +3894,7 @@ void Platform::RawMessage(MessageType type, const char *message)
 		MutexLocker lock(usbMutex);
 		const char *p = message;
 		size_t len = strlen(p);
-		while (SERIAL_MAIN_DEVICE && len != 0 && !reprap.SpinTimeoutImminent())
+		while (SERIAL_MAIN_DEVICE.IsConnected() && len != 0 && !reprap.SpinTimeoutImminent())
 		{
 			const size_t written = SERIAL_MAIN_DEVICE.write(p, len);
 			len -= written;
@@ -3913,16 +3914,19 @@ void Platform::RawMessage(MessageType type, const char *message)
 			OutputBuffer *usbOutputBuffer = usbOutput.GetLastItem();
 			if (usbOutputBuffer == nullptr || usbOutputBuffer->IsReferenced())
 			{
-				if (!OutputBuffer::Allocate(usbOutputBuffer))
+				if (OutputBuffer::Allocate(usbOutputBuffer))
 				{
-					// Should never happen
-					return;
+					if (usbOutput.Push(usbOutputBuffer))
+					{
+						usbOutputBuffer->cat(message);
+					}
+					// else the message buffer has been released, so discard the message
 				}
-				usbOutput.Push(usbOutputBuffer);
 			}
-
-			// Append the message string
-			usbOutputBuffer->cat(message);
+			else
+			{
+				usbOutputBuffer->cat(message);		// append the message
+			}
 		}
 	}
 }
@@ -3999,7 +4003,7 @@ void Platform::Message(const MessageType type, OutputBuffer *buffer)
 		if ((type & (UsbMessage | BlockingUsbMessage)) != 0)
 		{
 			MutexLocker lock(usbMutex);
-			if (   !SERIAL_MAIN_DEVICE
+			if (   !SERIAL_MAIN_DEVICE.IsConnected()
 #if SUPPORT_SCANNER
 				|| (reprap.GetScanner().IsRegistered() && !reprap.GetScanner().DoingGCodes())
 #endif
