@@ -45,7 +45,7 @@ uint8_t ucMACAddress[ 6 ];
 
 
 
-RTOSPlusTCPEthernetInterface::RTOSPlusTCPEthernetInterface(Platform& p)
+RTOSPlusTCPEthernetInterface::RTOSPlusTCPEthernetInterface(Platform& p) noexcept
 : platform(p), lastTickMillis(0), state(NetworkState::disabled), activated(false), initialised(false), linkUp(false), usingDHCP(false)
 {
     //setup our pointer to access our class methods from the +TCP "C" callbacks
@@ -87,14 +87,14 @@ DEFINE_GET_OBJECT_MODEL_TABLE(RTOSPlusTCPEthernetInterface)
 
 #endif
 
-void RTOSPlusTCPEthernetInterface::Init()
+void RTOSPlusTCPEthernetInterface::Init() noexcept
 {
 	interfaceMutex.Create("RTOSPlusTCPEthernet");
 	SetIPAddress(DefaultIpAddress, DefaultNetMask, DefaultGateway);
 	memcpy(macAddress, platform.GetDefaultMacAddress(), sizeof(macAddress));
 }
 
-GCodeResult RTOSPlusTCPEthernetInterface::EnableProtocol(NetworkProtocol protocol, int port, int secure, const StringRef& reply)
+GCodeResult RTOSPlusTCPEthernetInterface::EnableProtocol(NetworkProtocol protocol, int port, int secure, const StringRef& reply) noexcept
 {
 	if (secure != 0 && secure != -1)
 	{
@@ -130,7 +130,7 @@ GCodeResult RTOSPlusTCPEthernetInterface::EnableProtocol(NetworkProtocol protoco
 	return GCodeResult::error;
 }
 
-GCodeResult RTOSPlusTCPEthernetInterface::DisableProtocol(NetworkProtocol protocol, const StringRef& reply)
+GCodeResult RTOSPlusTCPEthernetInterface::DisableProtocol(NetworkProtocol protocol, const StringRef& reply) noexcept
 {
 	if (protocol < NumProtocols)
 	{
@@ -148,7 +148,7 @@ GCodeResult RTOSPlusTCPEthernetInterface::DisableProtocol(NetworkProtocol protoc
 	return GCodeResult::error;
 }
 
-void RTOSPlusTCPEthernetInterface::StartProtocol(NetworkProtocol protocol)
+void RTOSPlusTCPEthernetInterface::StartProtocol(NetworkProtocol protocol) noexcept
 {
 	MutexLocker lock(interfaceMutex);
 	switch(protocol)
@@ -178,7 +178,7 @@ void RTOSPlusTCPEthernetInterface::StartProtocol(NetworkProtocol protocol)
 	}
 }
 
-void RTOSPlusTCPEthernetInterface::ShutdownProtocol(NetworkProtocol protocol)
+void RTOSPlusTCPEthernetInterface::ShutdownProtocol(NetworkProtocol protocol) noexcept
 {
 	MutexLocker lock(interfaceMutex);
 
@@ -210,7 +210,7 @@ void RTOSPlusTCPEthernetInterface::ShutdownProtocol(NetworkProtocol protocol)
 }
 
 // Report the protocols and ports in use
-GCodeResult RTOSPlusTCPEthernetInterface::ReportProtocols(const StringRef& reply) const
+GCodeResult RTOSPlusTCPEthernetInterface::ReportProtocols(const StringRef& reply) const noexcept
 {
     reply.Clear();
 	for (size_t i = 0; i < NumProtocols; ++i)
@@ -224,7 +224,7 @@ GCodeResult RTOSPlusTCPEthernetInterface::ReportProtocols(const StringRef& reply
 	return GCodeResult::ok;
 }
 
-void RTOSPlusTCPEthernetInterface::ReportOneProtocol(NetworkProtocol protocol, const StringRef& reply) const
+void RTOSPlusTCPEthernetInterface::ReportOneProtocol(NetworkProtocol protocol, const StringRef& reply) const noexcept
 {
 	if (protocolEnabled[protocol])
 	{
@@ -238,7 +238,7 @@ void RTOSPlusTCPEthernetInterface::ReportOneProtocol(NetworkProtocol protocol, c
 
 // This is called at the end of config.g processing.
 // Start the network if it was enabled
-void RTOSPlusTCPEthernetInterface::Activate()
+void RTOSPlusTCPEthernetInterface::Activate() noexcept
 {
 	if (!activated)
 	{
@@ -257,13 +257,13 @@ void RTOSPlusTCPEthernetInterface::Activate()
 	}
 }
 
-void RTOSPlusTCPEthernetInterface::Exit()
+void RTOSPlusTCPEthernetInterface::Exit() noexcept
 {
 	Stop();
 }
 
 // Get the network state into the reply buffer, returning true if there is some sort of error
-GCodeResult RTOSPlusTCPEthernetInterface::GetNetworkState(const StringRef& reply)
+GCodeResult RTOSPlusTCPEthernetInterface::GetNetworkState(const StringRef& reply) noexcept
 {
 	IPAddress config_ip = platform.GetIPAddress();
 	const int enableState = EnableState();
@@ -274,7 +274,7 @@ GCodeResult RTOSPlusTCPEthernetInterface::GetNetworkState(const StringRef& reply
 }
 
 // Update the MAC address
-void RTOSPlusTCPEthernetInterface::SetMacAddress(const uint8_t mac[])
+void RTOSPlusTCPEthernetInterface::SetMacAddress(const uint8_t mac[]) noexcept
 {
 	for (size_t i = 0; i < 6; i++)
 	{
@@ -283,7 +283,7 @@ void RTOSPlusTCPEthernetInterface::SetMacAddress(const uint8_t mac[])
 }
 
 // Start up the network
-void RTOSPlusTCPEthernetInterface::Start()
+void RTOSPlusTCPEthernetInterface::Start() noexcept
 {
 	MutexLocker lock(interfaceMutex);
     
@@ -330,7 +330,7 @@ void RTOSPlusTCPEthernetInterface::Start()
 }
 
 // Stop the network
-void RTOSPlusTCPEthernetInterface::Stop()
+void RTOSPlusTCPEthernetInterface::Stop() noexcept
 {
 	if (state != NetworkState::disabled)
 	{
@@ -342,7 +342,7 @@ void RTOSPlusTCPEthernetInterface::Stop()
 }
 
 // Main spin loop. If 'full' is true then we are being called from the main spin loop. If false then we are being called during HSMCI idle time.
-void RTOSPlusTCPEthernetInterface::Spin(bool full)
+void RTOSPlusTCPEthernetInterface::Spin() noexcept
 {
     switch(state)
 	{
@@ -370,7 +370,7 @@ void RTOSPlusTCPEthernetInterface::Spin(bool full)
             if(FreeRTOS_IsNetworkUp() == pdTRUE)
             {
                 // Poll the next TCP socket
-                sockets[nextSocketToPoll]->Poll(full);
+                sockets[nextSocketToPoll]->Poll();
                 
                 // Move on to the next TCP socket for next time
                 ++nextSocketToPoll;
@@ -392,7 +392,7 @@ void RTOSPlusTCPEthernetInterface::Spin(bool full)
     }
 }
 
-void RTOSPlusTCPEthernetInterface::Diagnostics(MessageType mtype)
+void RTOSPlusTCPEthernetInterface::Diagnostics(MessageType mtype) noexcept
 {
 	platform.MessageF(mtype, "Interface state: ");
     switch (state)
@@ -476,7 +476,7 @@ void RTOSPlusTCPEthernetInterface::Diagnostics(MessageType mtype)
 }
 
 // Enable or disable the network
-GCodeResult RTOSPlusTCPEthernetInterface::EnableInterface(int mode, const StringRef& ssid, const StringRef& reply)
+GCodeResult RTOSPlusTCPEthernetInterface::EnableInterface(int mode, const StringRef& ssid, const StringRef& reply) noexcept
 {
 	if (!activated)
 	{
@@ -500,19 +500,19 @@ GCodeResult RTOSPlusTCPEthernetInterface::EnableInterface(int mode, const String
 	return GCodeResult::ok;
 }
 
-int RTOSPlusTCPEthernetInterface::EnableState() const
+int RTOSPlusTCPEthernetInterface::EnableState() const noexcept
 {
 	return (state == NetworkState::disabled) ? 0 : 1;
 }
 
-void RTOSPlusTCPEthernetInterface::SetIPAddress(IPAddress p_ip, IPAddress p_netmask, IPAddress p_gateway)
+void RTOSPlusTCPEthernetInterface::SetIPAddress(IPAddress p_ip, IPAddress p_netmask, IPAddress p_gateway) noexcept
 {
     ipAddress = p_ip;
     netmask = p_netmask;
     gateway = p_gateway;
 }
 
-void RTOSPlusTCPEthernetInterface::OpenDataPort(Port port)
+void RTOSPlusTCPEthernetInterface::OpenDataPort(Port port) noexcept
 {
 #if ENABLE_FTP
 	sockets[FtpDataSocketNumber]->Init(FtpDataSocketNumber, port, FtpDataProtocol);
@@ -520,7 +520,7 @@ void RTOSPlusTCPEthernetInterface::OpenDataPort(Port port)
 }
 
 // Close FTP data port and purge associated resources
-void RTOSPlusTCPEthernetInterface::TerminateDataPort()
+void RTOSPlusTCPEthernetInterface::TerminateDataPort() noexcept
 {
     if(NumFtpResponders > 0)
     {
@@ -528,7 +528,7 @@ void RTOSPlusTCPEthernetInterface::TerminateDataPort()
     }
 }
 
-void RTOSPlusTCPEthernetInterface::InitSockets()
+void RTOSPlusTCPEthernetInterface::InitSockets() noexcept
 {
 	for (size_t i = 0; i < NumProtocols; ++i)
 	{
@@ -540,7 +540,7 @@ void RTOSPlusTCPEthernetInterface::InitSockets()
 	nextSocketToPoll = 0;
 }
 
-void RTOSPlusTCPEthernetInterface::TerminateSockets()
+void RTOSPlusTCPEthernetInterface::TerminateSockets() noexcept
 {
 	for (SocketNumber skt = 0; skt < NumRTOSPlusTCPEthernetTcpSockets; ++skt)
 	{
@@ -558,13 +558,13 @@ void RTOSPlusTCPEthernetInterface::TerminateSockets()
 
 
 //get the hostname
-const char *RTOSPlusTCPEthernetInterface::ProcessApplicationHostnameHook( void )
+const char *RTOSPlusTCPEthernetInterface::ProcessApplicationHostnameHook( void ) noexcept
 {
     return reprap.GetNetwork().GetHostname();//printerHostName;
 }
 
 /* Called by FreeRTOS+TCP when the network connects or disconnects.  Disconnect events are only received if implemented in the MAC driver. */
-void RTOSPlusTCPEthernetInterface::ProcessIPApplication( eIPCallbackEvent_t eNetworkEvent )
+void RTOSPlusTCPEthernetInterface::ProcessIPApplication( eIPCallbackEvent_t eNetworkEvent ) noexcept
 {
     //variables to hold IP information from +TCP layer (either from static assignment or DHCP)
     uint32_t ulIPAddress, ulNetMask, ulGatewayAddress, ulDNSServerAddress;
@@ -617,7 +617,7 @@ void RTOSPlusTCPEthernetInterface::ProcessIPApplication( eIPCallbackEvent_t eNet
    +TCP will automatically start a DHCP process (if DHCP is configured in config) and
    we need to use this hook to prevent DHCP starting if we have a static address set in config.g
 */
-eDHCPCallbackAnswer_t RTOSPlusTCPEthernetInterface::ProcessDHCPHook( eDHCPCallbackPhase_t eDHCPPhase, uint32_t ulIPAddress )
+eDHCPCallbackAnswer_t RTOSPlusTCPEthernetInterface::ProcessDHCPHook( eDHCPCallbackPhase_t eDHCPPhase, uint32_t ulIPAddress ) noexcept
 {
     eDHCPCallbackAnswer_t eReturn;
     
@@ -670,7 +670,7 @@ eDHCPCallbackAnswer_t RTOSPlusTCPEthernetInterface::ProcessDHCPHook( eDHCPCallba
 }
 
 //Call back to check if the Queried Name from Netbios or LLNMR matches our hostname
-BaseType_t RTOSPlusTCPEthernetInterface::ProcessDNSQueryHook(const char *pcName)
+BaseType_t RTOSPlusTCPEthernetInterface::ProcessDNSQueryHook(const char *pcName) noexcept
 {
     if(StringEqualsIgnoreCase(pcName, reprap.GetNetwork().GetHostname()) ) return pdPASS;
     return pdFAIL;

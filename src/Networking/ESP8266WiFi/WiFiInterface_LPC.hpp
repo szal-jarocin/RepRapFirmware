@@ -6,7 +6,7 @@
 //ESP connected to SSP0
 
 //maintain compatibility with RRF code
-void spi_disable(SSPChannel sspChannel)
+void spi_disable(SSPChannel sspChannel) noexcept
 {
     //Just turn off DMA
     spi_dma_disable();
@@ -58,19 +58,19 @@ static bool spi_dma_check_rx_complete()
     return true;
 }
 
-static void spi_tx_dma_setup(const void *buf, uint32_t transferLength)
+static void spi_tx_dma_setup(const void *buf, uint32_t transferLength) noexcept
 {
     // Setup DMA transfer: outBuffer --> SSP0 (Memory to Peripheral Transfer)
     SspDmaTxTransfer(DMA_SSP0_TX, buf, transferLength);
 }
 
-static void spi_rx_dma_setup(const void *buf, uint32_t transferLength)
+static void spi_rx_dma_setup(const void *buf, uint32_t transferLength) noexcept
 {
     // Setup DMA Receive: SSP0 --> inBuffer (Peripheral to Memory)
     SspDmaRxTransfer(DMA_SSP0_RX, buf, transferLength);
 }
 
-static void spi_slave_dma_setup(uint32_t dataOutSize, uint32_t dataInSize)
+static void spi_slave_dma_setup(uint32_t dataOutSize, uint32_t dataInSize) noexcept
 {
     flush_rx_fifo(); //flush SPI
     spi_dma_enable();
@@ -86,13 +86,13 @@ static void spi_slave_dma_setup(uint32_t dataOutSize, uint32_t dataInSize)
 }
 
 // SPI interrupt handlers
-void ESP_SPI_HANDLER(void)
+void ESP_SPI_HANDLER(void) noexcept
 {
 	wifiInterface->SpiInterrupt();
 }
 
 
-void WiFiInterface::SpiInterrupt()
+void WiFiInterface::SpiInterrupt() noexcept
 {
     const uint32_t status = LPC_SSP0->SR;
     
@@ -119,7 +119,7 @@ void WiFiInterface::SpiInterrupt()
 
 
 // Set up the SPI system
-void WiFiInterface::SetupSpi()
+void WiFiInterface::SetupSpi() noexcept
 {
     Chip_SSP_Disable(LPC_SSP0);
 

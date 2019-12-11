@@ -23,26 +23,26 @@
 class RTOSPlusTCPEthernetSocket : public Socket
 {
 public:
-	RTOSPlusTCPEthernetSocket(NetworkInterface *iface);
-	void Init(SocketNumber s, Port serverPort, NetworkProtocol p);
+	RTOSPlusTCPEthernetSocket(NetworkInterface *iface) noexcept;
+	void Init(SocketNumber s, Port serverPort, NetworkProtocol p) noexcept;
 
-	void Poll(bool full) override;
-	void Close() override;
-	void Terminate() override;
-	void TerminateAndDisable() override;
-	bool ReadChar(char& c) override;
-	bool ReadBuffer(const uint8_t *&buffer, size_t &len) override;
-	void Taken(size_t len) override;
-	bool CanRead() const override;
-	bool CanSend() const override;
-	size_t Send(const uint8_t *data, size_t length) override;
-	void Send() override;
-    void Diagnostics(MessageType mt) const;
+	void Poll() noexcept override;
+	void Close() noexcept override;
+	void Terminate() noexcept override;
+	void TerminateAndDisable() noexcept override;
+	bool ReadChar(char& c) noexcept override;
+	bool ReadBuffer(const uint8_t *&buffer, size_t &len) noexcept override;
+	void Taken(size_t len) noexcept override;
+	bool CanRead() const noexcept override;
+	bool CanSend() const noexcept override;
+	size_t Send(const uint8_t *data, size_t length) noexcept override;
+	void Send() noexcept override;
+    void Diagnostics(MessageType mt) const  noexcept;
     
 private:
-	void ReInit();
-	void ReceiveData();
-	void DiscardReceivedData();
+	void ReInit() noexcept;
+	void ReceiveData() noexcept;
+	void DiscardReceivedData() noexcept;
 
 	NetworkBuffer *receivedData;						// List of buffers holding received data
 	uint32_t whenConnected;
@@ -51,7 +51,7 @@ private:
 //TCP+
     Socket_t xListeningSocket;  // server socket 
     Socket_t xConnectedSocket;  //connected client socket
-    bool CheckSocketError(BaseType_t val); 
+    bool CheckSocketError(BaseType_t val) noexcept; 
 
 };
 

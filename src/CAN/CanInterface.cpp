@@ -260,7 +260,7 @@ static status_code mcan_fd_send_ext_message(uint32_t id_value, const uint8_t *da
 }
 
 // Interrupt handler for MCAN, including RX,TX,ERROR and so on processes
-void MCAN_INT0_Handler(void)
+extern "C" void MCAN_INT0_Handler() noexcept
 {
 	const uint32_t status = mcan_read_interrupt_status(&mcan_instance);
 
@@ -798,7 +798,7 @@ GCodeResult CanInterface::SetRemoteDriverStallParameters(const CanDriversList& d
 	return GCodeResult::ok;
 }
 
-static GCodeResult GetRemoteInfo(uint8_t infoType, uint32_t boardAddress, GCodeBuffer& gb, const StringRef& reply, uint8_t *extra = nullptr)
+static GCodeResult GetRemoteInfo(uint8_t infoType, uint32_t boardAddress, uint8_t param, GCodeBuffer& gb, const StringRef& reply, uint8_t *extra = nullptr)
 {
 	if (boardAddress > CanId::MaxNormalAddress)
 	{
@@ -816,27 +816,26 @@ static GCodeResult GetRemoteInfo(uint8_t infoType, uint32_t boardAddress, GCodeB
 	const CanRequestId rid = CanInterface::AllocateRequestId(boardAddress);
 	auto msg = buf->SetupRequestMessage<CanMessageReturnInfo>(rid, CanId::MasterAddress, (CanAddress)boardAddress);
 	msg->type = infoType;
+	msg->param = param;
 	return CanInterface::SendRequestAndGetStandardReply(buf, rid, reply, extra);
 }
 
 // Get diagnostics from an expansion board
-GCodeResult CanInterface::RemoteDiagnostics(MessageType mt, uint32_t boardAddress, GCodeBuffer& gb, const StringRef& reply)
+GCodeResult CanInterface::RemoteDiagnostics(MessageType mt, uint32_t boardAddress, unsigned int type, GCodeBuffer& gb, const StringRef& reply)
 {
 	Platform& p = reprap.GetPlatform();
 
-	// Older expansion board firmware provides parts 0,1,2
-	// Newer expansion board firmware always provides at least part0, and the 'extra' field says what the last part number is
 	uint8_t currentPart = 0;
 	uint8_t lastPart;
 	GCodeResult res;
 	do
 	{
-		res = GetRemoteInfo(CanMessageReturnInfo::typeDiagnosticsPart0 + currentPart, boardAddress, gb, reply, &lastPart);
+		res = GetRemoteInfo(CanMessageReturnInfo::typeDiagnosticsPart0 + currentPart, boardAddress, type, gb, reply, &lastPart);
 		if (res != GCodeResult::ok)
 		{
 			return res;
 		}
-		if (currentPart == 0)
+		if (type == 0 && currentPart == 0)
 		{
 			p.MessageF(mt, "Diagnostics for board %u:\n", (unsigned int)boardAddress);
 		}
@@ -844,13 +843,18 @@ GCodeResult CanInterface::RemoteDiagnostics(MessageType mt, uint32_t boardAddres
 		p.Message(mt, reply.c_str());
 		reply.Clear();
 		++currentPart;
-	} while (currentPart <= ((lastPart == 0) ? 2 : lastPart));
+	} while (currentPart <= lastPart);
 	return res;
+}
+
+GCodeResult CanInterface::RemoteM408(uint32_t boardAddress, unsigned int form, unsigned int type, GCodeBuffer& gb, const StringRef& reply)
+{
+	return GetRemoteInfo(CanMessageReturnInfo::typeM408, boardAddress, type, gb, reply, nullptr);
 }
 
 GCodeResult CanInterface::GetRemoteFirmwareDetails(uint32_t boardAddress, GCodeBuffer& gb, const StringRef& reply)
 {
-	return GetRemoteInfo(CanMessageReturnInfo::typeFirmwareVersion, boardAddress, gb, reply);
+	return GetRemoteInfo(CanMessageReturnInfo::typeFirmwareVersion, boardAddress, 0, gb, reply);
 }
 
 // Tell an expansion board to update
@@ -1005,6 +1009,23 @@ void CanInterface::Diagnostics(MessageType mtype)
 	messagesSent = 0;
 	longestWaitTime = 0;
 	longestWaitMessageType = 0;
+}
+
+GCodeResult CanInterface::WriteGpio(CanAddress boardAddress, uint8_t portNumber, float pwm, bool isServo, const StringRef &reply)
+{
+	CanMessageBuffer * const buf = CanMessageBuffer::Allocate();
+	if (buf == nullptr)
+	{
+		reply.copy("No CAN buffer");
+		return GCodeResult::error;
+	}
+
+	const CanRequestId rid = CanInterface::AllocateRequestId(boardAddress);
+	auto msg = buf->SetupRequestMessage<CanMessageWriteGpio>(rid, CanId::MasterAddress, boardAddress);
+	msg->portNumber = portNumber;
+	msg->pwm = pwm;
+	msg->isServo = isServo;
+	return CanInterface::SendRequestAndGetStandardReply(buf, rid, reply, nullptr);
 }
 
 #endif

@@ -31,7 +31,7 @@ static const unsigned int SocketShutdownTimeoutMillis = 50;//how long to wait be
 static const uint32_t SocketActivityTimeout = 10000;    // Send timeout in milliseconds
 
 //function to check socket: (requires FreeRTOS_IP_Private.h)
-bool isSocketClosing(Socket_t xSocket)
+bool isSocketClosing(Socket_t xSocket) noexcept
 {
     FreeRTOS_Socket_t *pxSocket = ( FreeRTOS_Socket_t * ) xSocket;
     
@@ -54,7 +54,7 @@ bool isSocketClosing(Socket_t xSocket)
     return false;
 }
 
-bool hasSocketGracefullyClosed(Socket_t xSocket)
+bool hasSocketGracefullyClosed(Socket_t xSocket) noexcept
 {
     FreeRTOS_Socket_t *pxSocket = ( FreeRTOS_Socket_t * ) xSocket;
     
@@ -70,7 +70,8 @@ bool hasSocketGracefullyClosed(Socket_t xSocket)
     }
 }
 
-bool isSocketListening(Socket_t xSocket){
+bool isSocketListening(Socket_t xSocket) noexcept
+{
     FreeRTOS_Socket_t *pxSocket = ( FreeRTOS_Socket_t * ) xSocket;
     
     if(xSocket == nullptr) return false;
@@ -87,13 +88,13 @@ bool isSocketListening(Socket_t xSocket){
 }
 
 
-bool isSocketEstablished(Socket_t xSocket)
+bool isSocketEstablished(Socket_t xSocket) noexcept
 {
     return FreeRTOS_issocketconnected(xSocket);
     
 }
 
-bool isSocketEstablishing(Socket_t xSocket)
+bool isSocketEstablishing(Socket_t xSocket) noexcept
 {
  
     FreeRTOS_Socket_t *pxSocket = ( FreeRTOS_Socket_t * ) xSocket;
@@ -112,7 +113,7 @@ bool isSocketEstablishing(Socket_t xSocket)
 
 
 
-RTOSPlusTCPEthernetSocket::RTOSPlusTCPEthernetSocket(NetworkInterface *iface)
+RTOSPlusTCPEthernetSocket::RTOSPlusTCPEthernetSocket(NetworkInterface *iface) noexcept
 	: Socket(iface), receivedData(nullptr)
 {
     xConnectedSocket = nullptr;
@@ -120,7 +121,7 @@ RTOSPlusTCPEthernetSocket::RTOSPlusTCPEthernetSocket(NetworkInterface *iface)
 }
 
 // Initialise a TCP socket
-void RTOSPlusTCPEthernetSocket::Init(SocketNumber skt, Port serverPort, NetworkProtocol p)
+void RTOSPlusTCPEthernetSocket::Init(SocketNumber skt, Port serverPort, NetworkProtocol p) noexcept
 {
     socketNum = skt;
 	localPort = serverPort;
@@ -128,7 +129,7 @@ void RTOSPlusTCPEthernetSocket::Init(SocketNumber skt, Port serverPort, NetworkP
     ReInit();
 }
 
-void RTOSPlusTCPEthernetSocket::TerminateAndDisable()
+void RTOSPlusTCPEthernetSocket::TerminateAndDisable() noexcept
 {
 	MutexLocker lock(interface->interfaceMutex);
 
@@ -136,7 +137,7 @@ void RTOSPlusTCPEthernetSocket::TerminateAndDisable()
 	state = SocketState::disabled;
 }
 
-void RTOSPlusTCPEthernetSocket::ReInit()
+void RTOSPlusTCPEthernetSocket::ReInit() noexcept
 {
 	MutexLocker lock(interface->interfaceMutex);
 
@@ -166,7 +167,7 @@ void RTOSPlusTCPEthernetSocket::ReInit()
 }
 
 // Close a connection when the last packet has been sent
-void RTOSPlusTCPEthernetSocket::Close()
+void RTOSPlusTCPEthernetSocket::Close() noexcept
 {
 	MutexLocker lock(interface->interfaceMutex);
     
@@ -186,7 +187,7 @@ void RTOSPlusTCPEthernetSocket::Close()
 }
 
 // Terminate a connection immediately
-void RTOSPlusTCPEthernetSocket::Terminate()
+void RTOSPlusTCPEthernetSocket::Terminate() noexcept
 {
 	MutexLocker lock(interface->interfaceMutex);
 	if (state != SocketState::disabled)
@@ -200,7 +201,7 @@ void RTOSPlusTCPEthernetSocket::Terminate()
 	}
 }
 
-void RTOSPlusTCPEthernetSocket::Diagnostics(MessageType mt) const
+void RTOSPlusTCPEthernetSocket::Diagnostics(MessageType mt) const  noexcept
 {
     
     switch(state){
@@ -237,19 +238,19 @@ void RTOSPlusTCPEthernetSocket::Diagnostics(MessageType mt) const
 
 
 // Return true if there is or may soon be more data to read
-bool RTOSPlusTCPEthernetSocket::CanRead() const
+bool RTOSPlusTCPEthernetSocket::CanRead() const noexcept
 {
 	return (state == SocketState::connected) ||
 		(state == SocketState::clientDisconnecting && receivedData != nullptr && receivedData->TotalRemaining() != 0);
 }
 
-bool RTOSPlusTCPEthernetSocket::CanSend() const
+bool RTOSPlusTCPEthernetSocket::CanSend() const noexcept
 {
 	return ((state == SocketState::connected) && (FreeRTOS_issocketconnected(xConnectedSocket) == pdTRUE));
 }
 
 // Read 1 character from the receive buffers, returning true if successful
-bool RTOSPlusTCPEthernetSocket::ReadChar(char& c)
+bool RTOSPlusTCPEthernetSocket::ReadChar(char& c) noexcept
 {
 	if (receivedData != nullptr)
 	{
@@ -268,7 +269,7 @@ bool RTOSPlusTCPEthernetSocket::ReadChar(char& c)
 }
 
 // Return a pointer to data in a buffer and a length available
-bool RTOSPlusTCPEthernetSocket::ReadBuffer(const uint8_t *&buffer, size_t &len)
+bool RTOSPlusTCPEthernetSocket::ReadBuffer(const uint8_t *&buffer, size_t &len) noexcept
 {
     if (receivedData != nullptr)
 	{
@@ -280,7 +281,7 @@ bool RTOSPlusTCPEthernetSocket::ReadBuffer(const uint8_t *&buffer, size_t &len)
 }
 
 // Flag some data as taken from the receive buffers. We never take data from more than one buffer at a time.
-void RTOSPlusTCPEthernetSocket::Taken(size_t len)
+void RTOSPlusTCPEthernetSocket::Taken(size_t len) noexcept
 {
 	if (receivedData != nullptr)
 	{
@@ -293,7 +294,7 @@ void RTOSPlusTCPEthernetSocket::Taken(size_t len)
 }
 
 // Poll a socket to see if it needs to be serviced
-void RTOSPlusTCPEthernetSocket::Poll(bool full)
+void RTOSPlusTCPEthernetSocket::Poll() noexcept
 {
 	if (state != SocketState::disabled)
 	{
@@ -472,7 +473,7 @@ void RTOSPlusTCPEthernetSocket::Poll(bool full)
 
 
 //returns true if the socket was in Error
-bool RTOSPlusTCPEthernetSocket::CheckSocketError(BaseType_t val)
+bool RTOSPlusTCPEthernetSocket::CheckSocketError(BaseType_t val) noexcept
 {
     //If there was not enough memory for the socket to be able to create either an Rx or Tx stream then -pdFREERTOS_ERRNO_ENOMEM is returned.
     //If the socket was closed or got closed then -pdFREERTOS_ERRNO_ENOTCONN is returned.
@@ -502,7 +503,7 @@ bool RTOSPlusTCPEthernetSocket::CheckSocketError(BaseType_t val)
 
 
 // Try to receive more incoming data from the socket. The mutex is alrady owned.
-void RTOSPlusTCPEthernetSocket::ReceiveData()
+void RTOSPlusTCPEthernetSocket::ReceiveData() noexcept
 {
     BaseType_t len = FreeRTOS_recvcount( xConnectedSocket );
     
@@ -561,7 +562,7 @@ void RTOSPlusTCPEthernetSocket::ReceiveData()
 }
 
 // Discard any received data for this transaction. The mutex is already owned.
-void RTOSPlusTCPEthernetSocket::DiscardReceivedData()
+void RTOSPlusTCPEthernetSocket::DiscardReceivedData() noexcept
 {
 	while (receivedData != nullptr)
 	{
@@ -570,7 +571,7 @@ void RTOSPlusTCPEthernetSocket::DiscardReceivedData()
 }
 
 // Send the data, returning the length buffered
-size_t RTOSPlusTCPEthernetSocket::Send(const uint8_t *data, size_t length)
+size_t RTOSPlusTCPEthernetSocket::Send(const uint8_t *data, size_t length) noexcept
 {
 	MutexLocker lock(interface->interfaceMutex);
     
@@ -632,7 +633,7 @@ size_t RTOSPlusTCPEthernetSocket::Send(const uint8_t *data, size_t length)
 }
 
 // wait for the interface to send the outstanding data
-void RTOSPlusTCPEthernetSocket::Send()
+void RTOSPlusTCPEthernetSocket::Send() noexcept
 {
 }
 

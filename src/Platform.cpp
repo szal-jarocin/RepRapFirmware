@@ -143,6 +143,9 @@ unsigned int numSoftTimerInterruptsExecuted = 0;
 uint32_t lastSoftTimerInterruptScheduledAt = 0;
 #endif
 
+// Global variable for debugging in tricky situations e.g. within ISRs
+int debugLine = 0;
+
 // Global functions
 
 // Urgent initialisation function
@@ -175,7 +178,7 @@ extern "C" void UrgentInit()
 #endif
 }
 
-DriversBitmap AxisDriversConfig::GetDriversBitmap() const
+DriversBitmap AxisDriversConfig::GetDriversBitmap() const noexcept
 {
 	DriversBitmap rslt = 0;
 	for (size_t i = 0; i < numDrivers; ++i)
@@ -193,7 +196,7 @@ DriversBitmap AxisDriversConfig::GetDriversBitmap() const
 //*************************************************************************************************
 // Platform class
 
-Platform::Platform() :
+Platform::Platform() noexcept :
 #if HAS_MASS_STORAGE
 	logger(nullptr),
 #endif
@@ -213,7 +216,7 @@ Platform::Platform() :
 //*******************************************************************************************************************
 
 // Initialise the Platform. Note: this is the first module to be initialised, so don't call other modules from here!
-void Platform::Init()
+void Platform::Init() noexcept
 {
 	pinMode(DiagPin, OUTPUT_LOW);				// set up diag LED for debugging and turn it off
 
@@ -584,10 +587,12 @@ void Platform::Init()
 
 	// If MISO from a MAX31856 board breaks after initialising the MAX31856 then if MISO floats low and reads as all zeros, this looks like a temperature of 0C and no error.
 	// Enable the pullup resistor, with luck this will make it float high instead.
-#if defined(APIN_USART_SSPI_MISO)
-	pinMode(APIN_USART_SSPI_MISO, INPUT_PULLUP);
-#elif defined(APIN_SHARED_SPI_MISO)
+#if SAM3XA
 	pinMode(APIN_SHARED_SPI_MISO, INPUT_PULLUP);
+#elif __LPC17xx__
+    //
+#else
+	pinMode(APIN_USART_SSPI_MISO, INPUT_PULLUP);
 #endif
 
 #ifdef PCCB
@@ -595,7 +600,7 @@ void Platform::Init()
 	for (size_t i = 0; i < ARRAY_SIZE(DefaultGpioPinNames); ++i)
 	{
 		String<1> dummy;
-		gpioPorts[i].AssignPort(DefaultGpioPinNames[i], dummy.GetRef(), PinUsedBy::gpio, PinAccess::pwm);
+		gpioPorts[i].port.AssignPort(DefaultGpioPinNames[i], dummy.GetRef(), PinUsedBy::gpio, PinAccess::pwm);
 	}
 #endif
 
@@ -665,339 +670,14 @@ void Platform::Init()
 	active = true;
 }
 
-// Check the prerequisites for updating the main firmware. Return True if satisfied, else print a message to 'reply' and return false.
-bool Platform::CheckFirmwareUpdatePrerequisites(const StringRef& reply)
-{
-#if HAS_MASS_STORAGE
-    #ifdef __LPC17xx__
-    
-        #ifndef LPC_NETWORKING
-            reply.printf("To update firmware download firmware-%s.bin to the sdcard as /firmware.bin and reset", LPC_BOARD_STRING);
-            return false;
-        #else
-            FileStore * const firmwareFile = OpenFile(DEFAULT_SYS_DIR, FIRMWARE_FILE, OpenMode::read);
-            if (firmwareFile == nullptr)
-            {
-                reply.printf("Firmware binary \"%s\" not found", FIRMWARE_FILE);
-                return false;
-            }
-    
-            // Check that the binary looks sensible. The first word is the initial stack pointer, which should be the top of RAM.
-            const uint32_t initialStackPointer = 0x10008000 - 32; //top 32bytes are reserved in linkerscript as IAP needs it
-    
-            uint32_t firstDword;
-            bool ok = firmwareFile->Read(reinterpret_cast<char*>(&firstDword), sizeof(firstDword)) == (int)sizeof(firstDword);
-            firmwareFile->Close();
-            if (!ok || firstDword != initialStackPointer)
-            {
-                reply.printf("Firmware binary \"%s\" is not valid for this electronics", FIRMWARE_FILE);
-                return false;
-            }
-        #endif
-    
-    
-    #else
-    
-    FileStore * const firmwareFile = OpenFile(DEFAULT_SYS_DIR, IAP_FIRMWARE_FILE, OpenMode::read);
-	if (firmwareFile == nullptr)
-	{
-		reply.printf("Firmware binary \"%s\" not found", IAP_FIRMWARE_FILE);
-		return false;
-	}
-
-	// Check that the binary looks sensible. The first word is the initial stack pointer, which should be the top of RAM.
-	uint32_t firstDword;
-	bool ok = firmwareFile->Read(reinterpret_cast<char*>(&firstDword), sizeof(firstDword)) == (int)sizeof(firstDword);
-	firmwareFile->Close();
-	if (!ok || firstDword !=
-#if SAM3XA
-						IRAM1_ADDR + IRAM1_SIZE
-#else
-						IRAM_ADDR + IRAM_SIZE
-#endif
-			)
-	{
-		reply.printf("Firmware binary \"%s\" is not valid for this electronics", IAP_FIRMWARE_FILE);
-		return false;
-	}
-
-	if (!FileExists(DEFAULT_SYS_DIR, IAP_UPDATE_FILE))
-	{
-		reply.printf("In-application programming binary \"%s\" not found", IAP_UPDATE_FILE);
-		return false;
-	}
-    #endif
-#endif
-
-	return true;
-}
-
-// Update the firmware. Prerequisites should be checked before calling this.
-void Platform::UpdateFirmware()
-{
-#if HAS_MASS_STORAGE
-
-# if defined(__LPC17xx__)
-    
-#  if LPC_NETWORKING
-    //DWC will upload firmware to 0:/sys/ we need to move to 0:/firmware.bin and reboot
-    
-    String<MaxFilenameLength> location;
-    MassStorage::CombineName(location.GetRef(), DEFAULT_SYS_DIR, FIRMWARE_FILE);
-    
-    if(!MassStorage::Rename(location.c_str(), "0:/firmware.bin"))
-    {
-        //failed to rename
-        MessageF(FirmwareUpdateMessage, "Failed to move firmware file.\n");
-        return;
-    }
-    
-    SoftwareReset((uint16_t)SoftwareResetReason::user); // Reboot
-#  endif
-    
-    
-# else
-
-    FileStore * const iapFile = OpenFile(DEFAULT_SYS_DIR, IAP_UPDATE_FILE, OpenMode::read);
-	if (iapFile == nullptr)
-	{
-		MessageF(FirmwareUpdateMessage, "IAP file '" IAP_UPDATE_FILE "' not found\n");
-		return;
-	}
-
-#if SUPPORT_12864_LCD
-	reprap.GetDisplay().UpdatingFirmware();			// put the firmware update message on the display
-#endif
-
-	// The machine will be unresponsive for a few seconds, don't risk damaging the heaters...
-	reprap.EmergencyStop();
-
-	// Step 0 - disable the cache because it interferes with flash memory access
-	Cache::Disable();
-
-#if USE_MPU
-	//TODO consider setting flash memory to strongly-ordered instead
-	ARM_MPU_Disable();
-#endif
-
-	// Step 1 - Write update binary to Flash and overwrite the remaining space with zeros
-	// On the SAM3X, leave the last 1KB of Flash memory untouched, so we can reuse the NvData after this update
-
-#if !defined(IFLASH_PAGE_SIZE) && defined(IFLASH0_PAGE_SIZE)
-# define IFLASH_PAGE_SIZE	IFLASH0_PAGE_SIZE
-#endif
-
-	// Use a 32-bit aligned buffer. This gives us the option of calling the EFC functions directly in future.
-	uint32_t data32[IFLASH_PAGE_SIZE/4];
-	char* const data = reinterpret_cast<char *>(data32);
-
-#if SAM4E || SAM4S || SAME70
-	// The EWP command is not supported for non-8KByte sectors in the SAM4 and SAME70 series.
-	// So we have to unlock and erase the complete 64Kb or 128kb sector first. One sector is always enough to contain the IAP.
-	flash_unlock(IAP_FLASH_START, IAP_FLASH_END, nullptr, nullptr);
-	flash_erase_sector(IAP_FLASH_START);
-
-	for (uint32_t flashAddr = IAP_FLASH_START; flashAddr < IAP_FLASH_END; flashAddr += IFLASH_PAGE_SIZE)
-	{
-		const int bytesRead = iapFile->Read(data, IFLASH_PAGE_SIZE);
-
-		if (bytesRead > 0)
-		{
-			// Do we have to fill up the remaining buffer with zeros?
-			if (bytesRead != IFLASH_PAGE_SIZE)
-			{
-				memset(data + bytesRead, 0, sizeof(data[0]) * (IFLASH_PAGE_SIZE - bytesRead));
-			}
-
-			// Write one page at a time
-			cpu_irq_disable();
-			const uint32_t rc = flash_write(flashAddr, data, IFLASH_PAGE_SIZE, 0);
-			cpu_irq_enable();
-
-			if (rc != FLASH_RC_OK)
-			{
-				MessageF(FirmwareUpdateErrorMessage, "flash write failed, code=%" PRIu32 ", address=0x%08" PRIx32 "\n", rc, flashAddr);
-				return;
-			}
-
-			// Verify written data
-			if (memcmp(reinterpret_cast<void *>(flashAddr), data, bytesRead) != 0)
-			{
-				MessageF(FirmwareUpdateErrorMessage, "verify during flash write failed, address=0x%08" PRIx32 "\n", flashAddr);
-				return;
-			}
-		}
-		else
-		{
-			// Fill up the remaining space with zeros
-			memset(data, 0, sizeof(data[0]) * sizeof(data));
-			cpu_irq_disable();
-			flash_write(flashAddr, data, IFLASH_PAGE_SIZE, 0);
-			cpu_irq_enable();
-		}
-	}
-
-	// Re-lock the whole area
-	flash_lock(IAP_FLASH_START, IAP_FLASH_END, nullptr, nullptr);
-
-#else	// SAM3X code
-
-	for (uint32_t flashAddr = IAP_FLASH_START; flashAddr < IAP_FLASH_END; flashAddr += IFLASH_PAGE_SIZE)
-	{
-		const int bytesRead = iapFile->Read(data, IFLASH_PAGE_SIZE);
-
-		if (bytesRead > 0)
-		{
-			// Do we have to fill up the remaining buffer with zeros?
-			if (bytesRead != IFLASH_PAGE_SIZE)
-			{
-				memset(data + bytesRead, 0, sizeof(data[0]) * (IFLASH_PAGE_SIZE - bytesRead));
-			}
-
-			// Write one page at a time
-			cpu_irq_disable();
-
-			const char* op = "unlock";
-			uint32_t rc = flash_unlock(flashAddr, flashAddr + IFLASH_PAGE_SIZE - 1, nullptr, nullptr);
-
-			if (rc == FLASH_RC_OK)
-			{
-				op = "write";
-				rc = flash_write(flashAddr, data, IFLASH_PAGE_SIZE, 1);
-			}
-			if (rc == FLASH_RC_OK)
-			{
-				op = "lock";
-				rc = flash_lock(flashAddr, flashAddr + IFLASH_PAGE_SIZE - 1, nullptr, nullptr);
-			}
-			cpu_irq_enable();
-
-			if (rc != FLASH_RC_OK)
-			{
-				MessageF(FirmwareUpdateErrorMessage, "flash %s failed, code=%" PRIu32 ", address=0x%08" PRIx32 "\n", op, rc, flashAddr);
-				return;
-			}
-			// Verify written data
-			if (memcmp(reinterpret_cast<void *>(flashAddr), data, bytesRead) != 0)
-			{
-				MessageF(FirmwareUpdateErrorMessage, "verify during flash write failed, address=0x%08" PRIx32 "\n", flashAddr);
-				return;
-			}
-		}
-		else
-		{
-			// Fill up the remaining space
-			memset(data, 0, sizeof(data[0]) * sizeof(data));
-			cpu_irq_disable();
-			flash_unlock(flashAddr, flashAddr + IFLASH_PAGE_SIZE - 1, nullptr, nullptr);
-			flash_write(flashAddr, data, IFLASH_PAGE_SIZE, 1);
-			flash_lock(flashAddr, flashAddr + IFLASH_PAGE_SIZE - 1, nullptr, nullptr);
-			cpu_irq_enable();
-		}
-	}
-#endif
-
-	iapFile->Close();
-
-	StartIap();
-#endif
-#endif//end MassStorage
-}
-
-#ifndef __LPC17xx__
-void Platform::StartIap()
-{
-	Message(AuxMessage, "Updating main firmware\n");
-	Message(UsbMessage, "Shutting down USB interface to update main firmware. Try reconnecting after 30 seconds.\n");
-
-	// Allow time for the firmware update message to be sent
-	const uint32_t now = millis();
-	while (FlushMessages() && millis() - now < 2000) { }
-
-	// Step 2 - Let the firmware do whatever is necessary before we exit this program
-	reprap.Exit();
-
-	// Step 3 - Reallocate the vector table and program entry point to the new IAP binary
-	// This does essentially what the Atmel AT02333 paper suggests (see 3.2.2 ff)
-
-	// Disable all IRQs
-	SysTick->CTRL  = SysTick_CTRL_CLKSOURCE_Msk;	// disable the system tick exception
-	cpu_irq_disable();
-	for (size_t i = 0; i < 8; i++)
-	{
-		NVIC->ICER[i] = 0xFFFFFFFF;					// Disable IRQs
-		NVIC->ICPR[i] = 0xFFFFFFFF;					// Clear pending IRQs
-	}
-
-	// Disable all PIO IRQs, because the core assumes they are all disabled when setting them up
-	PIOA->PIO_IDR = 0xFFFFFFFF;
-	PIOB->PIO_IDR = 0xFFFFFFFF;
-	PIOC->PIO_IDR = 0xFFFFFFFF;
-#ifdef PIOD
-	PIOD->PIO_IDR = 0xFFFFFFFF;
-#endif
-#ifdef ID_PIOE
-	PIOE->PIO_IDR = 0xFFFFFFFF;
-#endif
-
-#if HAS_MASS_STORAGE
-	// Newer versions of iap4e.bin reserve space above the stack for us to pass the firmware filename
-	static const char filename[] = DEFAULT_SYS_DIR IAP_FIRMWARE_FILE;
-	const uint32_t topOfStack = *reinterpret_cast<uint32_t *>(IAP_FLASH_START);
-	if (topOfStack + sizeof(filename) <=
-# if SAM3XA
-						IRAM1_ADDR + IRAM1_SIZE
-# else
-						IRAM_ADDR + IRAM_SIZE
-# endif
-	   )
-	{
-		memcpy(reinterpret_cast<char*>(topOfStack), filename, sizeof(filename));
-	}
-#endif
-
-#if defined(DUET_NG) || defined(DUET_M)
-	IoPort::WriteDigital(DiagPin, false);			// turn the DIAG LED off
-#endif
-
-	wdt_restart(WDT);								// kick the watchdog one last time
-
-#if SAM4E || SAME70
-	rswdt_restart(RSWDT);							// kick the secondary watchdog
-#endif
-
-	// Modify vector table location
-	__DSB();
-	__ISB();
-	SCB->VTOR = ((uint32_t)IAP_FLASH_START & SCB_VTOR_TBLOFF_Msk);
-	__DSB();
-	__ISB();
-
-	cpu_irq_enable();
-
-	__asm volatile ("mov r3, %0" : : "r" (IAP_FLASH_START) : "r3");
-
-	// We are using separate process and handler stacks. Put the process stack 1K bytes below the handler stack.
-	__asm volatile ("ldr r1, [r3]");
-	__asm volatile ("msr msp, r1");
-	__asm volatile ("sub r1, #1024");
-	__asm volatile ("mov sp, r1");
-
-	__asm volatile ("isb");
-	__asm volatile ("ldr r1, [r3, #4]");
-	__asm volatile ("orr r1, r1, #1");
-	__asm volatile ("bx r1");
-}
-#endif
-
 // Send the beep command to the aux channel. There is no flow control on this port, so it can't block for long.
-void Platform::Beep(int freq, int ms)
+void Platform::Beep(int freq, int ms) noexcept
 {
 	MessageF(AuxMessage, "{\"beep_freq\":%d,\"beep_length\":%d}\n", freq, ms);
 }
 
 // Send a short message to the aux channel. There is no flow control on this port, so it can't block for long.
-void Platform::SendAuxMessage(const char* msg)
+void Platform::SendAuxMessage(const char* msg) noexcept
 {
 #ifdef SERIAL_AUX_DEVICE
 	OutputBuffer *buf;
@@ -1012,11 +692,14 @@ void Platform::SendAuxMessage(const char* msg)
 #endif
 }
 
-void Platform::Exit()
+void Platform::Exit() noexcept
 {
 	StopLogging();
 #if HAS_MASS_STORAGE
 	MassStorage::CloseAllFiles();
+#endif
+#if HAS_SMART_DRIVERS
+	SmartDrivers::Exit();
 #endif
 
 	// Release the aux output stack (should release the others too!)
@@ -1039,26 +722,26 @@ void Platform::Exit()
 
 }
 
-void Platform::SetIPAddress(IPAddress ip)
+void Platform::SetIPAddress(IPAddress ip) noexcept
 {
 	ipAddress = ip;
 	reprap.GetNetwork().SetEthernetIPAddress(ipAddress, gateWay, netMask);
 }
 
-void Platform::SetGateWay(IPAddress gw)
+void Platform::SetGateWay(IPAddress gw) noexcept
 {
 	gateWay = gw;
 	reprap.GetNetwork().SetEthernetIPAddress(ipAddress, gateWay, netMask);
 }
 
-void Platform::SetNetMask(IPAddress nm)
+void Platform::SetNetMask(IPAddress nm) noexcept
 {
 	netMask = nm;
 	reprap.GetNetwork().SetEthernetIPAddress(ipAddress, gateWay, netMask);
 }
 
 // Flush messages to aux, returning true if there is more to send
-bool Platform::FlushAuxMessages()
+bool Platform::FlushAuxMessages() noexcept
 {
 #ifdef SERIAL_AUX_DEVICE
 	// Write non-blocking data to the AUX line
@@ -1084,7 +767,7 @@ bool Platform::FlushAuxMessages()
 }
 
 // Flush messages to USB and aux, returning true if there is more to send
-bool Platform::FlushMessages()
+bool Platform::FlushMessages() noexcept
 {
 	const bool auxHasMore = FlushAuxMessages();
 
@@ -1121,7 +804,7 @@ bool Platform::FlushMessages()
 		{
 			(void) usbOutput.Pop();
 		}
-		else if (!SERIAL_MAIN_DEVICE)
+		else if (!SERIAL_MAIN_DEVICE.IsConnected())
 		{
 			// If the USB port is not opened, free the data left for writing
 			OutputBuffer::ReleaseAll(usbOutputBuffer);
@@ -1142,7 +825,7 @@ bool Platform::FlushMessages()
 			}
 			else
 			{
-				usbOutput.ApplyTimeout(SERIAL_MAIN_TIMEOUT);
+				 usbOutput.ApplyTimeout(SERIAL_MAIN_TIMEOUT);
 			}
 		}
 		usbHasMore = !usbOutput.IsEmpty();
@@ -1155,7 +838,7 @@ bool Platform::FlushMessages()
 		|| usbHasMore;
 }
 
-void Platform::Spin()
+void Platform::Spin() noexcept
 {
 	if (!active)
 	{
@@ -1191,7 +874,7 @@ void Platform::Spin()
 #endif
 
 	// Diagnostics test
-	if (debugCode == (int)DiagnosticTestType::TestSpinLockup)
+	if (debugCode == (unsigned int)DiagnosticTestType::TestSpinLockup)
 	{
 		for (;;) {}
 	}
@@ -1561,7 +1244,7 @@ void Platform::Spin()
 
 // Report driver status conditions that require attention.
 // Sets 'reported' if we reported anything, else leaves 'reported' alone.
-void Platform::ReportDrivers(MessageType mt, DriversBitmap& whichDrivers, const char* text, bool& reported)
+void Platform::ReportDrivers(MessageType mt, DriversBitmap& whichDrivers, const char* text, bool& reported) noexcept
 {
 	if (whichDrivers != 0)
 	{
@@ -1586,7 +1269,7 @@ void Platform::ReportDrivers(MessageType mt, DriversBitmap& whichDrivers, const 
 
 #if HAS_VOLTAGE_MONITOR || HAS_12V_MONITOR
 
-bool Platform::HasVinPower() const
+bool Platform::HasVinPower() const noexcept
 {
 	return driversPowered;			// not quite right because drivers are disabled if we get over-voltage too, or if the 12V rail is low, but OK for the status report
 }
@@ -1595,24 +1278,24 @@ bool Platform::HasVinPower() const
 
 #if HAS_VOLTAGE_MONITOR
 
-void Platform::DisableAutoSave()
+void Platform::DisableAutoSave() noexcept
 {
 	autoSaveEnabled = false;
 }
 
-bool Platform::IsPowerOk() const
+bool Platform::IsPowerOk() const noexcept
 {
 	return !autoSaveEnabled || currentVin > autoPauseReading;
 }
 
-void Platform::EnableAutoSave(float saveVoltage, float resumeVoltage)
+void Platform::EnableAutoSave(float saveVoltage, float resumeVoltage) noexcept
 {
 	autoPauseReading = PowerVoltageToAdcReading(saveVoltage);
 	autoResumeReading = PowerVoltageToAdcReading(resumeVoltage);
 	autoSaveEnabled = true;
 }
 
-bool Platform::GetAutoSaveSettings(float& saveVoltage, float&resumeVoltage)
+bool Platform::GetAutoSaveSettings(float& saveVoltage, float&resumeVoltage) noexcept
 {
 	if (autoSaveEnabled)
 	{
@@ -1626,7 +1309,7 @@ bool Platform::GetAutoSaveSettings(float& saveVoltage, float&resumeVoltage)
 
 #if HAS_CPU_TEMP_SENSOR
 
-float Platform::AdcReadingToCpuTemperature(uint32_t adcVal) const
+float Platform::AdcReadingToCpuTemperature(uint32_t adcVal) const noexcept
 {
 	const float voltage = (float)adcVal * (3.3/(float)((1u << AdcBits) * ThermistorAverageReadings));
 #if SAM4E || SAM4S
@@ -1644,7 +1327,7 @@ float Platform::AdcReadingToCpuTemperature(uint32_t adcVal) const
 
 
 // Perform a software reset. 'stk' points to the program counter on the stack if the cause is an exception, otherwise it is nullptr.
-void Platform::SoftwareReset(uint16_t reason, const uint32_t *stk)
+void Platform::SoftwareReset(uint16_t reason, const uint32_t *stk) noexcept
 {
 
     cpu_irq_disable();							// disable interrupts before we call any flash functions. We don't enable them again.
@@ -1673,12 +1356,6 @@ void Platform::SoftwareReset(uint16_t reason, const uint32_t *stk)
 			{
 				reason |= (uint16_t)SoftwareResetReason::inUsbOutput;	// if we are resetting because we are stuck in a Spin function, record whether we are trying to send to USB
 			}
-#if HAS_LWIP_NETWORKING
-			if (reprap.GetNetwork().InNetworkStack())
-			{
-				reason |= (uint16_t)SoftwareResetReason::inLwipSpin;
-			}
-#endif
 
 #ifdef SERIAL_AUX_DEVICE
 			if (SERIAL_AUX_DEVICE.canWrite() == 0
@@ -1772,7 +1449,7 @@ void Platform::SoftwareReset(uint16_t reason, const uint32_t *stk)
 
 #if HAS_LWIP_NETWORKING && !LWIP_GMAC_TASK
 
-void NETWORK_TC_HANDLER()
+void NETWORK_TC_HANDLER() noexcept
 {
 	tc_get_status(NETWORK_TC, NETWORK_TC_CHAN);
 	reprap.GetNetwork().Interrupt();
@@ -1780,7 +1457,7 @@ void NETWORK_TC_HANDLER()
 
 #endif
 
-void Platform::InitialiseInterrupts()
+void Platform::InitialiseInterrupts() noexcept
 {
 #if SAM4E || SAME70 || defined(__LPC17xx__)
 	NVIC_SetPriority(WDT_IRQn, NvicPriorityWatchdog);			// set priority for watchdog interrupts
@@ -1905,7 +1582,7 @@ void Platform::InitialiseInterrupts()
 #if SAM4E || SAM4S || SAME70
 
 // Print the unique processor ID
-void Platform::PrintUniqueId(MessageType mtype)
+void Platform::PrintUniqueId(MessageType mtype) noexcept
 {
 	// Print the unique ID and checksum as 30 base5 alphanumeric digits
 	char digits[30 + 5 + 1];			// 30 characters, 5 separators, 1 null terminator
@@ -1960,11 +1637,8 @@ void Platform::PrintUniqueId(MessageType mtype)
 
 #endif
 
-// Global variable for debugging in tricky situations e.g. within ISRs
-int debugLine = 0;
-
 // Return diagnostic information
-void Platform::Diagnostics(MessageType mtype)
+void Platform::Diagnostics(MessageType mtype) noexcept
 {
 #if USE_CACHE && SAM4E
 	// Get the cache statistics before we start messing around with the cache
@@ -2078,7 +1752,8 @@ void Platform::Diagnostics(MessageType mtype)
 			MessageF(mtype, "Last software reset %s, reason: %s%s, spinning module %s, available RAM %" PRIu32 " bytes (slot %d)\n",
 								scratchString.c_str(),
 								(srdBuf[slot].resetReason & (uint32_t)SoftwareResetReason::deliberate) ? "deliberate " : "",
-								reasonText, moduleName[srdBuf[slot].resetReason & 0x1F], srdBuf[slot].neverUsedRam, slot);
+								reasonText,
+								GetModuleName(srdBuf[slot].resetReason & 0x1F), srdBuf[slot].neverUsedRam, slot);
 			// Our format buffer is only 256 characters long, so the next 2 lines must be written separately
 			MessageF(mtype,
 					"Software reset code 0x%04x HFSR 0x%08" PRIx32 " CFSR 0x%08" PRIx32 " ICSR 0x%08" PRIx32 " BFAR 0x%08" PRIx32 " SP 0x%08" PRIx32 " Task 0x%08" PRIx32 "\n",
@@ -2192,13 +1867,13 @@ void Platform::Diagnostics(MessageType mtype)
 #endif
 }
 
-GCodeResult Platform::DiagnosticTest(GCodeBuffer& gb, const StringRef& reply, int d)
+GCodeResult Platform::DiagnosticTest(GCodeBuffer& gb, const StringRef& reply, unsigned int d) noexcept
 {
 	static const uint32_t dummy[2] = { 0, 0 };
 
 	switch (d)
 	{
-	case (int)DiagnosticTestType::PrintTestReport:
+	case (unsigned int)DiagnosticTestType::PrintTestReport:
 		{
 			const MessageType mtype = gb.GetResponseMessageType();
 			bool testFailed = false;
@@ -2362,35 +2037,35 @@ GCodeResult Platform::DiagnosticTest(GCodeBuffer& gb, const StringRef& reply, in
 		}
 		break;
 
-	case (int)DiagnosticTestType::TestWatchdog:
+	case (unsigned int)DiagnosticTestType::TestWatchdog:
 		deliberateError = true;
-		SysTick->CTRL &= ~(SysTick_CTRL_TICKINT_Msk);	// disable the system tick interrupt so that we get a watchdog timeout reset
+		SysTick->CTRL &= ~(SysTick_CTRL_TICKINT_Msk);			// disable the system tick interrupt so that we get a watchdog timeout reset
 		break;
 
-	case (int)DiagnosticTestType::TestSpinLockup:
+	case (unsigned int)DiagnosticTestType::TestSpinLockup:
 		deliberateError = true;
-		debugCode = d;									// tell the Spin function to loop
+		debugCode = d;											// tell the Spin function to loop
 		break;
 
-	case (int)DiagnosticTestType::TestSerialBlock:		// write an arbitrary message via debugPrintf()
+	case (unsigned int)DiagnosticTestType::TestSerialBlock:		// write an arbitrary message via debugPrintf()
 		deliberateError = true;
 		debugPrintf("Diagnostic Test\n");
 		break;
 
-	case (int)DiagnosticTestType::DivideByZero:			// do an integer divide by zero to test exception handling
+	case (unsigned int)DiagnosticTestType::DivideByZero:		// do an integer divide by zero to test exception handling
 		deliberateError = true;
-		(void)RepRap::DoDivide(1, 0);					// call function in another module so it can't be optimised away
+		(void)RepRap::DoDivide(1, 0);							// call function in another module so it can't be optimised away
 		break;
 
-	case (int)DiagnosticTestType::UnalignedMemoryAccess: // do an unaligned memory access to test exception handling
+	case (unsigned int)DiagnosticTestType::UnalignedMemoryAccess: // do an unaligned memory access to test exception handling
 		deliberateError = true;
-		SCB->CCR |= SCB_CCR_UNALIGN_TRP_Msk;			// by default, unaligned memory accesses are allowed, so change that
-		__DSB();										// make sure that instruction completes
-		__DMB();										// don't allow prefetch
+		SCB->CCR |= SCB_CCR_UNALIGN_TRP_Msk;					// by default, unaligned memory accesses are allowed, so change that
+		__DSB();												// make sure that instruction completes
+		__DMB();												// don't allow prefetch
 		(void)*(reinterpret_cast<const volatile char*>(dummy) + 1);
 		break;
 
-	case (int)DiagnosticTestType::BusFault:
+	case (unsigned int)DiagnosticTestType::BusFault:
 		// Read from the "Undefined (Abort)" area
 #if SAME70
 # if USE_MPU
@@ -2414,11 +2089,11 @@ GCodeResult Platform::DiagnosticTest(GCodeBuffer& gb, const StringRef& reply, in
 #endif
 		break;
 
-	case (int)DiagnosticTestType::PrintMoves:
+	case (unsigned int)DiagnosticTestType::PrintMoves:
 		DDA::PrintMoves();
 		break;
 
-	case (int)DiagnosticTestType::TimeSquareRoot:		// Show the square root calculation time. Caution: may disable interrupt for several tens of microseconds.
+	case (unsigned int)DiagnosticTestType::TimeSquareRoot:		// Show the square root calculation time. Caution: may disable interrupt for several tens of microseconds.
 		{
 			bool ok1 = true;
 			uint32_t tim1 = 0;
@@ -2460,7 +2135,7 @@ GCodeResult Platform::DiagnosticTest(GCodeBuffer& gb, const StringRef& reply, in
 		}
 		break;
 
-	case (int)DiagnosticTestType::TimeSinCos:		// Show the sin/cosine calculation time. Caution: may disable interrupt for several tens of microseconds.
+	case (unsigned int)DiagnosticTestType::TimeSinCos:			// Show the sin/cosine calculation time. Caution: may disable interrupt for several tens of microseconds.
 		{
 			bool ok = true;
 			uint32_t tim1 = 0;
@@ -2499,7 +2174,7 @@ GCodeResult Platform::DiagnosticTest(GCodeBuffer& gb, const StringRef& reply, in
 		}
 		break;
 
-	case (int)DiagnosticTestType::TimeSDWrite:
+	case (unsigned int)DiagnosticTestType::TimeSDWrite:
 #if HAS_MASS_STORAGE
 		return reprap.GetGCodes().StartSDTiming(gb, reply);
 #else
@@ -2507,7 +2182,7 @@ GCodeResult Platform::DiagnosticTest(GCodeBuffer& gb, const StringRef& reply, in
 		return GCodeResult::errorNotSupported;
 #endif
 
-	case (int)DiagnosticTestType::PrintObjectSizes:
+	case (unsigned int)DiagnosticTestType::PrintObjectSizes:
 		reply.printf(
 				"DDA %u, DM %u, Tool %u, GCodeBuffer %u, heater %u"
 #if HAS_NETWORKING && !HAS_LEGACY_NETWORKING
@@ -2520,8 +2195,16 @@ GCodeResult Platform::DiagnosticTest(GCodeBuffer& gb, const StringRef& reply, in
 			);
 		break;
 
+	case (unsigned int)DiagnosticTestType::PrintObjectAddresses:
+		reply.printf
+				("Platform %08" PRIx32 "-%08" PRIx32 "\nGCodes %08" PRIx32 "-%08" PRIx32,
+					reinterpret_cast<uint32_t>(this), reinterpret_cast<uint32_t>(this) + sizeof(Platform) - 1,
+					reinterpret_cast<uint32_t>(&reprap.GetGCodes()), reinterpret_cast<uint32_t>(&reprap.GetGCodes()) + sizeof(GCodes) - 1
+				);
+		break;
+
 #ifdef DUET_NG
-	case (int)DiagnosticTestType::PrintExpanderStatus:
+	case (unsigned int)DiagnosticTestType::PrintExpanderStatus:
 		reply.printf("Expander status %04X\n", DuetExpansion::DiagnosticRead());
 		break;
 #endif
@@ -2543,7 +2226,7 @@ GCodeResult Platform::DiagnosticTest(GCodeBuffer& gb, const StringRef& reply, in
 #if HAS_SMART_DRIVERS
 
 // This is called when a fan that monitors driver temperatures is turned on when it was off
-void Platform::DriverCoolingFansOnOff(uint32_t driverChannelsMonitored, bool on)
+void Platform::DriverCoolingFansOnOff(uint32_t driverChannelsMonitored, bool on) noexcept
 {
 	for (unsigned int i = 0; i < NumTmcDriversSenseChannels; ++i)
 	{
@@ -2564,7 +2247,7 @@ void Platform::DriverCoolingFansOnOff(uint32_t driverChannelsMonitored, bool on)
 #endif
 
 // Get the index of the averaging filter for an analog port
-int Platform::GetAveragingFilterIndex(const IoPort& port) const
+int Platform::GetAveragingFilterIndex(const IoPort& port) const noexcept
 {
 	for (size_t i = 0; i < NumAdcFilters; ++i)
 	{
@@ -2576,7 +2259,7 @@ int Platform::GetAveragingFilterIndex(const IoPort& port) const
 	return -1;
 }
 
-void Platform::UpdateConfiguredHeaters()
+void Platform::UpdateConfiguredHeaters() noexcept
 {
 	configuredHeaters = 0;
 
@@ -2613,7 +2296,7 @@ void Platform::UpdateConfiguredHeaters()
 #if HAS_MASS_STORAGE
 
 // Write the platform parameters to file
-bool Platform::WritePlatformParameters(FileStore *f, bool includingG31) const
+bool Platform::WritePlatformParameters(FileStore *f, bool includingG31) const noexcept
 {
 	bool ok;
 	if (axisMinimaProbed != 0 || axisMaximaProbed != 0)
@@ -2641,7 +2324,7 @@ bool Platform::WritePlatformParameters(FileStore *f, bool includingG31) const
 	return ok;
 }
 
-bool Platform::WriteAxisLimits(FileStore *f, AxesBitmap axesProbed, const float limits[MaxAxes], int sParam)
+bool Platform::WriteAxisLimits(FileStore *f, AxesBitmap axesProbed, const float limits[MaxAxes], int sParam) noexcept
 {
 	if (axesProbed == 0)
 	{
@@ -2666,7 +2349,7 @@ bool Platform::WriteAxisLimits(FileStore *f, AxesBitmap axesProbed, const float 
 #if SUPPORT_CAN_EXPANSION
 
 // Function to identify and iterate through all drivers attached to an axis or extruder
-void Platform::IterateDrivers(size_t axisOrExtruder, std::function<void(uint8_t)> localFunc, std::function<void(DriverId)> remoteFunc)
+void Platform::IterateDrivers(size_t axisOrExtruder, std::function<void(uint8_t)> localFunc, std::function<void(DriverId)> remoteFunc) noexcept
 {
 	if (axisOrExtruder < MaxAxes)
 	{
@@ -2700,7 +2383,7 @@ void Platform::IterateDrivers(size_t axisOrExtruder, std::function<void(uint8_t)
 #else
 
 // Function to identify and iterate through all drivers attached to an axis or extruder
-void Platform::IterateDrivers(size_t axisOrExtruder, std::function<void(uint8_t)> localFunc)
+void Platform::IterateDrivers(size_t axisOrExtruder, std::function<void(uint8_t)> localFunc) noexcept
 {
 	if (axisOrExtruder < MaxAxes)
 	{
@@ -2721,7 +2404,7 @@ void Platform::IterateDrivers(size_t axisOrExtruder, std::function<void(uint8_t)
 
 // This is called from the step ISR as well as other places, so keep it fast
 // If drive >= DRIVES then we are setting an individual motor direction
-void Platform::SetDirection(size_t axisOrExtruder, bool direction)
+void Platform::SetDirection(size_t axisOrExtruder, bool direction) noexcept
 {
 	const bool isSlowDriver = (GetDriversBitmap(axisOrExtruder) & GetSlowDriversBitmap()) != 0;
 	if (isSlowDriver)
@@ -2745,7 +2428,7 @@ void Platform::SetDirection(size_t axisOrExtruder, bool direction)
 }
 
 // Enable a driver. Must not be called from an ISR, or with interrupts disabled.
-void Platform::EnableOneLocalDriver(size_t driver, float requiredCurrent)
+void Platform::EnableOneLocalDriver(size_t driver, float requiredCurrent) noexcept
 {
 #if HAS_SMART_DRIVERS && (HAS_VOLTAGE_MONITOR || HAS_12V_MONITOR)
 	if (driver < numSmartDrivers && !driversPowered)
@@ -2777,7 +2460,7 @@ void Platform::EnableOneLocalDriver(size_t driver, float requiredCurrent)
 }
 
 // Disable a driver
-void Platform::DisableOneLocalDriver(size_t driver)
+void Platform::DisableOneLocalDriver(size_t driver) noexcept
 {
 	if (driver < NumDirectDrivers)
 	{
@@ -2799,7 +2482,7 @@ void Platform::DisableOneLocalDriver(size_t driver)
 }
 
 // Enable the local drivers for a drive. Must not be called from an ISR, or with interrupts disabled.
-void Platform::EnableLocalDrivers(size_t axisOrExtruder)
+void Platform::EnableLocalDrivers(size_t axisOrExtruder) noexcept
 {
 	if (driverState[axisOrExtruder] != DriverStatus::enabled)
 	{
@@ -2810,7 +2493,7 @@ void Platform::EnableLocalDrivers(size_t axisOrExtruder)
 }
 
 // Disable the drivers for a drive
-void Platform::DisableDrivers(size_t axisOrExtruder)
+void Platform::DisableDrivers(size_t axisOrExtruder) noexcept
 {
 #if SUPPORT_CAN_EXPANSION
 	CanDriversList canDriversToDisable;
@@ -2830,7 +2513,7 @@ void Platform::DisableDrivers(size_t axisOrExtruder)
 
 // Disable all drives in an emergency. Called from emergency stop and the tick ISR.
 // This is only called in an emergency, so we don't update the driver status
-void Platform::EmergencyDisableDrivers()
+void Platform::EmergencyDisableDrivers() noexcept
 {
 	for (size_t drive = 0; drive < NumDirectDrivers; drive++)
 	{
@@ -2842,7 +2525,7 @@ void Platform::EmergencyDisableDrivers()
 	}
 }
 
-void Platform::DisableAllDrivers()
+void Platform::DisableAllDrivers() noexcept
 {
 	for (size_t axisOrExtruder = 0; axisOrExtruder < MaxAxesPlusExtruders; axisOrExtruder++)
 	{
@@ -2852,7 +2535,7 @@ void Platform::DisableAllDrivers()
 
 // Set drives to idle hold if they are enabled. If a drive is disabled, leave it alone.
 // Must not be called from an ISR, or with interrupts disabled.
-void Platform::SetDriversIdle()
+void Platform::SetDriversIdle() noexcept
 {
 	if (idleCurrentFactor == 0)
 	{
@@ -2885,7 +2568,7 @@ void Platform::SetDriversIdle()
 }
 
 // Set the current for all drivers on an axis or extruder. Current is in mA.
-bool Platform::SetMotorCurrent(size_t axisOrExtruder, float currentOrPercent, int code, const StringRef& reply)
+bool Platform::SetMotorCurrent(size_t axisOrExtruder, float currentOrPercent, int code, const StringRef& reply) noexcept
 {
 	switch (code)
 	{
@@ -2965,7 +2648,7 @@ bool Platform::SetMotorCurrent(size_t axisOrExtruder, float currentOrPercent, in
 }
 
 // This must not be called from an ISR, or with interrupts disabled.
-void Platform::UpdateMotorCurrent(size_t driver, float current)
+void Platform::UpdateMotorCurrent(size_t driver, float current) noexcept
 {
 	if (driver < NumDirectDrivers)
 	{
@@ -3040,7 +2723,7 @@ void Platform::UpdateMotorCurrent(size_t driver, float current)
 }
 
 // Get the configured motor current for an axis or extruder
-float Platform::GetMotorCurrent(size_t drive, int code) const
+float Platform::GetMotorCurrent(size_t drive, int code) const noexcept
 {
 	switch (code)
 	{
@@ -3060,7 +2743,7 @@ float Platform::GetMotorCurrent(size_t drive, int code) const
 }
 
 // Set the motor idle current factor
-void Platform::SetIdleCurrentFactor(float f)
+void Platform::SetIdleCurrentFactor(float f) noexcept
 {
 	idleCurrentFactor = constrain<float>(f, 0.0, 1.0);
 #if SUPPORT_CAN_EXPANSION
@@ -3085,7 +2768,7 @@ void Platform::SetIdleCurrentFactor(float f)
 #endif
 }
 
-void Platform::SetDriveStepsPerUnit(size_t axisOrExtruder, float value, uint32_t requestedMicrostepping)
+void Platform::SetDriveStepsPerUnit(size_t axisOrExtruder, float value, uint32_t requestedMicrostepping) noexcept
 {
 	if (requestedMicrostepping != 0)
 	{
@@ -3099,7 +2782,7 @@ void Platform::SetDriveStepsPerUnit(size_t axisOrExtruder, float value, uint32_t
 }
 
 // Set the microstepping for a driver, returning true if successful
-bool Platform::SetDriverMicrostepping(size_t driver, unsigned int microsteps, int mode)
+bool Platform::SetDriverMicrostepping(size_t driver, unsigned int microsteps, int mode) noexcept
 {
 	if (driver < NumDirectDrivers)
 	{
@@ -3127,7 +2810,7 @@ bool Platform::SetDriverMicrostepping(size_t driver, unsigned int microsteps, in
 }
 
 // Set the microstepping, returning true if successful. All drivers for the same axis must use the same microstepping.
-bool Platform::SetMicrostepping(size_t axisOrExtruder, int microsteps, bool interp, const StringRef& reply)
+bool Platform::SetMicrostepping(size_t axisOrExtruder, int microsteps, bool interp, const StringRef& reply) noexcept
 {
 	//TODO check that it is a valid microstep setting
 	microstepping[axisOrExtruder] = (interp) ? microsteps | 0x8000 : microsteps;
@@ -3173,13 +2856,13 @@ bool Platform::SetMicrostepping(size_t axisOrExtruder, int microsteps, bool inte
 }
 
 // Get the microstepping for an axis or extruder
-unsigned int Platform::GetMicrostepping(size_t drive, bool& interpolation) const
+unsigned int Platform::GetMicrostepping(size_t drive, bool& interpolation) const noexcept
 {
 	interpolation = (microstepping[drive] & 0x8000) != 0;
 	return microstepping[drive] & 0x7FFF;
 }
 
-void Platform::SetEnableValue(size_t driver, int8_t eVal)
+void Platform::SetEnableValue(size_t driver, int8_t eVal) noexcept
 {
 	if (driver < NumDirectDrivers)
 	{
@@ -3200,7 +2883,7 @@ void Platform::SetEnableValue(size_t driver, int8_t eVal)
 	}
 }
 
-void Platform::SetAxisDriversConfig(size_t axis, size_t numValues, const DriverId driverNumbers[])
+void Platform::SetAxisDriversConfig(size_t axis, size_t numValues, const DriverId driverNumbers[]) noexcept
 {
 	AxisDriversConfig& cfg = axisDrivers[axis];
 	cfg.numDrivers = numValues;
@@ -3221,7 +2904,7 @@ void Platform::SetAxisDriversConfig(size_t axis, size_t numValues, const DriverI
 }
 
 // Map an extruder to a driver
-void Platform::SetExtruderDriver(size_t extruder, DriverId driver)
+void Platform::SetExtruderDriver(size_t extruder, DriverId driver) noexcept
 {
 	extruderDrivers[extruder] = driver;
 	if (driver.IsLocal())
@@ -3237,7 +2920,7 @@ void Platform::SetExtruderDriver(size_t extruder, DriverId driver)
 	}
 }
 
-void Platform::SetDriverStepTiming(size_t driver, const float microseconds[4])
+void Platform::SetDriverStepTiming(size_t driver, const float microseconds[4]) noexcept
 {
 	const uint32_t bitmap = StepPins::CalcDriverBitmap(driver);
 	slowDriversBitmap &= ~bitmap;								// start by assuming this drive does not need extended timing
@@ -3264,7 +2947,7 @@ void Platform::SetDriverStepTiming(size_t driver, const float microseconds[4])
 }
 
 // Get the driver step timing, returning true if we are using slower timing than standard
-bool Platform::GetDriverStepTiming(size_t driver, float microseconds[4]) const
+bool Platform::GetDriverStepTiming(size_t driver, float microseconds[4]) const noexcept
 {
 	const bool isSlowDriver = ((slowDriversBitmap & StepPins::CalcDriverBitmap(driver)) != 0);
 	for (size_t i = 0; i < 4; ++i)
@@ -3278,7 +2961,7 @@ bool Platform::GetDriverStepTiming(size_t driver, float microseconds[4]) const
 
 //-----------------------------------------------------------------------------------------------------
 
-void Platform::AppendAuxReply(const char *msg, bool rawMessage)
+void Platform::AppendAuxReply(const char *msg, bool rawMessage) noexcept
 {
 #ifdef SERIAL_AUX_DEVICE
 	// Discard this response if either no aux device is attached or if the response is empty
@@ -3308,7 +2991,7 @@ void Platform::AppendAuxReply(const char *msg, bool rawMessage)
 #endif
 }
 
-void Platform::AppendAuxReply(OutputBuffer *reply, bool rawMessage)
+void Platform::AppendAuxReply(OutputBuffer *reply, bool rawMessage) noexcept
 {
 #ifdef SERIAL_AUX_DEVICE
 	// Discard this response if either no aux device is attached or if the response is empty
@@ -3345,7 +3028,7 @@ void Platform::AppendAuxReply(OutputBuffer *reply, bool rawMessage)
 }
 
 // Send the specified message to the specified destinations. The Error and Warning flags have already been handled.
-void Platform::RawMessage(MessageType type, const char *message)
+void Platform::RawMessage(MessageType type, const char *message) noexcept
 {
 #if HAS_MASS_STORAGE
 	// Deal with logging
@@ -3400,7 +3083,7 @@ void Platform::RawMessage(MessageType type, const char *message)
 		MutexLocker lock(usbMutex);
 		const char *p = message;
 		size_t len = strlen(p);
-		while (SERIAL_MAIN_DEVICE && len != 0 && !reprap.SpinTimeoutImminent())
+		while (SERIAL_MAIN_DEVICE.IsConnected() && len != 0 && !reprap.SpinTimeoutImminent())
 		{
 			const size_t written = SERIAL_MAIN_DEVICE.write(p, len);
 			len -= written;
@@ -3420,16 +3103,19 @@ void Platform::RawMessage(MessageType type, const char *message)
 			OutputBuffer *usbOutputBuffer = usbOutput.GetLastItem();
 			if (usbOutputBuffer == nullptr || usbOutputBuffer->IsReferenced())
 			{
-				if (!OutputBuffer::Allocate(usbOutputBuffer))
+				if (OutputBuffer::Allocate(usbOutputBuffer))
 				{
-					// Should never happen
-					return;
+					if (usbOutput.Push(usbOutputBuffer))
+					{
+						usbOutputBuffer->cat(message);
+					}
+					// else the message buffer has been released, so discard the message
 				}
-				usbOutput.Push(usbOutputBuffer);
 			}
-
-			// Append the message string
-			usbOutputBuffer->cat(message);
+			else
+			{
+				usbOutputBuffer->cat(message);		// append the message
+			}
 		}
 	}
 }
@@ -3437,7 +3123,7 @@ void Platform::RawMessage(MessageType type, const char *message)
 // Note: this overload of Platform::Message does not process the special action flags in the MessageType.
 // Also it treats calls to send a blocking USB message the same as ordinary USB messages,
 // and calls to send an immediate LCD message the same as ordinary LCD messages
-void Platform::Message(const MessageType type, OutputBuffer *buffer)
+void Platform::Message(const MessageType type, OutputBuffer *buffer) noexcept
 {
 #if HAS_MASS_STORAGE
 	// First deal with logging because it doesn't hang on to the buffer
@@ -3513,7 +3199,7 @@ void Platform::Message(const MessageType type, OutputBuffer *buffer)
 		if ((type & (UsbMessage | BlockingUsbMessage)) != 0)
 		{
 			MutexLocker lock(usbMutex);
-			if (   !SERIAL_MAIN_DEVICE
+			if (   !SERIAL_MAIN_DEVICE.IsConnected()
 #if SUPPORT_SCANNER
 				|| (reprap.GetScanner().IsRegistered() && !reprap.GetScanner().DoingGCodes())
 #endif
@@ -3538,7 +3224,7 @@ void Platform::Message(const MessageType type, OutputBuffer *buffer)
 	}
 }
 
-void Platform::MessageF(MessageType type, const char *fmt, va_list vargs)
+void Platform::MessageF(MessageType type, const char *fmt, va_list vargs) noexcept
 {
 	String<FormatStringLength> formatString;
 #if HAS_LINUX_INTERFACE
@@ -3571,7 +3257,7 @@ void Platform::MessageF(MessageType type, const char *fmt, va_list vargs)
 	RawMessage((MessageType)(type & ~(ErrorMessageFlag | WarningMessageFlag)), formatString.c_str());
 }
 
-void Platform::MessageF(MessageType type, const char *fmt, ...)
+void Platform::MessageF(MessageType type, const char *fmt, ...) noexcept
 {
 	va_list vargs;
 	va_start(vargs, fmt);
@@ -3579,7 +3265,7 @@ void Platform::MessageF(MessageType type, const char *fmt, ...)
 	va_end(vargs);
 }
 
-void Platform::Message(MessageType type, const char *message)
+void Platform::Message(MessageType type, const char *message) noexcept
 {
 #if HAS_LINUX_INTERFACE
 	if ((type & GenericMessage) == GenericMessage || (type & BinaryCodeReplyFlag) != 0)
@@ -3610,7 +3296,7 @@ void Platform::Message(MessageType type, const char *message)
 // sParam = 1 As for 0 but display a Close button as well
 // sParam = 2 Display the message box with an OK button, wait for acknowledgement (waiting is set up by the caller)
 // sParam = 3 As for 2 but also display a Cancel button
-void Platform::SendAlert(MessageType mt, const char *message, const char *title, int sParam, float tParam, AxesBitmap controls)
+void Platform::SendAlert(MessageType mt, const char *message, const char *title, int sParam, float tParam, AxesBitmap controls) noexcept
 {
 	if ((mt & (HttpMessage | AuxMessage | BinaryCodeReplyFlag)) != 0)
 	{
@@ -3683,7 +3369,7 @@ GCodeResult Platform::ConfigureLogging(GCodeBuffer& gb, const StringRef& reply)
 #endif
 
 // This is called from EmergencyStop. It closes the log file and stops logging.
-void Platform::StopLogging()
+void Platform::StopLogging() noexcept
 {
 #if HAS_MASS_STORAGE
 	if (logger != nullptr)
@@ -3693,7 +3379,7 @@ void Platform::StopLogging()
 #endif
 }
 
-bool Platform::AtxPower() const
+bool Platform::AtxPower() const noexcept
 {
 #ifdef __LPC17xx__
     bool val = IoPort::ReadPin(ATX_POWER_PIN);
@@ -3703,7 +3389,7 @@ bool Platform::AtxPower() const
 #endif
 }
 
-void Platform::AtxPowerOn()
+void Platform::AtxPowerOn() noexcept
 {
 	deferredPowerDown = false;
 #ifdef __LPC17xx__
@@ -3713,7 +3399,7 @@ void Platform::AtxPowerOn()
 #endif
 }
 
-void Platform::AtxPowerOff(bool defer)
+void Platform::AtxPowerOff(bool defer) noexcept
 {
 	deferredPowerDown = defer;
 	if (!defer)
@@ -3734,7 +3420,7 @@ void Platform::AtxPowerOff(bool defer)
 	}
 }
 
-GCodeResult Platform::SetPressureAdvance(float advance, GCodeBuffer& gb, const StringRef& reply)
+GCodeResult Platform::SetPressureAdvance(float advance, GCodeBuffer& gb, const StringRef& reply) noexcept
 {
 	GCodeResult rslt = GCodeResult::ok;
 
@@ -3805,7 +3491,7 @@ GCodeResult Platform::SetPressureAdvance(float advance, GCodeBuffer& gb, const S
 
 #if SUPPORT_NONLINEAR_EXTRUSION
 
-bool Platform::GetExtrusionCoefficients(size_t extruder, float& a, float& b, float& limit) const
+bool Platform::GetExtrusionCoefficients(size_t extruder, float& a, float& b, float& limit) const noexcept
 {
 	if (extruder < MaxExtruders)
 	{
@@ -3817,7 +3503,7 @@ bool Platform::GetExtrusionCoefficients(size_t extruder, float& a, float& b, flo
 	return false;
 }
 
-void Platform::SetNonlinearExtrusion(size_t extruder, float a, float b, float limit)
+void Platform::SetNonlinearExtrusion(size_t extruder, float a, float b, float limit) noexcept
 {
 	if (extruder < MaxExtruders && nonlinearExtrusionLimit[extruder] > 0.0)
 	{
@@ -3829,7 +3515,7 @@ void Platform::SetNonlinearExtrusion(size_t extruder, float a, float b, float li
 
 #endif
 
-void Platform::SetBaudRate(size_t chan, uint32_t br)
+void Platform::SetBaudRate(size_t chan, uint32_t br) noexcept
 {
 	if (chan < NUM_SERIAL_CHANNELS)
 	{
@@ -3838,12 +3524,12 @@ void Platform::SetBaudRate(size_t chan, uint32_t br)
 	}
 }
 
-uint32_t Platform::GetBaudRate(size_t chan) const
+uint32_t Platform::GetBaudRate(size_t chan) const noexcept
 {
 	return (chan < NUM_SERIAL_CHANNELS) ? baudRates[chan] : 0;
 }
 
-void Platform::SetCommsProperties(size_t chan, uint32_t cp)
+void Platform::SetCommsProperties(size_t chan, uint32_t cp) noexcept
 {
 	if (chan < NUM_SERIAL_CHANNELS)
 	{
@@ -3852,13 +3538,13 @@ void Platform::SetCommsProperties(size_t chan, uint32_t cp)
 	}
 }
 
-uint32_t Platform::GetCommsProperties(size_t chan) const
+uint32_t Platform::GetCommsProperties(size_t chan) const noexcept
 {
 	return (chan < NUM_SERIAL_CHANNELS) ? commsParams[chan] : 0;
 }
 
 // Re-initialise a serial channel.
-void Platform::ResetChannel(size_t chan)
+void Platform::ResetChannel(size_t chan) noexcept
 {
 	switch(chan)
 	{
@@ -3890,7 +3576,7 @@ void Platform::ResetChannel(size_t chan)
 	}
 }
 
-void Platform::SetBoardType(BoardType bt)
+void Platform::SetBoardType(BoardType bt) noexcept
 {
 	if (bt == BoardType::Auto)
 	{
@@ -3957,7 +3643,7 @@ void Platform::SetBoardType(BoardType bt)
 }
 
 // Get a string describing the electronics
-const char* Platform::GetElectronicsString() const
+const char* Platform::GetElectronicsString() const noexcept
 {
 	switch (board)
 	{
@@ -3994,7 +3680,7 @@ const char* Platform::GetElectronicsString() const
 }
 
 // Get the board string
-const char* Platform::GetBoardString() const
+const char* Platform::GetBoardString() const noexcept
 {
 	switch (board)
 	{
@@ -4039,7 +3725,7 @@ const char* Platform::GetBoardString() const
 
 #ifdef DUET_NG
 // Return true if this is a Duet WiFi, false if it is a Duet Ethernet
-bool Platform::IsDuetWiFi() const
+bool Platform::IsDuetWiFi() const noexcept
 {
 	return board == BoardType::DuetWiFi_10 || board == BoardType::DuetWiFi_102;
 }
@@ -4048,13 +3734,13 @@ bool Platform::IsDuetWiFi() const
 #if HAS_MASS_STORAGE
 
 // Where the system files are. Not thread safe!
-const char* Platform::InternalGetSysDir() const
+const char* Platform::InternalGetSysDir() const noexcept
 {
 	return (sysDir != nullptr) ? sysDir : DEFAULT_SYS_DIR;
 }
 
 // Open a file
-FileStore* Platform::OpenFile(const char* folder, const char* fileName, OpenMode mode, uint32_t preAllocSize) const
+FileStore* Platform::OpenFile(const char* folder, const char* fileName, OpenMode mode, uint32_t preAllocSize) const noexcept
 {
 	String<MaxFilenameLength> location;
 	return (MassStorage::CombineName(location.GetRef(), folder, fileName))
@@ -4062,26 +3748,26 @@ FileStore* Platform::OpenFile(const char* folder, const char* fileName, OpenMode
 				: nullptr;
 }
 
-bool Platform::Delete(const char* folder, const char *filename) const
+bool Platform::Delete(const char* folder, const char *filename) const noexcept
 {
 	String<MaxFilenameLength> location;
 	return MassStorage::CombineName(location.GetRef(), folder, filename) && MassStorage::Delete(location.c_str());
 }
 
-bool Platform::FileExists(const char* folder, const char *filename) const
+bool Platform::FileExists(const char* folder, const char *filename) const noexcept
 {
 	String<MaxFilenameLength> location;
 	return MassStorage::CombineName(location.GetRef(), folder, filename) && MassStorage::FileExists(location.c_str());
 }
 
-bool Platform::DirectoryExists(const char *folder, const char *dir) const
+bool Platform::DirectoryExists(const char *folder, const char *dir) const noexcept
 {
 	String<MaxFilenameLength> location;
 	return MassStorage::CombineName(location.GetRef(), folder, dir) && MassStorage::DirectoryExists(location.c_str());
 }
 
 // Set the system files path
-GCodeResult Platform::SetSysDir(const char* dir, const StringRef& reply)
+GCodeResult Platform::SetSysDir(const char* dir, const StringRef& reply) noexcept
 {
 	String<MaxFilenameLength> newSysDir;
 	MutexLocker lock(Tasks::GetSysDirMutex());
@@ -4101,13 +3787,13 @@ GCodeResult Platform::SetSysDir(const char* dir, const StringRef& reply)
 	return GCodeResult::ok;
 }
 
-bool Platform::SysFileExists(const char *filename) const
+bool Platform::SysFileExists(const char *filename) const noexcept
 {
 	String<MaxFilenameLength> location;
 	return MakeSysFileName(location.GetRef(), filename) && MassStorage::FileExists(location.c_str());
 }
 
-FileStore* Platform::OpenSysFile(const char *filename, OpenMode mode) const
+FileStore* Platform::OpenSysFile(const char *filename, OpenMode mode) const noexcept
 {
 	String<MaxFilenameLength> location;
 	return (MakeSysFileName(location.GetRef(), filename))
@@ -4115,19 +3801,19 @@ FileStore* Platform::OpenSysFile(const char *filename, OpenMode mode) const
 				: nullptr;
 }
 
-bool Platform::DeleteSysFile(const char *filename) const
+bool Platform::DeleteSysFile(const char *filename) const noexcept
 {
 	String<MaxFilenameLength> location;
 	return MakeSysFileName(location.GetRef(), filename) && MassStorage::Delete(location.c_str());
 }
 
-bool Platform::MakeSysFileName(const StringRef& result, const char *filename) const
+bool Platform::MakeSysFileName(const StringRef& result, const char *filename) const noexcept
 {
 	MutexLocker lock(Tasks::GetSysDirMutex());
 	return MassStorage::CombineName(result, InternalGetSysDir(), filename);
 }
 
-void Platform::GetSysDir(const StringRef & path) const
+void Platform::GetSysDir(const StringRef & path) const noexcept
 {
 	MutexLocker lock(Tasks::GetSysDirMutex());
 	path.copy(InternalGetSysDir());
@@ -4137,14 +3823,14 @@ void Platform::GetSysDir(const StringRef & path) const
 
 // CNC and laser support
 
-void Platform::SetLaserPwm(Pwm_t pwm)
+void Platform::SetLaserPwm(Pwm_t pwm) noexcept
 {
 	lastLaserPwm = (float)pwm/65535;
 	laserPort.WriteAnalog(lastLaserPwm);			// we don't currently have an function that accepts an integer PWM fraction
 }
 
 // Return laser PWM in 0..1
-float Platform::GetLaserPwm() const
+float Platform::GetLaserPwm() const noexcept
 {
 	return lastLaserPwm;
 }
@@ -4159,13 +3845,13 @@ bool Platform::AssignLaserPin(GCodeBuffer& gb, const StringRef& reply)
 	return ok;
 }
 
-void Platform::SetLaserPwmFrequency(PwmFrequency freq)
+void Platform::SetLaserPwmFrequency(PwmFrequency freq) noexcept
 {
 	laserPort.SetFrequency(freq);
 }
 
 // Axis limits
-void Platform::SetAxisMaximum(size_t axis, float value, bool byProbing)
+void Platform::SetAxisMaximum(size_t axis, float value, bool byProbing) noexcept
 {
 	axisMaxima[axis] = value;
 	if (byProbing)
@@ -4174,7 +3860,7 @@ void Platform::SetAxisMaximum(size_t axis, float value, bool byProbing)
 	}
 }
 
-void Platform::SetAxisMinimum(size_t axis, float value, bool byProbing)
+void Platform::SetAxisMinimum(size_t axis, float value, bool byProbing) noexcept
 {
 	axisMinima[axis] = value;
 	if (byProbing)
@@ -4183,12 +3869,12 @@ void Platform::SetAxisMinimum(size_t axis, float value, bool byProbing)
 	}
 }
 
-ZProbeType Platform::GetCurrentZProbeType() const
+ZProbeType Platform::GetCurrentZProbeType() const noexcept
 {
 	return endstops.GetCurrentZProbe().GetProbeType();
 }
 
-void Platform::InitZProbeFilters()
+void Platform::InitZProbeFilters() noexcept
 {
 	zProbeOnFilter.Init(0);
 	zProbeOffFilter.Init(0);
@@ -4199,7 +3885,7 @@ void Platform::InitZProbeFilters()
 // Fire the inkjet (if any) in the given pattern
 // If there is no inkjet, false is returned; if there is one this returns true
 // So you can test for inkjet presence with if(platform->Inkjet(0))
-bool Platform::Inkjet(int bitPattern)
+bool Platform::Inkjet(int bitPattern) noexcept
 {
 	if (inkjetBits < 0)
 		return false;
@@ -4241,7 +3927,7 @@ bool Platform::Inkjet(int bitPattern)
 
 #if HAS_CPU_TEMP_SENSOR
 // CPU temperature
-void Platform::GetMcuTemperatures(float& minT, float& currT, float& maxT) const
+void Platform::GetMcuTemperatures(float& minT, float& currT, float& maxT) const noexcept
 {
 	minT = AdcReadingToCpuTemperature(lowestMcuTemperature);
 	currT = AdcReadingToCpuTemperature(adcFilters[CpuTempFilterIndex].GetSum());
@@ -4252,14 +3938,14 @@ void Platform::GetMcuTemperatures(float& minT, float& currT, float& maxT) const
 #if HAS_VOLTAGE_MONITOR
 
 // Power in voltage
-void Platform::GetPowerVoltages(float& minV, float& currV, float& maxV) const
+void Platform::GetPowerVoltages(float& minV, float& currV, float& maxV) const noexcept
 {
 	minV = AdcReadingToPowerVoltage(lowestVin);
 	currV = AdcReadingToPowerVoltage(currentVin);
 	maxV = AdcReadingToPowerVoltage(highestVin);
 }
 
-float Platform::GetCurrentPowerVoltage() const
+float Platform::GetCurrentPowerVoltage() const noexcept
 {
 	return AdcReadingToPowerVoltage(currentVin);
 }
@@ -4268,7 +3954,7 @@ float Platform::GetCurrentPowerVoltage() const
 
 #if HAS_12V_MONITOR
 
-void Platform::GetV12Voltages(float& minV, float& currV, float& maxV) const
+void Platform::GetV12Voltages(float& minV, float& currV, float& maxV) const noexcept
 {
 	minV = AdcReadingToPowerVoltage(lowestV12);
 	currV = AdcReadingToPowerVoltage(currentV12);
@@ -4280,7 +3966,7 @@ void Platform::GetV12Voltages(float& minV, float& currV, float& maxV) const
 #if HAS_SMART_DRIVERS
 
 // TMC driver temperatures
-float Platform::GetTmcDriversTemperature(unsigned int board) const
+float Platform::GetTmcDriversTemperature(unsigned int board) const noexcept
 {
 #if defined(DUET3)
 	const uint16_t mask = LowestNBits<uint16_t>(6);					// there are 6 drivers, only one board
@@ -4514,7 +4200,7 @@ GCodeResult Platform::ConfigureStallDetection(GCodeBuffer& gb, const StringRef& 
 
 // Real-time clock
 
-bool Platform::SetDateTime(time_t time)
+bool Platform::SetDateTime(time_t time) noexcept
 {
 	struct tm brokenDateTime;
 	const bool ok = (gmtime_r(&time, &brokenDateTime) != nullptr);
@@ -4566,28 +4252,6 @@ GCodeResult Platform::ConfigurePort(GCodeBuffer& gb, const StringRef& reply)
 	}
 }
 
-#if 0//SUPPORT_CAN_EXPANSION
-	if (gb.Seen('C'))
-	{
-		String<StringLength20> portName;
-		if (!gb.GetReducedString(portName.GetRef()))
-		{
-			const CanAddress baddr = IoPort::RemoveBoardAddress(portName.GetRef());
-			//TODO: what if the board number has changed?
-			if (baddr != 0)
-			{
-				CanMessageGenericConstructor cons(M950Params);
-				if (!cons.PopulateFromCommand(gb, reply))
-				{
-					return GCodeResult::error;
-				}
-				return cons.SendAndGetResponse(CanMessageType::m950, baddr, reply);
-			}
-		}
-	}
-#endif
-
-
 GCodeResult Platform::ConfigureGpioOrServo(uint32_t gpioNumber, bool isServo, GCodeBuffer& gb, const StringRef& reply)
 {
 	if (gpioNumber < MaxGpioPorts)
@@ -4599,7 +4263,7 @@ GCodeResult Platform::ConfigureGpioOrServo(uint32_t gpioNumber, bool isServo, GC
 			freq = gb.GetPwmFrequency();
 		}
 
-		PwmPort& port = gpioPorts[gpioNumber];
+		GpOutputPort& gpPort = gpioPorts[gpioNumber];
 		if (gb.Seen('C'))
 		{
 			String<StringLength50> pinName;
@@ -4609,32 +4273,71 @@ GCodeResult Platform::ConfigureGpioOrServo(uint32_t gpioNumber, bool isServo, GC
 				return GCodeResult::error;
 			}
 
+			// Remove any existing assignment
 #if SUPPORT_CAN_EXPANSION
-			const CanAddress board = IoPort::RemoveBoardAddress(pinName.GetRef());
-			if (board != CanId::MasterAddress)
+			if (gpPort.boardAddress != CanId::MasterAddress)
 			{
-				reply.printf("Remote GPIO/Servo ports not supported yet");
-				return GCodeResult::error;
+				CanMessageGenericConstructor cons(M950GpioParams);
+				cons.AddUParam('P', gpioNumber);
+				cons.AddStringParam('C', NoPinName);
+				if (cons.SendAndGetResponse(CanMessageType::m950Gpio, gpPort.boardAddress, reply) != GCodeResult::ok)
+				{
+					reprap.GetPlatform().Message(WarningMessage, reply.c_str());
+					reply.Clear();
+				}
+				gpPort.boardAddress = CanId::MasterAddress;
 			}
 #endif
-			if (!port.AssignPort(pinName.c_str(), reply, PinUsedBy::gpio, (isServo) ? PinAccess::servo : PinAccess::pwm))
-			{
-				return GCodeResult::error;
-			}
+			gpPort.port.Release();
+
 			if (!seenFreq)
 			{
 				freq = (isServo) ? ServoRefreshFrequency : DefaultPinWritePwmFreq;
 			}
-            port.SetFrequency(freq);
+
+#if SUPPORT_CAN_EXPANSION
+			gpPort.boardAddress = IoPort::RemoveBoardAddress(pinName.GetRef());
+			if (gpPort.boardAddress != CanId::MasterAddress)
+			{
+				CanMessageGenericConstructor cons(M950GpioParams);
+				cons.AddUParam('P', gpioNumber);
+				cons.AddUParam('Q', freq);
+				cons.AddUParam('S', (isServo) ? 1 : 0);
+				cons.AddStringParam('C', pinName.c_str());
+				return cons.SendAndGetResponse(CanMessageType::m950Gpio, gpPort.boardAddress, reply);
+			}
+#endif
+			if (!gpPort.port.AssignPort(pinName.c_str(), reply, PinUsedBy::gpio, (isServo) ? PinAccess::servo : PinAccess::pwm))
+			{
+				return GCodeResult::error;
+			}
+			gpPort.port.SetFrequency(freq);
 		}
 		else if (seenFreq)
 		{
-            port.SetFrequency(freq);
+#if SUPPORT_CAN_EXPANSION
+			if (gpPort.boardAddress != CanId::MasterAddress)
+			{
+				CanMessageGenericConstructor cons(M950GpioParams);
+				cons.AddUParam('P', gpioNumber);
+				cons.AddUParam('Q', freq);
+				return cons.SendAndGetResponse(CanMessageType::m950Gpio, gpPort.boardAddress, reply);
+			}
+#endif
+			gpPort.port.SetFrequency(freq);
 		}
 		else
 		{
+#if SUPPORT_CAN_EXPANSION
+			if (gpPort.boardAddress != CanId::MasterAddress)
+			{
+				CanMessageGenericConstructor cons(M950GpioParams);
+				cons.AddUParam('P', gpioNumber);
+				return cons.SendAndGetResponse(CanMessageType::m950Gpio, gpPort.boardAddress, reply);
+			}
+#endif
 			reply.printf("GPIO/servo port %" PRIu32, gpioNumber);
-			port.AppendDetails(reply);
+			gpPort.port.AppendDetails(reply);
 		}
 		return GCodeResult::ok;
 	}
@@ -4674,7 +4377,7 @@ GCodeResult Platform::GetSetAncillaryPwm(GCodeBuffer& gb, const StringRef& reply
 #if SAM4E || SAM4S || SAME70
 
 // Get a pseudo-random number
-uint32_t Platform::Random()
+uint32_t Platform::Random() noexcept
 {
 	const uint32_t clocks = StepTimer::GetTimerTicks();
 	return clocks ^ uniqueId[0] ^ uniqueId[1] ^ uniqueId[2] ^ uniqueId[3];
@@ -4692,7 +4395,7 @@ uint32_t Platform::Random()
 // 3b. If the last ADC reading was a thermistor reading, check for an over-temperature situation and turn off the heater if necessary.
 //     We do this here because the usual polling loop sometimes gets stuck trying to send data to the USB port.
 
-void Platform::Tick()
+void Platform::Tick() noexcept
 {
 	AnalogInFinaliseConversion();
 

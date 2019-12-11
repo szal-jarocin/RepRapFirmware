@@ -22,15 +22,15 @@ class RTOSPlusTCPEthernetServerSocket
 {
 public:
     
-    static RTOSPlusTCPEthernetServerSocket *Instance();
-    Socket_t GetServerSocket(Port serverPort, NetworkProtocol p);
-	void CloseServerSocket(NetworkProtocol p);
-    void CloseProtocol(NetworkProtocol p);
-    void CloseAllProtocols();
+    static RTOSPlusTCPEthernetServerSocket *Instance() noexcept;
+    Socket_t GetServerSocket(Port serverPort, NetworkProtocol p) noexcept;
+	void CloseServerSocket(NetworkProtocol p) noexcept;
+    void CloseProtocol(NetworkProtocol p) noexcept;
+    void CloseAllProtocols() noexcept;
     
     
 private:
-    RTOSPlusTCPEthernetServerSocket();
+    RTOSPlusTCPEthernetServerSocket() noexcept;
 
     Socket_t protocolServerSockets[NumProtocols]; // Server for each Protocol (assuming socket reuse is false (default in +tcp))
     static RTOSPlusTCPEthernetServerSocket *serverSocketInstance;

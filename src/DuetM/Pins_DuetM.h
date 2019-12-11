@@ -12,7 +12,21 @@
 #define DEFAULT_BOARD_TYPE BoardType::DuetM_10
 constexpr size_t NumFirmwareUpdateModules = 1;		// 1 module
 #define IAP_FIRMWARE_FILE	"DuetMaestroFirmware.bin"
-#define IAP_UPDATE_FILE		"iap4s.bin"
+
+#define IAP_IN_RAM				1
+
+#if IAP_IN_RAM
+
+# define IAP_UPDATE_FILE		"DuetMaestroIAP.bin"
+constexpr uint32_t IAP_IMAGE_START = 0x20010000;
+
+#else
+
+# define IAP_UPDATE_FILE		"iap4s.bin"
+constexpr uint32_t IAP_IMAGE_START = 0x00470000;
+constexpr uint32_t IAP_IMAGE_END = 0x0047FFFF;								// we allow a full 64K on the SAM4
+
+#endif
 
 // Features definition
 #define HAS_LWIP_NETWORKING		0
@@ -186,7 +200,7 @@ enum class PinCapability: uint8_t
 	ainrwpwm = 1|2|4|8
 };
 
-constexpr inline PinCapability operator|(PinCapability a, PinCapability b)
+constexpr inline PinCapability operator|(PinCapability a, PinCapability b) noexcept
 {
 	return (PinCapability)((uint8_t)a | (uint8_t)b);
 }
@@ -195,9 +209,9 @@ constexpr inline PinCapability operator|(PinCapability a, PinCapability b)
 // This can be varied to suit the hardware. It is a struct not a class so that it can be direct initialised in read-only memory.
 struct PinEntry
 {
-	Pin GetPin() const { return pin; }
-	PinCapability GetCapability() const { return cap; }
-	const char* GetNames() const { return names; }
+	Pin GetPin() const noexcept { return pin; }
+	PinCapability GetCapability() const noexcept { return cap; }
+	const char* GetNames() const noexcept { return names; }
 
 	Pin pin;
 	PinCapability cap;
@@ -251,17 +265,13 @@ constexpr PinEntry PinTable[] =
 constexpr unsigned int NumNamedPins = ARRAY_SIZE(PinTable);
 
 // Function to look up a pin name pass back the corresponding index into the pin table
-bool LookupPinName(const char *pn, LogicalPin& lpin, bool& hardwareInverted);
+bool LookupPinName(const char *pn, LogicalPin& lpin, bool& hardwareInverted) noexcept;
 
 // Default pin allocations
 constexpr const char *DefaultEndstopPinNames[] = { "xstop", "ystop", "zstop" };
 constexpr const char *DefaultZProbePinNames = "^zprobe.in+zprobe.mod";
 constexpr const char *DefaultFanPinNames[] = { "fan0", "fan1", "fan2" };
 constexpr PwmFrequency DefaultFanPwmFrequencies[] = { DefaultFanPwmFreq };
-
-// SAM4S Flash locations (may be expanded in the future)
-constexpr uint32_t IAP_FLASH_START = 0x00470000;
-constexpr uint32_t IAP_FLASH_END = 0x0047FFFF;								// we allow a full 64K on the SAM4
 
 // Duet pin numbers to control the W5500 interface
 constexpr Pin W5500ResetPin = PortCPin(13);									// Low on this in holds the W5500 in reset
@@ -288,7 +298,7 @@ namespace StepPins
 	// All our step pins are on port C, so the bitmap is just the map of step bits in port C.
 
 	// Calculate the step bit for a driver. This doesn't need to be fast. It must return 0 if the driver is remote.
-	static inline uint32_t CalcDriverBitmap(size_t driver)
+	static inline uint32_t CalcDriverBitmap(size_t driver) noexcept
 	{
 		return (driver < NumDirectDrivers)
 				? g_APinDescription[STEP_PINS[driver]].ulPin
@@ -298,7 +308,7 @@ namespace StepPins
 	// Set the specified step pins high
 	// This needs to be as fast as possible, so we do a parallel write to the port(s).
 	// We rely on only those port bits that are step pins being set in the PIO_OWSR register of each port
-	static inline void StepDriversHigh(uint32_t driverMap)
+	static inline void StepDriversHigh(uint32_t driverMap) noexcept
 	{
 		PIOC->PIO_ODSR = driverMap;				// on Duet Maestro all step pins are on port C
 	}
@@ -306,7 +316,7 @@ namespace StepPins
 	// Set all step pins low
 	// This needs to be as fast as possible, so we do a parallel write to the port(s).
 	// We rely on only those port bits that are step pins being set in the PIO_OWSR register of each port
-	static inline void StepDriversLow()
+	static inline void StepDriversLow() noexcept
 	{
 		PIOC->PIO_ODSR = 0;						// on Duet Maestro all step pins are on port C
 	}

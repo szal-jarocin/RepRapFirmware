@@ -17,7 +17,7 @@ RTOSPlusTCPEthernetServerSocket *RTOSPlusTCPEthernetServerSocket::serverSocketIn
 
 //***************************************************************************************************
 
-/*static*/ RTOSPlusTCPEthernetServerSocket *RTOSPlusTCPEthernetServerSocket::Instance()
+/*static*/ RTOSPlusTCPEthernetServerSocket *RTOSPlusTCPEthernetServerSocket::Instance() noexcept
 {
     
     if( serverSocketInstance == nullptr ){
@@ -30,7 +30,7 @@ RTOSPlusTCPEthernetServerSocket *RTOSPlusTCPEthernetServerSocket::serverSocketIn
 }
 
 
-RTOSPlusTCPEthernetServerSocket::RTOSPlusTCPEthernetServerSocket()
+RTOSPlusTCPEthernetServerSocket::RTOSPlusTCPEthernetServerSocket() noexcept
 {
     for(NetworkProtocol i=0; i<NumProtocols; i++)
     {
@@ -39,7 +39,7 @@ RTOSPlusTCPEthernetServerSocket::RTOSPlusTCPEthernetServerSocket()
 }
 
 // Initialise a TCP socket
-Socket_t RTOSPlusTCPEthernetServerSocket::GetServerSocket(Port serverPort, NetworkProtocol p)
+Socket_t RTOSPlusTCPEthernetServerSocket::GetServerSocket(Port serverPort, NetworkProtocol p) noexcept
 {
     static const TickType_t xReceiveTimeOut = 1; // time (in ticks) to wait for FreeRTOS_accept .. portMax_DELAY would wait indefinetly (block until client connection)
     static const TickType_t xSendTimeOut = 1;
@@ -140,7 +140,7 @@ Socket_t RTOSPlusTCPEthernetServerSocket::GetServerSocket(Port serverPort, Netwo
 }
 
 
-void RTOSPlusTCPEthernetServerSocket::CloseProtocol(NetworkProtocol p)
+void RTOSPlusTCPEthernetServerSocket::CloseProtocol(NetworkProtocol p) noexcept
 {
     
     FreeRTOS_shutdown( protocolServerSockets[p], FREERTOS_SHUT_RDWR ); //perform graceful shutdown
@@ -148,7 +148,7 @@ void RTOSPlusTCPEthernetServerSocket::CloseProtocol(NetworkProtocol p)
     protocolServerSockets[p] = nullptr;
 }
 
-void RTOSPlusTCPEthernetServerSocket::CloseAllProtocols()
+void RTOSPlusTCPEthernetServerSocket::CloseAllProtocols() noexcept
 {
     for(NetworkProtocol i=0; i<NumProtocols; i++ )
     {

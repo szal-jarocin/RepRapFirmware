@@ -45,34 +45,34 @@ class Platform;
 class RTOSPlusTCPEthernetInterface : public NetworkInterface
 {
 public:
-	RTOSPlusTCPEthernetInterface(Platform& p);
+	RTOSPlusTCPEthernetInterface(Platform& p) noexcept;
 
-	void Init() override;
-	void Activate() override;
-	void Exit() override;
-	void Spin(bool full) override;
-	void Diagnostics(MessageType mtype) override;
+	void Init() noexcept override;
+	void Activate() noexcept override;
+	void Exit() noexcept override;
+	void Spin() noexcept override;
+	void Diagnostics(MessageType mtype) noexcept override;
 
-	GCodeResult EnableInterface(int mode, const StringRef& ssid, const StringRef& reply) override;			// enable or disable the network
-	GCodeResult EnableProtocol(NetworkProtocol protocol, int port, int secure, const StringRef& reply) override;
-	GCodeResult DisableProtocol(NetworkProtocol protocol, const StringRef& reply) override;
-	GCodeResult ReportProtocols(const StringRef& reply) const override;
+	GCodeResult EnableInterface(int mode, const StringRef& ssid, const StringRef& reply) noexcept override;			// enable or disable the network
+	GCodeResult EnableProtocol(NetworkProtocol protocol, int port, int secure, const StringRef& reply) noexcept override;
+	GCodeResult DisableProtocol(NetworkProtocol protocol, const StringRef& reply) noexcept override;
+	GCodeResult ReportProtocols(const StringRef& reply) const noexcept override;
 
-	GCodeResult GetNetworkState(const StringRef& reply) override;
-	int EnableState() const override;
-	bool InNetworkStack() const override { return false; }
-	bool IsWiFiInterface() const override { return false; }
+	GCodeResult GetNetworkState(const StringRef& reply) noexcept override;
+	int EnableState() const noexcept override;
+	bool InNetworkStack() const noexcept override { return false; }
+	bool IsWiFiInterface() const noexcept override { return false; }
 
-	void UpdateHostname(const char *name) override { }
+	void UpdateHostname(const char *name) noexcept override { }
 	//const uint8_t *GetIPAddress() const override { return ipAddress; }
-    IPAddress GetIPAddress() const override { return ipAddress; }
-    void SetIPAddress(IPAddress p_ip, IPAddress p_netmask, IPAddress p_gateway) override;
+    IPAddress GetIPAddress() const noexcept override { return ipAddress; }
+    void SetIPAddress(IPAddress p_ip, IPAddress p_netmask, IPAddress p_gateway) noexcept override;
 
-	void SetMacAddress(const uint8_t mac[]) override;
-	const uint8_t *GetMacAddress() const override { return macAddress; }
+	void SetMacAddress(const uint8_t mac[]) noexcept override;
+	const uint8_t *GetMacAddress() const noexcept override { return macAddress; }
 
-	void OpenDataPort(Port port) override;
-	void TerminateDataPort() override;
+	void OpenDataPort(Port port) noexcept override;
+	void TerminateDataPort() noexcept override;
     
 protected:
     DECLARE_OBJECT_MODEL
@@ -89,43 +89,41 @@ private:
 		active						// network running
 	};
 
-	void Start();
-	void Stop();
-	void InitSockets();
-	void TerminateSockets();
+	void Start() noexcept;
+	void Stop() noexcept;
+	void InitSockets() noexcept;
+	void TerminateSockets() noexcept;
 
-	void StartProtocol(NetworkProtocol protocol)
+	void StartProtocol(NetworkProtocol protocol) noexcept
 	pre(protocol < NumProtocols);
 
-	void ShutdownProtocol(NetworkProtocol protocol)
+	void ShutdownProtocol(NetworkProtocol protocol) noexcept
 	pre(protocol < NumProtocols);
 
-	void ReportOneProtocol(NetworkProtocol protocol, const StringRef& reply) const
+	void ReportOneProtocol(NetworkProtocol protocol, const StringRef& reply) const  noexcept
 	pre(protocol < NumProtocols);
 
-	void SetIPAddress(const uint8_t p_ipAddress[], const uint8_t p_netmask[], const uint8_t p_gateway[]);
-	Platform& platform;
-	uint32_t lastTickMillis;
+	void SetIPAddress(const uint8_t p_ipAddress[], const uint8_t p_netmask[], const uint8_t p_gateway[]) noexcept;
 
-	RTOSPlusTCPEthernetSocket *sockets[NumRTOSPlusTCPEthernetTcpSockets];
-	size_t nextSocketToPoll;						// next TCP socket number to poll for read/write operations
-
-	Port portNumbers[NumProtocols];					// port number used for each protocol
-	bool protocolEnabled[NumProtocols];				// whether each protocol is enabled
-
-    
-    void ProcessIPApplication( eIPCallbackEvent_t eNetworkEvent );
-    eDHCPCallbackAnswer_t ProcessDHCPHook( eDHCPCallbackPhase_t eDHCPPhase, uint32_t ulIPAddress );
-    const char *ProcessApplicationHostnameHook();
-    BaseType_t ProcessDNSQueryHook(const char *pcName);
+    void ProcessIPApplication( eIPCallbackEvent_t eNetworkEvent )  noexcept;
+    eDHCPCallbackAnswer_t ProcessDHCPHook( eDHCPCallbackPhase_t eDHCPPhase, uint32_t ulIPAddress ) noexcept;
+    const char *ProcessApplicationHostnameHook() noexcept;
+    BaseType_t ProcessDNSQueryHook(const char *pcName) noexcept;
     
     friend void vApplicationIPNetworkEventHook( eIPCallbackEvent_t eNetworkEvent );
     friend eDHCPCallbackAnswer_t xApplicationDHCPHook( eDHCPCallbackPhase_t eDHCPPhase, uint32_t ulIPAddress );
     friend const char *pcApplicationHostnameHook( void );
     friend BaseType_t xApplicationDNSQueryHook( const char *pcName );
     
+    Platform& platform;
+    uint32_t lastTickMillis;
 
-    
+    RTOSPlusTCPEthernetSocket *sockets[NumRTOSPlusTCPEthernetTcpSockets];
+    size_t nextSocketToPoll;                        // next TCP socket number to poll for read/write operations
+
+    Port portNumbers[NumProtocols];                    // port number used for each protocol
+    bool protocolEnabled[NumProtocols];                // whether each protocol is enabled
+
 	NetworkState state;
 	bool activated;
     bool initialised;
