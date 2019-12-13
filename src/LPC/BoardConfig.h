@@ -33,15 +33,15 @@ class BoardConfig {
 public:
     static void Init();
 
-    static void Diagnostics(MessageType mtype);
-    static Pin StringToPin(const char *strvalue);
+    static void Diagnostics(MessageType mtype) noexcept;
+    static Pin StringToPin(const char *strvalue) noexcept;
 
 private:
-    BoardConfig();
-    static bool GetConfigKeys(FileStore *configFile );
-    static void SetValueFromString(configValueType type, void *variable, const char *valuePtr);
-    static void PrintValue(MessageType mtype, configValueType configType, void *variable);
-    static void PrintPinArray(MessageType mtype, Pin arr[], uint16_t numEntries);
+    BoardConfig()  noexcept;
+    static bool GetConfigKeys(FileStore *configFile ) noexcept;
+    static void SetValueFromString(configValueType type, void *variable, const char *valuePtr) noexcept;
+    static void PrintValue(MessageType mtype, configValueType configType, void *variable) noexcept;
+    static void PrintPinArray(MessageType mtype, Pin arr[], uint16_t numEntries) noexcept;
 
 };
 

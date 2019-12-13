@@ -79,12 +79,12 @@ static const boardConfigEntry_t boardConfigs[]=
 };
 
 
-static inline bool isSpaceOrTab(char c)
+static inline bool isSpaceOrTab(char c) noexcept
 {
     return (c == ' ' || c == '\t');
 }
     
-BoardConfig::BoardConfig()
+BoardConfig::BoardConfig() noexcept
 {
     
 }
@@ -201,7 +201,7 @@ void BoardConfig::Init()
 
 
 //Convert a pin string into a RRF Pin
-Pin BoardConfig::StringToPin(const char *strvalue)
+Pin BoardConfig::StringToPin(const char *strvalue) noexcept
 {
     //check size.. should be 3chars or 4 chars i.e. 0.1, 2.25, 2nd char should always be .
     uint8_t len = strlen(strvalue);
@@ -229,7 +229,7 @@ Pin BoardConfig::StringToPin(const char *strvalue)
 
 
 
-void BoardConfig::PrintValue(MessageType mtype, configValueType configType, void *variable)
+void BoardConfig::PrintValue(MessageType mtype, configValueType configType, void *variable) noexcept
 {
     switch(configType)
     {
@@ -272,7 +272,7 @@ void BoardConfig::PrintValue(MessageType mtype, configValueType configType, void
 
 
 //Information printed by M122 P200
-void BoardConfig::Diagnostics(MessageType mtype)
+void BoardConfig::Diagnostics(MessageType mtype) noexcept
 {
     reprap.GetPlatform().MessageF(mtype, "== Configurable Board.txt Settings ==\n");
 
@@ -325,7 +325,7 @@ void BoardConfig::Diagnostics(MessageType mtype)
     
 }
 
-void BoardConfig::PrintPinArray(MessageType mtype, Pin arr[], uint16_t numEntries)
+void BoardConfig::PrintPinArray(MessageType mtype, Pin arr[], uint16_t numEntries) noexcept
 {
     reprap.GetPlatform().MessageF(mtype, "[ ");
     for(uint8_t i=0; i<numEntries; i++)
@@ -345,7 +345,7 @@ void BoardConfig::PrintPinArray(MessageType mtype, Pin arr[], uint16_t numEntrie
 
 
 //Set a variable from a string using the specified data type
-void BoardConfig::SetValueFromString(configValueType type, void *variable, const char *valuePtr)
+void BoardConfig::SetValueFromString(configValueType type, void *variable, const char *valuePtr) noexcept
 {
     switch(type)
     {
@@ -422,7 +422,7 @@ void BoardConfig::SetValueFromString(configValueType type, void *variable, const
 
 
 
-bool BoardConfig::GetConfigKeys(FileStore *configFile)
+bool BoardConfig::GetConfigKeys(FileStore *configFile) noexcept
 {
 
     size_t maxLineLength = 120;

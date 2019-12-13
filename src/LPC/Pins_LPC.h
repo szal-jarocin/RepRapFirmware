@@ -66,16 +66,11 @@
 #endif
 
 
-#define NO_EXTRUDER_ENDSTOPS             1    // Temporary!!!
-
-
-
 // The physical capabilities of the machine
 constexpr size_t NumDirectDrivers = 5;               // The maximum number of drives supported by the electronics
 constexpr size_t MaxSmartDrivers = 0;                // The maximum number of smart drivers
 
-constexpr size_t MaxSensorsInSystem = 32;
-typedef uint32_t SensorsBitmap;
+constexpr size_t MaxSensors = 32;
 
 constexpr size_t MaxHeaters = 3;                     // The maximum number of heaters in the machine
 constexpr size_t MaxExtraHeaterProtections = 3;      // The number of extra heater protection instances
@@ -133,8 +128,8 @@ constexpr float EXT_SHC = 0.0;
 constexpr float DefaultThermistorSeriesR = 4700.0;
 
 constexpr size_t MaxSpiTempSensors = 2;
-extern Pin SpiTempSensorCsPins[MaxSpiTempSensors]; // Digital pins the 31855s have their select lines tied to
-constexpr SSPChannel TempSensorSSPChannel = SSP0; //Conect SPI Temp sensor to SSP0
+extern Pin SpiTempSensorCsPins[MaxSpiTempSensors];  // Digital pins the 31855s have their select lines tied to
+constexpr SSPChannel TempSensorSSPChannel = SSP0;   //Connect SPI Temp sensor to SSP0
 
 #if HAS_LINUX_INTERFACE
     extern Pin LinuxTfrReadyPin;
@@ -257,10 +252,10 @@ constexpr inline PinCapability operator|(PinCapability a, PinCapability b)
 
 struct PinEntry
 {
-    bool CanDo(PinAccess access) const;
-    Pin GetPin() const { return pin; }
-    PinCapability GetCapability() const { return cap; }
-    const char* GetNames() const { return names; }
+    bool CanDo(PinAccess access) const noexcept;
+    Pin GetPin() const  noexcept{ return pin; }
+    PinCapability GetCapability() const  noexcept{ return cap; }
+    const char* GetNames() const  noexcept{ return names; }
     
     Pin pin;
     PinCapability cap;
@@ -271,7 +266,7 @@ extern PinEntry *PinTable;
 
 
 
-bool LookupPinName(const char *pn, LogicalPin& lpin, bool& hardwareInverted);
+bool LookupPinName(const char *pn, LogicalPin& lpin, bool& hardwareInverted) noexcept;
 
 constexpr const char *DefaultEndstopPinNames[] = { "nil", "nil", "nil" };
 constexpr const char *DefaultZProbePinNames = "nil";
@@ -282,7 +277,7 @@ constexpr PwmFrequency DefaultFanPwmFrequencies[] = { DefaultFanPwmFreq };
 
 //Boards
 
-bool SetBoard(const char* bn);
+bool SetBoard(const char* bn)  noexcept;
 
 constexpr size_t MaxBoardNameLength = 20;
 extern char lpcBoardName[MaxBoardNameLength];
@@ -316,6 +311,7 @@ struct BoardEntry
 
 
 
+//Known boards with built in stepper configurations and pin table 
 constexpr BoardEntry LPC_Boards[] =
 {
     {"mbed",             PinTable_Mbed,             ARRAY_SIZE(PinTable_Mbed),             mbedDefaults}, //for debugging
@@ -346,7 +342,7 @@ namespace StepPins
     // All our step pins are on port D, so the bitmap is just the map of step bits in port D.
     
     // Calculate the step bit for a driver. This doesn't need to be fast. It must return 0 if the driver is remote.
-    static inline uint32_t CalcDriverBitmap(size_t driver)
+    static inline uint32_t CalcDriverBitmap(size_t driver)  noexcept
     {
         if (driver >= NumDirectDrivers)
         {
@@ -365,8 +361,7 @@ namespace StepPins
     
     // Set the specified step pins high
     // This needs to be as fast as possible, so we do a parallel write to the port(s).
-    // We rely on only those port bits that are step pins being set in the PIO_OWSR register of each port
-    static inline void StepDriversHigh(uint32_t driverMap)
+    static inline void StepDriversHigh(uint32_t driverMap)  noexcept
     {
         if(hasStepPinsOnDifferentPorts == true )
         {
@@ -392,7 +387,7 @@ namespace StepPins
     // Set all step pins low
     // This needs to be as fast as possible, so we do a parallel write to the port(s).
     // We rely on only those port bits that are step pins being set in the STEP_DRIVER_MASK variable
-    static inline void StepDriversLow()
+    static inline void StepDriversLow() noexcept
     {
         if(hasStepPinsOnDifferentPorts == true )
         {
@@ -403,6 +398,7 @@ namespace StepPins
         }
         else
         {
+            //pins all on port 2, parallel write
             LPC_GPIO2->CLR = STEP_DRIVER_MASK; //clear only pins that are 1 in the mask
         }
     }

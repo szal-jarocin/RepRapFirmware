@@ -9,52 +9,51 @@
 //All I/Os default to input with pullup after reset (9.2.1 from manual)
 //The Smoothie Bootloader turns off Pins 2.4, 2.5, 2.6 and 2.7 which are used as Heater pins
 
-Pin TEMP_SENSE_PINS[NumThermistorInputs] =   {NoPin, NoPin, NoPin, NoPin};
+Pin TEMP_SENSE_PINS[NumThermistorInputs] = {NoPin, NoPin, NoPin, NoPin};
 Pin SpiTempSensorCsPins[MaxSpiTempSensors] = { NoPin, NoPin };
 
 Pin ATX_POWER_PIN = NoPin;
 bool ATX_POWER_INVERTED = false;
 
-
-Pin SdCardDetectPins[NumSdCards] =  { NoPin, NoPin };
-Pin SdSpiCSPins[NumSdCards] =       { P0_6, NoPin };    // Internal, external. Note:: ("slot" 0 in CORE is configured to be LCP SSP1 to match default RRF behaviour)
-uint32_t ExternalSDCardFrequency =  4000000;            //default to 4MHz
+//SDCard pins and settings
+Pin SdCardDetectPins[NumSdCards] = { NoPin, NoPin };
+Pin SdSpiCSPins[NumSdCards] =      { P0_6,  NoPin };    // Internal, external. Note:: ("slot" 0 in CORE is configured to be LCP SSP1 to match default RRF behaviour)
+uint32_t ExternalSDCardFrequency = 4000000;             //default to 4MHz
 SSPChannel ExternalSDCardSSPChannel = SSP0;             //default to SSP0
-uint32_t InternalSDCardFrequency =  25000000;           //default to 25MHz
+uint32_t InternalSDCardFrequency = 25000000;            //default to 25MHz
 
 
-Pin LcdCSPin =       NoPin; //LCD Chip Select
-Pin LcdDCPin =       NoPin;  //DataControl Pin (A0) if none used set to NoPin
-Pin LcdBeepPin =     NoPin;
-Pin EncoderPinA =    NoPin;
-Pin EncoderPinB =    NoPin;
-Pin EncoderPinSw =   NoPin; //click
-Pin PanelButtonPin = NoPin; //Extra button on Viki and RRD Panels (reset/back etc)
+Pin LcdCSPin = NoPin;               //LCD Chip Select
+Pin LcdDCPin = NoPin;               //DataControl Pin (A0) if none used set to NoPin
+Pin LcdBeepPin = NoPin;
+Pin EncoderPinA = NoPin;
+Pin EncoderPinB = NoPin;
+Pin EncoderPinSw = NoPin;           //click
+Pin PanelButtonPin = NoPin;         //Extra button on Viki and RRD Panels (reset/back etc)
 SSPChannel LcdSpiChannel = SSP0;
 
 Pin DiagPin = NoPin;
 
+//Stepper settings
 Pin ENABLE_PINS[NumDirectDrivers] =     {NoPin, NoPin, NoPin, NoPin, NoPin};
 Pin STEP_PINS[NumDirectDrivers] =       {NoPin, NoPin, NoPin, NoPin, NoPin};
 Pin DIRECTION_PINS[NumDirectDrivers] =  {NoPin, NoPin, NoPin, NoPin, NoPin};
-uint32_t STEP_DRIVER_MASK = 0; //SD: mask of the step pins on Port 2 used for writing to step pins in parallel
+uint32_t STEP_DRIVER_MASK = 0;                          //SD: mask of the step pins on Port 2 used for writing to step pins in parallel
+bool hasStepPinsOnDifferentPorts = false;               //for boards that don't have all step pins on port2
+bool hasDriverCurrentControl = false;                   //Supports digipots to set stepper current
+float digipotFactor = 113.33;                           //defualt factor for converting current to digipot value
 
-bool hasStepPinsOnDifferentPorts = false;   //for boards that don't have all step pins on port2
-bool hasDriverCurrentControl = false;
-float digipotFactor = 113.33;               //defualt factor for converting current to digipot value
-bool UARTPanelDueMode = false;              //disable PanelDue support by default
 
-Pin SoftwareSPIPins[3] = {NoPin, NoPin, NoPin}; //GPIO pins for softwareSPI (used with SharedSPI)
+Pin SoftwareSPIPins[3] = {NoPin, NoPin, NoPin};         //GPIO pins for softwareSPI (used with SharedSPI)
 
 #if defined(HAS_LINUX_INTERFACE)
-Pin LinuxTfrReadyPin = NoPin;
+    Pin LinuxTfrReadyPin = NoPin;
 #endif
 
 #if defined(ESP8266WIFI)
     Pin EspDataReadyPin = NoPin;
-    Pin SamTfrReadyPin =  NoPin;
-    Pin EspResetPin =     NoPin;
-    //Pin SamCsPin =        NoPin; 
+    Pin SamTfrReadyPin = NoPin;
+    Pin EspResetPin = NoPin;
 #endif
 
 //Default to the Generic PinTable
@@ -62,7 +61,7 @@ PinEntry *PinTable = (PinEntry *) PinTable_Generic;
 size_t NumNamedLPCPins = ARRAY_SIZE(PinTable_Generic);
 char lpcBoardName[MaxBoardNameLength] = "generic";
 
-bool IsEmptyPinArray(Pin *arr, size_t len)
+bool IsEmptyPinArray(Pin *arr, size_t len) noexcept
 {
     for(size_t i=0; i<len; i++)
     {
@@ -72,7 +71,8 @@ bool IsEmptyPinArray(Pin *arr, size_t len)
     return true;
 }
 
-void SetDefaultPinArray(const Pin *src, Pin *dst, size_t len)
+//If the dst array is empty, then copy the src array to dst array
+void SetDefaultPinArray(const Pin *src, Pin *dst, size_t len) noexcept
 {
     if(IsEmptyPinArray(dst, len))
     {
@@ -86,7 +86,7 @@ void SetDefaultPinArray(const Pin *src, Pin *dst, size_t len)
 
 
 //Find Board settings from string
-bool SetBoard(const char* bn)
+bool SetBoard(const char* bn) noexcept
 {
     const size_t numBoards = ARRAY_SIZE(LPC_Boards);
 
@@ -97,7 +97,7 @@ bool SetBoard(const char* bn)
             PinTable = (PinEntry *)LPC_Boards[i].boardPinTable;
             NumNamedLPCPins = LPC_Boards[i].numNamedEntries;
 
-            //copy defaults (if needed)
+            //copy default settings (if not set in board.txt)
             SetDefaultPinArray(LPC_Boards[i].defaults.enablePins, ENABLE_PINS, MaxTotalDrivers);
             SetDefaultPinArray(LPC_Boards[i].defaults.stepPins, STEP_PINS, MaxTotalDrivers);
             SetDefaultPinArray(LPC_Boards[i].defaults.dirPins, DIRECTION_PINS, MaxTotalDrivers);
@@ -115,7 +115,7 @@ bool SetBoard(const char* bn)
 
 // Function to look up a pin name pass back the corresponding index into the pin table
 // On this platform, the mapping from pin names to pins is fixed, so this is a simple lookup
-bool LookupPinName(const char*pn, LogicalPin& lpin, bool& hardwareInverted)
+bool LookupPinName(const char*pn, LogicalPin& lpin, bool& hardwareInverted) noexcept
 {
     if (StringEqualsIgnoreCase(pn, NoPinName))
     {
@@ -162,8 +162,8 @@ bool LookupPinName(const char*pn, LogicalPin& lpin, bool& hardwareInverted)
     }
     
     //pn did not match a label in the lookup table, so now
-    //look up by classic port.pin
-    //Note: only allocated pins already in the lookup table are suported.
+    //look up by classic port.pin format
+    //Note: only pins in the selected board lookup table are suported.
     const Pin lpcPin = BoardConfig::StringToPin(pn);
     if(lpcPin != NoPin){
         //find pin in lookup table
