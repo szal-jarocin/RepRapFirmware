@@ -19,7 +19,7 @@ const char * const Filament::FilamentAssignmentFileComment = "RepRapFirmware fil
 Filament *Filament::filamentList = nullptr;
 
 
-Filament::Filament(int extr) : extruder(extr)
+Filament::Filament(int extr) noexcept : extruder(extr)
 {
 	strcpy(name, "");
 
@@ -27,21 +27,29 @@ Filament::Filament(int extr) : extruder(extr)
 	filamentList = this;
 }
 
-void Filament::Load(const char *filamentName)
+void Filament::Load(const char *filamentName) noexcept
 {
 	SafeStrncpy(name, filamentName, ARRAY_SIZE(name));
 	Filament::SaveAssignments();
 }
 
-void Filament::Unload()
+void Filament::Unload() noexcept
 {
 	strcpy(name, "");
 	Filament::SaveAssignments();
 }
 
-void Filament::LoadAssignment()
+void Filament::LoadAssignment() noexcept
 {
 #if HAS_MASS_STORAGE
+# if HAS_LINUX_INTERFACE
+	if (reprap.UsingLinuxInterface())
+	{
+		// Filament configuration is saved on the SBC
+		return;
+	}
+# endif
+
 	FileStore *file = reprap.GetPlatform().OpenSysFile(FilamentAssignmentFile, OpenMode::read);
 	if (file == nullptr)
 	{
@@ -78,9 +86,17 @@ void Filament::LoadAssignment()
 #endif
 }
 
-/*static*/ void Filament::SaveAssignments()
+/*static*/ void Filament::SaveAssignments() noexcept
 {
 #if HAS_MASS_STORAGE
+# if HAS_LINUX_INTERFACE
+	if (reprap.UsingLinuxInterface())
+	{
+		// Filament configuration is saved on the SBC
+		return;
+	}
+# endif
+
 	FileStore * const file = reprap.GetPlatform().OpenSysFile(FilamentAssignmentFile, OpenMode::write);
 	if (file == nullptr)
 	{
@@ -118,7 +134,7 @@ void Filament::LoadAssignment()
 #endif
 }
 
-/*static*/ bool Filament::IsInUse(const char *filamentName)
+/*static*/ bool Filament::IsInUse(const char *filamentName) noexcept
 {
 	for (Filament *f = filamentList; f != nullptr; f = f->next)
 	{
@@ -130,7 +146,7 @@ void Filament::LoadAssignment()
 	return false;
 }
 
-/*static*/ Filament *Filament::GetFilamentByExtruder(const int drive)
+/*static*/ Filament *Filament::GetFilamentByExtruder(const int drive) noexcept
 {
 	for (Filament *f = filamentList; f != nullptr; f = f->next)
 	{

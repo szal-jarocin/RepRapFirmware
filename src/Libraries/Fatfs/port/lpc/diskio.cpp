@@ -25,7 +25,7 @@ extern SDCard *_ffs[_DRIVES]; //Defined in CoreLPC
 
 static unsigned int highestSdRetriesDone = 0;
 
-unsigned int DiskioGetAndClearMaxRetryCount()
+unsigned int DiskioGetAndClearMaxRetryCount() noexcept
 {
     const unsigned int ret = highestSdRetriesDone;
     highestSdRetriesDone = 0;
@@ -34,14 +34,14 @@ unsigned int DiskioGetAndClearMaxRetryCount()
 
 
 /* drv - Physical drive nmuber (0..) */
-DSTATUS disk_initialize (BYTE drv)
+DSTATUS disk_initialize (BYTE drv) noexcept
 {
     MutexLocker lock(Tasks::GetSpiMutex());
 	return (DSTATUS)_ffs[drv]->disk_initialize();
 }
 
 /* drv - Physical drive nmuber (0..) */
-DSTATUS disk_status (BYTE drv)
+DSTATUS disk_status (BYTE drv) noexcept
 {
     MutexLocker lock(Tasks::GetSpiMutex());
 	return (DSTATUS)_ffs[drv]->disk_status();
@@ -51,7 +51,7 @@ DSTATUS disk_status (BYTE drv)
 /* buff - Data buffer to store read data */
 /* sector - Sector address (LBA) */
 /* count - Number of sectors to read (1..255) */
-DRESULT disk_read (BYTE drv, BYTE *buff, DWORD sector, BYTE count)
+DRESULT disk_read (BYTE drv, BYTE *buff, DWORD sector, BYTE count) noexcept
 {
     if (reprap.Debug(moduleStorage))
     {
@@ -89,7 +89,7 @@ DRESULT disk_read (BYTE drv, BYTE *buff, DWORD sector, BYTE count)
 /* sector - Sector address (LBA) */
 /* count - Number of sectors to write (1..255) */
 
-DRESULT disk_write (BYTE drv, const BYTE *buff, DWORD sector, BYTE count)
+DRESULT disk_write (BYTE drv, const BYTE *buff, DWORD sector, BYTE count) noexcept
 {
     MutexLocker lock(Tasks::GetSpiMutex());
     
@@ -127,7 +127,7 @@ DRESULT disk_write (BYTE drv, const BYTE *buff, DWORD sector, BYTE count)
 /* ctrl - Control code */
 /* buff - Buffer to send/receive control data */
 
-DRESULT disk_ioctl (BYTE drv, BYTE ctrl, void *buff)
+DRESULT disk_ioctl (BYTE drv, BYTE ctrl, void *buff) noexcept
 {
     MutexLocker lock(Tasks::GetSpiMutex());
     return _ffs[drv]->disk_ioctl(ctrl, buff);

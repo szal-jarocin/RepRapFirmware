@@ -575,6 +575,12 @@ void GCodes::DoFilePrint(GCodeBuffer& gb, const StringRef& reply)
 						HandleReply(gb, GCodeResult::ok, "");
 					}
 				}
+				else if (gb.GetState() == GCodeState::loadingFilament && hadFileError)
+				{
+					// Don't perform final filament assignment if the load macro could not be processed
+					gb.SetState(GCodeState::normal);
+					HandleReply(gb, GCodeResult::ok, "");
+				}
 				else if (gb.GetState() == GCodeState::normal)
 				{
 					UnlockAll(gb);
@@ -1464,7 +1470,7 @@ bool GCodes::LoadExtrusionAndFeedrateFromGCode(GCodeBuffer& gb, bool isPrintingM
 	}
 
 	// Zero every extruder drive as some drives may not be moved
-	for (size_t drive = MaxAxes; drive < MaxAxesPlusExtruders; drive++)
+	for (size_t drive = numTotalAxes; drive < MaxAxesPlusExtruders; drive++)
 	{
 		moveBuffer.coords[drive] = 0.0;
 	}
@@ -2193,9 +2199,9 @@ void GCodes::FinaliseMove(GCodeBuffer& gb)
 		segMoveState = SegmentedMoveState::active;
 		gb.SetState(GCodeState::waitingForSegmentedMoveToGo);
 
-		for (size_t drive = MaxAxes; drive < MaxAxesPlusExtruders; ++drive)
+		for (size_t extruder = 0; extruder < numExtruders; ++extruder)
 		{
-			moveBuffer.coords[drive] /= totalSegments;							// change the extrusion to extrusion per segment
+			moveBuffer.coords[ExtruderToLogicalDrive(extruder)] /= totalSegments;	// change the extrusion to extrusion per segment
 		}
 
 		if (moveFractionToSkip != 0.0)
@@ -3513,14 +3519,6 @@ GCodeResult GCodes::LoadFilament(GCodeBuffer& gb, const StringRef& reply)
 			reply.copy("Unload the current filament before you attempt to load another one");
 			return GCodeResult::error;
 		}
-
-#if HAS_MASS_STORAGE
-		if (!platform.DirectoryExists(FILAMENTS_DIRECTORY, filamentName.c_str()))
-		{
-			reply.copy("Filament configuration directory not found");
-			return GCodeResult::error;
-		}
-#endif
 
 		if (Filament::IsInUse(filamentName.c_str()))
 		{

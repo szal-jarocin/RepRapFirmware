@@ -56,7 +56,7 @@ inline void EndstopOrZProbe::UpdateStalledDrivers(uint32_t driverMask, bool isSt
 class Endstop : public EndstopOrZProbe
 {
 public:
-	virtual EndStopInputType GetEndstopType() const = 0;
+	virtual EndStopType GetEndstopType() const = 0;
 	virtual bool Prime(const Kinematics& kin, const AxisDriversConfig& axisDrivers) = 0;
 	virtual void AppendDetails(const StringRef& str) = 0;
 
@@ -67,11 +67,11 @@ public:
 
 	unsigned int GetAxis() const { return axis; }
 	bool GetAtHighEnd() const { return atHighEnd; }
+	void SetAtHighEnd(bool b) { atHighEnd = b; }
 
 protected:
 	Endstop(uint8_t axis, EndStopPosition pos);
 
-	void SetAtHighEnd(bool b) { atHighEnd = b; }
 
 private:
 	uint8_t axis;										// which axis this endstop is on

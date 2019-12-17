@@ -516,7 +516,7 @@ void Platform::Init() noexcept
 		axisDrivers[axis].numDrivers = 0;
 	}
 
-	// Set up extruders
+	// Set up default extruders
 	for (size_t extr = 0; extr < MaxExtruders; ++extr)
 	{
 		extruderDrivers[extr].SetLocal(extr + MinAxes);			// set up default extruder drive mapping
@@ -2326,7 +2326,7 @@ bool Platform::WriteAxisLimits(FileStore *f, AxesBitmap axesProbed, const float 
 
 	String<ScratchStringLength> scratchString;
 	scratchString.printf("M208 S%d", sParam);
-	for (size_t axis = 0; axis < MaxAxes; ++axis)
+	for (size_t axis = 0; axis < reprap.GetGCodes().GetTotalAxes(); ++axis)
 	{
 		if (IsBitSet(axesProbed, axis))
 		{
@@ -2344,7 +2344,7 @@ bool Platform::WriteAxisLimits(FileStore *f, AxesBitmap axesProbed, const float 
 // Function to identify and iterate through all drivers attached to an axis or extruder
 void Platform::IterateDrivers(size_t axisOrExtruder, std::function<void(uint8_t)> localFunc, std::function<void(DriverId)> remoteFunc) noexcept
 {
-	if (axisOrExtruder < MaxAxes)
+	if (axisOrExtruder < reprap.GetGCodes().GetTotalAxes())
 	{
 		for (size_t i = 0; i < axisDrivers[axisOrExtruder].numDrivers; ++i)
 		{
@@ -2378,7 +2378,7 @@ void Platform::IterateDrivers(size_t axisOrExtruder, std::function<void(uint8_t)
 // Function to identify and iterate through all drivers attached to an axis or extruder
 void Platform::IterateDrivers(size_t axisOrExtruder, std::function<void(uint8_t)> localFunc) noexcept
 {
-	if (axisOrExtruder < MaxAxes)
+	if (axisOrExtruder < reprap.GetGCodes().GetTotalAxes())
 	{
 		for (size_t i = 0; i < axisDrivers[axisOrExtruder].numDrivers; ++i)
 		{
