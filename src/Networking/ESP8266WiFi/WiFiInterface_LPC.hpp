@@ -147,6 +147,6 @@ void WiFiInterface::SetupSpi() noexcept
 
     //Setup DMA
     InitialiseDMA(NvicPrioritySpi);
-    AttachDMAChannelInterruptHandler(ESP_SPI_HANDLER, DMA_SSP0_RX); //attach to the RX complete DMA Intettrupt handler
+    AttachDMAChannelInterruptHandler(ESP_SPI_HANDLER, DMA_SSP0_RX); //attach to the RX complete DMA Interrupt handler
 }
     

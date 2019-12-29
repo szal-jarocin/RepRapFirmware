@@ -18,8 +18,9 @@
 #define LPC_ELECTRONICS_STRING "LPC176x"
 #define LPC_BOARD_STRING "LPC176x"
 
-#define FIRMWARE_FILE "firmware.bin"
-#define WIFI_FIRMWARE_FILE    "DuetWiFiServer.bin"
+#define FIRMWARE_FILE       "firmware.bin"
+#define FIRMWARE_FILE_WIFI  "firmware-wifi.bin"
+#define WIFI_FIRMWARE_FILE  "DuetWiFiServer.bin" // Firmware to be loaded onto the ESP board
 
 #if defined(ESP8266WIFI)
     constexpr size_t NumFirmwareUpdateModules = 2;
@@ -98,6 +99,8 @@ constexpr size_t MaxHeatersPerTool = 2;
 constexpr size_t MaxExtrudersPerTool = 2;
 
 constexpr size_t MaxFans = 3;
+
+constexpr unsigned int MaxTriggers = 16;            // Must be <= 32 because we store a bitmap of pending triggers in a uint32_t
 
 //Steppers
 extern Pin ENABLE_PINS[NumDirectDrivers];

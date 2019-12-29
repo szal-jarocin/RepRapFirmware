@@ -8,12 +8,20 @@
 // Check the prerequisites for updating the main firmware. Return True if satisfied, else print a message to 'reply' and return false.
 bool RepRap::CheckFirmwareUpdatePrerequisites(const StringRef& reply) noexcept
 {
-    #if defined(LPC_NETWORKING) || defined (HAS_WIFI_NETWORKING)
-
+    #if defined(LPC_NETWORKING)
         FileStore * const firmwareFile = platform->OpenFile(DEFAULT_SYS_DIR, FIRMWARE_FILE, OpenMode::read);
         if (firmwareFile == nullptr)
         {
             reply.printf("Firmware binary \"%s\" not found", FIRMWARE_FILE);
+            return false;
+        }
+
+    #elif defined (HAS_WIFI_NETWORKING)
+        
+        FileStore * const firmwareFile = platform->OpenFile(DEFAULT_SYS_DIR, FIRMWARE_FILE_WIFI, OpenMode::read);
+        if (firmwareFile == nullptr)
+        {
+            reply.printf("Firmware binary \"%s\" not found", FIRMWARE_FILE_WIFI);
             return false;
         }
 
@@ -29,7 +37,7 @@ bool RepRap::CheckFirmwareUpdatePrerequisites(const StringRef& reply) noexcept
             return false;
         }
     #else
-        reply.printf("To update firmware download firmware-%s.bin to the sdcard as /firmware.bin and reset", LPC_BOARD_STRING);
+        reply.printf("To update firmware download firmware.bin to the sdcard as /firmware.bin and reset");
         return false;
     #endif
 
