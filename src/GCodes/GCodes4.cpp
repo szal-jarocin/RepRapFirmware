@@ -245,6 +245,7 @@ void GCodes::RunStateMachine(GCodeBuffer& gb, const StringRef& reply)
 			if (oldTool != nullptr)
 			{
 				reprap.StandbyTool(oldTool->Number(), simulationMode != 0);
+				UpdateCurrentUserPosition();			// the tool offset may have changed, so get the current position
 			}
 			gb.AdvanceState();
 			if (reprap.GetTool(gb.MachineState().newToolNumber) != nullptr && AllAxesAreHomed() && (gb.MachineState().toolChangeParam & TPreBit) != 0)
@@ -261,7 +262,7 @@ void GCodes::RunStateMachine(GCodeBuffer& gb, const StringRef& reply)
 		if (LockMovementAndWaitForStandstill(gb))		// wait for tpre.g to finish executing
 		{
 			reprap.SelectTool(gb.MachineState().newToolNumber, simulationMode != 0);
-			UpdateCurrentUserPosition();					// get the actual position of the new tool
+			UpdateCurrentUserPosition();				// get the actual position of the new tool
 
 			gb.AdvanceState();
 			if (AllAxesAreHomed())
@@ -1213,7 +1214,7 @@ void GCodes::RunStateMachine(GCodeBuffer& gb, const StringRef& reply)
 		if (segmentsLeft == 0)
 		{
 			const Tool * const tool = reprap.GetCurrentTool();
-			if (tool != nullptr)
+			if (tool != nullptr && tool->DriveCount() != 0)
 			{
 				SetMoveBufferDefaults();
 				reprap.GetMove().GetCurrentUserPosition(moveBuffer.coords, 0, tool);
@@ -1221,7 +1222,7 @@ void GCodes::RunStateMachine(GCodeBuffer& gb, const StringRef& reply)
 				{
 					moveBuffer.coords[ExtruderToLogicalDrive(tool->Drive(i))] = retractLength + retractExtra;
 				}
-				moveBuffer.feedRate = unRetractSpeed;
+				moveBuffer.feedRate = unRetractSpeed * tool->DriveCount();
 				moveBuffer.tool = tool;
 				moveBuffer.isFirmwareRetraction = true;
 				moveBuffer.filePos = (&gb == fileGCode) ? gb.GetFilePosition() : noFilePosition;
@@ -1333,6 +1334,7 @@ void GCodes::RunStateMachine(GCodeBuffer& gb, const StringRef& reply)
 		}
 		gb.MachineState().errorMessage = nullptr;
 		HandleReply(gb, (error) ? GCodeResult::error : GCodeResult::ok, reply.c_str());
+		CheckForDeferredPause(gb);
 	}
 }
 
