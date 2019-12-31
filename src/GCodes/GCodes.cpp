@@ -3695,11 +3695,12 @@ void GCodes::StopPrint(StopPrintReason reason)
 		{
 			platform.Message(UsbMessage, "Done printing file\n");
 		}
+#if SUPPORT_TELNET
 		if (telnetGCode->MachineState().compatibility == Compatibility::marlin)
 		{
 			platform.Message(TelnetMessage, "Done printing file\n");
 		}
-
+#endif
 		const uint32_t printMinutes = lrintf(reprap.GetPrintMonitor().GetPrintDuration()/60.0);
 		platform.MessageF(LoggedGenericMessage, "%s printing file %s, print time was %" PRIu32 "h %" PRIu32 "m\n",
 			(reason == StopPrintReason::normalCompletion) ? "Finished" : "Cancelled",
