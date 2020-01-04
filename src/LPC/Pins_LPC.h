@@ -19,7 +19,6 @@
 #define LPC_BOARD_STRING "LPC176x"
 
 #define FIRMWARE_FILE       "firmware.bin"
-#define FIRMWARE_FILE_WIFI  "firmware-wifi.bin"
 #define WIFI_FIRMWARE_FILE  "DuetWiFiServer.bin" // Firmware to be loaded onto the ESP board
 
 #if defined(ESP8266WIFI)
