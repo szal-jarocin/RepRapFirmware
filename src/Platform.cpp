@@ -2572,6 +2572,7 @@ void Platform::UpdateMotorCurrent(size_t driver, float current) noexcept
 				mcp4451.setVolatileWiper(POT_WIPES[driver], pot);
 			}
 			else
+            {
 				mcp4451.setMCP4461Address(0x2D); //A0 Vcc, A1 Grounded. (001011 01)
 				mcp4451.setVolatileWiper(POT_WIPES[driver-4], pot);
 			}

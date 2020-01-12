@@ -347,7 +347,7 @@ extern "C"
 	[[noreturn]] void WDT_IRQHandler() noexcept __attribute__((naked));
     void WDT_IRQHandler() noexcept
     {
-    	LPC_WDT->MOD &=~((uint32_t)(1<<2)); //SD::clear timout flag before resetting to prevent the Smoothie bootloader going into DFU mode
+    	LPC_WWDT->MOD &=~((uint32_t)(1<<2)); //SD::clear timout flag before resetting to prevent the Smoothie bootloader going into DFU mode
 #else
     [[noreturn]] void WDT_Handler() noexcept __attribute__((naked));
 	void WDT_Handler() noexcept

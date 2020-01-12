@@ -634,7 +634,7 @@ void RepRap::SoftwareReset(uint16_t reason, const uint32_t *stk) noexcept
 		}
 
 #if defined(__LPC17xx__)
-        srdBuf[0].Populate(reason, (uint32_t)realTime, stk);
+        srdBuf[0].Populate(reason, (uint32_t)platform->GetDateTime(), stk);
 #else
         srdBuf[slot].Populate(reason, (uint32_t)platform->GetDateTime(), stk);
 #endif
