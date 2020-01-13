@@ -22,7 +22,11 @@
 #define FIRMWARE_FILE       "firmware.bin"
 #define WIFI_FIRMWARE_FILE  "DuetWiFiServer.bin" // Firmware to be loaded onto the ESP board
 
-#define FLASH_DATA_LENGTH (32*1024) //size of the Software Reset Data in Flash
+//needed to compile
+#define IAP_FIRMWARE_FILE "firmware.bin"
+#define IAP_UPDATE_FILE "N/A"
+
+#define FLASH_DATA_LENGTH (32*1024) //size of the Software Reset Data in Flash (Last Sector = 32K)
 
 
 #if defined(ESP8266WIFI)
@@ -206,31 +210,32 @@ extern Pin DiagPin;
 constexpr size_t NumSoftwareSPIPins = 3;
 extern Pin SoftwareSPIPins[3]; //GPIO pins for softwareSPI (used with SharedSPI)
 
-#if defined(ESP8266WIFI)
-    constexpr size_t NUM_SERIAL_CHANNELS = 1;
-#else
-    constexpr size_t NUM_SERIAL_CHANNELS = 2;
-#endif
-
 #include "usart.h"
 // Use TX0/RX0 for the auxiliary serial line
 #if defined(__MBED__)
     #define SERIAL_MAIN_DEVICE  Serial0 //TX0/RX0 connected to via seperate USB
     #define SERIAL_AUX_DEVICE   Serial  //USB pins unconnected.
+    constexpr size_t NUM_SERIAL_CHANNELS = 2;
+
     #if defined(ESP8266WIFI)
         #define SERIAL_WIFI_DEVICE Serial3 //TXD3/RXD3 as uart0 is in use
         static const Pin APIN_Serial1_TXD = USART3->channel->TxPin;
         static const Pin APIN_Serial1_RXD = USART3->channel->RxPin;
     #endif
+
 #else
     #define SERIAL_MAIN_DEVICE  Serial  //USB
     #if defined(ESP8266WIFI)
         //No AUX Serial, Serial0 is connected to the ESP8266
+        constexpr size_t NUM_SERIAL_CHANNELS = 1;
         #define SERIAL_WIFI_DEVICE Serial0
+
+        //Compatibility with RRF code
         static const Pin APIN_Serial1_TXD = USART0->channel->TxPin;
         static const Pin APIN_Serial1_RXD = USART0->channel->RxPin;
     #else
         #define SERIAL_AUX_DEVICE   Serial0
+        constexpr size_t NUM_SERIAL_CHANNELS = 2;
     #endif
 
 #endif
