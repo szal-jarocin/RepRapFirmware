@@ -109,7 +109,8 @@ struct ExpressionValue
 enum class ObjectModelReportFlags : uint16_t
 {
 	none = 0,
-	shortForm = 1
+	shortForm = 1,
+	fullPath = 2
 };
 
 // Flags field of a table entry
@@ -124,21 +125,27 @@ enum class ObjectModelEntryFlags : uint8_t
 class ObjectExplorationContext
 {
 public:
-	ObjectExplorationContext(ObjectModelReportFlags rf, ObjectModelEntryFlags ff) noexcept : numIndices(0), reportFlags(rf), filterFlags(ff) { }
+	ObjectExplorationContext(ObjectModelReportFlags rf, ObjectModelEntryFlags ff) noexcept
+		: numIndicesProvided(0), numIndicesCounted(0), reportFlags(rf), filterFlags(ff) { }
 
-	void AddIndex(unsigned int index) THROWS_GCODE_EXCEPTION;
+	void AddIndex(int32_t index) THROWS_GCODE_EXCEPTION;
+	void AddIndex() THROWS_GCODE_EXCEPTION;
 	void RemoveIndex() THROWS_GCODE_EXCEPTION;
-	unsigned int GetIndex(size_t n) const THROWS_GCODE_EXCEPTION;
-	size_t GetNumIndices() const noexcept { return numIndices; }
+	void ProvideIndex(int32_t index) THROWS_GCODE_EXCEPTION;
+	int32_t GetIndex(size_t n) const THROWS_GCODE_EXCEPTION;
+	int32_t GetLastIndex() const THROWS_GCODE_EXCEPTION;
+	size_t GetNumIndicesCounted() const noexcept { return numIndicesCounted; }
 	ObjectModelReportFlags GetReportFlags() const noexcept { return reportFlags; }
 	ObjectModelEntryFlags GetFilterFlags() const noexcept { return filterFlags; }
 	bool ShortFormReport() const noexcept { return ((uint16_t)reportFlags & (uint16_t)ObjectModelReportFlags::shortForm) != 0; }
+	bool ReportFullPath() const noexcept { return ((uint16_t)reportFlags & (uint16_t)ObjectModelReportFlags::fullPath) != 0; }
 
 private:
 	static constexpr size_t MaxIndices = 4;			// max depth of array nesting
 
-	size_t numIndices;								// the number of indices stored
-	unsigned int indices[MaxIndices];
+	size_t numIndicesProvided;						// the number of indices provided, when we are doing a value lookup
+	size_t numIndicesCounted;						// the number of indices passed in the search string
+	int32_t indices[MaxIndices];
 	ObjectModelReportFlags reportFlags;
 	ObjectModelEntryFlags filterFlags;
 };
@@ -159,32 +166,29 @@ public:
 	ObjectModel() noexcept;
 
 	// Construct a JSON representation of those parts of the object model requested by the user. This version is called on the root of the tree.
-	bool ReportAsJson(OutputBuffer *buf, const char *filter, ObjectModelReportFlags rf, ObjectModelEntryFlags ff) const THROWS_GCODE_EXCEPTION;
+	void ReportAsJson(OutputBuffer *buf, const char *filter, ObjectModelReportFlags rf, ObjectModelEntryFlags ff) const THROWS_GCODE_EXCEPTION;
 
-	// Get the value of an object. This version is called on the root of the tree.
-	ExpressionValue GetObjectValue(const StringParser& sp, const char *idString) const THROWS_GCODE_EXCEPTION;
+	// Get the value of an object via the table
+	ExpressionValue GetObjectValue(const StringParser& sp, ObjectExplorationContext& context, const char *idString, uint8_t tableNumber = 0) const THROWS_GCODE_EXCEPTION;
 
 	// Function to report a value or object as JSON
-	bool ReportItemAsJson(OutputBuffer *buf, ObjectExplorationContext& context, ExpressionValue val, const char *filter) const THROWS_GCODE_EXCEPTION;
+	void ReportItemAsJson(OutputBuffer *buf, ObjectExplorationContext& context, ExpressionValue val, const char *filter) const THROWS_GCODE_EXCEPTION;
+
+	// Skip the current element in the ID or filter string
+	static const char* GetNextElement(const char *id) noexcept;
 
 protected:
 	// Construct a JSON representation of those parts of the object model requested by the user
-	bool ReportAsJson(OutputBuffer *buf, ObjectExplorationContext& context, uint8_t tableNumber, const char *filter) const THROWS_GCODE_EXCEPTION;
+	void ReportAsJson(OutputBuffer *buf, ObjectExplorationContext& context, uint8_t tableNumber, const char *filter) const THROWS_GCODE_EXCEPTION;
 
 	// Report an entire array as JSON
-	bool ReportArrayAsJson(OutputBuffer *buf, ObjectExplorationContext& context, const ObjectModelArrayDescriptor *omad, const char *filter) const THROWS_GCODE_EXCEPTION;
-
-	// Get the value of an object via the table
-	ExpressionValue GetObjectValue(const StringParser& sp, ObjectExplorationContext& context, uint8_t tableNumber, const char *idString) const THROWS_GCODE_EXCEPTION;
+	void ReportArrayAsJson(OutputBuffer *buf, ObjectExplorationContext& context, const ObjectModelArrayDescriptor *omad, const char *filter) const THROWS_GCODE_EXCEPTION;
 
 	// Get the value of an object that we hold
 	ExpressionValue GetObjectValue(const StringParser& sp, ObjectExplorationContext& context, ExpressionValue val, const char *idString) const THROWS_GCODE_EXCEPTION;
 
 	// Get the object model table entry for the current level object in the query
 	const ObjectModelTableEntry *FindObjectModelTableEntry(uint8_t tableNumber, const char *idString) const noexcept;
-
-	// Skip the current element in the ID or filter string
-	static const char* GetNextElement(const char *id) noexcept;
 
 	virtual const ObjectModelTableEntry *GetObjectModelTable(const uint8_t*& descriptor) const noexcept = 0;
 };
@@ -210,7 +214,7 @@ public:
 	bool Matches(const char *filter, const ObjectExplorationContext& context) const noexcept;
 
 	// See whether we should add the value of this element to the buffer, returning true if it matched the filter and we did add it
-	bool ReportAsJson(OutputBuffer* buf, ObjectExplorationContext& context, const ObjectModel *self, const char* filter) const noexcept;
+	void ReportAsJson(OutputBuffer* buf, ObjectExplorationContext& context, const ObjectModel *self, const char* filter) const noexcept;
 
 	// Return the name of this field
 	const char* GetName() const noexcept { return name; }

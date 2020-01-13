@@ -297,16 +297,25 @@ bool StringParser::CheckMetaCommand(const StringRef& reply)
 			indentToSkipTo = NoIndentSkip;									// no longer skipping
 		}
 
-		if (commandIndent > gb.machineState->indentLevel)
+		while (commandIndent < gb.machineState->CurrentBlockIndent())
 		{
-			CreateBlocks();					// indentation has increased so start new block(s)
-		}
-		else if (commandIndent < gb.machineState->indentLevel)
-		{
-			if (EndBlocks())
+			gb.machineState->EndBlock();
+			if (gb.machineState->CurrentBlockState().GetType() == BlockType::loop)
 			{
+				// Go back to the start of the loop and re-evaluate the while-part
+				gb.machineState->lineNumber = gb.machineState->CurrentBlockState().GetLineNumber();
+				gb.RestartFrom(gb.machineState->CurrentBlockState().GetFilePosition());
 				Init();
 				return true;
+			}
+		}
+
+		if (commandIndent > gb.machineState->CurrentBlockIndent())
+		{
+			// indentation has increased so start new block(s)
+			if (!gb.machineState->CreateBlock(commandIndent))
+			{
+				throw ConstructParseException("blocks nested too deeply");
 			}
 		}
 	}
@@ -419,35 +428,6 @@ bool StringParser::ProcessConditionalGCode(const StringRef& reply, BlockType pre
 	return false;
 }
 
-// Create new code blocks
-void StringParser::CreateBlocks()
-{
-	while (gb.machineState->indentLevel < commandIndent)
-	{
-		if (!gb.machineState->CreateBlock())
-		{
-			throw ConstructParseException("blocks nested too deeply");
-		}
-	}
-}
-
-// End blocks returning true if nothing more to process on this line
-bool StringParser::EndBlocks() noexcept
-{
-	while (gb.machineState->indentLevel > commandIndent)
-	{
-		gb.machineState->EndBlock();
-		if (gb.machineState->CurrentBlockState().GetType() == BlockType::loop)
-		{
-			// Go back to the start of the loop and re-evaluate the while-part
-			gb.machineState->lineNumber = gb.machineState->CurrentBlockState().GetLineNumber();
-			gb.RestartFrom(gb.machineState->CurrentBlockState().GetFilePosition());
-			return true;
-		}
-	}
-	return false;
-}
-
 void StringParser::ProcessIfCommand()
 {
 	if (EvaluateCondition())
@@ -457,7 +437,7 @@ void StringParser::ProcessIfCommand()
 	else
 	{
 		gb.machineState->CurrentBlockState().SetIfFalseNoneTrueBlock();
-		indentToSkipTo = gb.machineState->indentLevel;					// skip forwards to the end of the block
+		indentToSkipTo = gb.machineState->CurrentBlockIndent();			// skip forwards to the end of the block
 	}
 }
 
@@ -469,7 +449,7 @@ void StringParser::ProcessElseCommand(BlockType previousBlockType)
 	}
 	else if (gb.machineState->CurrentBlockState().GetType() == BlockType::ifTrue || gb.machineState->CurrentBlockState().GetType() == BlockType::ifFalseHadTrue)
 	{
-		indentToSkipTo = gb.machineState->indentLevel;					// skip forwards to the end of the if-block
+		indentToSkipTo = gb.machineState->CurrentBlockIndent();			// skip forwards to the end of the if-block
 		gb.machineState->CurrentBlockState().SetPlainBlock();			// so that we get an error if there is another 'else' part
 	}
 	else
@@ -488,13 +468,13 @@ void StringParser::ProcessElifCommand(BlockType previousBlockType)
 		}
 		else
 		{
-			indentToSkipTo = gb.machineState->indentLevel;				// skip forwards to the end of the elif-block
+			indentToSkipTo = gb.machineState->CurrentBlockIndent();		// skip forwards to the end of the elif-block
 			gb.machineState->CurrentBlockState().SetIfFalseNoneTrueBlock();
 		}
 	}
 	else if (gb.machineState->CurrentBlockState().GetType() == BlockType::ifTrue || gb.machineState->CurrentBlockState().GetType() == BlockType::ifFalseHadTrue)
 	{
-		indentToSkipTo = gb.machineState->indentLevel;					// skip forwards to the end of the if-block
+		indentToSkipTo = gb.machineState->CurrentBlockIndent();			// skip forwards to the end of the if-block
 		gb.machineState->CurrentBlockState().SetIfFalseHadTrueBlock();
 	}
 	else
@@ -518,7 +498,7 @@ void StringParser::ProcessWhileCommand()
 	if (!EvaluateCondition())
 	{
 		gb.machineState->CurrentBlockState().SetPlainBlock();
-		indentToSkipTo = gb.machineState->indentLevel;					// skip forwards to the end of the block
+		indentToSkipTo = gb.machineState->CurrentBlockIndent();			// skip forwards to the end of the block
 	}
 }
 
@@ -526,21 +506,21 @@ void StringParser::ProcessBreakCommand()
 {
 	do
 	{
-		if (gb.machineState->indentLevel == 0)
+		if (gb.machineState->CurrentBlockIndent() == 0)
 		{
 			throw ConstructParseException("'break' was not inside a loop");
 		}
 		gb.machineState->EndBlock();
 	} while (gb.machineState->CurrentBlockState().GetType() != BlockType::loop);
 	gb.machineState->CurrentBlockState().SetPlainBlock();
-	indentToSkipTo = gb.machineState->indentLevel;						// skip forwards to the end of the loop
+	indentToSkipTo = gb.machineState->CurrentBlockIndent();				// skip forwards to the end of the loop
 }
 
 void StringParser::ProcessContinueCommand()
 {
 	do
 	{
-		if (gb.machineState->indentLevel == 0)
+		if (gb.machineState->CurrentBlockIndent() == 0)
 		{
 			throw ConstructParseException("'continue' was not inside a loop");
 		}
@@ -2231,16 +2211,19 @@ ExpressionValue StringParser::ParseNumber()
 	return retvalue;
 }
 
-// Parse an identifier
-void StringParser::ParseIdentifier(const StringRef& id, bool evaluate)
+// Parse an identifier expression
+ExpressionValue StringParser::ParseIdentifierExpression(StringBuffer& stringBuffer, bool evaluate)
 {
 	if (!isalpha(gb.buffer[readPointer]))
 	{
 		throw ConstructParseException("expected an identifier");
 	}
 
-	// TODO The following would be more efficient if instead of evaluating indices in [ ] and converting them back to strings,
-	// we passed a list of indices to reprap.GetObjectValue and just put markers in the variable name for where the indices were
+	String<MaxVariableNameLength> id;
+	ObjectExplorationContext context(ObjectModelReportFlags::none, ObjectModelEntryFlags::none);
+
+	// Loop parsing identifiers and index expressions
+	// When we come across an index expression, evaluate it, add it to the context, and place a marker in the identifier string.
 	char c;
 	while (isalpha((c = gb.buffer[readPointer])) || isdigit(c) || c == '_' || c == '.' || c == '[')
 	{
@@ -2258,39 +2241,33 @@ void StringParser::ParseIdentifier(const StringRef& id, bool evaluate)
 			{
 				throw ConstructParseException("expected integer expression");
 			}
-			id.catf("[%" PRIi32 "]", index.iVal);		//TODO overflow check (or do the earlier TODO, then we won't need this catf call)
-			++readPointer;
+			++readPointer;								// skip the ']'
+			context.ProvideIndex(index.iVal);
+			c = '^';									// add the marker
 		}
-		else if (id.cat(c))
+		if (id.cat(c))
 		{
 			throw ConstructParseException("variable name too long");;
 		}
 	}
-}
-
-// Parse an identifier expression
-ExpressionValue StringParser::ParseIdentifierExpression(StringBuffer& stringBuffer, bool evaluate)
-{
-	String<MaxVariableNameLength> varName;
-	ParseIdentifier(varName.GetRef(), evaluate);
 
 	// Check for the names of constants
-	if (varName.Equals("true"))
+	if (id.Equals("true"))
 	{
 		return ExpressionValue(true);
 	}
 
-	if (varName.Equals("false"))
+	if (id.Equals("false"))
 	{
 		return ExpressionValue(false);
 	}
 
-	if (varName.Equals("pi"))
+	if (id.Equals("pi"))
 	{
 		return ExpressionValue(Pi);
 	}
 
-	if (varName.Equals("iterations"))
+	if (id.Equals("iterations"))
 	{
 		const int32_t v = gb.MachineState().GetIterations();
 		if (v < 0)
@@ -2300,7 +2277,7 @@ ExpressionValue StringParser::ParseIdentifierExpression(StringBuffer& stringBuff
 		return ExpressionValue(v);
 	}
 
-	if (varName.Equals("result"))
+	if (id.Equals("result"))
 	{
 		int32_t rslt;
 		switch (gb.GetLastResult())
@@ -2321,7 +2298,7 @@ ExpressionValue StringParser::ParseIdentifierExpression(StringBuffer& stringBuff
 		return ExpressionValue(rslt);
 	}
 
-	if (varName.Equals("line"))
+	if (id.Equals("line"))
 	{
 		return ExpressionValue((int32_t)gb.MachineState().lineNumber);
 	}
@@ -2332,7 +2309,7 @@ ExpressionValue StringParser::ParseIdentifierExpression(StringBuffer& stringBuff
 	{
 		// It's a function call
 		ExpressionValue rslt = ParseExpression(stringBuffer, 0, evaluate);
-		if (varName.Equals("abs"))
+		if (id.Equals("abs"))
 		{
 			switch (rslt.type)
 			{
@@ -2352,37 +2329,37 @@ ExpressionValue StringParser::ParseIdentifierExpression(StringBuffer& stringBuff
 				rslt.Set(0);
 			}
 		}
-		else if (varName.Equals("sin"))
+		else if (id.Equals("sin"))
 		{
 			ConvertToFloat(rslt, evaluate);
 			rslt.fVal = sinf(rslt.fVal);
 		}
-		else if (varName.Equals("cos"))
+		else if (id.Equals("cos"))
 		{
 			ConvertToFloat(rslt, evaluate);
 			rslt.fVal = cosf(rslt.fVal);
 		}
-		else if (varName.Equals("tan"))
+		else if (id.Equals("tan"))
 		{
 			ConvertToFloat(rslt, evaluate);
 			rslt.fVal = tanf(rslt.fVal);
 		}
-		else if (varName.Equals("asin"))
+		else if (id.Equals("asin"))
 		{
 			ConvertToFloat(rslt, evaluate);
 			rslt.fVal = asinf(rslt.fVal);
 		}
-		else if (varName.Equals("acos"))
+		else if (id.Equals("acos"))
 		{
 			ConvertToFloat(rslt, evaluate);
 			rslt.fVal = acosf(rslt.fVal);
 		}
-		else if (varName.Equals("atan"))
+		else if (id.Equals("atan"))
 		{
 			ConvertToFloat(rslt, evaluate);
 			rslt.fVal = atanf(rslt.fVal);
 		}
-		else if (varName.Equals("atan2"))
+		else if (id.Equals("atan2"))
 		{
 			ConvertToFloat(rslt, evaluate);
 			SkipWhiteSpace();
@@ -2396,18 +2373,18 @@ ExpressionValue StringParser::ParseIdentifierExpression(StringBuffer& stringBuff
 			ConvertToFloat(nextOperand, evaluate);
 			rslt.fVal = atan2f(rslt.fVal, nextOperand.fVal);
 		}
-		else if (varName.Equals("sqrt"))
+		else if (id.Equals("sqrt"))
 		{
 			ConvertToFloat(rslt, evaluate);
 			rslt.fVal = sqrtf(rslt.fVal);
 		}
-		else if (varName.Equals("isnan"))
+		else if (id.Equals("isnan"))
 		{
 			ConvertToFloat(rslt, evaluate);
 			rslt.type = TYPE_OF(bool);
 			rslt.bVal = (isnan(rslt.fVal) != 0);
 		}
-		else if (varName.Equals("max"))
+		else if (id.Equals("max"))
 		{
 			for (;;)
 			{
@@ -2430,7 +2407,7 @@ ExpressionValue StringParser::ParseIdentifierExpression(StringBuffer& stringBuff
 				}
 			}
 		}
-		else if (varName.Equals("min"))
+		else if (id.Equals("min"))
 		{
 			for (;;)
 			{
@@ -2465,7 +2442,7 @@ ExpressionValue StringParser::ParseIdentifierExpression(StringBuffer& stringBuff
 		return rslt;
 	}
 
-	return reprap.GetObjectValue(*this, varName.c_str());
+	return reprap.GetObjectValue(*this, context, id.c_str());
 }
 
 GCodeException StringParser::ConstructParseException(const char *str) const
