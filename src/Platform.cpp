@@ -3263,7 +3263,11 @@ bool Platform::AtxPower() const noexcept
 void Platform::AtxPowerOn() noexcept
 {
 	deferredPowerDown = false;
-	IoPort::WriteDigital(ATX_POWER_PIN, true);
+#ifdef __LPC17xx__
+    IoPort::WriteDigital(ATX_POWER_PIN, (ATX_POWER_INVERTED==false)?true:false);
+#else
+    IoPort::WriteDigital(ATX_POWER_PIN, true);
+#endif
 }
 
 void Platform::AtxPowerOff(bool defer) noexcept
