@@ -28,6 +28,7 @@ StringParser::StringParser(GCodeBuffer& gcodeBuffer) noexcept
 	: gb(gcodeBuffer), fileBeingWritten(nullptr), writingFileSize(0), eofStringCounter(0), indentToSkipTo(NoIndentSkip),
 	  hasCommandNumber(false), commandLetter('Q'), checksumRequired(false), binaryWriting(false)
 {
+	StartNewFile();
 	Init();
 }
 
@@ -40,6 +41,10 @@ void StringParser::Init() noexcept
 	computedChecksum = 0;
 	gb.bufferState = GCodeBufferState::parseNotStarted;
 	commandIndent = 0;
+	if (!seenMetaCommand)
+	{
+		seenLeadingSpace = seenLeadingTab = false;
+	}
 }
 
 inline void StringParser::AddToChecksum(char c) noexcept
@@ -98,9 +103,15 @@ bool StringParser::Put(char c) noexcept
 				break;
 
 			case ' ':
-			case '\t':
 				AddToChecksum(c);
 				++commandIndent;
+				seenLeadingSpace = true;
+				break;
+
+			case '\t':
+				AddToChecksum(c);
+				commandIndent = (commandIndent + 4) & ~3;	// move on at least 1 to next multiple of 4
+				seenLeadingTab = true;
 				break;
 
 			default:
@@ -256,9 +267,7 @@ bool StringParser::LineFinished()
 
 	if (gcodeLineEnd == ARRAY_SIZE(gb.buffer))
 	{
-		reprap.GetPlatform().MessageF(ErrorMessage, "G-Code buffer '%s' length overflow\n", gb.GetIdentity());
-		Init();
-		return false;
+		throw ConstructParseException("GCode command too long from input '%s'", gb.GetIdentity());
 	}
 
 	gb.buffer[gcodeLineEnd] = 0;
@@ -281,11 +290,20 @@ bool StringParser::CheckMetaCommand(const StringRef& reply)
 	BlockType previousBlockType = BlockType::plain;
 	if (doingFile)
 	{
-		if (indentToSkipTo < commandIndent)
+		if (commandIndent == 0)
 		{
-			Init();
-			return true;													// continue skipping this block
+			seenLeadingSpace = seenLeadingTab = false;						// it's OK if the previous block used only space and the following one uses only tab, or v.v.
 		}
+		else
+		{
+			CheckForMixedSpacesAndTabs();
+			if (indentToSkipTo < commandIndent)
+			{
+				Init();
+				return true;												// continue skipping this block
+			}
+		}
+
 		if (indentToSkipTo != NoIndentSkip && indentToSkipTo >= commandIndent)
 		{
 			// Finished skipping the nested block
@@ -323,9 +341,25 @@ bool StringParser::CheckMetaCommand(const StringRef& reply)
 	const bool b = ProcessConditionalGCode(reply, previousBlockType, doingFile);	// this may throw a ParseException
 	if (b)
 	{
+		seenMetaCommand = true;
+		if (doingFile)
+		{
+			CheckForMixedSpacesAndTabs();
+		}
 		Init();
 	}
+
 	return b;
+}
+
+void StringParser::CheckForMixedSpacesAndTabs() noexcept
+{
+	if (seenMetaCommand && !warnedAboutMixedSpacesAndTabs && seenLeadingSpace && seenLeadingTab)
+	{
+		reprap.GetPlatform().MessageF(AddWarning(gb.GetResponseMessageType()),
+								"both space and tab characters used to indent blocks by line %" PRIu32, gb.MachineState().lineNumber);
+		warnedAboutMixedSpacesAndTabs = true;
+	}
 }
 
 // Check for and process a conditional GCode language command returning true if we found one, false if it's a regular line of GCode that we need to process
@@ -1399,6 +1433,12 @@ void StringParser::FinishWritingBinary() noexcept
 	}
 }
 
+// Called when we start a new file
+void StringParser::StartNewFile() noexcept
+{
+	seenLeadingSpace = seenLeadingTab = seenMetaCommand = warnedAboutMixedSpacesAndTabs = false;
+}
+
 // This is called when we reach the end of the file we are reading from. Return true if there is a line waiting to be processed.
 bool StringParser::FileEnded() noexcept
 {
@@ -1657,7 +1697,7 @@ ExpressionValue StringParser::ParseExpression(StringBuffer& stringBuffer, uint8_
 	constexpr uint8_t UnaryPriority = 10;									// must be higher than any binary operator priority
 	static_assert(ARRAY_SIZE(priorities) == strlen(operators));
 
-	// Start by parsing a unary expression
+	// Start by looking for a unary operator or opening bracket
 	SkipWhiteSpace();
 	const char c = gb.buffer[readPointer];
 	ExpressionValue val;
@@ -1688,7 +1728,7 @@ ExpressionValue StringParser::ParseExpression(StringBuffer& stringBuffer, uint8_
 
 	case '+':
 		++readPointer;
-		val = ParseExpression(stringBuffer, UnaryPriority, true);
+		val = ParseExpression(stringBuffer, UnaryPriority, evaluate);
 		switch (val.type)
 		{
 		case TYPE_OF(uint32_t):
@@ -1703,6 +1743,31 @@ ExpressionValue StringParser::ParseExpression(StringBuffer& stringBuffer, uint8_
 
 		default:
 			throw ConstructParseException("expected numeric or enumeration value after '+'");
+		}
+		break;
+
+	case '#':
+		++readPointer;
+		SkipWhiteSpace();
+		if (isalpha(gb.buffer[readPointer]))
+		{
+			// Probably applying # to an object model array, so optimise by asking the OM for just the length
+			val = ParseIdentifierExpression(stringBuffer, true, evaluate);
+		}
+		else
+		{
+			val = ParseExpression(stringBuffer, UnaryPriority, evaluate);
+			if (val.type == TYPE_OF(const char*))
+			{
+				const char* s = val.sVal;
+				val.Set((int32_t)strlen(s));
+				stringBuffer.FinishedUsing(s);
+				val.type = TYPE_OF(int32_t);
+			}
+			else
+			{
+				throw ConstructParseException("expected object model value or string after '#");
+			}
 		}
 		break;
 
@@ -1730,7 +1795,7 @@ ExpressionValue StringParser::ParseExpression(StringBuffer& stringBuffer, uint8_
 		}
 		else if (isalpha(c))				// looks like a variable name
 		{
-			val = ParseIdentifierExpression(stringBuffer, evaluate);
+			val = ParseIdentifierExpression(stringBuffer, evaluate, false);
 		}
 		else
 		{
@@ -2212,7 +2277,7 @@ ExpressionValue StringParser::ParseNumber()
 }
 
 // Parse an identifier expression
-ExpressionValue StringParser::ParseIdentifierExpression(StringBuffer& stringBuffer, bool evaluate)
+ExpressionValue StringParser::ParseIdentifierExpression(StringBuffer& stringBuffer, bool applyLengthOperator, bool evaluate)
 {
 	if (!isalpha(gb.buffer[readPointer]))
 	{
@@ -2220,7 +2285,7 @@ ExpressionValue StringParser::ParseIdentifierExpression(StringBuffer& stringBuff
 	}
 
 	String<MaxVariableNameLength> id;
-	ObjectExplorationContext context(ObjectModelReportFlags::none, ObjectModelEntryFlags::none);
+	ObjectExplorationContext context("v", applyLengthOperator);
 
 	// Loop parsing identifiers and index expressions
 	// When we come across an index expression, evaluate it, add it to the context, and place a marker in the identifier string.

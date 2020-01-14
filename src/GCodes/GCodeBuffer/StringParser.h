@@ -29,8 +29,9 @@ public:
 	void DecodeCommand() noexcept;											// Decode the next command in the line
 	void PutAndDecode(const char *str, size_t len) noexcept;				// Add an entire string, overwriting any existing content
 	void PutAndDecode(const char *str) noexcept;							// Add a null-terminated string, overwriting any existing content
+	void StartNewFile() noexcept;											// Called when we start a new file
 	bool FileEnded() noexcept;												// Called when we reach the end of the file we are reading from
-	bool CheckMetaCommand(const StringRef& reply) THROWS_GCODE_EXCEPTION;		// Check whether the current command is a meta command, or we are skipping block
+	bool CheckMetaCommand(const StringRef& reply) THROWS_GCODE_EXCEPTION;	// Check whether the current command is a meta command, or we are skipping block
 
 	// The following may be called after calling DecodeCommand
 	char GetCommandLetter() const noexcept { return commandLetter; }
@@ -38,7 +39,7 @@ public:
 	int GetCommandNumber() const noexcept { return commandNumber; }
 	int8_t GetCommandFraction() const noexcept { return commandFraction; }
 
-	bool Seen(char c) noexcept __attribute__((hot));						// Is a character present?
+	bool Seen(char c) noexcept __attribute__((hot));							// Is a character present?
 	float GetFValue() THROWS_GCODE_EXCEPTION __attribute__((hot));				// Get a float after a key letter
 	float GetDistance() THROWS_GCODE_EXCEPTION;									// Get a distance or coordinate and convert it from inches to mm if necessary
 	int32_t GetIValue() THROWS_GCODE_EXCEPTION __attribute__((hot));			// Get an integer after a key letter
@@ -98,6 +99,7 @@ private:
 	void AppendAsString(ExpressionValue val, const StringRef& str) THROWS_GCODE_EXCEPTION
 		pre (readPointer >= 0);
 
+	void CheckForMixedSpacesAndTabs() noexcept;
 	bool ProcessConditionalGCode(const StringRef& reply, BlockType previousBlockType, bool doingFile) THROWS_GCODE_EXCEPTION;
 																			// Check for and process a conditional GCode language command returning true if we found one
 	void ProcessIfCommand() THROWS_GCODE_EXCEPTION;
@@ -119,7 +121,7 @@ private:
 		pre (readPointer >= 0);
 	ExpressionValue ParseNumber() THROWS_GCODE_EXCEPTION
 		pre(readPointer >= 0; isdigit(gb.buffer[readPointer]));
-	ExpressionValue ParseIdentifierExpression(StringBuffer& stringBuffer, bool evaluate) THROWS_GCODE_EXCEPTION
+	ExpressionValue ParseIdentifierExpression(StringBuffer& stringBuffer, bool applyLengthOperator, bool evaluate) THROWS_GCODE_EXCEPTION
 		pre(readPointer >= 0; isalpha(gb.buffer[readPointer]));
 
 	void BalanceNumericTypes(ExpressionValue& val1, ExpressionValue& val2, bool evaluate) THROWS_GCODE_EXCEPTION;
@@ -161,6 +163,10 @@ private:
 	bool hasCommandNumber;
 	char commandLetter;
 	uint8_t commandIndent;								// Number of whitespace characters before the line number or the first command starts
+	bool seenLeadingSpace;
+	bool seenLeadingTab;
+	bool seenMetaCommand;
+	bool warnedAboutMixedSpacesAndTabs;
 
 	bool checksumRequired;								// True if we only accept commands with a valid checksum
 	int8_t commandFraction;
