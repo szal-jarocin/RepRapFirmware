@@ -76,6 +76,9 @@ static const boardConfigEntry_t boardConfigs[]=
     {"8266wifi.LpcTfrReadyPin", &SamTfrReadyPin, nullptr, cvPinType},
     {"8266wifi.EspResetPin", &EspResetPin, nullptr, cvPinType},
 #endif
+    
+    {"lpc.adcEnablePreFilter", &ADCEnablePreFilter, nullptr, cvBoolType},
+    
 };
 
 
@@ -90,14 +93,12 @@ BoardConfig::BoardConfig() noexcept
 }
 
 
-void BoardConfig::Init()
+void BoardConfig::Init() noexcept
 {
 
     GCodeResult rslt;
     String<100> reply;
     FileStore *configFile = nullptr;
-
-    
     
     //Mount the Internal SDCard
     do
@@ -197,7 +198,9 @@ void BoardConfig::Init()
             if(LcdCSPin != NoPin) pinMode(LcdCSPin, OUTPUT_LOW);
         #endif
 
+        pinMode(DiagPin, OUTPUT_LOW);
         
+        ConfigureADCPreFilter(ADCEnablePreFilter);
     }
 }
 

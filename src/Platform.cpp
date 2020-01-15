@@ -1470,6 +1470,7 @@ void Platform::InitialiseInterrupts() noexcept
 	NVIC_SetPriority(TIMER1_IRQn, 8);                       //Timer 1 is currently unused
 	NVIC_SetPriority(TIMER2_IRQn, NvicPriorityTimerServo);  //Timer 2 runs the PWM for Servos at 50hz
 	NVIC_SetPriority(TIMER3_IRQn, NvicPriorityTimerPWM);    //Timer 3 runs the microsecond free running timer to generate heater/fan PWM
+    NVIC_SetPriority(ADC_IRQn, NvicPriorityADC);       //ADC interrupt priority when using burst with pre-filtering
 #endif
 
     // Tick interrupt for ADC conversions

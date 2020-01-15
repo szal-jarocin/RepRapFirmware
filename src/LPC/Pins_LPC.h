@@ -207,6 +207,8 @@ extern Pin PanelButtonPin;
 
 extern Pin DiagPin;
 
+extern bool ADCEnablePreFilter;
+
 constexpr size_t NumSoftwareSPIPins = 3;
 extern Pin SoftwareSPIPins[3]; //GPIO pins for softwareSPI (used with SharedSPI)
 

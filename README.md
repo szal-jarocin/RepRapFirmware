@@ -1,55 +1,31 @@
-This is firmware for controlling 3D printers and related devices using electronics based on ATSAM main processors. The current processors supported are the ATSAM4E, ATSAM4S and SAME70. The legacy SAM3X processor is also supported. There is a fork of this firmware that supports LPC1768/1769 processors. The SAME5x processor is supported in the related project Duet3Expansion.
+LPC Port of RepRapFirmware
+==========================
 
-Documentation
-=============
-For documentation on supported gcodes and configuration, see https://duet3d.com/wiki. There is a tool for generating the config.g file and homing files at https://configurator.reprapfirmware.org/.
+This is an experimental port of [dc42's RepRapFirmware](https://github.com/dc42/RepRapFirmware/)) for LPC1768/LPC1769 based boards.  
 
-Support, issues and suggestions
-===============================
-If you wish to obtain support, report suspected firmware issues or make suggestions for improvements, please use the forum at https://forum.duet3d.com/ so that other users of RepRapFirmware can help you or comment on your suggestions. **I am not accepting any new Issues via github** due to repeated inappropriate use of this facility.
+*Note: This firmware does not show up as a mass storage device when connected to a computer. Physical access to the internal sdcard may be required in order to revert back or update.*
 
-Pull requests
-=============
-If you wish to submit a pull request that changes the existing behaviour of RepRapFirmware, please discuss the change with me and other users first via the forum at https://forum.duet3d.com/. RepRapFirmware is used in a wide variery of different machines and a change that may suit you may cause difficulties for other users. **I will reject any PRs that have not been discussed with me unless they are trivial bug fixes.**
+### Main Differences to [dc42's RepRapFirmware](https://github.com/dc42/RepRapFirmware)
+The CPUs targeted in this port only have 64K RAM which is less than those that run dc42s RepRapFirmware. Further, there is also some differences between the CPUs, and the following outlines the main differences in this port:  
+* A maximum of 4 files can be open at a time.
+* Reduced write buffers for SDCard to save memory.
+* External interrupts (i.e., fan rpm etc) are limited to 3.
+* Reduced number of networking buffers and reduced MTU to save memory.
+* Only 2 HTTP Sockets and Responders. Only 1 HTTP session at a time.
+* Disabled Ftp and Telnet interfaces
+* Configuration:
+  * GCode [M350](https://duet3d.dozuki.com/Wiki/Gcode#Section_M350_Set_microstepping_mode) - Microstepping for boards included in this port is done via hardware and thus M350 is not required. You may include it in your config.g if you like, but the command has no effect on the operation of the firmware.
+  * Some drivers (such as the DRV8825) require specifying the timing information as they require longer pulse timings than the configured default that can result in missed steps. Timing information for stepper drivers can be added using [M569](https://duet3d.dozuki.com/Wiki/Gcode#Section_M569_Set_motor_driver_direction_enable_polarity_and_step_pulse_timing). Timing information can usually be found in the stepper driver data sheets.    
+  * Auto-calibration restrictions to save memory:
+    * Maximum number of probe points of 121; and
+    * Delta maximum calibration points of 16
+  * To support the number of different boards, a /sys/board.txt config file on the SDCard is used to configure the hardware pin assignments. Some example board config files [can be found here](https://github.com/sdavi/RepRapFirmware/tree/v2-dev-lpc/EdgeRelease/ExampleBoardConfig)
+    * M122 P200 command is used to print the mappings have been loaded by board.txt  and displays all options supported by board.txt
 
-Overview and history
-====================
-RepRapFirmware was developed originally by Adrian Bowyer and his collaborators at RepRapPro Ltd. It has been in use since late 2013, first in the open-source Ormerod, Mendel and Huxley 3D printer kits supplied by RepRapPro, and subsequently in a wide variery of 3D printers. Several current kit suppliers and many manufacturers of commercial 3D printers use RepRapFirmware.
+**The LPC port is experimental and is likely to contain bugs - Use at your own risk**
 
-Unlike most other 3D printer firmwares, RepRapFirmware is not intended to be run on outdated 8-bit processors with limited CPU power and RAM. So it makes good use of the power of modern inexpensive ARM processors to implement advanced features.
 
-RepRapFirmware has pioneered a number of advances in 3D printing including:
-
-* Support for mixing extruders (July 2014)
-* Precise timing of step pulses, even during acceleration (January 2015)
-* Accurate extruder pressure advance, including retraction before the end of a move when needed (January 2015)
-* Segmentation-free delta motion (January 2015)
-* Simulation mode, for establishing an accurate print time before committing to a print (January 2015)
-* Least-squares auto calibration of delta printers (April 2015)
-* Support for SPI-configured stepper drivers (August 2016)
-* Resume-after-power fail as a standard feature of the firmware (October 2017)
-* Compensation for the variation in extruder steps/mm with speed that is a feature of common types of extruder (January 2018)
-* Compensation of heater power for changes in power supply voltage
-* Dynamic acceleration control to control ringing
-
-Supported hardware
-==================
-Version 2 of this fork of RepRapFirmware supports electronics based on SAM4E, SAM4S and SAME70 processors; in particular the Duet WiFi, Duet Ethernet, Duet Maestro, the forthcoming Duet 3 range, and some specialist OEM boards. There is another fork that supports electronics that use the LPC1768/1769 processors. There is also an untested (by me) build for Arduino Due/RADDS
-
-Version 1 of this fork also supports hardware built around the SAM3X8E processor, such as Duet 06, Duet 085, Arduino Due/RADDS and Alligator. I no longer develop version 1 but if someone else wants to continue development of version 1 or add support for these processors in version 2, I will consider accepting related pull requests. Please note, version 2 uses FreeRTOS, and the additional memory requirement makes it difficult to fit both RTOS and LWIP network support into the 96Kb RAM limit of the SAM3X8E. One way to resolve this might be to use the TCP/IP stack that is available with FreeRTOS.
-
-General design principles
-=========================
-* "One binary to rule them all". For a given electronics board, all features of interest to most 3D printer owners are supported by a single binary. Users do not need to recompile the firmware unless they have unusual requirements.
-* "G-code everywhere". All firmware configuration is done using gcodes in the config.g file. Most types of changes can be done on the fly so that you can experiment with different configurations without even having to restart the printer.
-* Use high-integrity coding standards to help ensure that the firmware is reliable. In particular, don't use dynamic memory allocation during normal operation, use it only during the initialisation and configuration phases. The MISRA-C++ 2008 coding standard serves as a guide as to what is acceptable practice, but compliance to it is not rigidly enforced in order to allow features from later versions of the C++ language to be used.
-* Use an appropriate degree of modularity. Too little modularity makes the code hard to understand and maintain. Too much makes it hard to introduce new features when the existing module boundaries turn out to be inappropriate.
-* Use object-based and object-oriented design principles where it is appropriate. In particular, class data should normally be private. Use 'friend' sparingly or not at all.
-
-Compiling
-=========
-For compiling from source, see separate file BuildInstructions.md.
 
 Licence
 =======
-The source files in this project (RepRapFirmware) are licensed under GPLv3, see http://www.gnu.org/licenses/gpl-3.0.en.html. The associated CoreNG project, which provides a partial hardware abstraction layer, includes files derived from the Advanced Software Framework (formerly Atmel Software Framework) from Microchip. Those files have a more restrictive license, in particular they may only be used for code that targets Atmel/Microchip processors.
+The source files in this project are licensed under GPLv3, see http://www.gnu.org/licenses/gpl-3.0.en.html. 

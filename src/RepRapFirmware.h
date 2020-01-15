@@ -464,7 +464,8 @@ const uint32_t NvicPriorityPanelDueUart = 1;	// UART is highest to avoid charact
 const uint32_t NvicPriorityDriversSerialTMC = 2; // USART or UART used to control and monitor the smart drivers
 
 # if defined(__LPC17xx__)
-constexpr uint32_t NvicPriorityTimerPWM = 4;
+constexpr uint32_t NvicPriorityTimerPWM = 3;
+constexpr uint32_t NvicPriorityADC = 4;
 constexpr uint32_t NvicPriorityTimerServo = 5;
 # endif
 

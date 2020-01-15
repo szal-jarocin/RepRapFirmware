@@ -492,6 +492,9 @@ public:
 	MinMaxCurrent GetMcuTemperatures() const noexcept;
 	void SetMcuTemperatureAdjust(float v) noexcept { mcuTemperatureAdjust = v; }
 	float GetMcuTemperatureAdjust() const noexcept { return mcuTemperatureAdjust; }
+#elif defined(__LPC17xx__)
+    //Temporary to keep object model happy (return 0's) when no CPU temp is supported
+    MinMaxCurrent GetMcuTemperatures() const noexcept {MinMaxCurrent m={0.0}; return m;}
 #endif
 
 #if HAS_VOLTAGE_MONITOR
@@ -502,6 +505,10 @@ public:
 	void DisableAutoSave() noexcept;
 	void EnableAutoSave(float saveVoltage, float resumeVoltage) noexcept;
 	bool GetAutoSaveSettings(float& saveVoltage, float&resumeVoltage) noexcept;
+#elif defined(__LPC17xx__)
+    //Temporary to keep object model happy (return 0's) when no voltage monitor supported
+    MinMaxCurrent GetPowerVoltages() const noexcept {MinMaxCurrent m={0.0}; return m;}
+    float GetCurrentPowerVoltage() const noexcept {return 0;}
 #endif
 
 #if HAS_12V_MONITOR

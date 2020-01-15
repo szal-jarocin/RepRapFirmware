@@ -31,7 +31,7 @@ class Platform; //fwd decl
 class BoardConfig {
 
 public:
-    static void Init();
+    static void Init() noexcept;
 
     static void Diagnostics(MessageType mtype) noexcept;
     static Pin StringToPin(const char *strvalue) noexcept;

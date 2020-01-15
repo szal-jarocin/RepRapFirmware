@@ -56,6 +56,9 @@ Pin SoftwareSPIPins[3] = {NoPin, NoPin, NoPin};         //GPIO pins for software
     Pin EspResetPin = NoPin;
 #endif
 
+bool ADCEnablePreFilter = true;
+
+
 //Default to the Generic PinTable
 PinEntry *PinTable = (PinEntry *) PinTable_Generic;
 size_t NumNamedLPCPins = ARRAY_SIZE(PinTable_Generic);
