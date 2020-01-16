@@ -149,6 +149,7 @@ void RTOSPlusTCPEthernetSocket::ReInit() noexcept
 
     xConnectedSocket = nullptr;
     state = SocketState::inactive;
+    closingTimeoutStarted = false;
 
     //create server socket, or check if it was closed for some reason and attempt reopen
     xListeningSocket = RTOSPlusTCPEthernetServerSocket::Instance()->GetServerSocket(localPort, protocol);
@@ -223,7 +224,6 @@ void RTOSPlusTCPEthernetSocket::Diagnostics(MessageType mt) const  noexcept
             
         case SocketState::clientDisconnecting:
         case SocketState::closing:
-        case SocketState::closing2:
             reprap.GetPlatform().MessageF(mt, "Closing  ");
             break;
             
@@ -442,11 +442,14 @@ void RTOSPlusTCPEthernetSocket::Poll() noexcept
             } break;
                 
             case SocketState::closing:
-                whenConnected = millis(); // reuse whenConnected to have a shutdown timeout
-                state = SocketState::closing2;
-                //fall through to closing2:
-            case SocketState::closing2:
             {
+                if(closingTimeoutStarted == false)
+                {
+                    //first time in the closing state, start the closing timeout
+                    whenConnected = millis(); // reuse whenConnected to have a shutdown timeout
+                    closingTimeoutStarted = true;
+                }
+
                 /* Wait for the socket to send remaining packets and disconnect gracefully (indicated by FreeRTOS_recv()
                 returning a FREERTOS_EINVAL error) before closing the socket. */
                 uint8_t tmp;

@@ -46,6 +46,7 @@ private:
 
 	NetworkBuffer *receivedData;						// List of buffers holding received data
 	uint32_t whenConnected;
+    bool closingTimeoutStarted;
 	SocketNumber socketNum;								// The RTOSPlusTCPEthernet socket number we are using
 
 //TCP+

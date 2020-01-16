@@ -24,7 +24,7 @@
 
 #include "FreeRTOS_Sockets.h"
 #include "FreeRTOS_DHCP.h"
-#include "RTOSIface.h"
+#include "RTOSIface/RTOSIface.h"
 #include "TaskPriorities.h"
 
 #include "lpc_phy.h"
@@ -74,14 +74,17 @@ RTOSPlusTCPEthernetInterface::RTOSPlusTCPEthernetInterface(Platform& p) noexcept
 // Macro to build a standard lambda function that includes the necessary type conversions
 #define OBJECT_MODEL_FUNC(_ret) OBJECT_MODEL_FUNC_BODY(RTOSPlusTCPEthernetInterface, _ret)
 
-const ObjectModelTableEntry RTOSPlusTCPEthernetInterface::objectModelTable[] =
+constexpr ObjectModelTableEntry RTOSPlusTCPEthernetInterface::objectModelTable[] =
 {
     // These entries must be in alphabetical order
-    { "gateway", OBJECT_MODEL_FUNC(&(self->gateway)), TYPE_OF(IPAddress), ObjectModelTableEntry::none },
-    { "ip", OBJECT_MODEL_FUNC(&(self->ipAddress)), TYPE_OF(IPAddress), ObjectModelTableEntry::none },
-    { "name", OBJECT_MODEL_FUNC_NOSELF("RTOS+TCP"), TYPE_OF(const char *), ObjectModelTableEntry::none },
-    { "netmask", OBJECT_MODEL_FUNC(&(self->netmask)), TYPE_OF(IPAddress), ObjectModelTableEntry::none },
+    { "actualIP",           OBJECT_MODEL_FUNC(self->ipAddress),     ObjectModelEntryFlags::none },
+    { "firmwareVersion",    OBJECT_MODEL_FUNC_NOSELF(nullptr),      ObjectModelEntryFlags::none },
+    { "gateway",            OBJECT_MODEL_FUNC(self->gateway),       ObjectModelEntryFlags::none },
+    { "subnet",             OBJECT_MODEL_FUNC(self->netmask),       ObjectModelEntryFlags::none },
+    { "type",               OBJECT_MODEL_FUNC_NOSELF("ethernet"),   ObjectModelEntryFlags::none },
 };
+
+constexpr uint8_t RTOSPlusTCPEthernetInterface::objectModelTableDescriptor[] = { 1, 5 };
 
 DEFINE_GET_OBJECT_MODEL_TABLE(RTOSPlusTCPEthernetInterface)
 
