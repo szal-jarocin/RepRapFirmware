@@ -16,7 +16,7 @@ const size_t FileWriteBufLen = 8192;					// Size of each write buffer
 #elif defined(__LPC17xx__)
 # if HAS_WIFI_NETWORKING
 const size_t NumFileWriteBuffers = 1;
-const size_t FileWriteBufLen = 1024;
+const size_t FileWriteBufLen = 2*1024;
 # else
 const size_t NumFileWriteBuffers = 1;
 const size_t FileWriteBufLen = 512;
