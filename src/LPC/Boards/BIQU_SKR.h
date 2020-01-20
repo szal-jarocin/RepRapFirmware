@@ -161,4 +161,85 @@ constexpr BoardDefaults biquskr_1_3_Defaults = {
     113.33                                 //digiPot Factor
 };
 
+// BIQU SKR version 1.4
+constexpr PinEntry PinTable_BIQU_SKR_v1_4[] =
+{
+    //Thermistors
+    {P0_23, PinCapability::ainrw, "th1"},
+    {P0_24, PinCapability::ainrw, "th0"},
+    {P0_25, PinCapability::ainrw, "tb"},
+
+    //Endstops
+    {P1_29, PinCapability::rwpwm, "xstop"},
+    {P1_28, PinCapability::rwpwm, "ystop"},
+    {P1_27, PinCapability::rwpwm, "zstop"},
+    {P1_26, PinCapability::rwpwm, "e0stop"},
+    {P1_25, PinCapability::rwpwm, "e1stop"},
+    //Heaters and Fans (Big and Small Mosfets}
+    {P2_5,  PinCapability::wpwm, "hbed" },
+    {P2_7,  PinCapability::wpwm, "he0" },
+    {P2_4,  PinCapability::wpwm, "he1" },
+    {P2_3,  PinCapability::wpwm, "fan" },
+
+    //Servos
+    {P2_0,  PinCapability::rwpwm, "servo" },
+
+    //EXP1
+    {P1_23, PinCapability::rwpwm, "1.23"},
+    {P1_22, PinCapability::rwpwm, "1.22"},
+    {P1_21, PinCapability::rwpwm, "1.21"},
+    {P1_20, PinCapability::rwpwm, "1.20"},
+    {P1_19, PinCapability::rwpwm, "1.19"},
+    {P1_18, PinCapability::rwpwm, "1.18"},
+    {P0_28, PinCapability::rwpwm, "0.28"},
+    {P1_30, PinCapability::rwpwm, "1.30"},
+
+    //EXP2
+    {P1_31, PinCapability::rwpwm, "1.31"},
+    //{P0_18, PinCapability::rw, "0.18"}, //SSP0 MOSI
+    {P3_25, PinCapability::rwpwm, "3.25"},
+    {P0_16, PinCapability::rwpwm, "0.16"},
+    {P3_26, PinCapability::rwpwm, "3.26"},
+    //{P0_15, PinCapability::rw, "0.15"}, //SSP0 SCK
+    //{P0_17, PinCapability::rw, "0.17"}, //SSP0 MISO
+
+
+    //MONI-SD
+    {P0_27, PinCapability::rwpwm, "data2"},
+    //following pins are the same as the internal sdcard
+    //{P0_8,  PinCapability::rwpwm, "0.8"}, //SSP1 MISO
+    //{P0_7,  PinCapability::rwpwm, "0.7"}, //SSP1 SCK
+    //{P0_9,  PinCapability::rwpwm, "0.9"}, //SSP1 MOSI
+    //{P0_6,  PinCapability::rwpwm, "0.6"}, //SEL (SD CS)
+
+
+    //Other Headers on v1.3 Boards
+    //TMC2208-UART
+    //      Tx      Rx
+    //X     4.29    1.17
+    //Y     1.16    1.15
+    //Z     1.14    1.10
+    //E0    1.9     1.8
+    //E1    1.4     1.1
+
+    //TMC2130-UART (Note SPI pins are not on a HW SPI channel)
+    //XCS  1.10
+    //YCS  1.09
+    //ZCS  1.08
+    //E0CS 1.04
+    //E1CS 1.01
+
+    //MISO 0.5
+    //MOSI 1.17
+    //SCK  0.4
+};
+
+constexpr BoardDefaults biquskr_1_4_Defaults = {
+    {P2_1, P2_8,  P0_21, P2_12,  P1_16},    //enablePins
+    {P2_2, P0_19, P0_22, P2_13,  P1_15},   //stepPins
+    {P2_6, P0_20, P2_11, P0_11,  P1_14},    //dirPins
+    false,                                  //currentControl
+    113.33                                 //digiPot Factor
+};
+
 #endif
