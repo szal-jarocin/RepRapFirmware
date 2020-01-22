@@ -157,6 +157,8 @@ public:
 	DDARing& GetMainDDARing() noexcept { return mainDDARing; }
 	float GetTopSpeed() const noexcept { return mainDDARing.GetTopSpeed(); }
 	float GetRequestedSpeed() const noexcept { return mainDDARing.GetRequestedSpeed(); }
+	float GetAcceleration() const noexcept { return mainDDARing.GetAcceleration(); }
+	float GetDeceleration() const noexcept { return mainDDARing.GetDeceleration(); }
 
 	void AdjustLeadscrews(const floatc_t corrections[]) noexcept;							// Called by some Kinematics classes to adjust the leadscrews
 
@@ -209,7 +211,6 @@ private:
 	void InverseBedTransform(float move[MaxAxes],const  Tool *tool) const noexcept;		// Go from a bed-transformed point back to user coordinates
 	void AxisTransform(float move[MaxAxes], const Tool *tool) const noexcept;			// Take a position and apply the axis-angle compensations
 	void InverseAxisTransform(float move[MaxAxes], const Tool *tool) const noexcept;	// Go from an axis transformed point back to user coordinates
-	void SetPositions(const float move[MaxAxesPlusExtruders]) noexcept { return mainDDARing.SetPositions(move); }	// Force the machine coordinates to be these;
 	float GetInterpolatedHeightError(float xCoord, float yCoord) const noexcept;		// Get the height error at an XY position on the bed
 
 	DDARing mainDDARing;								// The DDA ring used for regular moves

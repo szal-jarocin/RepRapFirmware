@@ -57,8 +57,10 @@ public:
 	DDA *GetCurrentDDA() const noexcept { return currentDda; }							// Return the DDA of the currently-executing move, or nullptr
 
 	uint32_t GetClearNumHiccups() noexcept;
-	float GetTopSpeed() const noexcept;
 	float GetRequestedSpeed() const noexcept;
+	float GetTopSpeed() const noexcept;
+	float GetAcceleration() const noexcept;
+	float GetDeceleration() const noexcept;
 
 	int32_t GetEndPoint(size_t drive) const noexcept { return liveEndPoints[drive]; } 	// Get the current position of a motor
 	void GetCurrentMachinePosition(float m[MaxAxes], bool disableMotorMapping) const noexcept; // Get the current position in untransformed coords
@@ -84,7 +86,7 @@ private:
 	bool StartNextMove(Platform& p, uint32_t startTime) noexcept __attribute__ ((hot));	// Start the next move, returning true if laser or IObits need to be controlled
 	void PrepareMoves(DDA *firstUnpreparedMove, int32_t moveTimeLeft, unsigned int alreadyPrepared, uint8_t simulationMode) noexcept;
 
-	static bool TimerCallback(CallbackParameter p, StepTimer::Ticks& when) noexcept;
+	static void TimerCallback(CallbackParameter p) noexcept;
 
 	DDA* volatile currentDda;
 	DDA* addPointer;
