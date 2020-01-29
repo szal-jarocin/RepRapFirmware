@@ -16,6 +16,7 @@
 #include <General/IPAddress.h>
 #include <General/Bitmap.h>
 #include <RTOSIface/RTOSIface.h>
+#include <Networking/NetworkDefs.h>
 
 typedef uint8_t TypeCode;
 constexpr TypeCode NoType = 0;							// code for an invalid or unknown type
@@ -54,13 +55,13 @@ template<> constexpr TypeCode TypeOf<IPAddress>							() noexcept { return 12; }
 template<> constexpr TypeCode TypeOf<const ObjectModelArrayDescriptor*>	() noexcept { return 13; }
 template<> constexpr TypeCode TypeOf<DateTime>							() noexcept	{ return 14; }
 template<> constexpr TypeCode TypeOf<DriverId>							() noexcept { return 15; }
+template<> constexpr TypeCode TypeOf<MacAddress>						() noexcept { return 16; }
 
 #define TYPE_OF(_t) (TypeOf<_t>())
 
 // Forward declarations
 class ObjectModelTableEntry;
 class ObjectModel;
-class StringParser;
 
 // Struct used to hold the expressions with polymorphic types
 struct ExpressionValue
@@ -97,6 +98,7 @@ struct ExpressionValue
 	explicit ExpressionValue(Bitmap<uint16_t> bm) noexcept : type(TYPE_OF(Bitmap<uint16_t>)), param(0), uVal(bm.GetRaw()) { }
 	explicit ExpressionValue(Bitmap<uint32_t> bm) noexcept : type(TYPE_OF(Bitmap<uint32_t>)), param(0), uVal(bm.GetRaw()) { }
 	explicit ExpressionValue(Bitmap<uint64_t> bm) noexcept : type(TYPE_OF(Bitmap<uint64_t>)), param(bm.GetRaw() >> 32), uVal((uint32_t)bm.GetRaw()) { }
+	explicit ExpressionValue(const MacAddress& mac) noexcept;
 
 	void Set(bool b) noexcept { type = TYPE_OF(bool); bVal = b; }
 	void Set(char c) noexcept { type = TYPE_OF(char); cVal = c; }
@@ -128,7 +130,7 @@ enum class ObjectModelEntryFlags : uint8_t
 class ObjectExplorationContext
 {
 public:
-	ObjectExplorationContext(const char *reportFlags, unsigned int initialMaxDepth, bool wal) noexcept;
+	ObjectExplorationContext(const char *reportFlags, bool wal, unsigned int initialMaxDepth, int p_line = -1, int p_col = -1) noexcept;
 
 	void SetMaxDepth(unsigned int d) noexcept { maxDepth = d; }
 	bool IncreaseDepth() noexcept { if (currentDepth < maxDepth) { ++currentDepth; return true; } return false; }
@@ -145,6 +147,8 @@ public:
 	bool WantArrayLength() const noexcept { return wantArrayLength; }
 	bool ShouldIncludeNulls() const noexcept { return includeNulls; }
 
+	GCodeException ConstructParseException(const char *msg) const noexcept;
+
 private:
 	static constexpr size_t MaxIndices = 4;			// max depth of array nesting
 
@@ -153,6 +157,8 @@ private:
 	size_t numIndicesProvided;						// the number of indices provided, when we are doing a value lookup
 	size_t numIndicesCounted;						// the number of indices passed in the search string
 	int32_t indices[MaxIndices];
+	int line;
+	int column;
 	bool shortForm;
 	bool onlyLive;
 	bool includeVerbose;
@@ -180,7 +186,7 @@ public:
 	void ReportAsJson(OutputBuffer *buf, const char *filter, const char *reportFlags, bool wantArrayLength) const THROWS_GCODE_EXCEPTION;
 
 	// Get the value of an object via the table
-	ExpressionValue GetObjectValue(const StringParser& sp, ObjectExplorationContext& context, const char *idString, uint8_t tableNumber = 0) const THROWS_GCODE_EXCEPTION;
+	ExpressionValue GetObjectValue(ObjectExplorationContext& context, const char *idString, uint8_t tableNumber = 0) const THROWS_GCODE_EXCEPTION;
 
 	// Function to report a value or object as JSON
 	void ReportItemAsJson(OutputBuffer *buf, ObjectExplorationContext& context, ExpressionValue val, const char *filter) const THROWS_GCODE_EXCEPTION;
@@ -196,7 +202,7 @@ protected:
 	void ReportArrayAsJson(OutputBuffer *buf, ObjectExplorationContext& context, const ObjectModelArrayDescriptor *omad, const char *filter) const THROWS_GCODE_EXCEPTION;
 
 	// Get the value of an object that we hold
-	ExpressionValue GetObjectValue(const StringParser& sp, ObjectExplorationContext& context, ExpressionValue val, const char *idString) const THROWS_GCODE_EXCEPTION;
+	ExpressionValue GetObjectValue(ObjectExplorationContext& context, ExpressionValue val, const char *idString) const THROWS_GCODE_EXCEPTION;
 
 	// Get the object model table entry for the current level object in the query
 	const ObjectModelTableEntry *FindObjectModelTableEntry(uint8_t tableNumber, const char *idString) const noexcept;

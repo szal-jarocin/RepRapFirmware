@@ -15,6 +15,7 @@
 #include "RepRap.h"
 #include <General/IP4String.h>
 #include <General/StringBuffer.h>
+#include <Networking/NetworkDefs.h>
 
 // Replace the default definition of THROW_INTERNAL_ERROR by one that gives line information
 #undef THROW_INTERNAL_ERROR
@@ -705,13 +706,13 @@ void StringParser::DecodeCommand() noexcept
 			}
 		}
 
-		// Find where the end of the command is. We assume that a G or M preceded by a space and not inside quotes is the start of a new command.
+		// Find where the end of the command is. We assume that a G or M preceded by a space and not inside quotes or { } is the start of a new command.
 		bool inQuotes = false;
+		unsigned int braceCount = 0;
 		bool primed = false;
 		for (commandEnd = parameterStart; commandEnd < gcodeLineEnd; ++commandEnd)
 		{
 			const char c = gb.buffer[commandEnd];
-			char c2;
 			if (c == '"')
 			{
 				inQuotes = !inQuotes;
@@ -719,11 +720,28 @@ void StringParser::DecodeCommand() noexcept
 			}
 			else if (!inQuotes)
 			{
-				if (primed && ((c2 = toupper(c)) == 'G' || c2 == 'M'))
+				char c2;
+				if (c == '{')
+				{
+					++braceCount;
+					primed = false;
+				}
+				else if (c == '}')
+				{
+					if (braceCount != 0)
+					{
+						--braceCount;
+					}
+					primed = false;
+				}
+				else if (primed && ((c2 = toupper(c)) == 'G' || c2 == 'M'))
 				{
 					break;
 				}
-				primed = (c == ' ' || c == '\t');
+				else if (braceCount == 0)
+				{
+					primed = (c == ' ' || c == '\t');
+				}
 			}
 		}
 	}
@@ -1282,8 +1300,8 @@ void StringParser::GetIPAddress(IPAddress& returnedIp)
 	returnedIp.SetV4(ip);
 }
 
-// Get a MAX address sextet after a key letter
-void StringParser::GetMacAddress(uint8_t mac[6])
+// Get a MAC address sextet after a key letter
+void StringParser::GetMacAddress(MacAddress& mac)
 {
 	if (readPointer <= 0)
 	{
@@ -1301,7 +1319,7 @@ void StringParser::GetMacAddress(uint8_t mac[6])
 			readPointer = -1;
 			throw ConstructParseException("invalid MAC address");
 		}
-		mac[n] = (uint8_t)v;
+		mac.bytes[n] = (uint8_t)v;
 		++n;
 		p = pp;
 		if (*p != ':')
@@ -1683,6 +1701,12 @@ void StringParser::AppendAsString(ExpressionValue val, const StringRef& str)
 #endif
 		break;
 
+	case TYPE_OF(MacAddress):
+		str.catf("%02x:%02x:%02x:%02x:%02x:%02x",
+					(unsigned int)(val.uVal & 0xFF), (unsigned int)((val.uVal >> 8) & 0xFF), (unsigned int)((val.uVal >> 16) & 0xFF), (unsigned int)((val.uVal >> 24) & 0xFF),
+					(unsigned int)(val.param & 0xFF), (unsigned int)((val.param >> 8) & 0xFF));
+		break;
+
 	default:
 		throw ConstructParseException("string value expected");
 	}
@@ -1864,8 +1888,6 @@ ExpressionValue StringParser::ParseExpression(StringBuffer& stringBuffer, uint8_
 		{
 			++readPointer;
 		}
-
-		SkipWhiteSpace();
 
 		// Handle operators that do not always evaluate their second operand
 		switch (opChar)
@@ -2303,7 +2325,7 @@ ExpressionValue StringParser::ParseIdentifierExpression(StringBuffer& stringBuff
 	}
 
 	String<MaxVariableNameLength> id;
-	ObjectExplorationContext context("v", 99, applyLengthOperator);
+	ObjectExplorationContext context("v", applyLengthOperator, 99, gb.machineState->lineNumber, readPointer);
 
 	// Loop parsing identifiers and index expressions
 	// When we come across an index expression, evaluate it, add it to the context, and place a marker in the identifier string.
@@ -2393,6 +2415,7 @@ ExpressionValue StringParser::ParseIdentifierExpression(StringBuffer& stringBuff
 		// It's a function call
 		++readPointer;
 		ExpressionValue rslt = ParseExpression(stringBuffer, 0, evaluate);
+		//TODO use a binary search to do function lookup
 		if (id.Equals("abs"))
 		{
 			switch (rslt.type)
@@ -2476,6 +2499,44 @@ ExpressionValue StringParser::ParseIdentifierExpression(StringBuffer& stringBuff
 			rslt.type = TYPE_OF(bool);
 			rslt.bVal = (isnan(rslt.fVal) != 0);
 		}
+		else if (id.Equals("floor"))
+		{
+			ConvertToFloat(rslt, evaluate);
+			const float f = floorf(rslt.fVal);
+			if (f <= (float)std::numeric_limits<int32_t>::max() && f >= (float)std::numeric_limits<int32_t>::min())
+			{
+				rslt.type = TYPE_OF(int32_t);
+				rslt.iVal = (int32_t)f;
+			}
+			else
+			{
+				rslt.fVal = f;
+			}
+		}
+		else if (id.Equals("mod"))
+		{
+			SkipWhiteSpace();
+			if (gb.buffer[readPointer] != ',')
+			{
+				throw ConstructParseException("expected ','");
+			}
+			++readPointer;
+			SkipWhiteSpace();
+			ExpressionValue nextOperand = ParseExpression(stringBuffer, 0, evaluate);
+			BalanceNumericTypes(rslt, nextOperand, evaluate);
+			if (rslt.type == TYPE_OF(float))
+			{
+				rslt.fVal = fmod(rslt.fVal, nextOperand.fVal);
+			}
+			else if (nextOperand.iVal == 0)
+			{
+				rslt.iVal = 0;
+			}
+			else
+			{
+				rslt.iVal %= nextOperand.iVal;
+			}
+		}
 		else if (id.Equals("max"))
 		{
 			for (;;)
@@ -2537,7 +2598,7 @@ ExpressionValue StringParser::ParseIdentifierExpression(StringBuffer& stringBuff
 		return rslt;
 	}
 
-	return reprap.GetObjectValue(*this, context, id.c_str());
+	return reprap.GetObjectValue(context, id.c_str());
 }
 
 GCodeException StringParser::ConstructParseException(const char *str) const
