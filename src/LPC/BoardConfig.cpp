@@ -250,7 +250,8 @@ Pin BoardConfig::LookupPin(char *strvalue) noexcept
         return PinTable[lp].pin; //lookup succeeded, return the Pin
     }
                      
-    return NoPin;
+    //pin may not be in the pintable so check if the format is a correct pin (returns NoPin if not)
+    return StringToPin(strvalue);
 }
 
 
