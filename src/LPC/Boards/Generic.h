@@ -190,7 +190,10 @@ constexpr BoardDefaults genericDefaults = {
     {NoPin, NoPin, NoPin, NoPin, NoPin},    //enablePins
     {NoPin, NoPin, NoPin, NoPin, NoPin},    //stepPins
     {NoPin, NoPin, NoPin, NoPin, NoPin},    //dirPins
-    0,                                      //digiPot Factor    
+#if LPC_TMC_SOFT_UART
+    {NoPin, NoPin, NoPin, NoPin, NoPin},    //uartPins
+#endif
+    0    ,                                  //digiPot Factor    
 };
 
 #endif
