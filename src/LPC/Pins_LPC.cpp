@@ -103,7 +103,6 @@ bool SetBoard(const char* bn) noexcept
             SetDefaultPinArray(LPC_Boards[i].defaults.stepPins, STEP_PINS, MaxTotalDrivers);
             SetDefaultPinArray(LPC_Boards[i].defaults.dirPins, DIRECTION_PINS, MaxTotalDrivers);
 
-            hasDriverCurrentControl = LPC_Boards[i].defaults.hasDriverCurrentControl;
             digipotFactor = LPC_Boards[i].defaults.digipotFactor;
                         
             return true;
