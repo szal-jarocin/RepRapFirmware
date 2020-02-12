@@ -1029,6 +1029,7 @@ void Platform::Spin() noexcept
 			driversPowered = false;
 			++numVinOverVoltageEvents;
 			lastVinOverVoltageValue = currentVin;					// save this because the voltage may have changed by the time we report it
+			reprap.GetGCodes().SetAllAxesNotHomed();
 		}
 # endif
 		else
@@ -1040,6 +1041,7 @@ void Platform::Spin() noexcept
 			driversPowered = false;
 			++numV12UnderVoltageEvents;
 			lastV12UnderVoltageValue = currentV12;					// save this because the voltage may have changed by the time we report it
+			reprap.GetGCodes().SetAllAxesNotHomed();
 		}
 		else
 #endif
@@ -4106,7 +4108,7 @@ GCodeResult Platform::ConfigureStallDetection(GCodeBuffer& gb, const StringRef& 
 	if (seen)
 	{
 #if SUPPORT_CAN_EXPANSION
-		return CanInterface::SetRemoteDriverStallParameters(canDrivers, gb, reply);
+		return CanInterface::GetSetRemoteDriverStallParameters(canDrivers, gb, reply, buf);
 #else
 		return GCodeResult::ok;
 #endif
@@ -4118,7 +4120,11 @@ GCodeResult Platform::ConfigureStallDetection(GCodeBuffer& gb, const StringRef& 
 		return GCodeResult::notFinished;
 	}
 
-	if (drivers.IsEmpty())
+	if (drivers.IsEmpty()
+#if SUPPORT_CAN_EXPANSION
+		&& canDrivers.IsEmpty()
+#endif
+	   )
 	{
 		drivers = DriversBitmap::MakeLowestNBits(numSmartDrivers);
 	}
@@ -4126,7 +4132,11 @@ GCodeResult Platform::ConfigureStallDetection(GCodeBuffer& gb, const StringRef& 
 	drivers.Iterate
 		([buf, this, reply](unsigned int drive, bool) noexcept
 			{
+#if SUPPORT_CAN_EXPANSION
+				buf->lcatf("Driver 0.%u: ", drive);
+#else
 				buf->lcatf("Driver %u: ", drive);
+#endif
 				reply.Clear();										// we use 'reply' as a temporary buffer
 				SmartDrivers::AppendStallConfig(drive, reply);
 				buf->cat(reply.c_str());
@@ -4139,7 +4149,11 @@ GCodeResult Platform::ConfigureStallDetection(GCodeBuffer& gb, const StringRef& 
 			}
 		);
 
+# if SUPPORT_CAN_EXPANSION
+	return CanInterface::GetSetRemoteDriverStallParameters(canDrivers, gb, reply, buf);
+# else
 	return GCodeResult::ok;
+#endif
 }
 
 #endif
