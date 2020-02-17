@@ -91,7 +91,7 @@ constexpr size_t MaxSmartDrivers = 0;                // The maximum number of sm
 constexpr size_t MaxSensors = 32;
 
 constexpr size_t MaxHeaters = 3;                     // The maximum number of heaters in the machine
-constexpr size_t MaxExtraHeaterProtections = 3;      // The number of extra heater protection instances
+constexpr size_t MaxMonitorsPerHeater = 2;
 
 constexpr size_t MaxBedHeaters = 1;
 constexpr size_t MaxChamberHeaters = 1;
