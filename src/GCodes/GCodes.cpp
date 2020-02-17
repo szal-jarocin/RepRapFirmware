@@ -28,7 +28,7 @@
 #include "GCodeBuffer/GCodeBuffer.h"
 #include "GCodeQueue.h"
 #include "Heating/Heat.h"
-#include "Heating/HeaterProtection.h"
+//#include "Heating/HeaterProtection.h"
 #include "Platform.h"
 #include "Movement/Move.h"
 #include "Scanner.h"
@@ -464,7 +464,7 @@ void GCodes::StartNextGCode(GCodeBuffer& gb, const StringRef& reply)
 		}
 		catch (GCodeException& e)
 		{
-			e.GetMessage(reply, gb);
+			e.GetMessage(reply, &gb);
 			HandleReply(gb, GCodeResult::error, reply.c_str());
 			gb.Init();
 			return;
@@ -628,7 +628,7 @@ void GCodes::DoFilePrint(GCodeBuffer& gb, const StringRef& reply)
 				}
 				catch (GCodeException& e)
 				{
-					e.GetMessage(reply, gb);
+					e.GetMessage(reply, &gb);
 					HandleReply(gb, GCodeResult::error, reply.c_str());
 					gb.Init();
 					AbortPrint(gb);
@@ -665,7 +665,7 @@ void GCodes::DoFilePrint(GCodeBuffer& gb, const StringRef& reply)
 				}
 				catch (GCodeException& e)
 				{
-					e.GetMessage(reply, gb);
+					e.GetMessage(reply, &gb);
 					HandleReply(gb, GCodeResult::error, reply.c_str());
 					gb.Init();
 					AbortPrint(gb);
@@ -1501,6 +1501,7 @@ void GCodes::Pop(GCodeBuffer& gb, bool withinSameFile)
 
 // Set up the extrusion and feed rate of a move for the Move class
 // 'moveBuffer.moveType' and 'moveBuffer.isCoordinated' must be set up before calling this
+// 'isPrintingMove' is true if there is any axis movement
 // Returns true if this gcode is valid so far, false if it should be discarded
 bool GCodes::LoadExtrusionAndFeedrateFromGCode(GCodeBuffer& gb, bool isPrintingMove)
 {
@@ -1512,7 +1513,7 @@ bool GCodes::LoadExtrusionAndFeedrateFromGCode(GCodeBuffer& gb, bool isPrintingM
 		if (gb.Seen(feedrateLetter))
 		{
 			const float rate = gb.GetDistance();
-			gb.MachineState().feedRate = (moveBuffer.moveType == 0)
+			gb.MachineState().feedRate = (moveBuffer.moveType == 0 && isPrintingMove)
 						? rate * speedFactor * (0.01 * SecondsToMinutes)
 						: rate * SecondsToMinutes;		// don't apply the speed factor to homing and other special moves
 		}
@@ -3001,7 +3002,7 @@ GCodeResult GCodes::SetOrReportOffsets(GCodeBuffer &gb, const StringRef& reply)
 				gb.GetFloatArray(active, hCount, true);
 				for (size_t h = 0; h < hCount; ++h)
 				{
-					tool->SetToolHeaterActiveTemperature(h, active[h]);
+					tool->SetToolHeaterActiveTemperature(h, active[h]);		// may throw
 				}
 			}
 		}
@@ -3431,12 +3432,11 @@ void GCodes::HandleReply(GCodeBuffer& gb, OutputBuffer *reply) noexcept
 	}
 }
 
-void GCodes::SetToolHeaters(Tool *tool, float temperature, bool both)
+void GCodes::SetToolHeaters(Tool *tool, float temperature, bool both) THROWS(GCodeException)
 {
 	if (tool == nullptr)
 	{
-		platform.Message(ErrorMessage, "Setting temperature: no tool selected\n");
-		return;
+		throw GCodeException(-1, -1, "setting temperature: no tool selected\n");
 	}
 
 	for (size_t h = 0; h < tool->HeaterCount(); h++)
