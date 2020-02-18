@@ -28,7 +28,7 @@
 #include "GCodeBuffer/GCodeBuffer.h"
 #include "GCodeQueue.h"
 #include "Heating/Heat.h"
-#include "Heating/HeaterProtection.h"
+//#include "Heating/HeaterProtection.h"
 #include "Platform.h"
 #include "Movement/Move.h"
 #include "Scanner.h"
@@ -49,7 +49,7 @@
 // Support for emergency stop from PanelDue
 bool GCodes::emergencyStopCommanded = false;
 
-void GCodes::CommandEmergencyStop(UARTClass *p)
+void GCodes::CommandEmergencyStop(UARTClass *p) noexcept
 {
 	emergencyStopCommanded = true;
 }
@@ -204,6 +204,8 @@ void GCodes::Reset() noexcept
 	{
 		auxGCode->SetCommsProperties(1);				// by default, we require a checksum on the aux port
 	}
+
+	nextGcodeSource = 0;
 
 #if HAS_MASS_STORAGE
 	fileToPrint.Close();
@@ -383,44 +385,52 @@ void GCodes::Spin() noexcept
 	CheckHeaterFault();
 	CheckFilament();
 
-	// Perform the next G-code(s)
-	String<GCodeReplyLength> reply;
-	for (GCodeBuffer *gbp : gcodeSources)
+	// Get the GCodeBuffer that we want to process a command from. Use round-robin scheduling but give priority to auto-pause.
+	GCodeBuffer *gbp = autoPauseGCode;
+	if (gbp->IsCompletelyIdle() && !(gbp->MachineState().fileState.IsLive()))	// if autoPause is not active
 	{
-		if (gbp != nullptr)
+		do
 		{
-			GCodeBuffer& gb = *gbp;
-			reply.Clear();
-
-			if (gb.GetState() == GCodeState::normal)
+			gbp = gcodeSources[nextGcodeSource];
+			++nextGcodeSource;										// move on to the next gcode source ready for next time
+			if (nextGcodeSource == ARRAY_SIZE(gcodeSources) - 1)	// the last one is autoPauseGCode, so don't do it again
 			{
-				if (gb.MachineState().messageAcknowledged)
-				{
-					const bool wasCancelled = gb.MachineState().messageCancelled;
-					gb.PopState(false);                                                             // this could fail if the current macro has already been aborted
+				nextGcodeSource = 0;
+			}
+		} while (gbp == nullptr);									// we must have at least one GCode source, so this can't loop indefinitely
+	}
+	GCodeBuffer& gb = *gbp;
 
-					if (wasCancelled)
-					{
-						if (gb.MachineState().previous == nullptr)
-						{
-							StopPrint(StopPrintReason::userCancelled);
-						}
-						else
-						{
-							FileMacroCyclesReturn(gb);
-						}
-					}
+	// Set up a buffer for the reply
+	String<GCodeReplyLength> reply;
+
+	if (gb.GetState() == GCodeState::normal)
+	{
+		if (gb.MachineState().messageAcknowledged)
+		{
+			const bool wasCancelled = gb.MachineState().messageCancelled;
+			gb.PopState(false);                                                             // this could fail if the current macro has already been aborted
+
+			if (wasCancelled)
+			{
+				if (gb.MachineState().previous == nullptr)
+				{
+					StopPrint(StopPrintReason::userCancelled);
 				}
 				else
 				{
-					StartNextGCode(gb, reply.GetRef());
+					FileMacroCyclesReturn(gb);
 				}
 			}
-			else
-			{
-				RunStateMachine(gb, reply.GetRef());                            // execute the state machine
-			}
 		}
+		else
+		{
+			StartNextGCode(gb, reply.GetRef());
+		}
+	}
+	else
+	{
+		RunStateMachine(gb, reply.GetRef());                            // execute the state machine
 	}
 
 	// Check if we need to display a warning
@@ -437,7 +447,7 @@ void GCodes::Spin() noexcept
 }
 
 // Start a new gcode, or continue to execute one that has already been started:
-void GCodes::StartNextGCode(GCodeBuffer& gb, const StringRef& reply)
+void GCodes::StartNextGCode(GCodeBuffer& gb, const StringRef& reply) noexcept
 {
 	if (IsPaused() && &gb == fileGCode)
 	{
@@ -454,7 +464,7 @@ void GCodes::StartNextGCode(GCodeBuffer& gb, const StringRef& reply)
 		}
 		catch (GCodeException& e)
 		{
-			e.GetMessage(reply, gb);
+			e.GetMessage(reply, &gb);
 			HandleReply(gb, GCodeResult::error, reply.c_str());
 			gb.Init();
 			return;
@@ -502,7 +512,7 @@ void GCodes::StartNextGCode(GCodeBuffer& gb, const StringRef& reply)
 	}
 }
 
-void GCodes::DoFilePrint(GCodeBuffer& gb, const StringRef& reply)
+void GCodes::DoFilePrint(GCodeBuffer& gb, const StringRef& reply) noexcept
 {
 #if HAS_LINUX_INTERFACE
 	if (reprap.UsingLinuxInterface())
@@ -618,7 +628,7 @@ void GCodes::DoFilePrint(GCodeBuffer& gb, const StringRef& reply)
 				}
 				catch (GCodeException& e)
 				{
-					e.GetMessage(reply, gb);
+					e.GetMessage(reply, &gb);
 					HandleReply(gb, GCodeResult::error, reply.c_str());
 					gb.Init();
 					AbortPrint(gb);
@@ -655,7 +665,7 @@ void GCodes::DoFilePrint(GCodeBuffer& gb, const StringRef& reply)
 				}
 				catch (GCodeException& e)
 				{
-					e.GetMessage(reply, gb);
+					e.GetMessage(reply, &gb);
 					HandleReply(gb, GCodeResult::error, reply.c_str());
 					gb.Init();
 					AbortPrint(gb);
@@ -1491,6 +1501,7 @@ void GCodes::Pop(GCodeBuffer& gb, bool withinSameFile)
 
 // Set up the extrusion and feed rate of a move for the Move class
 // 'moveBuffer.moveType' and 'moveBuffer.isCoordinated' must be set up before calling this
+// 'isPrintingMove' is true if there is any axis movement
 // Returns true if this gcode is valid so far, false if it should be discarded
 bool GCodes::LoadExtrusionAndFeedrateFromGCode(GCodeBuffer& gb, bool isPrintingMove)
 {
@@ -1502,7 +1513,7 @@ bool GCodes::LoadExtrusionAndFeedrateFromGCode(GCodeBuffer& gb, bool isPrintingM
 		if (gb.Seen(feedrateLetter))
 		{
 			const float rate = gb.GetDistance();
-			gb.MachineState().feedRate = (moveBuffer.moveType == 0)
+			gb.MachineState().feedRate = (moveBuffer.moveType == 0 && isPrintingMove && !gb.IsDoingFileMacro())
 						? rate * speedFactor * (0.01 * SecondsToMinutes)
 						: rate * SecondsToMinutes;		// don't apply the speed factor to homing and other special moves
 		}
@@ -2402,7 +2413,7 @@ void GCodes::EmergencyStop() noexcept
 // 502 = running M502
 // 98 = running a macro explicitly via M98
 // -1 = running a system macro automatically
-bool GCodes::DoFileMacro(GCodeBuffer& gb, const char* fileName, bool reportMissing, int codeRunning)
+bool GCodes::DoFileMacro(GCodeBuffer& gb, const char* fileName, bool reportMissing, int codeRunning) noexcept
 {
 #if HAS_LINUX_INTERFACE
 	if (reprap.UsingLinuxInterface())
@@ -2460,7 +2471,7 @@ bool GCodes::DoFileMacro(GCodeBuffer& gb, const char* fileName, bool reportMissi
 #endif
 }
 
-void GCodes::FileMacroCyclesReturn(GCodeBuffer& gb)
+void GCodes::FileMacroCyclesReturn(GCodeBuffer& gb) noexcept
 {
 	if (gb.IsDoingFileMacro())
 	{
@@ -2710,7 +2721,7 @@ GCodeResult GCodes::LoadHeightMap(GCodeBuffer& gb, const StringRef& reply)
 }
 
 // Save the height map and append the success or error message to 'reply', returning true if an error occurred
-bool GCodes::TrySaveHeightMap(const char *filename, const StringRef& reply) const
+bool GCodes::TrySaveHeightMap(const char *filename, const StringRef& reply) const noexcept
 {
 #if HAS_LINUX_INTERFACE
 	// If we have a Linux interface and we're using it, the Linux components will take care of file I/O.
@@ -2991,7 +3002,7 @@ GCodeResult GCodes::SetOrReportOffsets(GCodeBuffer &gb, const StringRef& reply)
 				gb.GetFloatArray(active, hCount, true);
 				for (size_t h = 0; h < hCount; ++h)
 				{
-					tool->SetToolHeaterActiveTemperature(h, active[h]);
+					tool->SetToolHeaterActiveTemperature(h, active[h]);		// may throw
 				}
 			}
 		}
@@ -3421,12 +3432,11 @@ void GCodes::HandleReply(GCodeBuffer& gb, OutputBuffer *reply) noexcept
 	}
 }
 
-void GCodes::SetToolHeaters(Tool *tool, float temperature, bool both)
+void GCodes::SetToolHeaters(Tool *tool, float temperature, bool both) THROWS(GCodeException)
 {
 	if (tool == nullptr)
 	{
-		platform.Message(ErrorMessage, "Setting temperature: no tool selected\n");
-		return;
+		throw GCodeException(-1, -1, "setting temperature: no tool selected\n");
 	}
 
 	for (size_t h = 0; h < tool->HeaterCount(); h++)
@@ -4169,7 +4179,7 @@ void GCodes::CheckReportDue(GCodeBuffer& gb, const StringRef& reply) const
 
 // Generate a M408 response
 // Return the output buffer containing the response, or nullptr if we failed
-OutputBuffer *GCodes::GenerateJsonStatusResponse(int type, int seq, ResponseSource source) const
+OutputBuffer *GCodes::GenerateJsonStatusResponse(int type, int seq, ResponseSource source) const noexcept
 {
 	OutputBuffer *statusResponse = nullptr;
 	switch (type)

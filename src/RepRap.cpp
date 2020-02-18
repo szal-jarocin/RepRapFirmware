@@ -163,6 +163,7 @@ constexpr ObjectModelTableEntry RepRap::objectModelTable[] =
 	{ "fans",					OBJECT_MODEL_FUNC_NOSELF(&fansArrayDescriptor),							ObjectModelEntryFlags::live },
 	{ "heat",					OBJECT_MODEL_FUNC(self->heat),											ObjectModelEntryFlags::live },
 	{ "job",					OBJECT_MODEL_FUNC(self->printMonitor),									ObjectModelEntryFlags::live },
+	{ "limits",					OBJECT_MODEL_FUNC(self, 2),												ObjectModelEntryFlags::verbose },
 	{ "move",					OBJECT_MODEL_FUNC(self->move),											ObjectModelEntryFlags::live },
 	{ "network",				OBJECT_MODEL_FUNC(self->network),										ObjectModelEntryFlags::none },
 	{ "sensors",				OBJECT_MODEL_FUNC(&self->platform->GetEndstops()),						ObjectModelEntryFlags::none },
@@ -172,11 +173,42 @@ constexpr ObjectModelTableEntry RepRap::objectModelTable[] =
 	// 1. MachineModel.state
 	{ "currentTool",			OBJECT_MODEL_FUNC((int32_t)self->GetCurrentToolNumber()),				ObjectModelEntryFlags::live },
 	{ "machineMode",			OBJECT_MODEL_FUNC(self->gCodes->GetMachineModeString()),				ObjectModelEntryFlags::none },
+	{ "previousTool",			OBJECT_MODEL_FUNC((int32_t)self->previousToolNumber),					ObjectModelEntryFlags::live },
 	{ "status",					OBJECT_MODEL_FUNC(self->GetStatusString()),								ObjectModelEntryFlags::live },
 	{ "upTime",					OBJECT_MODEL_FUNC_NOSELF((int32_t)((millis64()/1000u) & 0x7FFFFFFF)),	ObjectModelEntryFlags::live },
+
+	// 2. MachineModel.limits
+	{ "axes",					OBJECT_MODEL_FUNC_NOSELF((int32_t)MaxAxes),								ObjectModelEntryFlags::verbose },
+	{ "axesPlusExtruders",		OBJECT_MODEL_FUNC_NOSELF((int32_t)MaxAxesPlusExtruders),				ObjectModelEntryFlags::verbose },
+	{ "bedHeaters",				OBJECT_MODEL_FUNC_NOSELF((int32_t)MaxBedHeaters),						ObjectModelEntryFlags::verbose },
+#if SUPPORT_CAN_EXPANSION
+	{ "boards",					OBJECT_MODEL_FUNC_NOSELF((int32_t)MaxCanBoards + 1),					ObjectModelEntryFlags::verbose },
+#else
+	{ "boards",					OBJECT_MODEL_FUNC_NOSELF((int32_t)1),									ObjectModelEntryFlags::verbose },
+#endif
+	{ "chamberHeaters",			OBJECT_MODEL_FUNC_NOSELF((int32_t)MaxChamberHeaters),					ObjectModelEntryFlags::verbose },
+#if SUPPORT_CAN_EXPANSION
+	{ "drivers",				OBJECT_MODEL_FUNC_NOSELF((int32_t)(NumDirectDrivers + MaxCanDrivers)),	ObjectModelEntryFlags::verbose },
+#else
+	{ "drivers",				OBJECT_MODEL_FUNC_NOSELF((int32_t)NumDirectDrivers),					ObjectModelEntryFlags::verbose },
+#endif
+	{ "driversPerAxis",			OBJECT_MODEL_FUNC_NOSELF((int32_t)MaxDriversPerAxis),					ObjectModelEntryFlags::verbose },
+	{ "extruders",				OBJECT_MODEL_FUNC_NOSELF((int32_t)MaxExtruders),						ObjectModelEntryFlags::verbose },
+	{ "extrudersPerTool",		OBJECT_MODEL_FUNC_NOSELF((int32_t)MaxExtrudersPerTool),					ObjectModelEntryFlags::verbose },
+	{ "fans",					OBJECT_MODEL_FUNC_NOSELF((int32_t)MaxFans),								ObjectModelEntryFlags::verbose },
+	{ "gpInPorts",				OBJECT_MODEL_FUNC_NOSELF((int32_t)MaxGpInPorts),						ObjectModelEntryFlags::verbose },
+	{ "gpOutPorts",				OBJECT_MODEL_FUNC_NOSELF((int32_t)MaxGpOutPorts),						ObjectModelEntryFlags::verbose },
+	{ "heaters",				OBJECT_MODEL_FUNC_NOSELF((int32_t)MaxHeaters),							ObjectModelEntryFlags::verbose },
+	{ "heatersPerTool",			OBJECT_MODEL_FUNC_NOSELF((int32_t)MaxHeatersPerTool),					ObjectModelEntryFlags::verbose },
+	{ "monitorsPerHeater",		OBJECT_MODEL_FUNC_NOSELF((int32_t)MaxMonitorsPerHeater),				ObjectModelEntryFlags::verbose },
+	{ "sensors",				OBJECT_MODEL_FUNC_NOSELF((int32_t)MaxSensors),							ObjectModelEntryFlags::verbose },
+	{ "spindles",				OBJECT_MODEL_FUNC_NOSELF((int32_t)MaxSpindles),							ObjectModelEntryFlags::verbose },
+	{ "triggers",				OBJECT_MODEL_FUNC_NOSELF((int32_t)MaxTriggers),							ObjectModelEntryFlags::verbose },
+	{ "zProbeProgramBytes",		OBJECT_MODEL_FUNC_NOSELF((int32_t)MaxZProbeProgramBytes),				ObjectModelEntryFlags::verbose },
+	{ "zProbes",				OBJECT_MODEL_FUNC_NOSELF((int32_t)MaxZProbes),							ObjectModelEntryFlags::verbose },
 };
 
-constexpr uint8_t RepRap::objectModelTableDescriptor[] = { 2, 9, 4 };
+constexpr uint8_t RepRap::objectModelTableDescriptor[] = { 3, 10, 5, 20 };
 
 DEFINE_GET_OBJECT_MODEL_TABLE(RepRap)
 
@@ -193,6 +225,7 @@ RepRap::RepRap() noexcept
 	  activeExtruders(0), activeToolHeaters(0), numToolsToReport(0),
 	  ticksInSpinState(0), heatTaskIdleTicks(0), debug(0),
 	  beepFrequency(0), beepDuration(0),
+	  previousToolNumber(-1),
 	  diagnosticsDestination(MessageType::NoDestinationMessage), justSentDiagnostics(false),
 	  spinningModule(noModule), stopped(false), active(false), processingConfig(true)
 #if HAS_LINUX_INTERFACE
@@ -1430,7 +1463,7 @@ OutputBuffer *RepRap::GetStatusResponse(uint8_t type, ResponseSource source) noe
 				// Axis mapping
 				response->cat(",\"axisMap\":[[");
 				tool->GetXAxisMap().Iterate
-					([&response](unsigned int xi, bool first) noexcept
+					([response](unsigned int xi, bool first) noexcept
 						{
 							if (!first)
 							{
@@ -1442,7 +1475,7 @@ OutputBuffer *RepRap::GetStatusResponse(uint8_t type, ResponseSource source) noe
 				response->cat("],[");
 
 				tool->GetYAxisMap().Iterate
-					([&response](unsigned int yi, bool first) noexcept
+					([response](unsigned int yi, bool first) noexcept
 						{
 							if (!first)
 							{

@@ -59,6 +59,7 @@ constexpr uint32_t MinimumWarningInterval = 4000;		// Milliseconds, must be at l
 constexpr uint32_t LogFlushInterval = 15000;			// Milliseconds
 constexpr uint32_t DriverCoolingTimeout = 4000;			// Milliseconds
 constexpr float DefaultMessageTimeout = 10.0;			// How long a message is displayed by default, in seconds
+constexpr uint16_t MinimumGpinReportInterval = 30;		// Minimum interval between input change reports sent over CAN bus
 
 constexpr uint32_t MinimumOpenLoadFullStepsPerSec = 20;	// this is 4mm/sec @ 80steps/mm
 
@@ -85,8 +86,9 @@ constexpr float HOT_ENOUGH_TO_RETRACT = 90.0;			// Celsius
 
 constexpr unsigned int MaxBadTemperatureCount = 2000/HeatSampleIntervalMillis;	// Number of bad temperature samples permitted before a heater fault is reported (2 seconds)
 constexpr float BadLowTemperature = -10.0;				// Celsius
-constexpr float DefaultHotEndTemperatureLimit = 290.0;	// Celsius - E3D say to tighten the hot end at 285C
+constexpr float DefaultHotEndTemperatureLimit = 285.0;	// Celsius - E3D say to tighten the hot end at 285C
 constexpr float DefaultBedTemperatureLimit = 125.0;		// Celsius
+constexpr float DefaultAllowedOverTemperature = 5.0;
 constexpr float DefaultHotEndFanTemperature = 45.0;		// Temperature at which a thermostatic hot end fan comes on
 constexpr float ThermostatHysteresis = 1.0;				// How much hysteresis we use to prevent noise turning fans on/off too often
 constexpr float BadErrorTemperature = 2000.0;			// Must exceed any reasonable temperature limit including DEFAULT_TEMPERATURE_LIMIT
@@ -131,10 +133,6 @@ constexpr PwmFrequency ServoRefreshFrequency = 50;
 // Fan defaults
 constexpr float DefaultMinFanPwm = 0.1;					// minimum fan PWM
 constexpr uint32_t DefaultFanBlipTime = 100;			// fan blip time in milliseconds
-
-// M577 and M581
-constexpr unsigned int MaxM577Ports = 4;
-constexpr unsigned int MaxPortsPerTrigger = 4;
 
 // Conditional GCode support
 constexpr unsigned int MaxBlockIndent = 10;				// maximum indentation of GCode. Each level of indentation introduced a new block.
@@ -290,7 +288,6 @@ constexpr float FILAMENT_WIDTH = 1.75;					// Millimetres
 constexpr unsigned int MaxStackDepth = 5;				// Maximum depth of stack
 
 // CNC and laser support
-constexpr size_t MaxSpindles = 4;						// Maximum number of configurable spindles
 constexpr float DefaultMaxSpindleRpm = 10000;			// Default spindle RPM at full PWM
 constexpr float DefaultMaxLaserPower = 255.0;			// Power setting in M3 command for full power
 constexpr uint32_t LaserPwmIntervalMillis = 5;			// Interval (ms) between adjusting the laser PWM during acceleration or deceleration
