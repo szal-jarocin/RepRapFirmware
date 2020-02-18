@@ -45,11 +45,11 @@ static constexpr uint32_t SU_FRAME_LENGTH = 10;
 
 // Select sample rates, ensure that one is always an exact multiple of the other
 #if (READ_OVERSAMPLE >= WRITE_OVERSAMPLE)
-    static const uint32_t SU_READ_PERIOD = (getPclk(PCLK_TIMER1)/(SU_BAUD_RATE*SU_READ_OVERSAMPLE)) - 1;
-    static const uint32_t SU_WRITE_PERIOD = (getPclk(PCLK_TIMER1)/(SU_BAUD_RATE*SU_READ_OVERSAMPLE))*(SU_READ_OVERSAMPLE/SU_WRITE_OVERSAMPLE) - 1;
+    static const uint32_t SU_READ_PERIOD = (getPclk(PCLK_TIMER3)/(SU_BAUD_RATE*SU_READ_OVERSAMPLE)) - 1;
+    static const uint32_t SU_WRITE_PERIOD = (getPclk(PCLK_TIMER3)/(SU_BAUD_RATE*SU_READ_OVERSAMPLE))*(SU_READ_OVERSAMPLE/SU_WRITE_OVERSAMPLE) - 1;
 #else
-    static const uint32_t SU_READ_PERIOD = (getPclk(PCLK_TIMER1)/(SU_BAUD_RATE*SU_WRITE_OVERSAMPLE))*(SU_WRITE_OVERSAMPLE/SU_READ_OVERSAMPLE) - 1;
-    static const uint32_t SU_WRITE_PERIOD = (getPclk(PCLK_TIMER1)/(SU_BAUD_RATE*SU_WRITE_OVERSAMPLE)) - 1;
+    static const uint32_t SU_READ_PERIOD = (getPclk(PCLK_TIMER3)/(SU_BAUD_RATE*SU_WRITE_OVERSAMPLE))*(SU_WRITE_OVERSAMPLE/SU_READ_OVERSAMPLE) - 1;
+    static const uint32_t SU_WRITE_PERIOD = (getPclk(PCLK_TIMER3)/(SU_BAUD_RATE*SU_WRITE_OVERSAMPLE)) - 1;
 #endif
 
 enum class SUStates
@@ -257,8 +257,8 @@ static void DmaInterrupt()
     case SUStates::readsync2:
         // sync is in progress switch pin direction
 		pinMode(SUPin, INPUT_PULLUP);
-        LPC_TIMER1->MR[0] = SU_READ_PERIOD;
-        LPC_TIMER1->TC  = 0x00;  // Reset the Timer Count to 0
+        LPC_TIMER3->MR[0] = SU_READ_PERIOD;
+        LPC_TIMER3->TC  = 0x00;  // Reset the Timer Count to 0
         SUState = SUStates::reading;
         break;
     case SUStates::reading:
@@ -275,9 +275,9 @@ static void DmaInterrupt()
 static void DmaStart()
 {
     // Prepare the DMA hardware for the write/read operation
-    LPC_SYSCTL->DMAREQSEL |= (1 << (GPDMA_CONN_MAT1_0 - 16));
+    LPC_SYSCTL->DMAREQSEL |= (1 << (GPDMA_CONN_MAT3_0 - 16));
 
-    const uint8_t channelNumber = DMAGetChannelNumber(DMA_TIMER_MAT1_0);
+    const uint8_t channelNumber = DMAGetChannelNumber(DMA_TIMER_MAT3_0);
     GPDMA_CH_T *pDMAch = (GPDMA_CH_T *) &(LPC_GPDMA->CH[channelNumber]);
 
     pDMAch->CONFIG = GPDMA_DMACCxConfig_H;                        //halt the DMA channel - Clears DMA FIFO
@@ -302,7 +302,7 @@ static void DmaStart()
 
     pDMAch->CONFIG = // GPDMA_DMACCxConfig_E   
                         0                                                          //Enable
-                            | GPDMA_DMACCxConfig_SrcPeripheral((GPDMA_CONN_MAT1_0 - 8))                       
+                            | GPDMA_DMACCxConfig_SrcPeripheral((GPDMA_CONN_MAT3_0 - 8))                       
                             | GPDMA_DMACCxConfig_TransferType(GPDMA_TRANSFERTYPE_P2M_CONTROLLER_DMA)
                             | GPDMA_DMACCxConfig_IE                         //Interrupt Error Mask
                             | GPDMA_DMACCxConfig_ITC;                       //Terminal count interrupt mask
@@ -310,8 +310,8 @@ static void DmaStart()
 
 
     SUState = SUStates::writing;
-    LPC_TIMER1->MR[0] = SU_WRITE_PERIOD;
-    LPC_TIMER1->TC  = 0x00;  // Reset the Timer Count to 0
+    LPC_TIMER3->MR[0] = SU_WRITE_PERIOD;
+    LPC_TIMER3->TC  = 0x00;  // Reset the Timer Count to 0
 
 	Chip_GPDMA_ChannelCmd(LPC_GPDMA, channelNumber, ENABLE);
 }
@@ -365,13 +365,13 @@ bool LPCSoftUARTCheckComplete() noexcept
 void LPCSoftUARTInit() noexcept
 {
 	InitialiseDMA();
-    AttachDMAChannelInterruptHandler(DmaInterrupt, DMA_TIMER_MAT1_0);
-    Chip_Clock_EnablePeriphClock(SYSCTL_CLOCK_TIMER1); //enable power and clocking
-    LPC_TIMER1->PR   =  0;
-    LPC_TIMER1->MR[0] = SU_WRITE_PERIOD;
-    LPC_TIMER1->TC  = 0x00;  // Reset the Timer Count to 0
-    LPC_TIMER1->MCR = ((1<<SBIT_MR0R));     // Int on MR0 match and Reset Timer on MR0 match
-    LPC_TIMER1->TCR  = (1 <<SBIT_CNTEN); //Start Timer
+    AttachDMAChannelInterruptHandler(DmaInterrupt, DMA_TIMER_MAT3_0);
+    Chip_Clock_EnablePeriphClock(SYSCTL_CLOCK_TIMER3); //enable power and clocking
+    LPC_TIMER3->PR   =  0;
+    LPC_TIMER3->MR[0] = SU_WRITE_PERIOD;
+    LPC_TIMER3->TC  = 0x00;  // Reset the Timer Count to 0
+    LPC_TIMER3->MCR = ((1<<SBIT_MR0R));     // Int on MR0 match and Reset Timer on MR0 match
+    LPC_TIMER3->TCR  = (1 <<SBIT_CNTEN); //Start Timer
 
 	for(size_t i = 0; i < NumDirectDrivers; i++)
 		if (TMC_UART_PINS[i] != NoPin)
