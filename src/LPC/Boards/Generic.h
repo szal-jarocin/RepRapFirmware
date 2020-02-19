@@ -13,86 +13,86 @@
 //assumes user are selecting correct pins, and correctly setup etc so we will set most pins as rwpwm (since any pin can do PWM on a timer as long as there are free slots available)
 constexpr PinEntry PinTable_Generic[] =
 {
-    {P0_0,  PinCapability::rwpwm, "0.0"},
-    {P0_1,  PinCapability::rwpwm, "0.1"},
-    {P0_2,  PinCapability::ainrwpwm, "0.2"},
-    {P0_3,  PinCapability::ainrwpwm, "0.3"},
-    {P0_4,  PinCapability::rwpwm, "0.4"},
-    {P0_5,  PinCapability::rwpwm, "0.5"},
+    {P0_0,  PinCapability::rwpwm, "P0.0"},
+    {P0_1,  PinCapability::rwpwm, "P0.1"},
+    {P0_2,  PinCapability::ainrwpwm, "P0.2"},
+    {P0_3,  PinCapability::ainrwpwm, "P0.3"},
+    {P0_4,  PinCapability::rwpwm, "P0.4"},
+    {P0_5,  PinCapability::rwpwm, "P0.5"},
     //{P0_6,  PinCapability::rwpwm, "0.6"}, //Internal SD_CS
     //{P0_7,  PinCapability::rwpwm, "0.7"}, //Internal SD_SCK
     //{P0_8,  PinCapability::rwpwm, "0.8"}, //Internal SD_MISO
     //{P0_9,  PinCapability::rwpwm, "0.9"}, //Internal SD_MOSI
-    {P0_10, PinCapability::rwpwm, "0.10"},
-    {P0_11, PinCapability::rwpwm, "0.11"},
+    {P0_10, PinCapability::rwpwm, "P0.10"},
+    {P0_11, PinCapability::rwpwm, "P0.11"},
     //{P0_12, PinCapability::rwpwm, "0.12"},  //N/A
     //{P0_13, PinCapability::rwpwm, "0.13"},  //N/A
     //{P0_14, PinCapability::rwpwm, "0.14"},  //N/A
     //{P0_15, PinCapability::rwpwm, "0.15"}, //SSP0_SCK
-    {P0_16, PinCapability::rwpwm, "0.16"},
+    {P0_16, PinCapability::rwpwm, "P0.16"},
     //{P0_17, PinCapability::rwpwm, "0.17"}, //SSP0_MISO
     //{P0_18, PinCapability::rwpwm, "0.18"}, //SSP0_MOSI
-    {P0_19, PinCapability::rwpwm, "0.19"},
-    {P0_20, PinCapability::rwpwm, "0.20"},
-    {P0_21, PinCapability::rwpwm, "0.21"},
-    {P0_22, PinCapability::rwpwm, "0.22"},
-    {P0_23, PinCapability::ainrwpwm, "0.23"},
-    {P0_24, PinCapability::ainrwpwm, "0.24"},
-    {P0_25, PinCapability::ainrwpwm, "0.25"},
-    {P0_26, PinCapability::ainrwpwm, "0.26"},
-    {P0_27, PinCapability::rwpwm, "0.27"},
-    {P0_28, PinCapability::rwpwm, "0.28"},
+    {P0_19, PinCapability::rwpwm, "P0.19"},
+    {P0_20, PinCapability::rwpwm, "P0.20"},
+    {P0_21, PinCapability::rwpwm, "P0.21"},
+    {P0_22, PinCapability::rwpwm, "P0.22"},
+    {P0_23, PinCapability::ainrwpwm, "P0.23"},
+    {P0_24, PinCapability::ainrwpwm, "P0.24"},
+    {P0_25, PinCapability::ainrwpwm, "P0.25"},
+    {P0_26, PinCapability::ainrwpwm, "P0.26"},
+    {P0_27, PinCapability::rwpwm, "P0.27"},
+    {P0_28, PinCapability::rwpwm, "P0.28"},
     //{P0_29, PinCapability::rwpwm, "0.29"},    //USB D+
     //{P0_30, PinCapability::ainrwpwm, "0.30"}, //USB D-
     //{P0_31, PinCapability::ainrwpwm, "0.31"}, //N/A
     
     //Pins P1.[0,1,4,8,9,10,14,15,16,17] used by Ethernet
-    {P1_0,  PinCapability::rwpwm, "1.0"},  //ENET_TXD0
-    {P1_1,  PinCapability::rwpwm, "1.1"},  //ENET_TXD1
-    {P1_2,  PinCapability::rwpwm, "1.2"},  //N/A
-    {P1_3,  PinCapability::rwpwm, "1.3"},  //N/A
-    {P1_4,  PinCapability::rwpwm, "1.4"},  //ENET_TX_EN
-    {P1_5,  PinCapability::rwpwm, "1.5"},  //N/A
-    {P1_6,  PinCapability::rwpwm, "1.6"},  //N/A
-    {P1_7,  PinCapability::rwpwm, "1.7"},  //N/A
-    {P1_8,  PinCapability::rwpwm, "1.8"},  //ENET_CRS
-    {P1_9,  PinCapability::rwpwm, "1.9"},  //ENET_RXD0
-    {P1_10, PinCapability::rwpwm, "1.10"},  //ENET_RXD1
-    {P1_11, PinCapability::rwpwm, "1.11"},  //N/A
-    {P1_12, PinCapability::rwpwm, "1.12"},  //N/A
-    {P1_13, PinCapability::rwpwm, "1.13"},  //N/A
-    {P1_14, PinCapability::rwpwm, "1.14"},  //ENET_RX_ER
-    {P1_15, PinCapability::rwpwm, "1.15"},  //ENET_REF_CLK
-    {P1_16, PinCapability::rwpwm, "1.16"},  //ENET_MDC
-    {P1_17, PinCapability::rwpwm, "1.17"},  //ENET_MDIO
-    {P1_18, PinCapability::rwpwm, "1.18"},
-    {P1_19, PinCapability::rwpwm, "1.19"},
-    {P1_20, PinCapability::rwpwm, "1.20"},
-    {P1_21, PinCapability::rwpwm, "1.21"},
-    {P1_22, PinCapability::rwpwm, "1.22"},
-    {P1_23, PinCapability::rwpwm, "1.23"},
-    {P1_24, PinCapability::rwpwm, "1.24"},
-    {P1_25, PinCapability::rwpwm, "1.25"},
-    {P1_26, PinCapability::rwpwm, "1.26"},
-    {P1_27, PinCapability::rwpwm, "1.27"},
-    {P1_28, PinCapability::rwpwm, "1.28"},
-    {P1_29, PinCapability::rwpwm, "1.29"},
-    {P1_30, PinCapability::rwpwm, "1.30"},
-    {P1_31, PinCapability::rwpwm, "1.31"},
-    {P2_0,  PinCapability::rwpwm, "2.0"},
-    {P2_1,  PinCapability::rwpwm, "2.1"},
-    {P2_2,  PinCapability::rwpwm, "2.2"},
-    {P2_3,  PinCapability::rwpwm, "2.3"},
-    {P2_4,  PinCapability::rwpwm, "2.4"},
-    {P2_5,  PinCapability::rwpwm, "2.5"},
-    {P2_6,  PinCapability::rwpwm, "2.6"},
-    {P2_7,  PinCapability::rwpwm, "2.7"},
-    {P2_8,  PinCapability::rwpwm, "2.8"},
+    {P1_0,  PinCapability::rwpwm, "P1.0"},  //ENET_TXD0
+    {P1_1,  PinCapability::rwpwm, "P1.1"},  //ENET_TXD1
+    {P1_2,  PinCapability::rwpwm, "P1.2"},  //N/A
+    {P1_3,  PinCapability::rwpwm, "P1.3"},  //N/A
+    {P1_4,  PinCapability::rwpwm, "P1.4"},  //ENET_TX_EN
+    {P1_5,  PinCapability::rwpwm, "P1.5"},  //N/A
+    {P1_6,  PinCapability::rwpwm, "P1.6"},  //N/A
+    {P1_7,  PinCapability::rwpwm, "P1.7"},  //N/A
+    {P1_8,  PinCapability::rwpwm, "P1.8"},  //ENET_CRS
+    {P1_9,  PinCapability::rwpwm, "P1.9"},  //ENET_RXD0
+    {P1_10, PinCapability::rwpwm, "P1.10"},  //ENET_RXD1
+    {P1_11, PinCapability::rwpwm, "P1.11"},  //N/A
+    {P1_12, PinCapability::rwpwm, "P1.12"},  //N/A
+    {P1_13, PinCapability::rwpwm, "P1.13"},  //N/A
+    {P1_14, PinCapability::rwpwm, "P1.14"},  //ENET_RX_ER
+    {P1_15, PinCapability::rwpwm, "P1.15"},  //ENET_REF_CLK
+    {P1_16, PinCapability::rwpwm, "P1.16"},  //ENET_MDC
+    {P1_17, PinCapability::rwpwm, "P1.17"},  //ENET_MDIO
+    {P1_18, PinCapability::rwpwm, "P1.18"},
+    {P1_19, PinCapability::rwpwm, "P1.19"},
+    {P1_20, PinCapability::rwpwm, "P1.20"},
+    {P1_21, PinCapability::rwpwm, "P1.21"},
+    {P1_22, PinCapability::rwpwm, "P1.22"},
+    {P1_23, PinCapability::rwpwm, "P1.23"},
+    {P1_24, PinCapability::rwpwm, "P1.24"},
+    {P1_25, PinCapability::rwpwm, "P1.25"},
+    {P1_26, PinCapability::rwpwm, "P1.26"},
+    {P1_27, PinCapability::rwpwm, "P1.27"},
+    {P1_28, PinCapability::rwpwm, "P1.28"},
+    {P1_29, PinCapability::rwpwm, "P1.29"},
+    {P1_30, PinCapability::rwpwm, "P1.30"},
+    {P1_31, PinCapability::rwpwm, "P1.31"},
+    {P2_0,  PinCapability::rwpwm, "P2.0"},
+    {P2_1,  PinCapability::rwpwm, "P2.1"},
+    {P2_2,  PinCapability::rwpwm, "P2.2"},
+    {P2_3,  PinCapability::rwpwm, "P2.3"},
+    {P2_4,  PinCapability::rwpwm, "P2.4"},
+    {P2_5,  PinCapability::rwpwm, "P2.5"},
+    {P2_6,  PinCapability::rwpwm, "P2.6"},
+    {P2_7,  PinCapability::rwpwm, "P2.7"},
+    {P2_8,  PinCapability::rwpwm, "P2.8"},
     //{P2_9,  PinCapability::rwpwm, "2.9"}, //USB Connect
-    {P2_10, PinCapability::rwpwm, "2.10"},
-    {P2_11, PinCapability::rwpwm, "2.11"},
-    {P2_12, PinCapability::rwpwm, "2.12"},
-    {P2_13, PinCapability::rwpwm, "2.13"},
+    {P2_10, PinCapability::rwpwm, "P2.10"},
+    {P2_11, PinCapability::rwpwm, "P2.11"},
+    {P2_12, PinCapability::rwpwm, "P2.12"},
+    {P2_13, PinCapability::rwpwm, "P2.13"},
     //Pins 2.14-2.31 are N/A
     //{P2_14, PinCapability::rwpwm, "2.14"},
     //{P2_15, PinCapability::rwpwm, "2.15"},
@@ -138,8 +138,8 @@ constexpr PinEntry PinTable_Generic[] =
     //{P3_22, PinCapability::rwpwm, "3.22"},
     //{P3_23, PinCapability::rwpwm, "3.23"},
     //{P3_24, PinCapability::rwpwm, "3.24"},
-    {P3_25, PinCapability::rwpwm, "3.25"},
-    {P3_26, PinCapability::rwpwm, "3.26"},
+    {P3_25, PinCapability::rwpwm, "P3.25"},
+    {P3_26, PinCapability::rwpwm, "P3.26"},
     //pins 3.27-3.31 are N/A
     //{P3_27, PinCapability::rwpwm, "3.27"},
     //{P3_28, PinCapability::rwpwm, "3.28"},
@@ -175,15 +175,13 @@ constexpr PinEntry PinTable_Generic[] =
     //{P4_25, PinCapability::rwpwm, "4.25"},
     //{P4_26, PinCapability::rwpwm, "4.26"},
     //{P4_27, PinCapability::rwpwm, "4.27"},
-    {P4_28, PinCapability::rwpwm, "4.28"},
-    {P4_29, PinCapability::rwpwm, "4.29"},
+    {P4_28, PinCapability::rwpwm, "P4.28"},
+    {P4_29, PinCapability::rwpwm, "P4.29"},
     //Pins 4.30-4.31 are N/A
     //{P4_30, PinCapability::rwpwm, "4.30"},
     //{P4_31, PinCapability::rwpwm, "4.31"},
-    
-    
+        
 };
-
 
 //NoPin for Generic, Actual pins must be specified in /sys/Board.txt 
 constexpr BoardDefaults genericDefaults = {
@@ -193,7 +191,7 @@ constexpr BoardDefaults genericDefaults = {
 #if LPC_TMC_SOFT_UART
     {NoPin, NoPin, NoPin, NoPin, NoPin},    //uartPins
 #endif
-    0    ,                                  //digiPot Factor    
+    0,                                      //digiPot Factor    
 };
 
 #endif
