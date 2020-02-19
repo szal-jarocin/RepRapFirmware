@@ -73,6 +73,10 @@ static const boardConfigEntry_t boardConfigs[]=
     {"lpc.adcPreFilterNumberSamples", &ADCPreFilterNumberSamples, nullptr, cvUint8Type},
     {"lpc.adcPreFilterSampleRate", &ADCPreFilterSampleRate, nullptr, cvUint32Type},
 
+    
+#if LPC_TMC_SOFT_UART
+    {"stepper.TmcUartPins", TMC_UART_PINS, &MaxTotalDrivers, cvPinType},
+#endif
 };
 
 
@@ -467,10 +471,10 @@ bool BoardConfig::GetConfigKeys(FileStore *configFile, const boardConfigEntry_t 
     size_t maxLineLength = 120;
     char line[maxLineLength];
 
-    FilePosition fileSize = configFile->Length();
-    size_t len = configFile->ReadLine(line, maxLineLength);
-    while(len >= 0 && configFile->Position() != fileSize )
+    int readLen = configFile->ReadLine(line, maxLineLength);
+    while(readLen >= 0)
     {
+        size_t len = (size_t) readLen;
         size_t pos = 0;
         while(pos < len && isSpaceOrTab(line[pos] && line[pos] != 0) == true) pos++; //eat leading whitespace
 
@@ -668,7 +672,7 @@ bool BoardConfig::GetConfigKeys(FileStore *configFile, const boardConfigEntry_t 
             //Empty Line - Nothing to do here
         }
 
-        len = configFile->ReadLine(line, maxLineLength); //attempt to read the next line
+        readLen = configFile->ReadLine(line, maxLineLength); //attempt to read the next line
     }
     return false;
 }

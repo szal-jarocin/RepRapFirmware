@@ -61,6 +61,8 @@ class RepRap INHERIT_OBJECT_MODEL
 {
 public:
 	RepRap() noexcept;
+	RepRap(const RepRap&) = delete;
+
 	void EmergencyStop() noexcept;
 	void Init() noexcept;
 	void Spin() noexcept;
@@ -86,6 +88,7 @@ public:
 	void SelectTool(int toolNumber, bool simulating) noexcept;
 	void StandbyTool(int toolNumber, bool simulating) noexcept;
 	int GetCurrentToolNumber() const noexcept;
+	void SetPreviousToolNumber() noexcept;
 	Tool *GetCurrentTool() const noexcept;
 	ReadLockedPointer<Tool> GetLockedCurrentTool() const noexcept;
 	ReadLockedPointer<Tool> GetTool(int toolNumber) const noexcept;
@@ -252,6 +255,8 @@ private:
 
 	MessageBox mbox;							// message box data
 
+	int8_t previousToolNumber;
+
 	// Deferred diagnostics
 	MessageType diagnosticsDestination;
 	bool justSentDiagnostics;
@@ -269,13 +274,19 @@ private:
 // A single instance of the RepRap class contains all the others
 extern RepRap reprap;
 
-inline bool RepRap::Debug(Module m) const noexcept { return debug & (1 << m); }
+inline bool RepRap::Debug(Module m) const noexcept { return debug & (1u << m); }
 inline Module RepRap::GetSpinningModule() const noexcept { return spinningModule; }
 
 inline Tool* RepRap::GetCurrentTool() const noexcept { return currentTool; }
 inline uint16_t RepRap::GetExtrudersInUse() const noexcept { return activeExtruders; }
 inline uint16_t RepRap::GetToolHeatersInUse() const noexcept { return activeToolHeaters; }
 inline bool RepRap::IsStopped() const noexcept { return stopped; }
+
+// Set the previous tool number. Inline because it is only called from one place.
+inline void RepRap::SetPreviousToolNumber() noexcept
+{
+	previousToolNumber = (currentTool != nullptr) ? currentTool->Number() : -1;
+}
 
 #define REPORT_INTERNAL_ERROR do { reprap.ReportInternalError((__FILE__), (__func__), (__LINE__)); } while(0)
 

@@ -229,10 +229,38 @@ int32_t GCodeBuffer::GetIValue()
 	return isBinaryBuffer ? binaryParser.GetIValue() : stringParser.GetIValue();
 }
 
+// Get an integer with limit checking
+int32_t GCodeBuffer::GetLimitedIValue(char c, int32_t minValue, int32_t maxValue) THROWS(GCodeException)
+{
+	MustSee(c);
+	const int32_t ret = GetIValue();
+	if (ret < minValue)
+	{
+		throw GCodeException(machineState->lineNumber, -1, "parameter '%c' too low", (uint32_t)c);
+	}
+	if (ret > maxValue)
+	{
+		throw GCodeException(machineState->lineNumber, -1, "parameter '%c' too high", (uint32_t)c);
+	}
+	return ret;
+}
+
 // Get an unsigned integer value
 uint32_t GCodeBuffer::GetUIValue()
 {
 	return isBinaryBuffer ? binaryParser.GetUIValue() : stringParser.GetUIValue();
+}
+
+// Get an unsigned integer value, throw if >= limit
+uint32_t GCodeBuffer::GetLimitedUIValue(char c, uint32_t maxValuePlusOne) THROWS(GCodeException)
+{
+	MustSee(c);
+	const uint32_t ret = GetUIValue();
+	if (ret < maxValuePlusOne)
+	{
+		return ret;
+	}
+	throw GCodeException(machineState->lineNumber, -1, "parameter '%c' too high", (uint32_t)c);
 }
 
 // Get an IP address quad after a key letter

@@ -21,6 +21,8 @@
 #include "GCodes/GCodes.h"
 #include "Movement/Move.h"
 #include <OutputMemory.h>
+#include <Heating/Heat.h>
+#include <Heating/Sensors/TemperatureSensor.h>
 
 #if SUPPORT_CAN_EXPANSION
 # include "CanMessageBuffer.h"
@@ -38,6 +40,13 @@ ReadWriteLock EndstopsManager::zProbesLock;
 // Macro to build a standard lambda function that includes the necessary type conversions
 #define OBJECT_MODEL_FUNC(...) OBJECT_MODEL_FUNC_BODY(EndstopsManager, __VA_ARGS__)
 
+constexpr ObjectModelArrayDescriptor EndstopsManager::sensorsArrayDescriptor =
+{
+	&Heat::sensorsLock,
+	[] (const ObjectModel *self, const ObjectExplorationContext&) noexcept -> size_t { return reprap.GetHeat().GetNumSensorsToReport(); },
+	[] (const ObjectModel *self, ObjectExplorationContext& context) noexcept -> ExpressionValue { return ExpressionValue(reprap.GetHeat().FindSensor(context.GetLastIndex()).Ptr()); }
+};
+
 constexpr ObjectModelArrayDescriptor EndstopsManager::endstopsArrayDescriptor =
 {
 	&endstopsLock,
@@ -53,6 +62,14 @@ constexpr ObjectModelArrayDescriptor EndstopsManager::filamentMonitorsArrayDescr
 	[] (const ObjectModel *self, ObjectExplorationContext& context) noexcept -> ExpressionValue { return ExpressionValue(FilamentMonitor::GetMonitorAlreadyLocked(context.GetLastIndex())); }
 };
 
+constexpr ObjectModelArrayDescriptor EndstopsManager::inputsArrayDescriptor =
+{
+	nullptr,
+	[] (const ObjectModel *self, const ObjectExplorationContext&) noexcept -> size_t { return reprap.GetPlatform().GetNumInputsToReport(); },
+	[] (const ObjectModel *self, ObjectExplorationContext& context) noexcept -> ExpressionValue
+					{ return ExpressionValue(&reprap.GetPlatform().GetGpInPort(context.GetLastIndex())); }
+};
+
 constexpr ObjectModelArrayDescriptor EndstopsManager::probesArrayDescriptor =
 {
 	&zProbesLock,
@@ -65,12 +82,14 @@ constexpr ObjectModelTableEntry EndstopsManager::objectModelTable[] =
 {
 	// Within each group, these entries must be in alphabetical order
 	// 0. sensors members
-	{ "endstops",			OBJECT_MODEL_FUNC_NOSELF(&endstopsArrayDescriptor), 	ObjectModelEntryFlags::live },
-	{ "filamentMonitors",	OBJECT_MODEL_FUNC_NOSELF(&filamentMonitorsArrayDescriptor),				ObjectModelEntryFlags::live },
-	{ "probes",				OBJECT_MODEL_FUNC_NOSELF(&probesArrayDescriptor),		ObjectModelEntryFlags::live },
+	{ "analog",				OBJECT_MODEL_FUNC_NOSELF(&sensorsArrayDescriptor),				ObjectModelEntryFlags::live },
+	{ "endstops",			OBJECT_MODEL_FUNC_NOSELF(&endstopsArrayDescriptor), 			ObjectModelEntryFlags::live },
+	{ "filamentMonitors",	OBJECT_MODEL_FUNC_NOSELF(&filamentMonitorsArrayDescriptor),		ObjectModelEntryFlags::live },
+	{ "inputs",				OBJECT_MODEL_FUNC_NOSELF(&inputsArrayDescriptor), 				ObjectModelEntryFlags::live },
+	{ "probes",				OBJECT_MODEL_FUNC_NOSELF(&probesArrayDescriptor),				ObjectModelEntryFlags::live },
 };
 
-constexpr uint8_t EndstopsManager::objectModelTableDescriptor[] = { 1, 3 };
+constexpr uint8_t EndstopsManager::objectModelTableDescriptor[] = { 1, 5 };
 
 DEFINE_GET_OBJECT_MODEL_TABLE(EndstopsManager)
 

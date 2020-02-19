@@ -16,7 +16,7 @@ class ZProbe : public EndstopOrZProbe
 public:
 	ZProbe(unsigned int num, ZProbeType p_type) noexcept;
 
-	virtual void SetIREmitter(bool on) const noexcept = 0;
+	virtual void SetIREmitter(bool on) const noexcept = 0;			// Caution, this is called from within the tick ISR
 	virtual uint16_t GetRawReading() const noexcept = 0;
 	virtual void SetProbing(bool isProbing) const noexcept = 0;
 	virtual GCodeResult AppendPinNames(const StringRef& str) const noexcept = 0;
@@ -73,7 +73,6 @@ protected:
 		struct
 		{
 			uint16_t maxTaps : 5,			// maximum probes at each point
-				invertReading : 1,			// true if we need to invert the reading
 				probingAway : 1,			// true if we are probing away, i.e. until contact lost
 				turnHeatersOff : 1,			// true to turn heaters off while probing
 				saveToConfigOverride : 1;	// true if the trigger height should be saved to config-override.g

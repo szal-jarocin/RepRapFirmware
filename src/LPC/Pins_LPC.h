@@ -86,12 +86,19 @@
 
 // The physical capabilities of the machine
 constexpr size_t NumDirectDrivers = 5;               // The maximum number of drives supported by the electronics
-constexpr size_t MaxSmartDrivers = 0;                // The maximum number of smart drivers
+#if defined(SUPPORT_TMC22xx)
+    constexpr size_t MaxSmartDrivers = 5;            // The maximum number of smart drivers
+    constexpr size_t NumTmcDriversSenseChannels = 2;
+    #define LPC_TMC_SOFT_UART 1
+#else
+    constexpr size_t MaxSmartDrivers = 0;            // The maximum number of smart drivers
+    #define LPC_TMC_SOFT_UART 0
+#endif
 
 constexpr size_t MaxSensors = 32;
 
 constexpr size_t MaxHeaters = 3;                     // The maximum number of heaters in the machine
-constexpr size_t MaxExtraHeaterProtections = 3;      // The number of extra heater protection instances
+constexpr size_t MaxMonitorsPerHeater = 3;			 // The maximum number of monitors per heater
 
 constexpr size_t MaxBedHeaters = 1;
 constexpr size_t MaxChamberHeaters = 1;
@@ -101,7 +108,8 @@ constexpr int8_t DefaultE0Heater = 1;                // Index of the default fir
 constexpr size_t NumThermistorInputs = 4;
 
 constexpr size_t MaxZProbes = 1;
-constexpr size_t MaxGpioPorts = 10;
+constexpr size_t MaxGpInPorts = 10;
+constexpr size_t MaxGpOutPorts = 10;
 
 constexpr size_t MinAxes = 3;                        // The minimum and default number of axes
 constexpr size_t MaxAxes = 5;                        // The maximum number of movement axes in the machine, usually just X, Y and Z, <= DRIVES
@@ -119,10 +127,20 @@ constexpr size_t MaxFans = 3;
 
 constexpr unsigned int MaxTriggers = 16;            // Must be <= 32 because we store a bitmap of pending triggers in a uint32_t
 
+constexpr size_t MaxSpindles = 2;					// Maximum number of configurable spindles
+
 //Steppers
 extern Pin ENABLE_PINS[NumDirectDrivers];
 extern Pin STEP_PINS[NumDirectDrivers];
 extern Pin DIRECTION_PINS[NumDirectDrivers];
+#if LPC_TMC_SOFT_UART
+    extern Pin TMC_UART_PINS[NumDirectDrivers];
+    constexpr Pin GlobalTmc22xxEnablePin = NoPin;			// The pin that drives ENN of all drivers
+    constexpr uint32_t DriversBaudRate = 9600;
+    constexpr uint32_t TransferTimeout = 100;				// any transfer should complete within 100 ticks @ 1ms/tick
+
+#endif
+
 extern uint32_t STEP_DRIVER_MASK; // Mask for parallel write to all steppers on port 2 (calculated in after loading board.txt)
 extern bool hasStepPinsOnDifferentPorts;
 extern bool hasDriverCurrentControl;
@@ -225,7 +243,7 @@ extern Pin SoftwareSPIPins[3]; //GPIO pins for softwareSPI (used with SharedSPI)
 
 #else
     #define SERIAL_MAIN_DEVICE  Serial  //USB
-    #if defined(ESP8266WIFI)
+    #if defined(ESP8266WIFI_SERIAL)
         //No AUX Serial, Serial0 is connected to the ESP8266
         constexpr size_t NUM_SERIAL_CHANNELS = 1;
         #define SERIAL_WIFI_DEVICE Serial0
@@ -310,6 +328,9 @@ struct BoardDefaults
     const Pin enablePins[NumDirectDrivers];
     const Pin stepPins[NumDirectDrivers];
     const Pin dirPins[NumDirectDrivers];
+#if LPC_TMC_SOFT_UART
+    const Pin uartPins[NumDirectDrivers];
+#endif
     const float digipotFactor;    
 };
 
