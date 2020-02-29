@@ -323,7 +323,7 @@ void RepRap::Init() noexcept
 
 	active = true;										// must do this before we start the network or call Spin(), else the watchdog may time out
 
-	platform->MessageF(UsbMessage, "%s Version %s dated %s\n", FIRMWARE_NAME, VERSION, DATE);
+	platform->MessageF(UsbMessage, "\n%s Version %s dated %s\n", FIRMWARE_NAME, VERSION, DATE);
 
 #if HAS_MASS_STORAGE
 	// Try to mount the first SD card
@@ -340,55 +340,54 @@ void RepRap::Init() noexcept
 		if (rslt == GCodeResult::ok)
 		{
 			// Run the configuration file
-			const char *configFile = platform->GetConfigFile();
-			if (!platform->SysFileExists(configFile))
-			{
-				configFile = platform->GetDefaultFile();
-			}
 
 # if HAS_LINUX_INTERFACE
 			usingLinuxInterface = false;				// try to run config.g from the SD card
 # endif
-			if (gCodes->RunConfigFile(configFile))
+			if (RunStartupFile(GCodes::CONFIG_FILE) || RunStartupFile(GCodes::CONFIG_BACKUP_FILE))
 			{
-				platform->MessageF(UsbMessage, "\nExecuting %s...", configFile);
-				do
-				{
-					// GCodes::Spin will read the macro and ensure IsDaemonBusy returns false when it's done
-					Spin();
-				} while (gCodes->IsDaemonBusy());
-				platform->Message(UsbMessage, "Done!\n");
+				// Processed config.g so OK
 			}
 			else
 			{
 # if HAS_LINUX_INTERFACE
 				usingLinuxInterface = true;				// we failed to open config.g or default.g so assume we have a SBC connected
 # else
-				platform->Message(UsbMessage, "\nError, no configuration file found\n");
+				platform->Message(UsbMessage, "Error, no configuration file found\n");
 # endif
 			}
 		}
 		else
 		{
 # if !HAS_LINUX_INTERFACE
-			delay(3000);			// Wait a few seconds so users have a chance to see this
+			delay(3000);								// Wait a few seconds so users have a chance to see this
 			platform->MessageF(UsbMessage, "%s\n", reply.c_str());
 # endif
 		}
 	}
 #endif
 
-	processingConfig = false;
 
 #if HAS_LINUX_INTERFACE
 	if (usingLinuxInterface)
 	{
-		gCodes->RunConfigFile(platform->GetConfigFile());		// we didn't get config.g from SD card so request it from Linux
+		processingConfig = false;
+		gCodes->RunConfigFile(GCodes::CONFIG_FILE);		// we didn't get config.g from SD card so request it from Linux
+		network->Activate();							// need to do this here, as the configuration GCodes may set IP address etc.
 	}
+	else
 #endif
-
-	// Enable network (unless it's disabled)
-	network->Activate();			// need to do this here, as the configuration GCodes may set IP address etc.
+	{
+		network->Activate();							// need to do this here, as the configuration GCodes may set IP address etc.
+#if HAS_MASS_STORAGE
+		// If we are running from SD card, run the runonce.g file if it exists, then delete it
+		if (RunStartupFile(GCodes::RUNONCE_G))
+		{
+			platform->DeleteSysFile(GCodes::RUNONCE_G);
+		}
+#endif
+		processingConfig = false;
+	}
 
 #if HAS_HIGH_SPEED_SD
 	hsmci_set_idle_func(hsmciIdle);
@@ -400,6 +399,23 @@ void RepRap::Init() noexcept
 
 	fastLoop = UINT32_MAX;
 	slowLoop = 0;
+}
+
+// Run a startup file
+bool RepRap::RunStartupFile(const char *filename) noexcept
+{
+	bool rslt = gCodes->RunConfigFile(filename);
+	if (rslt)
+	{
+		platform->MessageF(UsbMessage, "Executing %s...", filename);
+		do
+		{
+			// GCodes::Spin will process the macro file and ensure IsDaemonBusy returns false when it's done
+			Spin();
+		} while (gCodes->IsDaemonBusy());
+		platform->Message(UsbMessage, "Done!\n");
+	}
+	return rslt;
 }
 
 void RepRap::Exit() noexcept
@@ -609,8 +625,12 @@ void RepRap::EmergencyStop() noexcept
 		break;
 	}
 
-	heat->Exit();		// this also turns off all heaters
-	move->Exit();
+	heat->Exit();								// this also turns off all heaters
+	move->Exit();								// this stops the motors stepping
+
+#if SUPPORT_CAN_EXPANSION
+	expansion->EmergencyStop();
+#endif
 
 	gCodes->EmergencyStop();
 	platform->StopLogging();
@@ -894,7 +914,7 @@ ReadLockedPointer<Tool> RepRap::GetTool(int toolNumber) const noexcept
 {
 	ReadLocker lock(toolListLock);
 	Tool* tool = toolList;
-	while(tool != nullptr)
+	while (tool != nullptr)
 	{
 		if (tool->Number() == toolNumber)
 		{
@@ -2127,7 +2147,7 @@ bool RepRap::GetFileInfoResponse(const char *filename, OutputBuffer *&response, 
 
 // Helper functions to write JSON arrays
 // Append float array using 1 decimal place
-void RepRap::AppendFloatArray(OutputBuffer *buf, const char *name, size_t numValues, std::function<float(size_t)> func, unsigned int numDecimalDigits)
+void RepRap::AppendFloatArray(OutputBuffer *buf, const char *name, size_t numValues, std::function<float(size_t)> func, unsigned int numDecimalDigits) noexcept
 {
 	if (name != nullptr)
 	{
@@ -2145,7 +2165,7 @@ void RepRap::AppendFloatArray(OutputBuffer *buf, const char *name, size_t numVal
 	buf->cat(']');
 }
 
-void RepRap::AppendIntArray(OutputBuffer *buf, const char *name, size_t numValues, std::function<int(size_t)> func)
+void RepRap::AppendIntArray(OutputBuffer *buf, const char *name, size_t numValues, std::function<int(size_t)> func) noexcept
 {
 	if (name != nullptr)
 	{
@@ -2163,7 +2183,7 @@ void RepRap::AppendIntArray(OutputBuffer *buf, const char *name, size_t numValue
 	buf->cat(']');
 }
 
-void RepRap::AppendStringArray(OutputBuffer *buf, const char *name, size_t numValues, std::function<const char *(size_t)> func)
+void RepRap::AppendStringArray(OutputBuffer *buf, const char *name, size_t numValues, std::function<const char *(size_t)> func) noexcept
 {
 	if (name != nullptr)
 	{
@@ -2547,7 +2567,6 @@ void RepRap::UpdateFirmware() noexcept
 	display->UpdatingFirmware();			// put the firmware update message on the display
 #endif
 
-#if IAP_IN_RAM
 	// Send this message before we start using RAM that may contain message buffers
 	platform->Message(AuxMessage, "Updating main firmware\n");
 	platform->Message(UsbMessage, "Shutting down USB interface to update main firmware. Try reconnecting after 30 seconds.\n");
@@ -2555,7 +2574,6 @@ void RepRap::UpdateFirmware() noexcept
 	// Allow time for the firmware update message to be sent
 	const uint32_t now = millis();
 	while (platform->FlushMessages() && millis() - now < 2000) { }
-#endif
 
 	// The machine will be unresponsive for a few seconds, don't risk damaging the heaters.
 	// This also shuts down tasks and interrupts that might make use of the RAM that we are about to load the IAP binary into.
@@ -2570,145 +2588,15 @@ void RepRap::UpdateFirmware() noexcept
 	ARM_MPU_Disable();
 #endif
 
-#if IAP_IN_RAM
 	// Use RAM-based IAP
 	iapFile->Read(reinterpret_cast<char *>(IAP_IMAGE_START), iapFile->Length());
-#else
-	// Step 1 - Write update binary to Flash and overwrite the remaining space with zeros
-	// On the SAM3X, leave the last 1KB of Flash memory untouched, so we can reuse the NvData after this update
-
-# if !defined(IFLASH_PAGE_SIZE) && defined(IFLASH0_PAGE_SIZE)
-#  define IFLASH_PAGE_SIZE	IFLASH0_PAGE_SIZE
-# endif
-
-	// Use a 32-bit aligned buffer. This gives us the option of calling the EFC functions directly in future.
-	uint32_t data32[IFLASH_PAGE_SIZE/4];
-	char* const data = reinterpret_cast<char *>(data32);
-
-# if SAM4E || SAM4S || SAME70
-	// The EWP command is not supported for non-8KByte sectors in the SAM4 and SAME70 series.
-	// So we have to unlock and erase the complete 64Kb or 128kb sector first. One sector is always enough to contain the IAP.
-	flash_unlock(IAP_IMAGE_START, IAP_IMAGE_END, nullptr, nullptr);
-	flash_erase_sector(IAP_IMAGE_START);
-
-	for (uint32_t flashAddr = IAP_IMAGE_START; flashAddr < IAP_IMAGE_END; flashAddr += IFLASH_PAGE_SIZE)
-	{
-		const int bytesRead = iapFile->Read(data, IFLASH_PAGE_SIZE);
-
-		if (bytesRead > 0)
-		{
-			// Do we have to fill up the remaining buffer with zeros?
-			if (bytesRead != IFLASH_PAGE_SIZE)
-			{
-				memset(data + bytesRead, 0, sizeof(data[0]) * (IFLASH_PAGE_SIZE - bytesRead));
-			}
-
-			// Write one page at a time
-			cpu_irq_disable();
-			const uint32_t rc = flash_write(flashAddr, data, IFLASH_PAGE_SIZE, 0);
-			cpu_irq_enable();
-
-			if (rc != FLASH_RC_OK)
-			{
-				platform->MessageF(FirmwareUpdateErrorMessage, "flash write failed, code=%" PRIu32 ", address=0x%08" PRIx32 "\n", rc, flashAddr);
-				return;
-			}
-
-			// Verify written data
-			if (memcmp(reinterpret_cast<void *>(flashAddr), data, bytesRead) != 0)
-			{
-				platform->MessageF(FirmwareUpdateErrorMessage, "verify during flash write failed, address=0x%08" PRIx32 "\n", flashAddr);
-				return;
-			}
-		}
-		else
-		{
-			// Fill up the remaining space with zeros
-			memset(data, 0, sizeof(data[0]) * sizeof(data));
-			cpu_irq_disable();
-			flash_write(flashAddr, data, IFLASH_PAGE_SIZE, 0);
-			cpu_irq_enable();
-		}
-	}
-
-	// Re-lock the whole area
-	flash_lock(IAP_IMAGE_START, IAP_IMAGE_END, nullptr, nullptr);
-
-# else	// SAM3X code
-
-	for (uint32_t flashAddr = IAP_IMAGE_START; flashAddr < IAP_IMAGE_END; flashAddr += IFLASH_PAGE_SIZE)
-	{
-		const int bytesRead = iapFile->Read(data, IFLASH_PAGE_SIZE);
-
-		if (bytesRead > 0)
-		{
-			// Do we have to fill up the remaining buffer with zeros?
-			if (bytesRead != IFLASH_PAGE_SIZE)
-			{
-				memset(data + bytesRead, 0, sizeof(data[0]) * (IFLASH_PAGE_SIZE - bytesRead));
-			}
-
-			// Write one page at a time
-			cpu_irq_disable();
-
-			const char* op = "unlock";
-			uint32_t rc = flash_unlock(flashAddr, flashAddr + IFLASH_PAGE_SIZE - 1, nullptr, nullptr);
-
-			if (rc == FLASH_RC_OK)
-			{
-				op = "write";
-				rc = flash_write(flashAddr, data, IFLASH_PAGE_SIZE, 1);
-			}
-			if (rc == FLASH_RC_OK)
-			{
-				op = "lock";
-				rc = flash_lock(flashAddr, flashAddr + IFLASH_PAGE_SIZE - 1, nullptr, nullptr);
-			}
-			cpu_irq_enable();
-
-			if (rc != FLASH_RC_OK)
-			{
-				platform->MessageF(FirmwareUpdateErrorMessage, "flash %s failed, code=%" PRIu32 ", address=0x%08" PRIx32 "\n", op, rc, flashAddr);
-				return;
-			}
-			// Verify written data
-			if (memcmp(reinterpret_cast<void *>(flashAddr), data, bytesRead) != 0)
-			{
-				platform->MessageF(FirmwareUpdateErrorMessage, "verify during flash write failed, address=0x%08" PRIx32 "\n", flashAddr);
-				return;
-			}
-		}
-		else
-		{
-			// Fill up the remaining space
-			memset(data, 0, sizeof(data[0]) * sizeof(data));
-			cpu_irq_disable();
-			flash_unlock(flashAddr, flashAddr + IFLASH_PAGE_SIZE - 1, nullptr, nullptr);
-			flash_write(flashAddr, data, IFLASH_PAGE_SIZE, 1);
-			flash_lock(flashAddr, flashAddr + IFLASH_PAGE_SIZE - 1, nullptr, nullptr);
-			cpu_irq_enable();
-		}
-	}
-# endif
-#endif
-
 	iapFile->Close();
-
 	StartIap();
 #endif
 }
 
 void RepRap::StartIap() noexcept
 {
-#if !IAP_IN_RAM
-	platform->Message(AuxMessage, "Updating main firmware\n");
-	platform->Message(UsbMessage, "Shutting down USB interface to update main firmware. Try reconnecting after 30 seconds.\n");
-
-	// Allow time for the firmware update message to be sent
-	const uint32_t now = millis();
-	while (platform->FlushMessages() && millis() - now < 2000) { }
-#endif
-
 	// Disable all interrupts, then reallocate the vector table and program entry point to the new IAP binary
 	// This does essentially what the Atmel AT02333 paper suggests (see 3.2.2 ff)
 

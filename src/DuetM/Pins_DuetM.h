@@ -14,21 +14,8 @@
 #define DEFAULT_BOARD_TYPE		 BoardType::DuetM_10
 constexpr size_t NumFirmwareUpdateModules = 1;		// 1 module
 #define IAP_FIRMWARE_FILE		"DuetMaestroFirmware.bin"
-
-#define IAP_IN_RAM				1
-
-#if IAP_IN_RAM
-
-# define IAP_UPDATE_FILE		"DuetMaestroIAP.bin"
+#define IAP_UPDATE_FILE			"DuetMaestroIAP.bin"
 constexpr uint32_t IAP_IMAGE_START = 0x20010000;
-
-#else
-
-# define IAP_UPDATE_FILE		"iap4s.bin"
-constexpr uint32_t IAP_IMAGE_START = 0x00470000;
-constexpr uint32_t IAP_IMAGE_END = 0x0047FFFF;								// we allow a full 64K on the SAM4
-
-#endif
 
 // Features definition
 #define HAS_LWIP_NETWORKING		0
@@ -170,7 +157,7 @@ constexpr Pin DiagPin = Z_PROBE_MOD_PIN;
 constexpr size_t NumSdCards = 2;
 constexpr Pin SdCardDetectPins[NumSdCards] = { PortCPin(8), NoPin };
 constexpr Pin SdWriteProtectPins[NumSdCards] = { NoPin, NoPin };
-constexpr Pin SdSpiCSPins[1] = { PortCPin(2) };
+constexpr Pin SdSpiCSPins[1] = { PortBPin(13) };
 constexpr uint32_t ExpectedSdCardSpeed = 15000000;
 
 // 12864 LCD

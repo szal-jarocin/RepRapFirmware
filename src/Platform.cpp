@@ -210,6 +210,12 @@ constexpr ObjectModelArrayDescriptor Platform::workplaceOffsetsArrayDescriptor =
 			{ return ExpressionValue(reprap.GetGCodes().GetWorkplaceOffset(context.GetIndex(1), context.GetIndex(0)), 3); }
 };
 
+static inline const char* GetFilamentName(size_t extruder) noexcept
+{
+	const Filament *fil = Filament::GetFilamentByExtruder(extruder);
+	return (fil == nullptr) ? "" : fil->GetName();
+}
+
 constexpr ObjectModelTableEntry Platform::objectModelTable[] =
 {
 	// 0. boards[] members
@@ -268,6 +274,7 @@ constexpr ObjectModelTableEntry Platform::objectModelTable[] =
 	// 4. move.extruders[] members
 	{ "driver",				OBJECT_MODEL_FUNC(self->extruderDrivers[context.GetLastIndex()]),									ObjectModelEntryFlags::none },
 	{ "factor",				OBJECT_MODEL_FUNC_NOSELF(reprap.GetGCodes().GetExtrusionFactor(context.GetLastIndex()), 1),			ObjectModelEntryFlags::none },
+	{ "filament",			OBJECT_MODEL_FUNC_NOSELF(GetFilamentName(context.GetLastIndex())),									ObjectModelEntryFlags::none },
 	{ "nonlinear",			OBJECT_MODEL_FUNC(self, 5),																			ObjectModelEntryFlags::none },
 	{ "pressureAdvance",	OBJECT_MODEL_FUNC(self->GetPressureAdvance(context.GetLastIndex()), 2),								ObjectModelEntryFlags::none },
 	{ "retraction",			OBJECT_MODEL_FUNC(self, 6),																			ObjectModelEntryFlags::none },
@@ -300,7 +307,7 @@ constexpr uint8_t Platform::objectModelTableDescriptor[] =
 	3,																		// section 1: mcuTemp
 	3,																		// section 2: vIn
 	13,																		// section 3: move.axes[]
-	5,																		// section 4: move.extruders[]
+	6,																		// section 4: move.extruders[]
 	3,																		// section 5: move.extruders[].nonlinear
 	5,																		// section 6: move.extruders[].retraction
 #if HAS_12V_MONITOR
@@ -1408,7 +1415,11 @@ void Platform::ReportDrivers(MessageType mt, DriversBitmap& whichDrivers, const 
 
 bool Platform::HasVinPower() const noexcept
 {
+# if HAS_SMART_DRIVERS
 	return driversPowered;			// not quite right because drivers are disabled if we get over-voltage too, or if the 12V rail is low, but OK for the status report
+# else
+	return true;
+# endif
 }
 
 #endif
@@ -1796,7 +1807,7 @@ void Platform::Diagnostics(MessageType mtype) noexcept
 	MessageF(mtype, "Supply voltage: min %.1f, current %.1f, max %.1f, under voltage events: %" PRIu32 ", over voltage events: %" PRIu32 ", power good: %s\n",
 		(double)AdcReadingToPowerVoltage(lowestVin), (double)AdcReadingToPowerVoltage(currentVin), (double)AdcReadingToPowerVoltage(highestVin),
 				numVinUnderVoltageEvents, numVinOverVoltageEvents,
-				(driversPowered) ? "yes" : "no");
+				(HasVinPower()) ? "yes" : "no");
 	lowestVin = highestVin = currentVin;
 #endif
 
@@ -3547,7 +3558,10 @@ void Platform::SetBoardType(BoardType bt) noexcept
 	if (bt == BoardType::Auto)
 	{
 #if defined(DUET3)
-		board = BoardType::Duet3;
+		// Driver 0 direction has a pulldown resistor on v0.6 and v1.0 boards, but won't on v1.01 boards
+		pinMode(DIRECTION_PINS[0], INPUT_PULLUP);
+		delayMicroseconds(20);										// give the pullup resistor time to work
+		board = (digitalRead(DIRECTION_PINS[0])) ? BoardType::Duet3_v101 : BoardType::Duet3_v06_100;
 #elif defined(SAME70XPLD)
 		board = BoardType::SAME70XPLD_0;
 #elif defined(DUET_NG)
@@ -3614,7 +3628,8 @@ const char* Platform::GetElectronicsString() const noexcept
 	switch (board)
 	{
 #if defined(DUET3)
-	case BoardType::Duet3:					return "Duet 3 " BOARD_SHORT_NAME;
+	case BoardType::Duet3_v06_100:			return "Duet 3 " BOARD_SHORT_NAME " v0.6 or 1.0";
+	case BoardType::Duet3_v101:				return "Duet 3 " BOARD_SHORT_NAME " v1.01 or later";
 #elif defined(SAME70XPLD)
 	case BoardType::SAME70XPLD_0:			return "SAME70-XPLD";
 #elif defined(DUET_NG)
@@ -3651,14 +3666,8 @@ const char* Platform::GetBoardString() const noexcept
 	switch (board)
 	{
 #if defined(DUET3)
-	case BoardType::Duet3:
-# if defined(DUET3_V03)
-											return "duet3proto3";
-# elif defined(DUET3_V05)
-											return "duet3proto5";
-# elif defined(DUET3_V06)
-											return "duet3mb6hc";
-# endif
+	case BoardType::Duet3_v06_100:			return "duet3mb6hc100";
+	case BoardType::Duet3_v101:				return "duet3mb6hc101";
 #elif defined(SAME70XPLD)
 	case BoardType::SAME70XPLD_0:			return "same70xpld";
 #elif defined(DUET_NG)

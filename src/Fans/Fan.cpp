@@ -22,7 +22,7 @@ constexpr ObjectModelTableEntry Fan::objectModelTable[] =
 {
 	// Within each group, these entries must be in alphabetical order
 	// 0. Fan members
-	{ "actualValue",		OBJECT_MODEL_FUNC(self->lastVal, 1), 															ObjectModelEntryFlags::live },
+	{ "actualValue",		OBJECT_MODEL_FUNC(self->lastVal, 2), 															ObjectModelEntryFlags::live },
 	{ "blip",				OBJECT_MODEL_FUNC(0.001f * (float)self->blipTime, 2), 											ObjectModelEntryFlags::none },
 	{ "max",				OBJECT_MODEL_FUNC(self->maxVal, 2), 															ObjectModelEntryFlags::none },
 	{ "min",				OBJECT_MODEL_FUNC(self->minVal, 2), 															ObjectModelEntryFlags::none },
@@ -92,23 +92,13 @@ bool Fan::Configure(unsigned int mcode, size_t fanNum, GCodeBuffer& gb, const St
 		if (gb.Seen('L'))		// Set minimum speed
 		{
 			seen = true;
-			float speed = gb.GetFValue();
-			if (speed > 1.0)
-			{
-				speed /= 255.0;
-			}
-			minVal = constrain<float>(speed, 0.0, maxVal);
+			minVal = min<float>(gb.GetPwmValue(), maxVal);
 		}
 
 		if (gb.Seen('X'))		// Set maximum speed
 		{
 			seen = true;
-			float speed = gb.GetFValue();
-			if (speed > 1.0)
-			{
-				speed /= 255.0;
-			}
-			maxVal = constrain<float>(speed, minVal, 1.0);
+			maxVal = max<float>(gb.GetPwmValue(), minVal);
 		}
 
 		if (gb.Seen('H'))		// Set thermostatically-controlled sensors

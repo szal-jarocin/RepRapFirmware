@@ -133,7 +133,11 @@ bool GCodes::HandleGcode(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeEx
 			return false;
 		}
 		{
-			const char* err = DoStraightMove(gb, code == 1);
+			const char* err = nullptr;
+			if (!DoStraightMove(gb, code == 1, err))
+			{
+				return false;
+			}
 			if (err != nullptr)
 			{
 				AbortPrint(gb);
@@ -1649,7 +1653,7 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeEx
 		case 122:
 			{
 				const unsigned int type = (gb.Seen('P')) ? gb.GetIValue() : 0;
-				const MessageType mt = (MessageType)(gb.GetResponseMessageType() | PushFlag);
+				const MessageType mt = (MessageType)(gb.GetResponseMessageType() | PushFlag);	// set the Push flag to combine multiple messages into a single OutputBuffer chain
 #if SUPPORT_CAN_EXPANSION
 				const uint32_t board = (gb.Seen('B')) ? gb.GetUIValue() : 0;
 				if (board != CanId::MasterAddress)
@@ -1660,7 +1664,6 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeEx
 #endif
 				if (type == 0)
 				{
-					// Set the Push flag to combine multiple messages into a single OutputBuffer chain
 					reprap.Diagnostics(mt);
 				}
 				else
@@ -2244,7 +2247,7 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeEx
 						}
 					}
 
-					if (haveResidual && segmentsLeft == 0 && reprap.GetMove().AllMovesAreFinished())
+					if (haveResidual && segmentsLeft == 0 && reprap.GetMove().AllMovesAreFinished(false))
 					{
 						// The pipeline is empty, so execute the babystepping move immediately
 						SetMoveBufferDefaults();
@@ -2765,7 +2768,7 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeEx
 				}
 
 				// Read the entire file
-				FileStore * const f = platform.OpenSysFile(platform.GetConfigFile(), OpenMode::read);
+				FileStore * const f = platform.OpenSysFile(CONFIG_FILE, OpenMode::read);
 				if (f == nullptr)
 				{
 					reply.copy("Configuration file not found");
@@ -3038,7 +3041,7 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeEx
 				{
 					platform.GetSysDir(sysDir.GetRef());
 					folder = sysDir.c_str();
-					defaultFile = platform.GetConfigFile();
+					defaultFile = CONFIG_FILE;
 				}
 				String<MaxFilenameLength> filename;
 				if (gb.Seen('P'))

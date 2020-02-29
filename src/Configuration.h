@@ -285,7 +285,7 @@ constexpr float AxisRoundingError = 0.02;				// Maximum possible error when we r
 constexpr float NOZZLE_DIAMETER = 0.5;					// Millimetres
 constexpr float FILAMENT_WIDTH = 1.75;					// Millimetres
 
-constexpr unsigned int MaxStackDepth = 5;				// Maximum depth of stack
+constexpr unsigned int MaxStackDepth = 7;				// Maximum depth of stack (was 5 in 3.01-RC2, increased to 7 for 3.01-RC3)
 
 // CNC and laser support
 constexpr float DefaultMaxSpindleRpm = 10000;			// Default spindle RPM at full PWM
@@ -335,8 +335,6 @@ constexpr size_t FILE_BUFFER_SIZE = 128;
 #define MENU_DIR "0:/menu/"							// Directory for menu files
 #define UPLOAD_EXTENSION ".part"					// Extension to a filename for a file being uploaded
 
-#define CONFIG_FILE "config.g"
-#define CONFIG_BACKUP_FILE "config.g.bak"
 #define DEFAULT_LOG_FILE "eventlog.txt"
 
 #define EOF_STRING "<!-- **EoF** -->"

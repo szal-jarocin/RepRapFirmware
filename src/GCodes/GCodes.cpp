@@ -104,7 +104,7 @@ GCodes::GCodes(Platform& p) noexcept :
 	auxGCode = nullptr;
 #endif
 
-	daemonGCode = new GCodeBuffer(GCodeChannel::daemon, nullptr, fileInput, GenericMessage);
+	triggerGCode = new GCodeBuffer(GCodeChannel::trigger, nullptr, fileInput, GenericMessage);
 
 	codeQueue = new GCodeQueue();
 	queuedGCode = new GCodeBuffer(GCodeChannel::queue, codeQueue, fileInput, GenericMessage);
@@ -120,7 +120,7 @@ GCodes::GCodes(Platform& p) noexcept :
 #else
 	spiGCode = nullptr;
 #endif
-
+	daemonGCode = new GCodeBuffer(GCodeChannel::daemon, nullptr, fileInput, GenericMessage);
 	autoPauseGCode = new GCodeBuffer(GCodeChannel::autopause, nullptr, fileInput, GenericMessage);
 }
 
@@ -334,14 +334,14 @@ FilePosition GCodes::GetFilePosition() const noexcept
 // Start running the config file
 bool GCodes::RunConfigFile(const char* fileName) noexcept
 {
-	runningConfigFile = DoFileMacro(*daemonGCode, fileName, false);
+	runningConfigFile = DoFileMacro(*triggerGCode, fileName, false);
 	return runningConfigFile;
 }
 
 // Return true if the daemon is busy running config.g or a trigger file
 bool GCodes::IsDaemonBusy() const noexcept
 {
-	return daemonGCode->IsDoingFile();
+	return triggerGCode->IsDoingFile();
 }
 
 // Copy the feed rate etc. from the daemon to the input channels
@@ -486,6 +486,19 @@ void GCodes::StartNextGCode(GCodeBuffer& gb, const StringRef& reply) noexcept
 	else if (gb.IsDoingFile())
 	{
 		DoFilePrint(gb, reply);
+	}
+	else if (&gb == daemonGCode)
+	{
+		// Delay 1 second, then try to open and run daemon.g. No error if it is not found.
+		if (   !reprap.IsProcessingConfig()
+#if HAS_LINUX_INTERFACE
+			&& !reprap.UsingLinuxInterface()		// DSF gets confused by the daemon, so disable it for now
+#endif
+			&& gb.DoDwellTime(1000)
+		   )
+		{
+			DoFileMacro(gb, DAEMON_G, false, -1);
+		}
 	}
 	else
 #if SUPPORT_SCANNER
@@ -756,7 +769,7 @@ void GCodes::CheckTriggers() noexcept
 			triggersPending.ClearBit(lowestTriggerPending);			// clear the trigger
 			DoEmergencyStop();
 		}
-		else if (!IsDaemonBusy() && daemonGCode->GetState() == GCodeState::normal)	// if we are not already executing a trigger or config.g
+		else if (!IsDaemonBusy() && triggerGCode->GetState() == GCodeState::normal)	// if we are not already executing a trigger or config.g
 		{
 			if (lowestTriggerPending == 1)
 			{
@@ -764,10 +777,10 @@ void GCodes::CheckTriggers() noexcept
 				{
 					triggersPending.ClearBit(lowestTriggerPending);	// ignore a pause trigger if we are already paused or not printing
 				}
-				else if (LockMovement(*daemonGCode))					// need to lock movement before executing the pause macro
+				else if (LockMovement(*triggerGCode))					// need to lock movement before executing the pause macro
 				{
 					triggersPending.ClearBit(lowestTriggerPending);	// clear the trigger
-					DoPause(*daemonGCode, PauseReason::trigger, "Print paused by external trigger");
+					DoPause(*triggerGCode, PauseReason::trigger, "Print paused by external trigger");
 				}
 			}
 			else
@@ -775,7 +788,7 @@ void GCodes::CheckTriggers() noexcept
 				triggersPending.ClearBit(lowestTriggerPending);		// clear the trigger
 				String<StringLength20> filename;
 				filename.printf("trigger%u.g", lowestTriggerPending);
-				DoFileMacro(*daemonGCode, filename.c_str(), true);
+				DoFileMacro(*triggerGCode, filename.c_str(), true);
 			}
 		}
 	}
@@ -995,7 +1008,7 @@ bool GCodes::IsPausing() const noexcept
 		return true;
 	}
 
-	topState = daemonGCode->OriginalMachineState().state;
+	topState = triggerGCode->OriginalMachineState().state;
 	if (   topState == GCodeState::pausing1 || topState == GCodeState::pausing2
 		|| topState == GCodeState::filamentChangePause1 || topState == GCodeState::filamentChangePause2
 	   )
@@ -1454,7 +1467,7 @@ void GCodes::Diagnostics(MessageType mtype) noexcept
 
 // Lock movement and wait for pending moves to finish.
 // As a side-effect it loads moveBuffer with the last position and feedrate for you.
-bool GCodes::LockMovementAndWaitForStandstill(const GCodeBuffer& gb) noexcept
+bool GCodes::LockMovementAndWaitForStandstill(GCodeBuffer& gb) noexcept
 {
 	// Lock movement to stop another source adding moves to the queue
 	if (!LockMovement(gb))
@@ -1469,10 +1482,12 @@ bool GCodes::LockMovementAndWaitForStandstill(const GCodeBuffer& gb) noexcept
 	}
 
 	// Wait for all the queued moves to stop so we get the actual last position
-	if (!reprap.GetMove().AllMovesAreFinished())
+	if (!reprap.GetMove().AllMovesAreFinished(true))
 	{
 		return false;
 	}
+
+	gb.MotionStopped();								// must do this after we have finished waiting, so that we don't stop waiting when executing G4
 
 	// Get the current positions. These may not be the same as the ones we remembered from last time if we just did a special move.
 	UpdateCurrentUserPosition();
@@ -1486,6 +1501,7 @@ bool GCodes::Push(GCodeBuffer& gb, bool withinSameFile)
 	if (!ok)
 	{
 		platform.Message(ErrorMessage, "Push(): stack overflow\n");
+		AbortPrint(gb);
 	}
 	return ok;
 }
@@ -1659,9 +1675,12 @@ bool GCodes::CheckEnoughAxesHomed(AxesBitmap axesMoved) noexcept
 	return (reprap.GetMove().GetKinematics().MustBeHomedAxes(axesMoved, noMovesBeforeHoming) & ~axesHomed).IsNonEmpty();
 }
 
-// Execute a straight move returning an error message if the command was rejected, else nullptr
+// Execute a straight move
+// If not ready, return false
+// If we can't execute the move, return true with 'err' set to the error message
+// Else return true with 'err' left alone (it is set to nullptr on entry)
 // We have already acquired the movement lock and waited for the previous move to be taken.
-const char* GCodes::DoStraightMove(GCodeBuffer& gb, bool isCoordinated)
+bool GCodes::DoStraightMove(GCodeBuffer& gb, bool isCoordinated, const char *& err)
 {
 	if (moveFractionToSkip > 0.0)
 	{
@@ -1690,6 +1709,10 @@ const char* GCodes::DoStraightMove(GCodeBuffer& gb, bool isCoordinated)
 		const int ival = gb.GetIValue();
 		if (ival >= 1 && ival <= 3)
 		{
+			if (!LockMovementAndWaitForStandstill(gb))
+			{
+				return false;
+			}
 			moveBuffer.moveType = ival;
 			moveBuffer.tool = nullptr;
 		}
@@ -1710,7 +1733,8 @@ const char* GCodes::DoStraightMove(GCodeBuffer& gb, bool isCoordinated)
 		}
 		else
 		{
-			return "G0/G1: bad restore point number";
+			err = "G0/G1: bad restore point number";
+			return true;
 		}
 	}
 
@@ -1780,7 +1804,8 @@ const char* GCodes::DoStraightMove(GCodeBuffer& gb, bool isCoordinated)
 			// If it is a special move on a delta, movement must be relative.
 			if (moveBuffer.moveType != 0 && !gb.MachineState().axesRelative && reprap.GetMove().GetKinematics().GetKinematicsType() == KinematicsType::linearDelta)
 			{
-				return "G0/G1: attempt to move individual motors of a delta machine to absolute positions";
+				err = "G0/G1: attempt to move individual motors of a delta machine to absolute positions";
+				return true;
 			}
 
 			axesMentioned.SetBit(axis);
@@ -1829,23 +1854,19 @@ const char* GCodes::DoStraightMove(GCodeBuffer& gb, bool isCoordinated)
 	case 0:
 		if (!doingManualBedProbe && CheckEnoughAxesHomed(axesMentioned))
 		{
-			return "G0/G1: insufficient axes homed";
+			err = "G0/G1: insufficient axes homed";
+			return true;
 		}
-		break;
-
-	case 1:
-		if (!platform.GetEndstops().EnableAxisEndstops(axesMentioned & AxesBitmap::MakeLowestNBits(numTotalAxes), true))
-		{
-			return "Failed to enable endstops";
-		}
-		moveBuffer.checkEndstops = true;
 		break;
 
 	case 3:
 		axesToSenseLength = axesMentioned & AxesBitmap::MakeLowestNBits(numTotalAxes);
-		if (!platform.GetEndstops().EnableAxisEndstops(axesMentioned & AxesBitmap::MakeLowestNBits(numTotalAxes), false))
+		// no break
+	case 1:
+		if (!platform.GetEndstops().EnableAxisEndstops(axesMentioned & AxesBitmap::MakeLowestNBits(numTotalAxes), moveBuffer.moveType == 1))
 		{
-			return "Failed to enable endstops";
+			err = "Failed to enable endstops";
+			return true;
 		}
 		moveBuffer.checkEndstops = true;
 		break;
@@ -1884,47 +1905,46 @@ const char* GCodes::DoStraightMove(GCodeBuffer& gb, bool isCoordinated)
 			effectiveAxesHomed.ClearBit(Z_AXIS);								// if doing a manual Z probe, don't limit the Z movement
 		}
 
-		if (moveBuffer.moveType == 0)
+		const LimitPositionResult lp = reprap.GetMove().GetKinematics().LimitPosition(moveBuffer.coords, moveBuffer.initialCoords, numVisibleAxes, effectiveAxesHomed, moveBuffer.isCoordinated, limitAxes);
+		switch (lp)
 		{
-			const LimitPositionResult lp = reprap.GetMove().GetKinematics().LimitPosition(moveBuffer.coords, moveBuffer.initialCoords, numVisibleAxes, effectiveAxesHomed, moveBuffer.isCoordinated, limitAxes);
-			switch (lp)
+		case LimitPositionResult::adjusted:
+		case LimitPositionResult::adjustedAndIntermediateUnreachable:
+			if (machineType != MachineType::fff)
 			{
-			case LimitPositionResult::adjusted:
-			case LimitPositionResult::adjustedAndIntermediateUnreachable:
-				if (machineType != MachineType::fff)
-				{
-					return "G0/G1: target position outside machine limits";		// it's a laser or CNC so this is a definite error
-				}
-				ToolOffsetInverseTransform(moveBuffer.coords, currentUserPosition);	// make sure the limits are reflected in the user position
-				if (lp == LimitPositionResult::adjusted)
-				{
-					break;														// we can reach the intermediate positions, so nothing more to do
-				}
-				// no break
-
-			case LimitPositionResult::intermediateUnreachable:
-				if (   moveBuffer.isCoordinated
-					&& (   (machineType == MachineType::fff && !moveBuffer.hasExtrusion)
-#if SUPPORT_LASER || SUPPORT_IOBITS
-						|| (machineType == MachineType::laser && moveBuffer.laserPwmOrIoBits.laserPwm == 0)
-#endif
-					   )
-				   )
-				{
-					// It's a coordinated travel move on a 3D printer or laser cutter, so see whether an uncoordinated move will work
-					const LimitPositionResult lp2 = reprap.GetMove().GetKinematics().LimitPosition(moveBuffer.coords, moveBuffer.initialCoords, numVisibleAxes, effectiveAxesHomed, false, limitAxes);
-					if (lp2 == LimitPositionResult::ok)
-					{
-						moveBuffer.isCoordinated = false;						// change it to an uncoordinated move
-						break;
-					}
-				}
-				return "G0/G1: target position not reachable from current position";		// we can't bring the move within limits, so this is a definite error
-
-			case LimitPositionResult::ok:
-			default:
-				break;
+				err = "G0/G1: target position outside machine limits";		// it's a laser or CNC so this is a definite error
+				return true;
 			}
+			ToolOffsetInverseTransform(moveBuffer.coords, currentUserPosition);	// make sure the limits are reflected in the user position
+			if (lp == LimitPositionResult::adjusted)
+			{
+				break;														// we can reach the intermediate positions, so nothing more to do
+			}
+			// no break
+
+		case LimitPositionResult::intermediateUnreachable:
+			if (   moveBuffer.isCoordinated
+				&& (   (machineType == MachineType::fff && !moveBuffer.hasExtrusion)
+#if SUPPORT_LASER || SUPPORT_IOBITS
+					|| (machineType == MachineType::laser && moveBuffer.laserPwmOrIoBits.laserPwm == 0)
+#endif
+				   )
+			   )
+			{
+				// It's a coordinated travel move on a 3D printer or laser cutter, so see whether an uncoordinated move will work
+				const LimitPositionResult lp2 = reprap.GetMove().GetKinematics().LimitPosition(moveBuffer.coords, moveBuffer.initialCoords, numVisibleAxes, effectiveAxesHomed, false, limitAxes);
+				if (lp2 == LimitPositionResult::ok)
+				{
+					moveBuffer.isCoordinated = false;						// change it to an uncoordinated move
+					break;
+				}
+			}
+			err = "G0/G1: target position not reachable from current position";		// we can't bring the move within limits, so this is a definite error
+			return true;
+
+		case LimitPositionResult::ok:
+		default:
+			break;
 		}
 
 		// If we are emulating Marlin for nanoDLP then we need to set a special end state
@@ -1967,7 +1987,8 @@ const char* GCodes::DoStraightMove(GCodeBuffer& gb, bool isCoordinated)
 	doingArcMove = false;
 	FinaliseMove(gb);
 	UnlockAll(gb);			// allow pause
-	return nullptr;
+	err = nullptr;
+	return true;
 }
 
 // Execute an arc move, returning true if it was badly-formed
@@ -2250,6 +2271,7 @@ void GCodes::FinaliseMove(GCodeBuffer& gb) noexcept
 {
 	moveBuffer.canPauseAfter = !moveBuffer.checkEndstops && !doingArcMove;		// pausing during an arc move isn't save because the arc centre get recomputed incorrectly when we resume
 	moveBuffer.filePos = (&gb == fileGCode) ? gb.GetFilePosition() : noFilePosition;
+	gb.MotionCommanded();
 
 	if (totalSegments > 1)
 	{
@@ -2919,10 +2941,14 @@ GCodeResult GCodes::DoDwell(GCodeBuffer& gb) noexcept
 	}
 #endif
 
-	// Wait for all the queued moves to stop
-	if (!LockMovementAndWaitForStandstill(gb))
+	// Wait for all the queued moves to stop. Only do this if motion has been commanded from this GCode stream since we last waited for motion to stop.
+	// This is so that G4 can be used in a trigger or daemon macro file without pausing motion, when the macro doesn't itself command any motion.
+	if (gb.WasMotionCommanded())
 	{
-		return GCodeResult::notFinished;
+		if (!LockMovementAndWaitForStandstill(gb))
+		{
+			return GCodeResult::notFinished;
+		}
 	}
 
 	if (simulationMode != 0)
@@ -3260,7 +3286,7 @@ void GCodes::HandleReply(GCodeBuffer& gb, GCodeResult rslt, const char* reply) n
 
 	// Don't report empty responses if a file or macro is being processed, or if the GCode was queued
 	// Also check that this response was triggered by a gcode
-	if (reply[0] == 0 && (gb.MachineState().doingFileMacro || &gb == fileGCode || &gb == queuedGCode || &gb == daemonGCode || &gb == autoPauseGCode))
+	if (reply[0] == 0 && (gb.MachineState().doingFileMacro || &gb == fileGCode || &gb == queuedGCode || &gb == triggerGCode || &gb == autoPauseGCode))
 	{
 		return;
 	}
@@ -4334,7 +4360,7 @@ const char* GCodes::GetMachineModeString() const noexcept
 
 // Respond to a heater fault. The heater has already been turned off and its status set to 'fault' when this is called from the Heat module.
 // The Heat module will generate an appropriate error message, so no need to do that here.
-void GCodes::HandleHeaterFault(int heater) noexcept
+void GCodes::HandleHeaterFault() noexcept
 {
 	if (heaterFaultState == HeaterFaultState::noFault && fileGCode->OriginalMachineState().DoingFile())
 	{

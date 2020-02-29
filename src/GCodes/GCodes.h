@@ -157,7 +157,7 @@ public:
 	const char* GetMachineModeString() const noexcept;							// Get the name of the current machine mode
 
 	void FilamentError(size_t extruder, FilamentSensorStatus fstat) noexcept;
-	void HandleHeaterFault(int heater) noexcept;								// Respond to a heater fault
+	void HandleHeaterFault() noexcept;											// Respond to a heater fault
 
 #if HAS_VOLTAGE_MONITOR
 	bool LowVoltagePause() noexcept;
@@ -171,7 +171,7 @@ public:
 
 	const char *GetAxisLetters() const noexcept { return axisLetters; }			// Return a null-terminated string of axis letters indexed by drive
 	MachineType GetMachineType() const noexcept { return machineType; }
-	bool LockMovementAndWaitForStandstill(const GCodeBuffer& gb) noexcept;		// Lock movement and wait for pending moves to finish
+	bool LockMovementAndWaitForStandstill(GCodeBuffer& gb) noexcept;			// Lock movement and wait for pending moves to finish
 
 #if SUPPORT_12864_LCD
 	bool ProcessCommandFromLcd(const char *cmd) noexcept;						// Process a GCode command from the 12864 LCD returning true if the command was accepted
@@ -236,6 +236,34 @@ public:
 	}
 #endif
 
+	static constexpr const char *AllowedAxisLetters = "XYZUVWABCD";
+
+	// Standard macro filenames
+	static constexpr const char* CONFIG_FILE = "config.g";
+	static constexpr const char* CONFIG_BACKUP_FILE = "config.g.bak";
+	static constexpr const char* BED_EQUATION_G = "bed.g";
+	static constexpr const char* PAUSE_G = "pause.g";
+	static constexpr const char* RESUME_G = "resume.g";
+	static constexpr const char* CANCEL_G = "cancel.g";
+	static constexpr const char* START_G = "start.g";
+	static constexpr const char* STOP_G = "stop.g";
+	static constexpr const char* SLEEP_G = "sleep.g";
+	static constexpr const char* CONFIG_OVERRIDE_G = "config-override.g";
+	static constexpr const char* DEPLOYPROBE_G = "deployprobe.g";
+	static constexpr const char* RETRACTPROBE_G = "retractprobe.g";
+	static constexpr const char* DefaultHeightMapFile = "heightmap.csv";
+	static constexpr const char* LOAD_FILAMENT_G = "load.g";
+	static constexpr const char* CONFIG_FILAMENT_G = "config.g";
+	static constexpr const char* UNLOAD_FILAMENT_G = "unload.g";
+	static constexpr const char* RESUME_AFTER_POWER_FAIL_G = "resurrect.g";
+	static constexpr const char* RESUME_PROLOGUE_G = "resurrect-prologue.g";
+	static constexpr const char* FILAMENT_CHANGE_G = "filament-change.g";
+	static constexpr const char* DAEMON_G = "daemon.g";
+	static constexpr const char* RUNONCE_G = "runonce.g";
+#if HAS_SMART_DRIVERS
+	static constexpr const char* REHOME_G = "rehome.g";
+#endif
+
 private:
 	GCodes(const GCodes&) = delete;
 
@@ -279,7 +307,7 @@ private:
 
 	void HandleReply(GCodeBuffer& gb, OutputBuffer *reply) noexcept;
 
-	const char* DoStraightMove(GCodeBuffer& gb, bool isCoordinated) __attribute__((hot));	// Execute a straight move returning any error message
+	bool DoStraightMove(GCodeBuffer& gb, bool isCoordinated, const char *& err) __attribute__((hot));	// Execute a straight move
 	const char* DoArcMove(GCodeBuffer& gb, bool clockwise)							// Execute an arc move returning any error message
 		pre(segmentsLeft == 0; resourceOwners[MoveResource] == &gb);
 	void FinaliseMove(GCodeBuffer& gb) noexcept;									// Adjust the move parameters to account for segmentation and/or part of the move having been done already
@@ -423,11 +451,12 @@ private:
 	GCodeBuffer*& fileGCode = gcodeSources[2];
 	GCodeBuffer*& usbGCode = gcodeSources[3];
 	GCodeBuffer*& auxGCode = gcodeSources[4];							// This one is for the PanelDue on the async serial interface
-	GCodeBuffer*& daemonGCode = gcodeSources[5];						// Used for executing config.g and trigger macro files
+	GCodeBuffer*& triggerGCode = gcodeSources[5];						// Used for executing config.g and trigger macro files
 	GCodeBuffer*& queuedGCode = gcodeSources[6];
 	GCodeBuffer*& lcdGCode = gcodeSources[7];							// This one for the 12864 LCD
 	GCodeBuffer*& spiGCode = gcodeSources[8];
-	GCodeBuffer*& autoPauseGCode = gcodeSources[9];						// ***THIS ONE MUST BE LAST*** GCode state machine used to run macros on power fail, heater faults and filament out
+	GCodeBuffer*& daemonGCode = gcodeSources[9];
+	GCodeBuffer*& autoPauseGCode = gcodeSources[10];					// ***THIS ONE MUST BE LAST*** GCode state machine used to run macros on power fail, heater faults and filament out
 
 	size_t nextGcodeSource;												// The one to check next, using round-robin scheduling
 
@@ -603,30 +632,6 @@ private:
 	bool displayNoToolWarning;					// True if we need to display a 'no tool selected' warning
 	bool m501SeenInConfigFile;					// true if M501 was executed form config.g
 	char filamentToLoad[FilamentNameLength];	// Name of the filament being loaded
-
-	static constexpr const char *AllowedAxisLetters = "XYZUVWABCD";
-
-	// Standard macro filenames
-	static constexpr const char* BED_EQUATION_G = "bed.g";
-	static constexpr const char* PAUSE_G = "pause.g";
-	static constexpr const char* RESUME_G = "resume.g";
-	static constexpr const char* CANCEL_G = "cancel.g";
-	static constexpr const char* START_G = "start.g";
-	static constexpr const char* STOP_G = "stop.g";
-	static constexpr const char* SLEEP_G = "sleep.g";
-	static constexpr const char* CONFIG_OVERRIDE_G = "config-override.g";
-	static constexpr const char* DEPLOYPROBE_G = "deployprobe.g";
-	static constexpr const char* RETRACTPROBE_G = "retractprobe.g";
-	static constexpr const char* DefaultHeightMapFile = "heightmap.csv";
-	static constexpr const char* LOAD_FILAMENT_G = "load.g";
-	static constexpr const char* CONFIG_FILAMENT_G = "config.g";
-	static constexpr const char* UNLOAD_FILAMENT_G = "unload.g";
-	static constexpr const char* RESUME_AFTER_POWER_FAIL_G = "resurrect.g";
-	static constexpr const char* RESUME_PROLOGUE_G = "resurrect-prologue.g";
-	static constexpr const char* FILAMENT_CHANGE_G = "filament-change.g";
-#if HAS_SMART_DRIVERS
-	static constexpr const char* REHOME_G = "rehome.g";
-#endif
 
 	static constexpr const float MinServoPulseWidth = 544.0, MaxServoPulseWidth = 2400.0;
 };

@@ -754,6 +754,12 @@ void CanInterface::SendBroadcast(CanMessageBuffer *buf) noexcept
 	CanMessageBuffer::Free(buf);
 }
 
+// Send a request message with no reply expected, and don't free the buffer. Used to send emergency stop messages.
+void CanInterface::SendMessageNoReplyNoFree(CanMessageBuffer *buf) noexcept
+{
+	mcan_fd_send_ext_message(buf->id.GetWholeId(), reinterpret_cast<uint8_t*>(&(buf->msg)), buf->dataLength, TxBufferBroadcast, MaxResponseSendWait);
+}
+
 // The CanReceiver task
 extern "C" [[noreturn]] void CanReceiverLoop(void *) noexcept
 {
@@ -895,28 +901,41 @@ static GCodeResult GetRemoteInfo(uint8_t infoType, uint32_t boardAddress, uint8_
 // Get diagnostics from an expansion board
 GCodeResult CanInterface::RemoteDiagnostics(MessageType mt, uint32_t boardAddress, unsigned int type, GCodeBuffer& gb, const StringRef& reply)
 {
-	Platform& p = reprap.GetPlatform();
+	CanInterface::CheckCanAddress(boardAddress, gb);
 
-	uint8_t currentPart = 0;
-	uint8_t lastPart;
-	GCodeResult res;
-	do
+	if (type <= 15)
 	{
-		res = GetRemoteInfo(CanMessageReturnInfo::typeDiagnosticsPart0 + currentPart, boardAddress, type, gb, reply, &lastPart);
-		if (res != GCodeResult::ok)
+		Platform& p = reprap.GetPlatform();
+
+		uint8_t currentPart = 0;
+		uint8_t lastPart;
+		GCodeResult res;
+		do
 		{
-			return res;
-		}
-		if (type == 0 && currentPart == 0)
-		{
-			p.MessageF(mt, "Diagnostics for board %u:\n", (unsigned int)boardAddress);
-		}
-		reply.cat('\n');
-		p.Message(mt, reply.c_str());
-		reply.Clear();
-		++currentPart;
-	} while (currentPart <= lastPart);
-	return res;
+			res = GetRemoteInfo(CanMessageReturnInfo::typeDiagnosticsPart0 + currentPart, boardAddress, type, gb, reply, &lastPart);
+			if (res != GCodeResult::ok)
+			{
+				return res;
+			}
+			if (type == 0 && currentPart == 0)
+			{
+				p.MessageF(mt, "Diagnostics for board %u:\n", (unsigned int)boardAddress);
+			}
+			reply.cat('\n');
+			p.Message(mt, reply.c_str());
+			reply.Clear();
+			++currentPart;
+		} while (currentPart <= lastPart);
+		return res;
+	}
+
+	// It's a diagnostic test
+	CanMessageBuffer * const buf = AllocateBuffer(gb);
+	const CanRequestId rid = CanInterface::AllocateRequestId(boardAddress);
+	auto const msg = buf->SetupRequestMessage<CanMessageDiagnosticTest>(rid, CanId::MasterAddress, (CanAddress)boardAddress);
+	msg->testType = type;
+	msg->invertedTestType = ~type;
+	return SendRequestAndGetStandardReply(buf, rid, reply);			// we may not actually get a reply if the test is one that crashes the expansion board
 }
 
 GCodeResult CanInterface::RemoteM408(uint32_t boardAddress, unsigned int type, GCodeBuffer& gb, const StringRef& reply)
@@ -964,6 +983,12 @@ GCodeResult CanInterface::CreateHandle(CanAddress boardAddress, RemoteInputHandl
 
 static GCodeResult ChangeInputMonitor(CanAddress boardAddress, RemoteInputHandle h, uint8_t action, bool* currentState, const StringRef &reply) noexcept
 {
+	if (!h.IsValid())
+	{
+		reply.copy("Invalid remote handle");
+		return GCodeResult::error;
+	}
+
 	CanMessageBuffer * const buf = CanMessageBuffer::Allocate();
 	if (buf == nullptr)
 	{
@@ -994,9 +1019,9 @@ GCodeResult CanInterface::GetHandlePinName(CanAddress boardAddress, RemoteInputH
 	return ChangeInputMonitor(boardAddress, h, CanMessageChangeInputMonitor::actionReturnPinName, &currentState, reply);
 }
 
-GCodeResult CanInterface::EnableHandle(CanAddress boardAddress, RemoteInputHandle h, bool &currentState, const StringRef &reply) noexcept
+GCodeResult CanInterface::EnableHandle(CanAddress boardAddress, RemoteInputHandle h, bool enable, bool &currentState, const StringRef &reply) noexcept
 {
-	return ChangeInputMonitor(boardAddress, h, CanMessageChangeInputMonitor::actionDoMonitor, &currentState, reply);
+	return ChangeInputMonitor(boardAddress, h, (enable) ? CanMessageChangeInputMonitor::actionDoMonitor : CanMessageChangeInputMonitor::actionDontMonitor, &currentState, reply);
 }
 
 void CanInterface::Diagnostics(MessageType mtype) noexcept
