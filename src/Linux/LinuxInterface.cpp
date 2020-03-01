@@ -211,6 +211,7 @@ void LinuxInterface::Spin()
 				break;
 			}
 
+#ifndef __LPC17xx__
 			// Write another chunk of the IAP binary to the designated Flash area
 			case LinuxRequest::WriteIap:
 				memcpy(reinterpret_cast<char *>(iapWritePointer), transfer->ReadData(packet->length), packet->length);
@@ -227,7 +228,7 @@ void LinuxInterface::Spin()
 #endif
 				reprap.StartIap();
 				break;
-
+#endif
 			// Assign filament
 			case LinuxRequest::AssignFilament:
 			{

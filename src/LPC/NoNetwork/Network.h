@@ -6,49 +6,58 @@
 #include "GCodes/GCodeResult.h"
 #include "General/IPAddress.h"
 
-const IPAddress DefaultIpAddress;
-const IPAddress DefaultNetMask;
-const IPAddress DefaultGateway;
-const uint8_t macAddress[6] = { 0, 0, 0, 0, 0, 0 };
+#include "Networking/NetworkDefs.h"
+//forward declarations
+class NetworkInterface;
 
-const uint8_t DefaultMacAddress[6] = { 0, 0, 0, 0, 0, 0 };
 
-const size_t SsidBufferLength = 32;				// maximum characters in an SSID
 
 // The main network class that drives the network.
 class Network
 {
 public:
-	Network(Platform& p) { }
-	void Init() const { }
-	void Activate() const { }
-	void Exit() const { }
-	void Spin(bool full) const { }
-	void Interrupt() const { }
-	void Diagnostics(MessageType mtype) const { }
+    Network(Platform& p) noexcept { };
+    void Init() const noexcept { };
+    void Activate() const noexcept  { };
+    void Exit() const noexcept { };
+    void Spin(bool full) const noexcept { };
+    void Interrupt() const noexcept { };
+    void Diagnostics(MessageType mtype) const noexcept { };
+    bool IsWiFiInterface(unsigned int interface) const noexcept { return false; };
 
-	GCodeResult EnableInterface(unsigned int interface, int mode, const StringRef& ssid, const StringRef& reply);
-	GCodeResult EnableProtocol(unsigned int interface, int protocol, int port, bool secure, const StringRef& reply);
-	GCodeResult DisableProtocol(unsigned int interface, int protocol, const StringRef& reply);
-	GCodeResult ReportProtocols(unsigned int interface, const StringRef& reply) const;
+    GCodeResult EnableInterface(unsigned int interface, int mode, const StringRef& ssid, const StringRef& reply) noexcept;
+    GCodeResult EnableProtocol(unsigned int interface, NetworkProtocol protocol, int port, int secure, const StringRef& reply) noexcept;
+    GCodeResult DisableProtocol(unsigned int interface, NetworkProtocol protocol, const StringRef& reply) noexcept;
+    GCodeResult ReportProtocols(unsigned int interface, const StringRef& reply) const noexcept;
 
-	GCodeResult GetNetworkState(unsigned int interface, const StringRef& reply);
+    // Global settings
+    GCodeResult GetNetworkState(unsigned int interface, const StringRef& reply) noexcept;
+    int EnableState(unsigned int interface) const noexcept;
 
-	void SetEthernetIPAddress(IPAddress p_ipAddress, IPAddress p_netmask, IPAddress p_gateway) { }
-	void SetMacAddress(unsigned int interface, const uint8_t mac[]) { }
-	const uint8_t *GetMacAddress(unsigned int interface) const { return macAddress; }
-
-    IPAddress GetIPAddress(unsigned int interface) const { return DefaultIpAddress; }
+    void SetEthernetIPAddress(IPAddress p_ipAddress, IPAddress p_netmask, IPAddress p_gateway) noexcept { };
+    IPAddress GetIPAddress(unsigned int interface) const noexcept { return DefaultIpAddress; };
+    const char *GetHostname() const noexcept { return ""; }
+    void SetHostname(const char *name) noexcept { };
+    GCodeResult SetMacAddress(unsigned int interface, const MacAddress& mac, const StringRef& reply) noexcept { return GCodeResult::ok;};
+    const MacAddress& GetMacAddress(unsigned int interface) const noexcept { return macAddress; };
 
     
-	void SetHostname(const char *name) const { }
-	bool IsWiFiInterface(unsigned int interface) const { return false; }
 
-	void HandleHttpGCodeReply(const char *msg) { }
-	void HandleTelnetGCodeReply(const char *msg) { }
-	void HandleHttpGCodeReply(OutputBuffer *buf);
-	void HandleTelnetGCodeReply(OutputBuffer *buf);
-	uint32_t GetHttpReplySeq() { return 0; }
+	void HandleHttpGCodeReply(const char *msg) noexcept { }
+	void HandleTelnetGCodeReply(const char *msg) noexcept { }
+	void HandleHttpGCodeReply(OutputBuffer *buf) noexcept;
+	void HandleTelnetGCodeReply(OutputBuffer *buf) noexcept;
+	uint32_t GetHttpReplySeq() noexcept { return 0; }
+    
+//protected:
+//    DECLARE_OBJECT_MODEL
+//    OBJECT_MODEL_ARRAY(interfaces)
+
+  
+private:
+    //NetworkInterface *interfaces[NumNetworkInterfaces];
+    MacAddress macAddress;
+
 };
 
 #endif

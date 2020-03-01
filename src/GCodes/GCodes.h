@@ -128,7 +128,7 @@ public:
 		pre(axis < maxAxes);
 	float GetUserCoordinate(size_t axis) const noexcept;						// Get the current user coordinate in the current workspace coordinate system
 
-#if HAS_NETWORKING
+#if HAS_NETWORKING || HAS_LINUX_INTERFACE
 	NetworkGCodeInput *GetHTTPInput() const noexcept { return httpInput; }
 	NetworkGCodeInput *GetTelnetInput() const noexcept { return telnetInput; }
 #endif
@@ -307,7 +307,7 @@ private:
 
 	void HandleReply(GCodeBuffer& gb, OutputBuffer *reply) noexcept;
 
-	const char* DoStraightMove(GCodeBuffer& gb, bool isCoordinated) __attribute__((hot));	// Execute a straight move returning any error message
+	bool DoStraightMove(GCodeBuffer& gb, bool isCoordinated, const char *& err) __attribute__((hot));	// Execute a straight move
 	const char* DoArcMove(GCodeBuffer& gb, bool clockwise)							// Execute an arc move returning any error message
 		pre(segmentsLeft == 0; resourceOwners[MoveResource] == &gb);
 	void FinaliseMove(GCodeBuffer& gb) noexcept;									// Adjust the move parameters to account for segmentation and/or part of the move having been done already
@@ -439,7 +439,7 @@ private:
 
 	Platform& platform;													// The RepRap machine
 
-#if HAS_NETWORKING
+#if HAS_NETWORKING || HAS_LINUX_INTERFACE
 	NetworkGCodeInput* httpInput;										// These cache incoming G-codes...
 	NetworkGCodeInput* telnetInput;										// ...
 #endif
