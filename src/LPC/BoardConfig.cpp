@@ -16,7 +16,7 @@
 #include "RepRapFirmware.h"
 #include "GCodes/GCodeResult.h"
 #include "sd_mmc.h"
-#include "SharedSPI.h"
+#include "SharedSpi.h"
 
 #include "Platform.h"
 

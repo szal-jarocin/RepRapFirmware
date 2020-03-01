@@ -1,7 +1,7 @@
 #ifndef MBED_H
 #define MBED_H
 
-#include "../PINS_LPC.h"
+#include "../Pins_LPC.h"
 
 
 // List of assignable pins and their mapping from names to MPU ports. This is indexed by logical pin number.

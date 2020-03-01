@@ -1,7 +1,7 @@
 #ifndef BIQU_SKR_H
 #define BIQU_SKR_H
 
-#include "../PINS_LPC.h"
+#include "../Pins_LPC.h"
 
 // List of assignable pins and their mapping from names to MPU ports. This is indexed by logical pin number.
 // The names must match user input that has been concerted to lowercase and had _ and - characters stripped out.
@@ -169,7 +169,7 @@ constexpr PinEntry PinTable_BIQU_SKR_v1_4[] =
     {P1_26, PinCapability::rwpwm, "e0stop,e0det"},
     {P1_25, PinCapability::rwpwm, "e1stop,e1det"},
 	{P1_0, PinCapability::rwpwm, "pwrdet,P1.0"},
-	{P0.10, PinCapability::rwpwm, "probe"},
+	{P0_10, PinCapability::rwpwm, "probe"},
 	
     //Heaters and Fans (Big and Small Mosfets}
     {P2_5,  PinCapability::wpwm, "bed,hbed" },
