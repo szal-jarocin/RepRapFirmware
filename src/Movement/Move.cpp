@@ -120,7 +120,13 @@ constexpr ObjectModelTableEntry Move::objectModelTable[] =
 #if HAS_LINUX_INTERFACE
 									&& !reprap.UsingLinuxInterface()
 #endif
-									, self->heightMap.GetFileName()),													ObjectModelEntryFlags::none },
+									,
+#if HAS_MASS_STORAGE
+                                                     self->heightMap.GetFileName()
+#else
+                                                     "" //quick hack to make it compile. 
+#endif
+                                                     ),													ObjectModelEntryFlags::none },
 	{ "meshDeviation",			OBJECT_MODEL_FUNC_IF(self->usingMesh, self, 8),											ObjectModelEntryFlags::none },
 	{ "type",					OBJECT_MODEL_FUNC(self->GetCompensationTypeString()),									ObjectModelEntryFlags::none },
 

@@ -100,7 +100,7 @@ void BoardConfig::Init() noexcept
     FileStore *configFile = nullptr;
     
     NVIC_SetPriority(DMA_IRQn, NvicPrioritySpi);
-
+#if HAS_MASS_STORAGE
     //Mount the Internal SDCard
     do
     {
@@ -216,6 +216,7 @@ void BoardConfig::Init() noexcept
         //Configure ADC pre filter
         ConfigureADCPreFilter(ADCEnablePreFilter, ADCPreFilterNumberSamples, ADCPreFilterSampleRate);
     }
+#endif
 }
 
 
@@ -466,7 +467,7 @@ void BoardConfig::SetValueFromString(configValueType type, void *variable, char 
 
 bool BoardConfig::GetConfigKeys(FileStore *configFile, const boardConfigEntry_t *boardConfigEntryArray, const size_t numConfigs) noexcept
 {
-
+#if HAS_MASS_STORAGE
     size_t maxLineLength = 120;
     char line[maxLineLength];
 
@@ -673,5 +674,6 @@ bool BoardConfig::GetConfigKeys(FileStore *configFile, const boardConfigEntry_t 
 
         len = configFile->ReadLine(line, maxLineLength); //attempt to read the next line
     }
+#endif
     return false;
 }

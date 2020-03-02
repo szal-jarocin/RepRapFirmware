@@ -311,43 +311,46 @@ void LinuxInterface::Spin()
 			const GCodeChannel channel = (GCodeChannel)i;
 			GCodeBuffer *gb = reprap.GetGCodes().GetGCodeBuffer(channel);
 
-			// Invalidate buffered codes if required
-			if (gb->IsInvalidated())
-			{
-				InvalidateBufferChannel(gb->GetChannel());
-				gb->Invalidate(false);
-			}
+            if(gb != nullptr)
+            {
+                // Invalidate buffered codes if required
+                if (gb->IsInvalidated())
+                {
+                    InvalidateBufferChannel(gb->GetChannel());
+                    gb->Invalidate(false);
+                }
 
-			// Handle macro start requests
-			const char *requestedMacroFile = gb->GetRequestedMacroFile(reportMissing, fromCode);
-			if (requestedMacroFile != nullptr && transfer->WriteMacroRequest(channel, requestedMacroFile, reportMissing, fromCode))
-			{
-				if (reprap.Debug(moduleLinuxInterface))
-				{
-					reprap.GetPlatform().MessageF(DebugMessage, "Requesting macro file '%s' (reportMissing: %s fromCode: %s)\n", requestedMacroFile, reportMissing ? "true" : "false", fromCode ? "true" : "false");
-				}
-				gb->RequestMacroFile(nullptr, reportMissing, fromCode);
-				gb->Invalidate();
-			}
+                // Handle macro start requests
+                const char *requestedMacroFile = gb->GetRequestedMacroFile(reportMissing, fromCode);
+                if (requestedMacroFile != nullptr && transfer->WriteMacroRequest(channel, requestedMacroFile, reportMissing, fromCode))
+                {
+                    if (reprap.Debug(moduleLinuxInterface))
+                    {
+                        reprap.GetPlatform().MessageF(DebugMessage, "Requesting macro file '%s' (reportMissing: %s fromCode: %s)\n", requestedMacroFile, reportMissing ? "true" : "false", fromCode ? "true" : "false");
+                    }
+                    gb->RequestMacroFile(nullptr, reportMissing, fromCode);
+                    gb->Invalidate();
+                }
 
-			// Handle file abort requests
-			if (gb->IsAbortRequested() && transfer->WriteAbortFileRequest(channel, gb->IsAbortAllRequested()))
-			{
-				gb->AcknowledgeAbort();
-				gb->Invalidate();
-			}
+                // Handle file abort requests
+                if (gb->IsAbortRequested() && transfer->WriteAbortFileRequest(channel, gb->IsAbortAllRequested()))
+                {
+                    gb->AcknowledgeAbort();
+                    gb->Invalidate();
+                }
 
-			// Report stack levels when RRF detects a DSF reset
-			if (transfer->LinuxHadReset())
-			{
-				gb->ReportStack();
-			}
+                // Report stack levels when RRF detects a DSF reset
+                if (transfer->LinuxHadReset())
+                {
+                    gb->ReportStack();
+                }
 
-			// Send stack details to DSF. May be replaced by the Object Model at some point
-			if (gb->IsStackEventFlagged() && transfer->WriteStackEvent(channel, gb->MachineState()))
-			{
-				gb->AcknowledgeStackEvent();
-			}
+                // Send stack details to DSF. May be replaced by the Object Model at some point
+                if (gb->IsStackEventFlagged() && transfer->WriteStackEvent(channel, gb->MachineState()))
+                {
+                    gb->AcknowledgeStackEvent();
+                }
+            }
 		}
 
 		// Send pause notification on demand
@@ -389,8 +392,11 @@ void LinuxInterface::Spin()
 		for (size_t i = 0; i < NumGCodeChannels; i++)
 		{
 			GCodeBuffer *gb = reprap.GetGCodes().GetGCodeBuffer((GCodeChannel)i);
-			gb->AbortFile(true, false);
-			gb->MessageAcknowledged(true);
+            if(gb != nullptr)
+            {
+                gb->AbortFile(true, false);
+                gb->MessageAcknowledged(true);
+            }
 		}
 		reprap.GetGCodes().StopPrint(StopPrintReason::abort);
 
@@ -398,7 +404,7 @@ void LinuxInterface::Spin()
 		for (size_t i = 0; i < NumGCodeChannels; i++)
 		{
 			GCodeBuffer *gb = reprap.GetGCodes().GetGCodeBuffer((GCodeChannel)i);
-			if (gb->IsBinary() && gb->IsCompletelyIdle())
+			if (gb != nullptr && gb->IsBinary() && gb->IsCompletelyIdle())
 			{
 				gb->Reset();
 			}

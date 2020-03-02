@@ -24,7 +24,7 @@ constexpr uint16_t LinuxProtocolVersion = 1;
 #ifndef __LPC17xx__
 constexpr size_t LinuxTransferBufferSize = 8192;	// maximum length of a data transfer. Must be a multiple of 4 and kept in sync with Duet Control Server!
 #else
-constexpr size_t LinuxTransferBufferSize = 2048;    // maximum length of a data transfer. Must be a multiple of 4 and kept in sync with Duet Control Server!
+constexpr size_t LinuxTransferBufferSize = 4096;    // maximum length of a data transfer. Must be a multiple of 4 and kept in sync with Duet Control Server!
 #endif
 
 static_assert(LinuxTransferBufferSize % sizeof(uint32_t) == 0, "LinuxTransferBufferSize must be a whole number of dwords");

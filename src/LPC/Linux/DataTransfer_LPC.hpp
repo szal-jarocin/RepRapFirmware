@@ -1,21 +1,13 @@
 //Author: sdavi
 
 //SBC connected to SSP0
-
-#warning SpiCodeBufferSize reduced to 2048 from 4096
-
-#warning ** This Requires changes to DSF to function correctly **
-#warning  - RX/TX buffers set to 2048 instead of 8K
-#warning  - MaxCodeBufferSize reduced from 256 to 104
-
-#warning ** SPI code untested **
-
 #include "chip.h" //LPC Open
 #include "DMA.h"
 
-
 volatile bool dataReceived = false, transferReadyHigh = false;
 volatile unsigned int spiTxUnderruns = 0, spiRxOverruns = 0;
+
+void InitSpi() noexcept;
 
 static inline void flush_rx_fifo()
 {
@@ -73,10 +65,16 @@ static void spi_rx_dma_setup(const void *buf, uint32_t transferLength) noexcept
 void setup_spi(void *inBuffer, const void *outBuffer, size_t bytesToTransfer)
 {
     flush_rx_fifo(); //flush SPI
+    InitSpi();
     spi_dma_enable();
 
     spi_tx_dma_setup(outBuffer, bytesToTransfer);
     spi_rx_dma_setup(inBuffer, bytesToTransfer);
+    
+    // Begin transfer
+    transferReadyHigh = !transferReadyHigh;
+    digitalWrite(LinuxTfrReadyPin, transferReadyHigh);
+
 }
 
 void disable_spi()
@@ -130,7 +128,7 @@ void InitSpi() noexcept
     
     //LPC manual mentions that if CPHA is 0 then the CS needs to be pulsed between each byte(when in 8 bit mode).
     //Therefore if CS is held low during the entire transfer, we need to use a mode where CPHA = 1 (i.e. Mode 1 or Mode 3)
-    Chip_SSP_SetFormat(LPC_SSP0, SSP_BITS_8, SSP_FRAMEFORMAT_SPI, SSP_CLOCK_MODE1);
+    Chip_SSP_SetFormat(LPC_SSP0, SSP_BITS_8, SSP_FRAMEFORMAT_SPI, SSP_CLOCK_MODE3);
     Chip_SSP_SetBitRate(LPC_SSP0, SystemCoreClock/2);
     Chip_SSP_Set_Mode(LPC_SSP0, SSP_MODE_SLAVE);
     
