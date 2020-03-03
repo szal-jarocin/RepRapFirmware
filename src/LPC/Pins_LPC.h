@@ -78,11 +78,12 @@
     #define BOARD_NAME          "LPC176x WiFi"
     #define BOARD_SHORT_NAME    "LPCWiFi"
 
-#elif defined(HAS_LINUX_INTERFACE)
+#elif defined(LPC_SBC)
     #define HAS_RTOSPLUSTCP_NETWORKING   0
     #define SUPPORT_12864_LCD            0
     #define HAS_WIFI_NETWORKING          0
     #define HAS_MASS_STORAGE             0
+    #define HAS_LINUX_INTERFACE          1
 
     #define BOARD_NAME          "LPC176x SBC"
     #define BOARD_SHORT_NAME    "LPCSBC"

@@ -63,7 +63,7 @@ static const boardConfigEntry_t boardConfigs[]=
     
     {"lpc.softwareSPI.pins", SoftwareSPIPins, &NumSoftwareSPIPins, cvPinType}, //SCK, MISO, MOSI
     
-#if defined(ESP8266WIFI)
+#if HAS_WIFI_NETWORKING
     {"8266wifi.EspDataReadyPin", &EspDataReadyPin, nullptr, cvPinType},
     {"8266wifi.LpcTfrReadyPin", &SamTfrReadyPin, nullptr, cvPinType},
     {"8266wifi.EspResetPin", &EspResetPin, nullptr, cvPinType},
@@ -197,7 +197,7 @@ void BoardConfig::Init() noexcept
             sd_mmc_reinit_slot(1, SdSpiCSPins[1], ExternalSDCardFrequency);
         }
         
-        #if defined(ESP8266WIFI)
+        #if HAS_WIFI_NETWORKING
             if(SamCsPin != NoPin) pinMode(SamCsPin, OUTPUT_LOW);
             if(EspResetPin != NoPin) pinMode(EspResetPin, OUTPUT_LOW);
         #endif
@@ -468,7 +468,7 @@ void BoardConfig::SetValueFromString(configValueType type, void *variable, char 
 bool BoardConfig::GetConfigKeys(FileStore *configFile, const boardConfigEntry_t *boardConfigEntryArray, const size_t numConfigs) noexcept
 {
 #if HAS_MASS_STORAGE
-    size_t maxLineLength = 120;
+    constexpr size_t maxLineLength = 120;
     char line[maxLineLength];
 
     FilePosition fileSize = configFile->Length();
