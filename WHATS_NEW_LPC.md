@@ -1,6 +1,12 @@
 Summary of LPC specific changes
 ===============================================
 
+Version 3.01 RC3
+================
+* Added new build option TMC22XX set to true to provide support for TMC22XX drivers via the UART interface.
+* Added new build option ESP8266WIFI_SERIAL (available when usinf ESP8266 WiFi) define this to use enable the UART interface to the ESP8266 board. Note that on SKR based boards only a single UART device is easily available and so to allow the use of panel due and other serial based control screens this option should not be enabled.
+* New pin names. The pin names used for the various boards has been updated to provided a consistant naming policy across different boards.
+
 Version 3.01 Beta2
 =================
 
