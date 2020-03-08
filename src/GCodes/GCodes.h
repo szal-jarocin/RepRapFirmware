@@ -128,7 +128,7 @@ public:
 		pre(axis < maxAxes);
 	float GetUserCoordinate(size_t axis) const noexcept;						// Get the current user coordinate in the current workspace coordinate system
 
-#if HAS_NETWORKING
+#if HAS_NETWORKING || HAS_LINUX_INTERFACE
 	NetworkGCodeInput *GetHTTPInput() const noexcept { return httpInput; }
 	NetworkGCodeInput *GetTelnetInput() const noexcept { return telnetInput; }
 #endif
@@ -439,7 +439,7 @@ private:
 
 	Platform& platform;													// The RepRap machine
 
-#if HAS_NETWORKING
+#if HAS_NETWORKING || HAS_LINUX_INTERFACE
 	NetworkGCodeInput* httpInput;										// These cache incoming G-codes...
 	NetworkGCodeInput* telnetInput;										// ...
 #endif

@@ -23,8 +23,10 @@
 #define WIFI_FIRMWARE_FILE  "DuetWiFiServer.bin" // Firmware to be loaded onto the ESP board
 
 //needed to compile
-#define IAP_FIRMWARE_FILE "firmware.bin"
-#define IAP_UPDATE_FILE "N/A"
+#define IAP_FIRMWARE_FILE       "firmware.bin"
+#define IAP_UPDATE_FILE         "N/A"
+#define IAP_UPDATE_FILE_SBC     "N/A"
+#define IAP_IMAGE_START         0
 
 #define FLASH_DATA_LENGTH (32*1024) //size of the Software Reset Data in Flash (Last Sector = 32K)
 
@@ -53,7 +55,6 @@
 
 #define SUPPORT_TELNET                   0
 #define SUPPORT_FTP                      0
-#define HAS_MASS_STORAGE                 1
 
 
 #define ALLOCATE_DEFAULT_PORTS           0
@@ -63,20 +64,35 @@
     #define HAS_RTOSPLUSTCP_NETWORKING   1
     #define SUPPORT_12864_LCD            1
     #define HAS_WIFI_NETWORKING          0
+    #define HAS_MASS_STORAGE             1
 
     #define BOARD_NAME          "LPC176x Ethernet"
     #define BOARD_SHORT_NAME    "LPCEth"
+
 #elif defined(ESP8266WIFI)
     #define HAS_RTOSPLUSTCP_NETWORKING   0
     #define SUPPORT_12864_LCD            0
     #define HAS_WIFI_NETWORKING          1
+    #define HAS_MASS_STORAGE             1
 
     #define BOARD_NAME          "LPC176x WiFi"
     #define BOARD_SHORT_NAME    "LPCWiFi"
+
+#elif defined(LPC_SBC)
+    #define HAS_RTOSPLUSTCP_NETWORKING   0
+    #define SUPPORT_12864_LCD            0
+    #define HAS_WIFI_NETWORKING          0
+    #define HAS_MASS_STORAGE             0
+    #define HAS_LINUX_INTERFACE          1
+
+    #define BOARD_NAME          "LPC176x SBC"
+    #define BOARD_SHORT_NAME    "LPCSBC"
+
 #else
     #define HAS_RTOSPLUSTCP_NETWORKING   0
     #define SUPPORT_12864_LCD            1
     #define HAS_WIFI_NETWORKING          0
+    #define HAS_MASS_STORAGE             1
 
     #define BOARD_NAME          "LPC176x"
     #define BOARD_SHORT_NAME    "LPC"
@@ -98,7 +114,7 @@ constexpr size_t NumDirectDrivers = 5;               // The maximum number of dr
 constexpr size_t MaxSensors = 32;
 
 constexpr size_t MaxHeaters = 3;                     // The maximum number of heaters in the machine
-constexpr size_t MaxMonitorsPerHeater = 3;			 // The maximum number of monitors per heater
+constexpr size_t MaxMonitorsPerHeater = 2;
 
 constexpr size_t MaxBedHeaters = 1;
 constexpr size_t MaxChamberHeaters = 1;
@@ -127,7 +143,7 @@ constexpr size_t MaxFans = 3;
 
 constexpr unsigned int MaxTriggers = 16;            // Must be <= 32 because we store a bitmap of pending triggers in a uint32_t
 
-constexpr size_t MaxSpindles = 2;					// Maximum number of configurable spindles
+constexpr size_t MaxSpindles = 4;                    // Maximum number of configurable spindles
 
 //Steppers
 extern Pin ENABLE_PINS[NumDirectDrivers];
@@ -179,6 +195,9 @@ constexpr SSPChannel TempSensorSSPChannel = SSP0;   //Connect SPI Temp sensor to
     constexpr LPC175X_6X_IRQn_Type ESP_SPI_IRQn = SSP0_IRQn;
 #endif
 
+#if HAS_LINUX_INTERFACE
+    extern Pin LinuxTfrReadyPin;
+#endif
 
 //Hardware LPC Timers
 //Timer 0 is used for the Step Generation

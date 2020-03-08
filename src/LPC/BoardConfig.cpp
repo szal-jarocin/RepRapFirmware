@@ -63,12 +63,16 @@ static const boardConfigEntry_t boardConfigs[]=
     
     {"lpc.softwareSPI.pins", SoftwareSPIPins, &NumSoftwareSPIPins, cvPinType}, //SCK, MISO, MOSI
     
-#if defined(ESP8266WIFI)
+#if HAS_WIFI_NETWORKING
     {"8266wifi.EspDataReadyPin", &EspDataReadyPin, nullptr, cvPinType},
     {"8266wifi.LpcTfrReadyPin", &SamTfrReadyPin, nullptr, cvPinType},
     {"8266wifi.EspResetPin", &EspResetPin, nullptr, cvPinType},
 #endif
-    
+
+#if HAS_LINUX_INTERFACE
+    {"linuxTfrReadyPin", &LinuxTfrReadyPin, nullptr, cvPinType},
+#endif
+
     {"lpc.adcEnablePreFilter", &ADCEnablePreFilter, nullptr, cvBoolType},
     {"lpc.adcPreFilterNumberSamples", &ADCPreFilterNumberSamples, nullptr, cvUint8Type},
     {"lpc.adcPreFilterSampleRate", &ADCPreFilterSampleRate, nullptr, cvUint32Type},
@@ -99,7 +103,7 @@ void BoardConfig::Init() noexcept
     FileStore *configFile = nullptr;
     
     NVIC_SetPriority(DMA_IRQn, NvicPrioritySpi);
-
+#if HAS_MASS_STORAGE
     //Mount the Internal SDCard
     do
     {
@@ -196,7 +200,7 @@ void BoardConfig::Init() noexcept
             sd_mmc_reinit_slot(1, SdSpiCSPins[1], ExternalSDCardFrequency);
         }
         
-        #if defined(ESP8266WIFI)
+        #if HAS_WIFI_NETWORKING
             if(SamCsPin != NoPin) pinMode(SamCsPin, OUTPUT_LOW);
             if(EspResetPin != NoPin) pinMode(EspResetPin, OUTPUT_LOW);
         #endif
@@ -215,6 +219,7 @@ void BoardConfig::Init() noexcept
         //Configure ADC pre filter
         ConfigureADCPreFilter(ADCEnablePreFilter, ADCPreFilterNumberSamples, ADCPreFilterSampleRate);
     }
+#endif
 }
 
 
@@ -353,7 +358,7 @@ void BoardConfig::Diagnostics(MessageType mtype) noexcept
         if(next != nullptr)
         {
             const Pin pin = next->GetPin();
-            reprap.GetPlatform().MessageF(mtype, "Pin %d.%d @ %dHz\n", (pin >> 5), (pin & 0x1f), next->GetFrequency() );
+            reprap.GetPlatform().MessageF(mtype, "Pin %d.%d @ %dHz (%s) - LateCnt: %lu\n", (pin >> 5), (pin & 0x1f), next->GetFrequency(), next->IsRunning()?"Enabled":"Disabled", next->GetLateCount() );
         }
     };
     
@@ -364,8 +369,6 @@ void BoardConfig::Diagnostics(MessageType mtype) noexcept
     PrintPinArray(mtype, UsedHardwarePWMChannel, NumPwmChannels);
     reprap.GetPlatform().MessageF(mtype, "Timer2 PWM = 50Hz ");
     PrintPinArray(mtype, Timer2PWMPins, MaxTimerEntries);
-    
-    
 }
 
 void BoardConfig::PrintPinArray(MessageType mtype, Pin arr[], uint16_t numEntries) noexcept
@@ -467,8 +470,8 @@ void BoardConfig::SetValueFromString(configValueType type, void *variable, char 
 
 bool BoardConfig::GetConfigKeys(FileStore *configFile, const boardConfigEntry_t *boardConfigEntryArray, const size_t numConfigs) noexcept
 {
-
-    size_t maxLineLength = 120;
+#if HAS_MASS_STORAGE
+    constexpr size_t maxLineLength = 120;
     char line[maxLineLength];
 
     int readLen = configFile->ReadLine(line, maxLineLength);
@@ -674,5 +677,6 @@ bool BoardConfig::GetConfigKeys(FileStore *configFile, const boardConfigEntry_t 
 
         readLen = configFile->ReadLine(line, maxLineLength); //attempt to read the next line
     }
+#endif
     return false;
 }

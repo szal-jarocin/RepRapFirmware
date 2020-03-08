@@ -8,7 +8,7 @@
 // Check the prerequisites for updating the main firmware. Return True if satisfied, else print a message to 'reply' and return false.
 bool RepRap::CheckFirmwareUpdatePrerequisites(const StringRef& reply) noexcept
 {
-    #if defined(LPC_NETWORKING) || defined (HAS_WIFI_NETWORKING)
+    #if HAS_MASS_STORAGE && (defined(LPC_NETWORKING) || HAS_WIFI_NETWORKING)
         FileStore * const firmwareFile = platform->OpenFile(DEFAULT_SYS_DIR, FIRMWARE_FILE, OpenMode::read);
         if (firmwareFile == nullptr)
         {
@@ -38,7 +38,7 @@ bool RepRap::CheckFirmwareUpdatePrerequisites(const StringRef& reply) noexcept
 // Update the firmware. Prerequisites should be checked before calling this.
 void RepRap::UpdateFirmware() noexcept
 {
-#if defined(LPC_NETWORKING) || defined (HAS_WIFI_NETWORKING)
+#if  HAS_MASS_STORAGE && (defined(LPC_NETWORKING) || HAS_WIFI_NETWORKING)
     //DWC will upload firmware to 0:/sys/ we need to move to 0:/firmware.bin and reboot
     
     String<MaxFilenameLength> location;

@@ -20,6 +20,7 @@
 
 #include <algorithm>
 
+#ifndef __LPC17xx__
 #include "xdmac/xdmac.h"
 
 // XDMAC hardware, see datasheet
@@ -140,6 +141,9 @@ extern "C" void SBC_SPI_HANDLER() noexcept
 	}
 }
 
+#else
+# include "LPC/Linux/DataTransfer_LPC.hpp"
+#endif
 /*-----------------------------------------------------------------------------------*/
 
 // Static data. Note, the startup code we use doesn't make any provision for initialising non-cached memory, other than to zero. So don't specify initial value here
@@ -169,6 +173,7 @@ void DataTransfer::Init() {
 	// Initialise transfer ready pin
 	pinMode(LinuxTfrReadyPin, OUTPUT_LOW);
 
+#ifndef __LPC17xx__
 	// Initialize SPI pins
 	ConfigurePin(APIN_SBC_SPI_MOSI);
 	ConfigurePin(APIN_SBC_SPI_MISO);
@@ -178,6 +183,10 @@ void DataTransfer::Init() {
 	// Initialise SPI
 	spi_enable_clock(SBC_SPI);
 	spi_disable(SBC_SPI);
+#else
+    InitSpi();
+#endif
+    
 	dataReceived = false;
 
 #if false
@@ -380,12 +389,13 @@ bool DataTransfer::IsReady()
 {
 	if (dataReceived)
 	{
+#ifndef __LPC17xx__
 		// Wait for the current XDMA transfer to finish. Relying on the XDMAC IRQ for this is does not work well...
 		if ((xdmac_channel_get_status(XDMAC) & ((1 << DmacChanLinuxRx) | (1 << DmacChanLinuxTx))) != 0)
 		{
 			return false;
 		}
-
+#endif
 		// Transfer has finished
 		dataReceived = false;
 		lastTransferTime = millis();

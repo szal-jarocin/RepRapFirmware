@@ -49,10 +49,16 @@ float digipotFactor = 0.0;                              //defualt factor for con
 
 Pin SoftwareSPIPins[3] = {NoPin, NoPin, NoPin};         //GPIO pins for softwareSPI (used with SharedSPI)
 
-#if defined(ESP8266WIFI)
+#if HAS_WIFI_NETWORKING
     Pin EspDataReadyPin = NoPin;
     Pin SamTfrReadyPin = NoPin;
     Pin EspResetPin = NoPin;
+#endif
+
+#if HAS_LINUX_INTERFACE
+#warning TEMPORY FOR TESTING
+    Pin LinuxTfrReadyPin = P0_26;
+//    Pin LinuxTfrReadyPin = NoPin;
 #endif
 
 bool ADCEnablePreFilter = false;
