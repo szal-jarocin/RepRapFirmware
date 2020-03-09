@@ -67,12 +67,17 @@ static const boardConfigEntry_t boardConfigs[]=
     {"8266wifi.EspDataReadyPin", &EspDataReadyPin, nullptr, cvPinType},
     {"8266wifi.LpcTfrReadyPin", &SamTfrReadyPin, nullptr, cvPinType},
     {"8266wifi.EspResetPin", &EspResetPin, nullptr, cvPinType},
+    {"8266wifi.SerialRxTxPins", &WifiSerialRxTxPins, &NumberSerialPins, cvPinType},
 #endif
 
 #if HAS_LINUX_INTERFACE
     {"linuxTfrReadyPin", &LinuxTfrReadyPin, nullptr, cvPinType},
 #endif
 
+#if defined(SERIAL_AUX_DEVICE)
+    {"lpc.auxSerialRxTxPins", &AuxSerialRxTxPins, &NumberSerialPins, cvPinType},
+#endif
+    
     {"lpc.adcEnablePreFilter", &ADCEnablePreFilter, nullptr, cvBoolType},
     {"lpc.adcPreFilterNumberSamples", &ADCPreFilterNumberSamples, nullptr, cvUint8Type},
     {"lpc.adcPreFilterSampleRate", &ADCPreFilterSampleRate, nullptr, cvUint32Type},
@@ -200,8 +205,32 @@ void BoardConfig::Init() noexcept
         #if HAS_WIFI_NETWORKING
             if(SamCsPin != NoPin) pinMode(SamCsPin, OUTPUT_LOW);
             if(EspResetPin != NoPin) pinMode(EspResetPin, OUTPUT_LOW);
+            
+            if(WifiSerialRxTxPins[0] != NoPin && WifiSerialRxTxPins[1] != NoPin)
+            {
+                //Setup the Serial Port for ESP Wifi
+                APIN_Serial1_RXD = WifiSerialRxTxPins[0];
+                APIN_Serial1_TXD = WifiSerialRxTxPins[1];
+                
+                if(!SERIAL_WIFI_DEVICE.Configure(WifiSerialRxTxPins[0], WifiSerialRxTxPins[1]))
+                {
+                    reprap.GetPlatform().MessageF(UsbMessage, "Failed to set WIFI Serial with pins %d.%d and %d.%d.\n", (WifiSerialRxTxPins[0] >> 5), (WifiSerialRxTxPins[0] & 0x1F), (WifiSerialRxTxPins[1] >> 5), (WifiSerialRxTxPins[1] & 0x1F) );
+                }
+            }
         #endif
 
+        #if defined(SERIAL_AUX_DEVICE)
+            //Configure Aux Serial
+            if(AuxSerialRxTxPins[0] != NoPin && AuxSerialRxTxPins[1] != NoPin)
+            {
+                if(!SERIAL_AUX_DEVICE.Configure(AuxSerialRxTxPins[0], AuxSerialRxTxPins[1]))
+                {
+                    reprap.GetPlatform().MessageF(UsbMessage, "Failed to set AUX Serial with pins %d.%d and %d.%d.\n", (AuxSerialRxTxPins[0] >> 5), (AuxSerialRxTxPins[0] & 0x1F), (AuxSerialRxTxPins[1] >> 5), (AuxSerialRxTxPins[1] & 0x1F) );
+                }
+
+            }
+        #endif
+        
         //Init pins for LCD
         //make sure to init ButtonPin as input incase user presses button
         if(PanelButtonPin != NoPin) pinMode(PanelButtonPin, INPUT); //unused

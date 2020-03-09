@@ -50,10 +50,23 @@ Pin SoftwareSPIPins[3] = {NoPin, NoPin, NoPin};         //GPIO pins for software
     Pin EspDataReadyPin = NoPin;
     Pin SamTfrReadyPin = NoPin;
     Pin EspResetPin = NoPin;
+
+    Pin APIN_Serial1_TXD = NoPin;
+    Pin APIN_Serial1_RXD = NoPin;
+
+    Pin WifiSerialRxTxPins[NumberSerialPins] = {NoPin, NoPin};
+#endif
+    
+//Aux Serial
+#if defined(__MBED__)
+    Pin AuxSerialRxTxPins[NumberSerialPins] = {NoPin, NoPin}; //UART0 is the Main Serial on MBED so set Aux to nopin
+#else
+    Pin AuxSerialRxTxPins[NumberSerialPins] = {P0_3, P0_2}; //Default to UART0
 #endif
 
+
 #if HAS_LINUX_INTERFACE
-#warning TEMPORY FOR TESTING
+#warning TEMP FOR TESTING
     Pin LinuxTfrReadyPin = P0_26;
 //    Pin LinuxTfrReadyPin = NoPin;
 #endif
