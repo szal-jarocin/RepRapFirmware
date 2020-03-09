@@ -12,16 +12,94 @@
 #include <OutputMemory.h>
 #include <cstring>
 #include <General/SafeStrtod.h>
+#include <General/IP4String.h>
 
 ExpressionValue::ExpressionValue(const MacAddress& mac) noexcept : type(TYPE_OF(MacAddress)), param(mac.HighWord()), uVal(mac.LowWord())
 {
+}
+
+// Append a string representation of this value to a string
+void ExpressionValue::AppendAsString(const StringRef& str) const noexcept
+{
+	switch (type)
+	{
+	case TYPE_OF(char):
+		str.cat(cVal);
+		break;
+
+	case TYPE_OF(const char*):
+		str.cat(sVal);
+		break;
+
+	case TYPE_OF(float):
+		str.catf(GetFloatFormatString(), (double)fVal);
+		break;
+
+	case TYPE_OF(uint32_t):
+		str.catf("%" PRIu32, uVal);			// convert unsigned integer to string
+		break;
+
+	case TYPE_OF(int32_t):
+		str.catf("%" PRIi32, uVal);			// convert signed integer to string
+		break;
+
+	case TYPE_OF(bool):
+		str.cat((bVal) ? "true" : "false");	// convert bool to string
+		break;
+
+	case TYPE_OF(IPAddress):
+		str.cat(IP4String(uVal).c_str());
+		break;
+
+	case TYPE_OF(const ObjectModel*):
+		str.cat("{object}");
+		break;
+
+	case NoType:
+		str.cat("null");
+		break;
+
+	case TYPE_OF(DateTime):
+		{
+			const time_t time = Get56BitValue();
+			tm timeInfo;
+			gmtime_r(&time, &timeInfo);
+			str.catf("%04u-%02u-%02u %02u:%02u:%02u",
+						timeInfo.tm_year + 1900, timeInfo.tm_mon + 1, timeInfo.tm_mday, timeInfo.tm_hour, timeInfo.tm_min, timeInfo.tm_sec);
+		}
+		break;
+
+	case TYPE_OF(DriverId):
+#if SUPPORT_CAN_EXPANSION
+		str.catf("%u.%u", (unsigned int)(uVal >> 8), (unsigned int)(uVal & 0xFF));
+#else
+		str.catf("%u", (unsigned int)uVal);
+#endif
+		break;
+
+	case TYPE_OF(MacAddress):
+		str.catf("%02x:%02x:%02x:%02x:%02x:%02x",
+					(unsigned int)(uVal & 0xFF), (unsigned int)((uVal >> 8) & 0xFF), (unsigned int)((uVal >> 16) & 0xFF), (unsigned int)((uVal >> 24) & 0xFF),
+					(unsigned int)(param & 0xFF), (unsigned int)((param >> 8) & 0xFF));
+		break;
+
+#if SUPPORT_CAN_EXPANSION
+	case TYPE_OF(CanExpansionBoardDetails):
+		ExtractRequestedPart(str);
+		break;
+#endif
+
+	default:
+		str.cat("<unknown type>");
+		break;
+	}
 }
 
 #if SUPPORT_CAN_EXPANSION
 
 // Given that this is a CanExpansionBoardDetails value, extract the part requested according to the parameter
 // sVal is a string of the form shortName|version
-void ExpressionValue::ExtractRequestedPart(const StringRef& rslt)
+void ExpressionValue::ExtractRequestedPart(const StringRef& rslt) const noexcept
 {
 	const char *const p = strchr(sVal, '|');
 	const size_t indexOfDivider = (p == nullptr) ? strlen(sVal) : p - sVal;
@@ -261,47 +339,54 @@ void ObjectModel::ReportItemAsJson(OutputBuffer *buf, ObjectExplorationContext& 
 				++filter;
 				if (*filter == ']')						// if reporting on [parts of] all elements in the array
 				{
-					return ReportArrayAsJson(buf, context, val.omadVal, filter + 1);
+					ReportArrayAsJson(buf, context, val.omadVal, filter + 1);
 				}
-
-				const char *endptr;
-				const long index = SafeStrtol(filter, &endptr);
-				if (endptr == filter || *endptr != ']' || index < 0 || (size_t)index >= val.omadVal->GetNumElements(this, context))
+				else
 				{
-					buf->cat("null");					// avoid returning badly-formed JSON
-					break;								// invalid syntax, or index out of range
-				}
-				if (*filter == 0)
-				{
-					buf->cat('[');
-				}
-				context.AddIndex(index);
-				{
-					ReadLocker lock(val.omadVal->lockPointer);
-					ReportItemAsJson(buf, context, val.omadVal->GetElement(this, context), endptr + 1);
-				}
-				context.RemoveIndex();
-				if (*filter == 0)
-				{
-					buf->cat(']');
+					const char *endptr;
+					const long index = SafeStrtol(filter, &endptr);
+					if (endptr == filter || *endptr != ']' || index < 0 || (size_t)index >= val.omadVal->GetNumElements(this, context))
+					{
+						buf->cat("null");					// avoid returning badly-formed JSON
+						break;								// invalid syntax, or index out of range
+					}
+					if (*filter == 0)
+					{
+						buf->cat('[');
+					}
+					context.AddIndex(index);
+					{
+						ReadLocker lock(val.omadVal->lockPointer);
+						ReportItemAsJson(buf, context, val.omadVal->GetElement(this, context), endptr + 1);
+					}
+					context.RemoveIndex();
+					if (*filter == 0)
+					{
+						buf->cat(']');
+					}
 				}
 			}
 			else if (*filter == 0)						// else reporting on all subparts of all elements in the array, or just the length
 			{
 				ReportArrayAsJson(buf, context, val.omadVal, filter);
 			}
+			else
+			{
+				buf->cat("null");
+			}
 			break;
 
 		case TYPE_OF(const ObjectModel*):
-			if (val.omVal != nullptr)
+			if (*filter == '.')
 			{
-				if (*filter == '.')
-				{
-					++filter;
-				}
-				return val.omVal->ReportAsJson(buf, context, val.param, filter);
+				++filter;
 			}
-			buf->cat("null");
+			else if (*filter != 0)
+			{
+				buf->cat("null");						// error, should have reached the end of the filter or a '.'
+				break;
+			}
+			val.omVal->ReportAsJson(buf, context, val.param, filter);
 			break;
 
 		case TYPE_OF(float):
@@ -572,10 +657,6 @@ bool ObjectModelTableEntry::Matches(const char* filterString, const ObjectExplor
 bool ObjectModelTableEntry::ReportAsJson(OutputBuffer* buf, ObjectExplorationContext& context, const ObjectModel *self, const char* filter, bool first) const noexcept
 {
 	const char * nextElement = ObjectModel::GetNextElement(filter);
-	if (*nextElement == '.')
-	{
-		++nextElement;
-	}
 	const ExpressionValue val = func(self, context);
 	if (val.type != NoType || context.ShouldIncludeNulls())
 	{
@@ -653,15 +734,25 @@ ExpressionValue ObjectModel::GetObjectValue(ObjectExplorationContext& context, E
 		}
 
 	case TYPE_OF(const ObjectModel*):
-		if (*idString == '.')
+		switch (*idString)
 		{
+		case 0:
+			return val;
+		case '.':
 			return val.omVal->GetObjectValue(context, idString + 1, val.param);
+		case '^':
+			throw context.ConstructParseException("object is not an array");
+		default:
+			throw context.ConstructParseException("syntax error in object model path");
 		}
+		break;
+
+	case NoType:
 		if (*idString == 0)
 		{
-			return val;				// an object value can be compared to null
+			return val;				// a null value can be compared to null
 		}
-		throw context.ConstructParseException((*idString == '[') ? "object is not an array" : "syntax error in object model path");
+		throw context.ConstructParseException("reached null object before end of selector string");
 
 	case TYPE_OF(Bitmap<uint16_t>):
 	case TYPE_OF(Bitmap<uint32_t>):

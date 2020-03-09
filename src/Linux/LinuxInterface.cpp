@@ -38,7 +38,7 @@ void LinuxInterface::Spin()
 		// Process incoming packets
 		for (size_t i = 0; i < transfer->PacketsToRead(); i++)
 		{
-			const PacketHeader *packet = transfer->ReadPacket();
+			const PacketHeader * const packet = transfer->ReadPacket();
 			if (packet == nullptr)
 			{
 				if (reprap.Debug(moduleLinuxInterface))
@@ -50,7 +50,7 @@ void LinuxInterface::Spin()
 
 			if (packet->request >= (uint16_t)LinuxRequest::InvalidRequest)
 			{
-				REPORT_INTERNAL_ERROR;
+				REPORT_INTERNAL_ERROR;		//TODO this isn't really an internal error, it's bad data received over SPI
 				return;
 			}
 			const LinuxRequest request = (LinuxRequest)packet->request;
@@ -114,8 +114,8 @@ void LinuxInterface::Spin()
 			// Set value in the object model
 			case LinuxRequest::SetObjectModel:
 			{
-				size_t dataLength = packet->length;
-				const char *data = transfer->ReadData(dataLength);
+				const size_t dataLength = packet->length;
+				const char * const data = transfer->ReadData(dataLength);
 				// TODO implement this
 				(void)data;
 				break;
@@ -139,14 +139,14 @@ void LinuxInterface::Spin()
 				if (reason == PrintStoppedReason::normalCompletion)
 				{
 					// Just mark the print file as finished
-					GCodeBuffer *gb = reprap.GetGCodes().GetGCodeBuffer(GCodeChannel::file);
+					GCodeBuffer * const gb = reprap.GetGCodes().GetGCodeBuffer(GCodeChannel::File);
 					gb->SetPrintFinished();
 				}
 				else
 				{
 					// Stop the print with the given reason
 					reprap.GetGCodes().StopPrint((StopPrintReason)reason);
-					InvalidateBufferChannel(GCodeChannel::file);
+					InvalidateBufferChannel(GCodeChannel::File);
 				}
 				break;
 			}
@@ -154,16 +154,21 @@ void LinuxInterface::Spin()
 			// Macro file has been finished
 			case LinuxRequest::MacroCompleted:
 			{
-				GCodeChannel channel;
 				bool error;
-				transfer->ReadMacroCompleteInfo(channel, error);
-
-				GCodeBuffer *gb = reprap.GetGCodes().GetGCodeBuffer(channel);
-				gb->MachineState().SetFileFinished(error);
-
-				if (reprap.Debug(moduleLinuxInterface))
+				const GCodeChannel channel = transfer->ReadMacroCompleteInfo(error);
+				if (channel.IsValid())
 				{
-					reprap.GetPlatform().MessageF(DebugMessage, "Macro completed on channel %d\n", (int)channel);
+					GCodeBuffer * const gb = reprap.GetGCodes().GetGCodeBuffer(channel);
+					gb->MachineState().SetFileFinished(error);
+
+					if (reprap.Debug(moduleLinuxInterface))
+					{
+						reprap.GetPlatform().MessageF(DebugMessage, "Macro completed on channel %u\n", channel.ToBaseType());
+					}
+				}
+				else
+				{
+					REPORT_INTERNAL_ERROR;		//TODO this isn't really an internal error, it's bad data received over SPI
 				}
 				break;
 			}
@@ -187,16 +192,22 @@ void LinuxInterface::Spin()
 			// Lock movement and wait for standstill
 			case LinuxRequest::LockMovementAndWaitForStandstill:
 			{
-				GCodeChannel channel;
-				transfer->ReadLockUnlockRequest(channel);
-				GCodeBuffer *gb = reprap.GetGCodes().GetGCodeBuffer(channel);
-				if (reprap.GetGCodes().LockMovementAndWaitForStandstill(*gb))
+				const GCodeChannel channel = transfer->ReadLockUnlockRequest();
+				if (channel.IsValid())
 				{
-					transfer->WriteLocked(channel);
+					GCodeBuffer * const gb = reprap.GetGCodes().GetGCodeBuffer(channel);
+					if (reprap.GetGCodes().LockMovementAndWaitForStandstill(*gb))
+					{
+						transfer->WriteLocked(channel);
+					}
+					else
+					{
+						transfer->ResendPacket(packet);
+					}
 				}
 				else
 				{
-					transfer->ResendPacket(packet);
+					REPORT_INTERNAL_ERROR;		//TODO this isn't really an internal error, it's bad data received over SPI
 				}
 				break;
 			}
@@ -204,10 +215,16 @@ void LinuxInterface::Spin()
 			// Unlock everything
 			case LinuxRequest::Unlock:
 			{
-				GCodeChannel channel;
-				transfer->ReadLockUnlockRequest(channel);
-				GCodeBuffer *gb = reprap.GetGCodes().GetGCodeBuffer(channel);
-				reprap.GetGCodes().UnlockAll(*gb);
+				const GCodeChannel channel = transfer->ReadLockUnlockRequest();
+				if (channel.IsValid())
+				{
+					GCodeBuffer * const gb = reprap.GetGCodes().GetGCodeBuffer(channel);
+					reprap.GetGCodes().UnlockAll(*gb);
+				}
+				else
+				{
+					REPORT_INTERNAL_ERROR;		//TODO this isn't really an internal error, it's bad data received over SPI
+				}
 				break;
 			}
 
@@ -260,7 +277,7 @@ void LinuxInterface::Spin()
 
 			// Invalid request
 			default:
-				REPORT_INTERNAL_ERROR;
+				REPORT_INTERNAL_ERROR;		//TODO this isn't really an internal error, it's bad data received over SPI
 				break;
 			}
 		}
@@ -293,7 +310,7 @@ void LinuxInterface::Spin()
 		// Notify DSF about the available buffer space
 		if (sendBufferUpdate || transfer->LinuxHadReset())
 		{
-			uint16_t bufferSpace = (txLength == 0) ? max<uint16_t>(rxPointer, SpiCodeBufferSize - txPointer) : rxPointer - txPointer;
+			const uint16_t bufferSpace = (txLength == 0) ? max<uint16_t>(rxPointer, SpiCodeBufferSize - txPointer) : rxPointer - txPointer;
 			sendBufferUpdate = !transfer->WriteCodeBufferUpdate(bufferSpace);
 		}
 
@@ -308,8 +325,8 @@ void LinuxInterface::Spin()
 		bool reportMissing, fromCode;
 		for (size_t i = 0; i < NumGCodeChannels; i++)
 		{
-			const GCodeChannel channel = (GCodeChannel)i;
-			GCodeBuffer *gb = reprap.GetGCodes().GetGCodeBuffer(channel);
+			const GCodeChannel channel(i);
+			GCodeBuffer * const gb = reprap.GetGCodes().GetGCodeBuffer(channel);
 
             if(gb != nullptr)
             {
@@ -321,7 +338,7 @@ void LinuxInterface::Spin()
                 }
 
                 // Handle macro start requests
-                const char *requestedMacroFile = gb->GetRequestedMacroFile(reportMissing, fromCode);
+                const char * const requestedMacroFile = gb->GetRequestedMacroFile(reportMissing, fromCode);
                 if (requestedMacroFile != nullptr && transfer->WriteMacroRequest(channel, requestedMacroFile, reportMissing, fromCode))
                 {
                     if (reprap.Debug(moduleLinuxInterface))
@@ -350,6 +367,7 @@ void LinuxInterface::Spin()
                 {
                     gb->AcknowledgeStackEvent();
                 }
+
             }
 		}
 
@@ -357,7 +375,7 @@ void LinuxInterface::Spin()
 		if (reportPause && transfer->WritePrintPaused(pauseFilePosition, pauseReason))
 		{
 			reportPause = false;
-			reprap.GetGCodes().GetGCodeBuffer(GCodeChannel::file)->Invalidate();
+			reprap.GetGCodes().GetGCodeBuffer(GCodeChannel::File)->Invalidate();
 		}
 
 		// Start the next transfer
@@ -422,7 +440,7 @@ void LinuxInterface::Diagnostics(MessageType mtype)
 
 bool LinuxInterface::FillBuffer(GCodeBuffer &gb)
 {
-	if (gb.IsInvalidated() || gb.IsMacroRequested() || gb.IsAbortRequested() || (reportPause && gb.GetChannel() == GCodeChannel::file))
+	if (gb.IsInvalidated() || gb.IsMacroRequested() || gb.IsAbortRequested() || (reportPause && gb.GetChannel() == GCodeChannel::File))
 	{
 		// Don't interpret codes that are supposed to be suspended...
 		return false;
@@ -434,9 +452,9 @@ bool LinuxInterface::FillBuffer(GCodeBuffer &gb)
 		uint16_t readPointer = rxPointer;
 		do
 		{
-			BufferedCodeHeader *bufHeader = reinterpret_cast<BufferedCodeHeader*>(codeBuffer + readPointer);
+			BufferedCodeHeader * const bufHeader = reinterpret_cast<BufferedCodeHeader*>(codeBuffer + readPointer);
 			readPointer += sizeof(BufferedCodeHeader);
-			const CodeHeader *header = reinterpret_cast<const CodeHeader*>(codeBuffer + readPointer);
+			const CodeHeader * const header = reinterpret_cast<const CodeHeader*>(codeBuffer + readPointer);
 			readPointer += bufHeader->length;
 
 			if (bufHeader->isPending)

@@ -103,8 +103,8 @@ struct ExpressionValue
 	explicit constexpr ExpressionValue(float f) noexcept : type(TYPE_OF(float)), param(MaxFloatDigitsDisplayedAfterPoint), fVal(f) { }
 	constexpr ExpressionValue(float f, uint8_t numDecimalPlaces) noexcept : type(TYPE_OF(float)), param(numDecimalPlaces), fVal(f) { }
 	explicit constexpr ExpressionValue(int32_t i) noexcept : type(TYPE_OF(int32_t)), param(0), iVal(i) { }
-	explicit constexpr ExpressionValue(const ObjectModel *om) noexcept : type(TYPE_OF(const ObjectModel*)), param(0), omVal(om) { }
-	constexpr ExpressionValue(const ObjectModel *om, uint8_t tableNumber) noexcept : type(TYPE_OF(const ObjectModel*)), param(tableNumber), omVal(om) { }
+	explicit constexpr ExpressionValue(const ObjectModel *om) noexcept : type((om == nullptr) ? NoType : TYPE_OF(const ObjectModel*)), param(0), omVal(om) { }
+	constexpr ExpressionValue(const ObjectModel *om, uint8_t tableNumber) noexcept : type((om == nullptr) ? NoType : TYPE_OF(const ObjectModel*)), param(tableNumber), omVal(om) { }
 	explicit constexpr ExpressionValue(const char *s) noexcept : type(TYPE_OF(const char*)), param(0), sVal(s) { }
 	explicit constexpr ExpressionValue(const ObjectModelArrayDescriptor *omad) noexcept : type(TYPE_OF(const ObjectModelArrayDescriptor*)), param(0), omadVal(omad) { }
 	explicit constexpr ExpressionValue(IPAddress ip) noexcept : type(TYPE_OF(IPAddress)), param(0), uVal(ip.GetV4LittleEndian()) { }
@@ -131,8 +131,11 @@ struct ExpressionValue
 	// Get the format string to use assuming this is a floating point number
 	const char *GetFloatFormatString() const noexcept { return ::GetFloatFormatString(param); }
 
+	// Append a string representation of this value to a string
+	void AppendAsString(const StringRef& str) const noexcept;
+
 #if SUPPORT_CAN_EXPANSION
-	void ExtractRequestedPart(const StringRef& rslt) pre(type == TYPE_OF(CanExpansionBoardDetails));
+	void ExtractRequestedPart(const StringRef& rslt) const noexcept pre(type == TYPE_OF(CanExpansionBoardDetails));
 #endif
 };
 
