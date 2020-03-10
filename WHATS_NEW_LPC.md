@@ -1,6 +1,16 @@
 Summary of LPC specific changes
 ===============================================
 
+
+Version 3.01 RC3
+==============
+
+* Added configurable UART class to allow selecting UART from board config by using the RX/TX pins for AUX serial and WIFI Serial.
+    * AUX serial pins will default to the UART0 pins as it has done in previous versions. Setting Aux serial to NoPin, NoPin can save a bit of memory as the buffers won't be created.
+* New board.txt entries:
+    * 8266wifi.SerialRxTxPins - array of pins {RX, TX}
+    * lpc.auxSerialRxTxPins - array of pins {RX, TX}
+
 Version 3.01 Beta2
 =================
 
