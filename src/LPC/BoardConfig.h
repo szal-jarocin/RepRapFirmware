@@ -48,7 +48,7 @@ public:
     
 private:
     BoardConfig()  noexcept;
-    static bool GetConfigKeys(FileStore *configFile, const boardConfigEntry_t *boardConfigEntryArray, const size_t numConfigs) noexcept;
+    static bool GetConfigKeys(FIL *configFile, const boardConfigEntry_t *boardConfigEntryArray, const size_t numConfigs) noexcept;
     static void SetValueFromString(configValueType type, void *variable, char *valuePtr) noexcept;
     static void PrintValue(MessageType mtype, configValueType configType, void *variable) noexcept;
     static void PrintPinArray(MessageType mtype, Pin arr[], uint16_t numEntries) noexcept;

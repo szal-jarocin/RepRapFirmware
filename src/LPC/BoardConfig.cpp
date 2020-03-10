@@ -21,6 +21,7 @@
 #include "Platform.h"
 
 #include "SoftwarePWM.h"
+#include "ff.h"
 
 //Single entry for Board name
 static const boardConfigEntry_t boardEntryConfig[]=
@@ -70,7 +71,7 @@ static const boardConfigEntry_t boardConfigs[]=
 #endif
 
 #if HAS_LINUX_INTERFACE
-    {"linuxTfrReadyPin", &LinuxTfrReadyPin, nullptr, cvPinType},
+    {"linux.TfrReadyPin", &LinuxTfrReadyPin, nullptr, cvPinType},
 #endif
 
     {"lpc.adcEnablePreFilter", &ADCEnablePreFilter, nullptr, cvBoolType},
@@ -83,6 +84,35 @@ static const boardConfigEntry_t boardConfigs[]=
 #endif
 };
 
+#if !HAS_MASS_STORAGE
+// Provide dummy functions for locks etc. for ff when mass storage is disabled
+
+extern "C"
+{
+	// Create a sync object. We already created it, we just need to copy the handle.
+	int ff_cre_syncobj (BYTE vol, FF_SYNC_t* psy)
+	{
+		return 1;
+	}
+
+	// Lock sync object
+	int ff_req_grant (FF_SYNC_t sy)
+	{
+		return 1;
+	}
+
+	// Unlock sync object
+	void ff_rel_grant (FF_SYNC_t sy)
+	{
+	}
+
+	// Delete a sync object
+	int ff_del_syncobj (FF_SYNC_t sy)
+	{
+		return 1;		// nothing to do, we never delete the mutex
+	}
+}
+#endif
 
 static inline bool isSpaceOrTab(char c) noexcept
 {
@@ -98,30 +128,27 @@ BoardConfig::BoardConfig() noexcept
 void BoardConfig::Init() noexcept
 {
 
-    GCodeResult rslt;
-    String<100> reply;
-    FileStore *configFile = nullptr;
+    String<100> pathName;
+    FIL configFile;
+    FATFS fs;
+    FRESULT rslt;
     
     NVIC_SetPriority(DMA_IRQn, NvicPrioritySpi);
-#if HAS_MASS_STORAGE
-    //Mount the Internal SDCard
-    do
-    {
-        rslt = MassStorage::Mount(0, reply.GetRef(), false);
-    }
-    while (rslt == GCodeResult::notFinished);
-    
-    if (rslt == GCodeResult::ok)
+#if !HAS_MASS_STORAGE
+	sd_mmc_init(SdWriteProtectPins, SdSpiCSPins);
+#endif
+    // Mount the internal SD card
+    rslt = f_mount (&fs, "0:", 1);
+    if (rslt == FR_OK)
     {
         //Open File
-        if (reprap.GetPlatform().SysFileExists("board.txt"))
-        {
-            configFile = reprap.GetPlatform().OpenFile(DEFAULT_SYS_DIR, "board.txt", OpenMode::read);
-        }
-        else
+        pathName.printf("%sboard.txt", DEFAULT_SYS_DIR);
+        rslt = f_open (&configFile, pathName.c_str(), FA_READ);
+        if (rslt != FR_OK)
         {
             delay(3000);        // Wait a few seconds so users have a chance to see this
             reprap.GetPlatform().MessageF(UsbMessage, "Unable to read board configuration: %sboard.txt...\n",DEFAULT_SYS_DIR );
+            f_unmount ("0:");
             return;
         }
     }
@@ -129,18 +156,17 @@ void BoardConfig::Init() noexcept
     {
         // failed to mount card
         delay(3000);        // Wait a few seconds so users have a chance to see this
-        reprap.GetPlatform().MessageF(UsbMessage, "%s\n", reply.c_str());
+        reprap.GetPlatform().MessageF(UsbMessage, "Failed to mount sd card\n");
         return;
-    }
-    
-    if(configFile != nullptr)
+    } 
+    if(rslt == FR_OK)
     {
         
         reprap.GetPlatform().MessageF(UsbMessage, "Loading config from %sboard.txt...\n", DEFAULT_SYS_DIR );
 
         
         //First find the board entry to load the correct PinTable for looking up Pin by name
-        BoardConfig::GetConfigKeys(configFile, boardEntryConfig, (size_t) 1);
+        BoardConfig::GetConfigKeys(&configFile, boardEntryConfig, (size_t) 1);
         if(!SetBoard(lpcBoardName)) // load the Correct PinTable for the defined Board (RRF3)
         {
             //Failed to find string in known boards array
@@ -149,10 +175,10 @@ void BoardConfig::Init() noexcept
         }
 
         //Load all other config settings now that PinTable is loaded.
-        configFile->Seek(0); //go back to beginning of config file
-        BoardConfig::GetConfigKeys(configFile, boardConfigs, (size_t) ARRAY_SIZE(boardConfigs));
-        configFile->Close();
-        
+        f_lseek(&configFile, 0); //go back to beginning of config file
+        BoardConfig::GetConfigKeys(&configFile, boardConfigs, (size_t) ARRAY_SIZE(boardConfigs));
+        f_close(&configFile);
+        f_unmount ("0:");
         
         //Calculate STEP_DRIVER_MASK (used for parallel writes)
         STEP_DRIVER_MASK = 0;
@@ -219,7 +245,6 @@ void BoardConfig::Init() noexcept
         //Configure ADC pre filter
         ConfigureADCPreFilter(ADCEnablePreFilter, ADCPreFilterNumberSamples, ADCPreFilterSampleRate);
     }
-#endif
 }
 
 
@@ -466,15 +491,34 @@ void BoardConfig::SetValueFromString(configValueType type, void *variable, char 
     }
 }
 
-
-
-bool BoardConfig::GetConfigKeys(FileStore *configFile, const boardConfigEntry_t *boardConfigEntryArray, const size_t numConfigs) noexcept
+static size_t ReadLine(FIL *fp, char *p, int len)
 {
-#if HAS_MASS_STORAGE
+    int nc = 0;
+    UINT rc;
+    uint8_t s;
+    len -= 1;	/* Make a room for the terminator */
+    while (nc < len)
+    {
+        f_read(fp, &s, 1, &rc);
+        if (rc != 1)
+        {
+            if (nc == 0) return -1;
+            break;
+        }
+        if (s == '\r') continue;
+        if (s == '\n') break;
+        *p++ = s; nc++;
+    }
+    *p = 0;		/* Terminate the string */
+    return nc;
+}
+
+bool BoardConfig::GetConfigKeys(FIL *configFile, const boardConfigEntry_t *boardConfigEntryArray, const size_t numConfigs) noexcept
+{
     constexpr size_t maxLineLength = 120;
     char line[maxLineLength];
 
-    int readLen = configFile->ReadLine(line, maxLineLength);
+    int readLen = ReadLine(configFile, line, maxLineLength);
     while(readLen >= 0)
     {
         size_t len = (size_t) readLen;
@@ -653,7 +697,7 @@ bool BoardConfig::GetConfigKeys(FileStore *configFile, const boardConfigEntry_t 
 
                         //overrite the end condition with null....
                         line[pos] = 0; // null terminate the string (the "value")
-
+                        //debugPrintf(" value is %s\n", valuePtr);
                         //Find the entry in boardConfigEntryArray using the key
                         //const size_t numConfigs = ARRAY_SIZE(boardConfigs);
                         for(size_t i=0; i<numConfigs; i++)
@@ -675,8 +719,8 @@ bool BoardConfig::GetConfigKeys(FileStore *configFile, const boardConfigEntry_t 
             //Empty Line - Nothing to do here
         }
 
-        readLen = configFile->ReadLine(line, maxLineLength); //attempt to read the next line
+        readLen = ReadLine(configFile, line, maxLineLength); //attempt to read the next line
+        //debugPrintf("ReadLine returns %d\n", readLen);
     }
-#endif
     return false;
 }

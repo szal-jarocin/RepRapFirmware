@@ -56,9 +56,7 @@ Pin SoftwareSPIPins[3] = {NoPin, NoPin, NoPin};         //GPIO pins for software
 #endif
 
 #if HAS_LINUX_INTERFACE
-#warning TEMPORY FOR TESTING
-    Pin LinuxTfrReadyPin = P0_26;
-//    Pin LinuxTfrReadyPin = NoPin;
+    Pin LinuxTfrReadyPin = NoPin;
 #endif
 
 bool ADCEnablePreFilter = false;
