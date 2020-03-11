@@ -32,23 +32,27 @@ static const boardConfigEntry_t boardEntryConfig[]=
 static const boardConfigEntry_t boardConfigs[]=
 {
     {"leds.diagnostic", &DiagPin, nullptr, cvPinType},
-    {"lpc.internalSDCard.spiFrequencyHz", &InternalSDCardFrequency, nullptr, cvUint32Type},
 
+    //Steppers
     {"stepper.enablePins", ENABLE_PINS, &MaxTotalDrivers, cvPinType},
     {"stepper.stepPins", STEP_PINS, &MaxTotalDrivers, cvPinType},
     {"stepper.directionPins", DIRECTION_PINS, &MaxTotalDrivers, cvPinType},
     {"stepper.digipotFactor", &digipotFactor, nullptr, cvFloatType},
 
+    //Heater sensors
     {"heat.tempSensePins", TEMP_SENSE_PINS, &NumThermistorInputs, cvPinType},
     {"heat.spiTempSensorCSPins", SpiTempSensorCsPins, &MaxSpiTempSensors, cvPinType},
     
-    {"atxPowerPin", &ATX_POWER_PIN, nullptr, cvPinType},
-    {"atxPowerPinInverted", &ATX_POWER_INVERTED, nullptr, cvBoolType},
-    
-    {"externalSDCard.csPin", &SdSpiCSPins[1], nullptr, cvPinType},
-    {"externalSDCard.cardDetectPin", &SdCardDetectPins[1], nullptr, cvPinType},
-    {"lpc.externalSDCard.spiFrequencyHz", &ExternalSDCardFrequency, nullptr, cvUint32Type},
-    {"lpc.externalSDCard.spiChannel", &ExternalSDCardSSPChannel, nullptr, cvUint8Type},
+    //ATX Power
+    {"atx.powerPin", &ATX_POWER_PIN, nullptr, cvPinType},
+    {"atx.powerPinInverted", &ATX_POWER_INVERTED, nullptr, cvBoolType},
+
+    //SDCards
+    {"sdCard.internal.spiFrequencyHz", &InternalSDCardFrequency, nullptr, cvUint32Type},
+    {"sdCard.external.csPin", &SdSpiCSPins[1], nullptr, cvPinType},
+    {"sdCard.external.cardDetectPin", &SdCardDetectPins[1], nullptr, cvPinType},
+    {"sdCard.external.spiFrequencyHz", &ExternalSDCardFrequency, nullptr, cvUint32Type},
+    {"sdCard.external.spiChannel", &ExternalSDCardSSPChannel, nullptr, cvUint8Type},
 
 #if SUPPORT_12864_LCD
     {"lcd.lcdCSPin", &LcdCSPin, nullptr, cvPinType},
@@ -61,26 +65,29 @@ static const boardConfigEntry_t boardConfigs[]=
     {"lcd.spiChannel", &LcdSpiChannel, nullptr, cvUint8Type},
 #endif
     
-    {"lpc.softwareSPI.pins", SoftwareSPIPins, &NumSoftwareSPIPins, cvPinType}, //SCK, MISO, MOSI
+    {"softwareSPI.pins", SoftwareSPIPins, &NumSoftwareSPIPins, cvPinType}, //SCK, MISO, MOSI
     
 #if HAS_WIFI_NETWORKING
-    {"8266wifi.EspDataReadyPin", &EspDataReadyPin, nullptr, cvPinType},
-    {"8266wifi.LpcTfrReadyPin", &SamTfrReadyPin, nullptr, cvPinType},
-    {"8266wifi.EspResetPin", &EspResetPin, nullptr, cvPinType},
-    {"8266wifi.SerialRxTxPins", &WifiSerialRxTxPins, &NumberSerialPins, cvPinType},
+    {"8266wifi.espDataReadyPin", &EspDataReadyPin, nullptr, cvPinType},
+    {"8266wifi.lpcTfrReadyPin", &SamTfrReadyPin, nullptr, cvPinType},
+    {"8266wifi.espResetPin", &EspResetPin, nullptr, cvPinType},
+    {"8266wifi.serialRxTxPins", &WifiSerialRxTxPins, &NumberSerialPins, cvPinType},
 #endif
 
 #if HAS_LINUX_INTERFACE
-    {"linuxTfrReadyPin", &LinuxTfrReadyPin, nullptr, cvPinType},
+    {"sbc.lpcTfrReadyPin", &LinuxTfrReadyPin, nullptr, cvPinType},
 #endif
 
 #if defined(SERIAL_AUX_DEVICE)
-    {"lpc.auxSerialRxTxPins", &AuxSerialRxTxPins, &NumberSerialPins, cvPinType},
+    {"serial.aux.rxTxPins", &AuxSerialRxTxPins, &NumberSerialPins, cvPinType},
+#endif
+#if defined(SERIAL_AUX2_DEVICE)
+    {"serial.aux2.rxTxPins", &Aux2SerialRxTxPins, &NumberSerialPins, cvPinType},
 #endif
     
-    {"lpc.adcEnablePreFilter", &ADCEnablePreFilter, nullptr, cvBoolType},
-    {"lpc.adcPreFilterNumberSamples", &ADCPreFilterNumberSamples, nullptr, cvUint8Type},
-    {"lpc.adcPreFilterSampleRate", &ADCPreFilterSampleRate, nullptr, cvUint32Type},
+    {"adc.prefilter.enable", &ADCEnablePreFilter, nullptr, cvBoolType},
+    {"adc.preFilter.numberSamples", &ADCPreFilterNumberSamples, nullptr, cvUint8Type},
+    {"adc.preFilter.sampleRate", &ADCPreFilterSampleRate, nullptr, cvUint32Type},
 
     
 };
@@ -230,6 +237,19 @@ void BoardConfig::Init() noexcept
 
             }
         #endif
+
+        #if defined(SERIAL_AUX2_DEVICE)
+            //Configure Aux2 Serial
+            if(Aux2SerialRxTxPins[0] != NoPin && Aux2SerialRxTxPins[1] != NoPin)
+            {
+                if(!SERIAL_AUX2_DEVICE.Configure(Aux2SerialRxTxPins[0], Aux2SerialRxTxPins[1]))
+                {
+                    reprap.GetPlatform().MessageF(UsbMessage, "Failed to set AUX2 Serial with pins %d.%d and %d.%d.\n", (Aux2SerialRxTxPins[0] >> 5), (Aux2SerialRxTxPins[0] & 0x1F), (Aux2SerialRxTxPins[1] >> 5), (Aux2SerialRxTxPins[1] & 0x1F) );
+                }
+
+            }
+        #endif
+
         
         //Init pins for LCD
         //make sure to init ButtonPin as input incase user presses button
@@ -250,20 +270,26 @@ void BoardConfig::Init() noexcept
 
 
 //Convert a pin string into a RRF Pin
+//Handle formats such as 1.23, 1_23, P1_23 or P1.23
 Pin BoardConfig::StringToPin(const char *strvalue) noexcept
 {
-    //check size.. should be 3chars or 4 chars i.e. 0.1, 2.25, 2nd char should always be .
+    if(strvalue == nullptr) return NoPin;
+    
+    if(tolower(*strvalue) == 'p') strvalue++; //skip P
+    
+    //check size.. should be 3chars or 4 chars i.e. 0.1, 2.25, 1_23. 2nd char should be . or _
     uint8_t len = strlen(strvalue);
-    if((len == 3 || len == 4) && strvalue[1] == '.' )
+    if((len == 3 || len == 4) && (*(strvalue+1) == '.' || *(strvalue+1) == '_') )
     {
-        const char *ptr = NULL;
+        const char *ptr = nullptr;
         
         uint8_t port = SafeStrtol(strvalue, &ptr, 10);
         if(ptr > strvalue && port <= 4)
         {
-            uint8_t pin = SafeStrtol(strvalue+2, &ptr, 10);
+            strvalue+=2;
+            uint8_t pin = SafeStrtol(strvalue, &ptr, 10);
             
-            if(ptr > strvalue+2 && pin < 32)
+            if(ptr > strvalue && pin < 32)
             {
                 //Convert the Port and Pin to match the arrays in CoreLPC
                 Pin lpcpin = (Pin) ( (port << 5) | pin);
@@ -271,7 +297,6 @@ Pin BoardConfig::StringToPin(const char *strvalue) noexcept
             }
         }
     }
-    //debugPrintf("Invalid pin %s, defaulting to NoPin\n", strvalue);
     
     return NoPin;
 }
@@ -376,6 +401,21 @@ void BoardConfig::Diagnostics(MessageType mtype) noexcept
 
         }
     }
+    
+#if defined(SERIAL_AUX_DEVICE) || defined(SERIAL_AUX2_DEVICE) || HAS_WIFI_NETWORKING
+    reprap.GetPlatform().MessageF(mtype, "\n== Hardware Serial ==\n");
+    #if defined(SERIAL_AUX_DEVICE)
+        reprap.GetPlatform().MessageF(mtype, "AUX Serial: %s%c\n", ((SERIAL_AUX_DEVICE.GetUARTPortNumber() == -1)?"Disabled": "UART "), (SERIAL_AUX_DEVICE.GetUARTPortNumber() == -1)?' ': ('0' + SERIAL_AUX_DEVICE.GetUARTPortNumber()));
+    #endif
+    #if defined(SERIAL_AUX2_DEVICE)
+        reprap.GetPlatform().MessageF(mtype, "AUX2 Serial: %s%c\n", ((SERIAL_AUX2_DEVICE.GetUARTPortNumber() == -1)?"Disabled": "UART "), (SERIAL_AUX2_DEVICE.GetUARTPortNumber() == -1)?' ': ('0' + SERIAL_AUX2_DEVICE.GetUARTPortNumber()));
+    #endif
+    #if HAS_WIFI_NETWORKING
+        reprap.GetPlatform().MessageF(mtype, "WIFI Serial: %s%c\n", ((SERIAL_WIFI_DEVICE.GetUARTPortNumber() == -1)?"Disabled": "UART "), (SERIAL_WIFI_DEVICE.GetUARTPortNumber() == -1)?' ': ('0' + SERIAL_WIFI_DEVICE.GetUARTPortNumber()));
+    #endif
+#endif
+    
+    
 
     reprap.GetPlatform().MessageF(mtype, "\n== Software PWM ==\n");
     for(uint8_t i=0; i<MaxNumberSoftwarePWMPins; i++)

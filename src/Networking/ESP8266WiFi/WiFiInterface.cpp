@@ -1784,7 +1784,9 @@ void WiFiInterface::SpiInterrupt() noexcept
 void WiFiInterface::StartWiFi() noexcept
 {
 	digitalWrite(EspResetPin, HIGH);
-#ifndef __LPC17xx__
+#ifdef __LPC17xx__
+    SERIAL_WIFI_DEVICE.Configure(WifiSerialRxTxPins[0], WifiSerialRxTxPins[1]);
+#else
 	ConfigurePin(g_APinDescription[APINS_Serial1]);				// connect the pins to UART1
 #endif
 	SERIAL_WIFI_DEVICE.begin(WiFiBaudRate);						// initialise the UART, to receive debug info
@@ -1852,7 +1854,9 @@ void WiFiInterface::ResetWiFiForUpload(bool external) noexcept
 	}
 	else
 	{
-#ifndef __LPC17xx__
+#ifdef __LPC17xx__
+        SERIAL_WIFI_DEVICE.Configure(WifiSerialRxTxPins[0], WifiSerialRxTxPins[1]);
+#else
 		ConfigurePin(g_APinDescription[APINS_Serial1]);				// connect the pins to the UART
 #endif
 	}

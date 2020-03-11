@@ -225,15 +225,18 @@ constexpr size_t NumSoftwareSPIPins = 3;
 extern Pin SoftwareSPIPins[3]; //GPIO pins for softwareSPI (used with SharedSPI)
 
 
-constexpr size_t NUM_SERIAL_CHANNELS = 2;
+#define SERIAL_AUX_DEVICE   UART_Slot0
+#define SERIAL_WIFI_DEVICE  UART_Slot1
+//#define SERIAL_AUX2_DEVICE  UART_Slot2
+
+constexpr size_t NUM_SERIAL_CHANNELS = 2; // USB + AUX
 
 constexpr size_t NumberSerialPins = 2;
 extern Pin AuxSerialRxTxPins[NumberSerialPins];
 
-
-#define SERIAL_AUX_DEVICE   UART_Slot0
-#define SERIAL_WIFI_DEVICE  UART_Slot1
-
+#if defined(SERIAL_AUX2_DEVICE)
+    extern Pin Aux2SerialRxTxPins[NumberSerialPins];
+#endif
 
 // Use TX0/RX0 for the auxiliary serial line
 #if defined(__MBED__)
@@ -353,7 +356,9 @@ struct BoardEntry
 //Known boards with built in stepper configurations and pin table 
 constexpr BoardEntry LPC_Boards[] =
 {
+#if defined(__MBED__)
     {"mbed",             PinTable_Mbed,             ARRAY_SIZE(PinTable_Mbed),             mbedDefaults}, //for debugging
+#else
     {"generic",          PinTable_Generic,          ARRAY_SIZE(PinTable_Generic),          genericDefaults},
 
     //known boards
@@ -365,6 +370,7 @@ constexpr BoardEntry LPC_Boards[] =
     {"biquskr_1.3",      PinTable_BIQU_SKR_v1_3,    ARRAY_SIZE(PinTable_BIQU_SKR_v1_3),    biquskr_1_3_Defaults},
     {"biquskr_1.4",      PinTable_BIQU_SKR_v1_4,    ARRAY_SIZE(PinTable_BIQU_SKR_v1_4),    biquskr_1_4_Defaults},
     {"azteegx5mini_1.1", PinTable_AzteegX5MiniV1_1, ARRAY_SIZE(PinTable_AzteegX5MiniV1_1), azteegX5Mini1_1Defaults},
+#endif
 };
 
 
