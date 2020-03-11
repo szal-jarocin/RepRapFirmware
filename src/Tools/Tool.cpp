@@ -99,10 +99,13 @@ constexpr ObjectModelTableEntry Tool::objectModelTable[] =
 	{ "extruders",			OBJECT_MODEL_FUNC_NOSELF(&extrudersArrayDescriptor), 			ObjectModelEntryFlags::none },
 	{ "fans",				OBJECT_MODEL_FUNC(self->fanMapping), 							ObjectModelEntryFlags::none },
 	{ "filament",			OBJECT_MODEL_FUNC(self->GetFilamentName()), 					ObjectModelEntryFlags::none },
+	{ "filamentExtruder",	OBJECT_MODEL_FUNC((int32_t)self->filamentExtruder),				ObjectModelEntryFlags::none },
 	{ "heaters",			OBJECT_MODEL_FUNC_NOSELF(&heatersArrayDescriptor), 				ObjectModelEntryFlags::none },
 	{ "mix",				OBJECT_MODEL_FUNC_NOSELF(&mixArrayDescriptor), 					ObjectModelEntryFlags::none },
 	{ "name",				OBJECT_MODEL_FUNC(self->name),						 			ObjectModelEntryFlags::none },
+	{ "number",				OBJECT_MODEL_FUNC((int32_t)self->myNumber),						ObjectModelEntryFlags::none },
 	{ "offsets",			OBJECT_MODEL_FUNC_NOSELF(&offsetsArrayDescriptor), 				ObjectModelEntryFlags::none },
+	{ "offsetsProbed",		OBJECT_MODEL_FUNC((int32_t)self->axisOffsetsProbed.GetRaw()),	ObjectModelEntryFlags::none },
 	{ "retraction",			OBJECT_MODEL_FUNC(self, 1),										ObjectModelEntryFlags::none },
 	{ "standby",			OBJECT_MODEL_FUNC_NOSELF(&standbyTempsArrayDescriptor), 		ObjectModelEntryFlags::live },
 	{ "state",				OBJECT_MODEL_FUNC(self->state.ToString()), 						ObjectModelEntryFlags::live },
@@ -115,7 +118,7 @@ constexpr ObjectModelTableEntry Tool::objectModelTable[] =
 	{ "zHop",				OBJECT_MODEL_FUNC(self->retractHop, 2),							ObjectModelEntryFlags::none },
 };
 
-constexpr uint8_t Tool::objectModelTableDescriptor[] = { 2, 12, 5 };
+constexpr uint8_t Tool::objectModelTableDescriptor[] = { 2, 15, 5 };
 
 DEFINE_GET_OBJECT_MODEL_TABLE(Tool)
 
@@ -162,11 +165,13 @@ DEFINE_GET_OBJECT_MODEL_TABLE(Tool)
 		// Use exactly only one Filament instance per extruder drive
 		Filament * const filament = Filament::GetFilamentByExtruder(filamentDrive);
 		t->filament = (filament == nullptr) ? new Filament(d[0]) : filament;
+		t->filamentExtruder = filamentDrive;
 	}
 	else
 	{
 		// Don't support filament codes for other tools
 		t->filament = nullptr;
+		t->filamentExtruder = -1;
 	}
 
 	const size_t nameLength = strlen(name);
@@ -463,10 +468,11 @@ bool Tool::DisplayColdExtrudeWarning() noexcept
 
 void Tool::DefineMix(const float m[]) noexcept
 {
-	for(size_t drive = 0; drive < driveCount; drive++)
+	for (size_t drive = 0; drive < driveCount; drive++)
 	{
 		mix[drive] = m[drive];
 	}
+	reprap.ToolsUpdated();
 }
 
 #if HAS_MASS_STORAGE
@@ -515,6 +521,7 @@ void Tool::SetOffset(size_t axis, float offs, bool byProbing) noexcept
 	{
 		axisOffsetsProbed.SetBit(axis);
 	}
+	ToolUpdated();
 }
 
 float Tool::GetToolHeaterActiveTemperature(size_t heaterNumber) const noexcept
@@ -650,7 +657,12 @@ void Tool::SetFirmwareRetraction(GCodeBuffer &gb, const StringRef &reply) THROWS
 		retractHop = max<float>(gb.GetFValue(), 0.0);
 		seen = true;
 	}
-	if (!seen)
+
+	if (seen)
+	{
+		ToolUpdated();
+	}
+	else
 	{
 		reply.lcatf("Tool %u retract/reprime: length %.2f/%.2fmm, speed %.1f/%.1fmm/sec, Z hop %.2fmm",
 			myNumber, (double)retractLength, (double)(retractLength + retractExtra), (double)retractSpeed, (double)unRetractSpeed, (double)retractHop);

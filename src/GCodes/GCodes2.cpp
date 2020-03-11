@@ -353,6 +353,7 @@ bool GCodes::HandleGcode(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeEx
 			if (cs < NumCoordinateSystems)
 			{
 				currentCoordinateSystem = cs;											// this is the zero-base coordinate system number
+				reprap.MoveUpdated();
 				gb.MachineState().g53Active = false;									// cancel any active G53
 			}
 			else
@@ -1906,7 +1907,11 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeEx
 					}
 				}
 
-				if (!seen)
+				if (seen)
+				{
+					reprap.MoveUpdated();
+				}
+				else
 				{
 					reply.printf("Accelerations (mm/sec^2): ");
 					for (size_t axis = 0; axis < numTotalAxes; ++axis)
@@ -1956,7 +1961,11 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeEx
 					}
 				}
 
-				if (!seen)
+				if (seen)
+				{
+					reprap.MoveUpdated();
+				}
+				else
 				{
 					reply.copy("Max speeds (mm/sec): ");
 					for (size_t axis = 0; axis < numTotalAxes; ++axis)
@@ -2206,6 +2215,7 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeEx
 					for (size_t axis = 0; axis < numVisibleAxes; ++axis)
 					{
 						currentBabyStepOffsets[axis] += differences[axis];
+						reprap.MoveUpdated();
 						const float amountPushed = reprap.GetMove().PushBabyStepping(axis, differences[axis]);
 						moveBuffer.initialCoords[axis] += amountPushed;
 
@@ -2594,6 +2604,7 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeEx
 				return false;
 			}
 			machineType = MachineType::fff;
+			reprap.StateUpdated();
 			break;
 
 #if SUPPORT_LASER
@@ -2632,6 +2643,7 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeEx
 					laserMaxPower = max<float>(1.0, gb.GetFValue());
 				}
 			}
+			reprap.StateUpdated();
 			break;
 #endif
 
@@ -2646,31 +2658,45 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeEx
 				const uint32_t slot = gb.Seen('S') ? gb.GetLimitedUIValue('S', MaxSpindles) : 0;
 
 				Spindle& spindle = platform.AccessSpindle(slot);
+				bool seenSpindle = false;
 				if (gb.Seen('C'))
 				{
+					seenSpindle = true;
 					if (!spindle.AllocatePins(gb, reply))
 					{
 						result = GCodeResult::error;
 						break;
 					}
 				}
-				if (gb.Seen('F'))
+				if (result == GCodeResult::ok)
 				{
-					spindle.SetFrequency(gb.GetPwmFrequency());
-				}
-				if (gb.Seen('R'))
-				{
-					spindle.SetMaxRpm(max<float>(1.0, gb.GetFValue()));
-				}
-				if (gb.Seen('T'))
-				{
-					spindle.SetToolNumber(gb.GetIValue());
+					if (gb.Seen('F'))
+					{
+						seenSpindle = true;
+						spindle.SetFrequency(gb.GetPwmFrequency());
+					}
+					if (gb.Seen('R'))
+					{
+						seenSpindle = true;
+						spindle.SetMaxRpm(max<float>(1.0, gb.GetFValue()));
+					}
+					if (gb.Seen('T'))
+					{
+						seenSpindle = true;
+						spindle.SetToolNumber(gb.GetIValue());
+					}
 				}
 
 				// M453 may be repeated to set up multiple spindles, so only print the message on the initial switch
 				if (oldMachineType != MachineType::cnc)
 				{
+					reprap.StateUpdated();
 					reply.copy("CNC mode selected");
+				}
+
+				if (seenSpindle)
+				{
+					reprap.SpindlesUpdated();
 				}
 			}
 			break;
@@ -2795,7 +2821,7 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeEx
 			else
 			{
 				String<MaxFilenameLength> path;
-				platform.GetSysDir(path.GetRef());
+				platform.AppendSysDir(path.GetRef());
 				reply.printf("Sys file path is %s", path.c_str());
 			}
 			break;
@@ -2989,7 +3015,7 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeEx
 				}
 				else
 				{
-					platform.GetSysDir(sysDir.GetRef());
+					platform.AppendSysDir(sysDir.GetRef());
 					folder = sysDir.c_str();
 					defaultFile = CONFIG_FILE;
 				}
@@ -3071,19 +3097,19 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeEx
 		case 566: // Set/print maximum jerk speeds in mm/min
 			{
 				const float multiplier1 = (code == 566) ? SecondsToMinutes : 1.0;
-				bool seen = false;
+				bool seenAxis = false, seenExtruder = false;
 				for (size_t axis = 0; axis < numTotalAxes; axis++)
 				{
 					if (gb.Seen(axisLetters[axis]))
 					{
 						platform.SetInstantDv(axis, gb.GetDistance() * multiplier1);
-						seen = true;
+						seenAxis = true;
 					}
 				}
 
 				if (gb.Seen(extrudeLetter))
 				{
-					seen = true;
+					seenExtruder = true;
 					float eVals[MaxExtruders];
 					size_t eCount = numExtruders;
 					gb.GetFloatArray(eVals, eCount, true);
@@ -3095,11 +3121,15 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeEx
 
 				if (code == 566 && gb.Seen('P'))
 				{
-					seen = true;
+					seenAxis = true;
 					reprap.GetMove().SetJerkPolicy(gb.GetUIValue());
 				}
 
-				if (!seen)
+				if (seenAxis)
+				{
+					reprap.MoveUpdated();
+				}
+				else if (!seenExtruder)
 				{
 					const float multiplier2 = (code == 566) ? MinutesToSeconds : 1.0;
 					reply.printf("Maximum jerk rates (mm/%s): ", (code == 566) ? "min" : "sec");
@@ -3460,6 +3490,7 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeEx
 					}
 					reprap.GetMove().SetNewPosition(moveBuffer.coords, true);
 					SetAllAxesNotHomed();
+					reprap.MoveUpdated();
 				}
 				result = GetGCodeResultFromError(error);
 			}
@@ -3476,6 +3507,7 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeEx
 				if (changed)
 				{
 					SetAllAxesNotHomed();
+					reprap.MoveUpdated();
 				}
 				result = GetGCodeResultFromError(error);
 			}
@@ -3539,6 +3571,7 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeEx
 						}
 						reprap.GetMove().SetNewPosition(moveBuffer.coords, true);
 						SetAllAxesNotHomed();
+						reprap.MoveUpdated();
 					}
 				}
 			}
@@ -3586,6 +3619,7 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeEx
 					}
 					reprap.GetMove().SetNewPosition(moveBuffer.coords, true);
 					SetAllAxesNotHomed();
+					reprap.MoveUpdated();
 				}
 			}
 			break;
@@ -4033,6 +4067,7 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeEx
 						strcpy(newPowerFailScript, powerFailString.c_str());
 						std::swap(newPowerFailScript, powerFailScript);
 						delete[] newPowerFailScript;
+						reprap.StateUpdated();
 					}
 					else if (powerFailScript == nullptr)
 					{

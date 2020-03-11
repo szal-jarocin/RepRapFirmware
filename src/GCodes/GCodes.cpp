@@ -489,9 +489,6 @@ void GCodes::StartNextGCode(GCodeBuffer& gb, const StringRef& reply) noexcept
 	{
 		// Delay 1 second, then try to open and run daemon.g. No error if it is not found.
 		if (   !reprap.IsProcessingConfig()
-#if HAS_LINUX_INTERFACE
-			&& !reprap.UsingLinuxInterface()		// DSF gets confused by the daemon, so disable it for now
-#endif
 			&& gb.DoDwellTime(1000)
 		   )
 		{
@@ -2684,8 +2681,8 @@ GCodeResult GCodes::ProbeGrid(GCodeBuffer& gb, const StringRef& reply)
 	reprap.GetMove().AccessHeightMap().SetGrid(defaultGrid);
 	ClearBedMapping();
 	gridXindex = gridYindex = 0;
-	gb.SetState(GCodeState::gridProbing1);
 
+	gb.SetState(GCodeState::gridProbing1);
 	if (platform.GetCurrentZProbeType() != ZProbeType::blTouch)
 	{
 		DeployZProbe(gb, 0);

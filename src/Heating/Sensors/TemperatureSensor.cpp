@@ -39,7 +39,7 @@ constexpr ObjectModelTableEntry TemperatureSensor::objectModelTable[] =
 	// 0. TemperatureSensor members
 	{ "lastReading",	OBJECT_MODEL_FUNC(self->lastTemperature, 1), 	ObjectModelEntryFlags::live },
 	{ "name",			OBJECT_MODEL_FUNC(self->sensorName), 			ObjectModelEntryFlags::none },
-	{ "type",			OBJECT_MODEL_FUNC(self->sensorType), 			ObjectModelEntryFlags::none },
+	{ "type",			OBJECT_MODEL_FUNC(self->GetShortSensorType()), 	ObjectModelEntryFlags::none },
 };
 
 constexpr uint8_t TemperatureSensor::objectModelTableDescriptor[] = { 1, 3 };
@@ -88,11 +88,10 @@ void TemperatureSensor::SetSensorName(const char *newName) noexcept
 }
 
 // Default implementation of Configure, for sensors that have no configurable parameters
-GCodeResult TemperatureSensor::Configure(GCodeBuffer& gb, const StringRef& reply)
+GCodeResult TemperatureSensor::Configure(GCodeBuffer& gb, const StringRef& reply, bool& changed)
 {
-	bool seen = false;
-	TryConfigureSensorName(gb, seen);
-	if (!seen && !gb.Seen('Y'))
+	TryConfigureSensorName(gb, changed);
+	if (!changed && !gb.Seen('Y'))
 	{
 		// No parameters were provided, so report the current configuration
 		CopyBasicDetails(reply);

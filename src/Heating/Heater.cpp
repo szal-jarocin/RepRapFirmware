@@ -39,6 +39,7 @@ constexpr ObjectModelTableEntry Heater::objectModelTable[] =
 	{ "current",	OBJECT_MODEL_FUNC(self->GetTemperature(), 1), 											ObjectModelEntryFlags::live },
 	{ "max",		OBJECT_MODEL_FUNC(self->GetHighestTemperatureLimit(), 1), 								ObjectModelEntryFlags::none },
 	{ "min",		OBJECT_MODEL_FUNC(self->GetLowestTemperatureLimit(), 1), 								ObjectModelEntryFlags::none },
+	{ "model",		OBJECT_MODEL_FUNC((const FopDt *)&self->GetModel()),									ObjectModelEntryFlags::verbose },
 	{ "monitors",	OBJECT_MODEL_FUNC_NOSELF(&monitorsArrayDescriptor), 									ObjectModelEntryFlags::none },
 	{ "sensor",		OBJECT_MODEL_FUNC((int32_t)self->GetSensorNumber()), 									ObjectModelEntryFlags::none },
 	{ "state",		OBJECT_MODEL_FUNC(self->GetStatus().ToString()), 										ObjectModelEntryFlags::live },
@@ -51,7 +52,7 @@ constexpr ObjectModelTableEntry Heater::objectModelTable[] =
 										self->monitors[context.GetLastIndex()].GetTemperatureLimit(), 1),	ObjectModelEntryFlags::none },
 };
 
-constexpr uint8_t Heater::objectModelTableDescriptor[] = { 2, 6, 3 };
+constexpr uint8_t Heater::objectModelTableDescriptor[] = { 2, 7, 3 };
 
 DEFINE_GET_OBJECT_MODEL_TABLE(Heater)
 
@@ -153,41 +154,47 @@ GCodeResult Heater::SetOrReportModel(unsigned int heater, GCodeBuffer& gb, const
 // Set the process model returning true if successful
 GCodeResult Heater::SetModel(float gain, float tc, float td, float maxPwm, float voltage, bool usePid, bool inverted, const StringRef& reply) noexcept
 {
-	const bool rslt = model.SetParameters(gain, tc, td, maxPwm, GetHighestTemperatureLimit(), voltage, usePid, inverted);
-	if (rslt)
+	GCodeResult rslt;
+	if (model.SetParameters(gain, tc, td, maxPwm, GetHighestTemperatureLimit(), voltage, usePid, inverted))
 	{
 		if (model.IsEnabled())
 		{
-			const GCodeResult rslt = UpdateModel(reply);
-			if (rslt != GCodeResult::ok)
+			rslt = UpdateModel(reply);
+			if (rslt == GCodeResult::ok)
 			{
-				return rslt;
-			}
-			const float predictedMaxTemp = gain + NormalAmbientTemperature;
-			const float noWarnTemp = (GetHighestTemperatureLimit() - NormalAmbientTemperature) * 1.5 + 50.0;		// allow 50% extra power plus enough for an extra 50C
-			if (predictedMaxTemp > noWarnTemp)
-			{
-				reply.printf("heater %u appears to be over-powered. If left on at full power, its temperature is predicted to reach %dC.\n",
-						GetHeaterNumber(), (int)predictedMaxTemp);
-				return GCodeResult::warning;
+				const float predictedMaxTemp = gain + NormalAmbientTemperature;
+				const float noWarnTemp = (GetHighestTemperatureLimit() - NormalAmbientTemperature) * 1.5 + 50.0;		// allow 50% extra power plus enough for an extra 50C
+				if (predictedMaxTemp > noWarnTemp)
+				{
+					reply.printf("heater %u appears to be over-powered. If left on at full power, its temperature is predicted to reach %dC.\n",
+							GetHeaterNumber(), (int)predictedMaxTemp);
+					rslt = GCodeResult::warning;
+				}
 			}
 		}
 		else
 		{
 			ResetHeater();
+			rslt = GCodeResult::ok;
 		}
-		return GCodeResult::ok;
+	}
+	else
+	{
+		reply.copy("bad model parameters");
+		rslt = GCodeResult::error;
 	}
 
-	reply.copy("bad model parameters");
-	return GCodeResult::error;
+	reprap.HeatUpdated();
+	return rslt;
 }
 
 GCodeResult Heater::SetFaultDetectionParameters(float pMaxTempExcursion, float pMaxFaultTime, const StringRef& reply) noexcept
 {
 	maxTempExcursion = pMaxTempExcursion;
 	maxHeatingFaultTime = pMaxFaultTime;
-	return UpdateFaultDetectionParameters(reply);
+	const GCodeResult rslt = UpdateFaultDetectionParameters(reply);
+	reprap.HeatUpdated();
+	return rslt;
 }
 
 GCodeResult Heater::ConfigureMonitor(GCodeBuffer &gb, const StringRef &reply) THROWS(GCodeException)
@@ -220,7 +227,9 @@ GCodeResult Heater::ConfigureMonitor(GCodeBuffer &gb, const StringRef &reply) TH
 	if (seenSensor || seenLimit || seenAction || seenCondition)
 	{
 		monitors[index].Set(monitoringSensor, limit, action, trigger);
-		return UpdateHeaterMonitors(reply);
+		const GCodeResult rslt = UpdateHeaterMonitors(reply);
+		reprap.HeatUpdated();
+		return rslt;
 	}
 
 	// Else we are reporting on one or all of the monitors

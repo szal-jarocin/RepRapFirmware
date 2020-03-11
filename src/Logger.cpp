@@ -39,7 +39,9 @@ void Logger::Start(time_t time, const StringRef& filename) noexcept
 			logFile.Set(f);
 			lastFlushFileSize = logFile.Length();
 			logFile.Seek(lastFlushFileSize);
+			logFileName.copy(filename.c_str());
 			InternalLogMessage(time, "Event logging started\n");
+			reprap.StateUpdated();
 		}
 	}
 }
@@ -51,6 +53,7 @@ void Logger::Stop(time_t time) noexcept
 		Lock loggerLock(inLogger);
 		InternalLogMessage(time, "Event logging stopped\n");
 		logFile.Close();
+		reprap.StateUpdated();
 	}
 }
 
@@ -81,6 +84,7 @@ void Logger::LogMessage(time_t time, OutputBuffer *buf) noexcept
 		else
 		{
 			logFile.Close();
+			reprap.StateUpdated();
 		}
 	}
 }
@@ -109,6 +113,7 @@ void Logger::InternalLogMessage(time_t time, const char *message) noexcept
 	else
 	{
 		logFile.Close();
+		reprap.StateUpdated();
 	}
 }
 

@@ -22,6 +22,30 @@ const char* const SCAN_POST_G = "scan_post.g";
 const char* const CALIBRATE_PRE_G = "calibrate_pre.g";
 const char* const CALIBRATE_POST_G = "calibrate_post.g";
 
+#if SUPPORT_OBJECT_MODEL
+
+// Object model table and functions
+// Note: if using GCC version 7.3.1 20180622 and lambda functions are used in this table, you must compile this file with option -std=gnu++17.
+// Otherwise the table will be allocated in RAM instead of flash, which wastes too much RAM.
+
+// Macro to build a standard lambda function that includes the necessary type conversions
+#define OBJECT_MODEL_FUNC(...) OBJECT_MODEL_FUNC_BODY(Scanner, __VA_ARGS__)
+#define OBJECT_MODEL_FUNC_IF(...) OBJECT_MODEL_FUNC_IF_BODY(Scanner, __VA_ARGS__)
+
+constexpr ObjectModelTableEntry Scanner::objectModelTable[] =
+{
+	// Within each group, these entries must be in alphabetical order
+	// 0. Scanner members
+	{ "progress",		OBJECT_MODEL_FUNC(self->GetProgress(), 1),			ObjectModelEntryFlags::none },
+	{ "status",			OBJECT_MODEL_FUNC(self->GetStatusCharacter()),		ObjectModelEntryFlags::none },
+};
+
+constexpr uint8_t Scanner::objectModelTableDescriptor[] = { 1, 2 };
+
+DEFINE_GET_OBJECT_MODEL_TABLE(Scanner)
+
+#endif
+
 #if SCANNER_AS_SEPARATE_TASK
 
 # include "Tasks.h"
@@ -45,7 +69,6 @@ void Scanner::Init() noexcept
 	enabled = false;
 	SetState(ScannerState::Disconnected);
 	bufferPointer = 0;
-	progress = 0.0f;
 	fileBeingUploaded = nullptr;
 }
 
@@ -53,7 +76,11 @@ void Scanner::SetState(const ScannerState s) noexcept
 {
 	progress = 0.0f;
 	doingGCodes = false;
-	state = s;
+	if (state != s)
+	{
+		state = s;
+		reprap.ScannerUpdated();
+	}
 }
 
 void Scanner::Exit() noexcept
@@ -108,12 +135,12 @@ void Scanner::Spin() noexcept
 
 		// Run a macro to perform custom actions when the scanner is removed
 		DoFileMacro(SCANNER_OFF_G);
-		return;
 	}
-
-	// Deal with the current state
-	switch (state)
+	else
 	{
+		// Deal with the current state
+		switch (state)
+		{
 		case ScannerState::EnablingAlign:
 			if (!IsDoingFileMacro())
 			{
@@ -171,53 +198,27 @@ void Scanner::Spin() noexcept
 			break;
 
 		case ScannerState::Uploading:
-		{
-			// Write incoming scan data from USB to the file
-			int bytesToRead = SERIAL_MAIN_DEVICE.available();
-			FileWriteBuffer *buf = fileBeingUploaded->GetWriteBuffer();
-			if (buf != nullptr)
 			{
-				// Copy whole blocks from the USB RX buffer
-				if (bytesToRead > (int)buf->BytesLeft())
+				const size_t initialUploadBytesLeft = uploadBytesLeft;
+
+				// Write incoming scan data from USB to the file
+				int bytesToRead = SERIAL_MAIN_DEVICE.available();
+				FileWriteBuffer *buf = fileBeingUploaded->GetWriteBuffer();
+				if (buf != nullptr)
 				{
-					bytesToRead = buf->BytesLeft();
-				}
-
-				SERIAL_MAIN_DEVICE.readBytes(buf->Data() + buf->BytesStored(), bytesToRead);
-				buf->DataStored(bytesToRead);
-				uploadBytesLeft -= bytesToRead;
-
-				// Note we call FileStore::Write here instead of FileStore::Flush because we
-				// do not want to update the FS table every time an upload buffer is written
-				if ((buf->BytesLeft() == 0 || uploadBytesLeft == 0) && !fileBeingUploaded->Write(buf->Data(), 0))
-				{
-					fileBeingUploaded->Close();
-					fileBeingUploaded = nullptr;
-					platform.Delete(SCANS_DIRECTORY, uploadFilename);
-
-					platform.Message(ErrorMessage, "Failed to write scan file\n");
-					SetState(ScannerState::Idle);
-					break;
-				}
-			}
-			else
-			{
-				// Write data character by character if there is no file write buffer available
-				while (bytesToRead > 0)
-				{
-					char b = static_cast<char>(SERIAL_MAIN_DEVICE.read());
-					bytesToRead--;
-
-					if (fileBeingUploaded->Write(&b, sizeof(char)))
+					// Copy whole blocks from the USB RX buffer
+					if (bytesToRead > (int)buf->BytesLeft())
 					{
-						uploadBytesLeft--;
-						if (uploadBytesLeft == 0)
-						{
-							// Upload complete
-							break;
-						}
+						bytesToRead = buf->BytesLeft();
 					}
-					else
+
+					SERIAL_MAIN_DEVICE.readBytes(buf->Data() + buf->BytesStored(), bytesToRead);
+					buf->DataStored(bytesToRead);
+					uploadBytesLeft -= bytesToRead;
+
+					// Note we call FileStore::Write here instead of FileStore::Flush because we
+					// do not want to update the FS table every time an upload buffer is written
+					if ((buf->BytesLeft() == 0 || uploadBytesLeft == 0) && !fileBeingUploaded->Write(buf->Data(), 0))
 					{
 						fileBeingUploaded->Close();
 						fileBeingUploaded = nullptr;
@@ -228,23 +229,55 @@ void Scanner::Spin() noexcept
 						break;
 					}
 				}
-			}
-
-			// Have we finished this upload?
-			if (fileBeingUploaded != nullptr && uploadBytesLeft == 0)
-			{
-				if (reprap.Debug(moduleScanner))
+				else
 				{
-					platform.MessageF(HttpMessage, "Finished uploading %u bytes of scan data\n", uploadSize);
+					// Write data character by character if there is no file write buffer available
+					while (bytesToRead > 0)
+					{
+						char b = static_cast<char>(SERIAL_MAIN_DEVICE.read());
+						bytesToRead--;
+
+						if (fileBeingUploaded->Write(&b, sizeof(char)))
+						{
+							uploadBytesLeft--;
+							if (uploadBytesLeft == 0)
+							{
+								// Upload complete
+								break;
+							}
+						}
+						else
+						{
+							fileBeingUploaded->Close();
+							fileBeingUploaded = nullptr;
+							platform.Delete(SCANS_DIRECTORY, uploadFilename);
+
+							platform.Message(ErrorMessage, "Failed to write scan file\n");
+							SetState(ScannerState::Idle);
+							break;
+						}
+					}
 				}
 
-				fileBeingUploaded->Close();
-				fileBeingUploaded = nullptr;
+				// Have we finished this upload?
+				if (fileBeingUploaded != nullptr && uploadBytesLeft == 0)
+				{
+					if (reprap.Debug(moduleScanner))
+					{
+						platform.MessageF(HttpMessage, "Finished uploading %u bytes of scan data\n", uploadSize);
+					}
 
-				SetState(ScannerState::Idle);
+					fileBeingUploaded->Close();
+					fileBeingUploaded = nullptr;
+
+					SetState(ScannerState::Idle);
+				}
+				else if (uploadBytesLeft != initialUploadBytesLeft)
+				{
+					reprap.ScannerUpdated();
+				}
 			}
 			break;
-		}
 
 		default:
 			// Pick up incoming commands only if the GCodeBuffer is idle.
@@ -269,6 +302,7 @@ void Scanner::Spin() noexcept
 				}
 			}
 			break;
+		}
 	}
 }
 
