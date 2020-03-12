@@ -257,8 +257,12 @@ constexpr ObjectModelTableEntry RepRap::objectModelTable[] =
 	{ "logFile",				OBJECT_MODEL_FUNC(nullptr),												ObjectModelEntryFlags::none },
 #endif
 	{ "machineMode",			OBJECT_MODEL_FUNC(self->gCodes->GetMachineModeString()),				ObjectModelEntryFlags::none },
+#if HAS_VOLTAGE_MONITOR
 	{ "powerFailScript",		OBJECT_MODEL_FUNC(self->gCodes->GetPowerFailScript()),					ObjectModelEntryFlags::none },
-	{ "previousTool",			OBJECT_MODEL_FUNC((int32_t)self->previousToolNumber),					ObjectModelEntryFlags::live },
+#else
+    { "powerFailScript",        OBJECT_MODEL_FUNC(nullptr),                                             ObjectModelEntryFlags::none },
+#endif
+    { "previousTool",			OBJECT_MODEL_FUNC((int32_t)self->previousToolNumber),					ObjectModelEntryFlags::live },
 	{ "status",					OBJECT_MODEL_FUNC(self->GetStatusString()),								ObjectModelEntryFlags::live },
 	{ "upTime",					OBJECT_MODEL_FUNC_NOSELF((int32_t)((millis64()/1000u) & 0x7FFFFFFF)),	ObjectModelEntryFlags::live },
 

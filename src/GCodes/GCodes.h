@@ -221,7 +221,9 @@ public:
 		return gcodeSources[n];
 	}
 
+# if HAS_VOLTAGE_MONITOR
 	const char *GetPowerFailScript() const noexcept { return powerFailScript; }
+# endif
 #endif
 
 	static constexpr const char *AllowedAxisLetters = "XYZUVWABCD";
