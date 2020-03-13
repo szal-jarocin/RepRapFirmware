@@ -237,20 +237,20 @@ constexpr ObjectModelTableEntry RepRap::objectModelTable[] =
 	{ "monitorsPerHeater",		OBJECT_MODEL_FUNC_NOSELF((int32_t)MaxMonitorsPerHeater),				ObjectModelEntryFlags::verbose },
 	{ "sensors",				OBJECT_MODEL_FUNC_NOSELF((int32_t)MaxSensors),							ObjectModelEntryFlags::verbose },
 	{ "spindles",				OBJECT_MODEL_FUNC_NOSELF((int32_t)MaxSpindles),							ObjectModelEntryFlags::verbose },
-#if HAS_MASS_STORAGE
-	{ "storages",				OBJECT_MODEL_FUNC_NOSELF((int32_t)NumSdCards),							ObjectModelEntryFlags::verbose },
-#else
-	{ "storages",				OBJECT_MODEL_FUNC_NOSELF(0),											ObjectModelEntryFlags::verbose },
-#endif
 	{ "triggers",				OBJECT_MODEL_FUNC_NOSELF((int32_t)MaxTriggers),							ObjectModelEntryFlags::verbose },
 	// TODO userVariables
+#if HAS_MASS_STORAGE
+	{ "volumes",				OBJECT_MODEL_FUNC_NOSELF((int32_t)NumSdCards),							ObjectModelEntryFlags::verbose },
+#else
+	{ "volumes",				OBJECT_MODEL_FUNC_NOSELF(0),											ObjectModelEntryFlags::verbose },
+#endif
 	{ "workplaces",				OBJECT_MODEL_FUNC_NOSELF((int32_t)NumCoordinateSystems),				ObjectModelEntryFlags::verbose },
 	{ "zProbeProgramBytes",		OBJECT_MODEL_FUNC_NOSELF((int32_t)MaxZProbeProgramBytes),				ObjectModelEntryFlags::verbose },
 	{ "zProbes",				OBJECT_MODEL_FUNC_NOSELF((int32_t)MaxZProbes),							ObjectModelEntryFlags::verbose },
 
 	// 3. MachineModel.state
 	{ "atxPower",				OBJECT_MODEL_FUNC_IF(self->gCodes->AtxPowerControlled(), self->platform->AtxPower()),	ObjectModelEntryFlags::live },
-	{ "beep",					OBJECT_MODEL_FUNC(self, 4),												ObjectModelEntryFlags::live },
+	{ "beep",					OBJECT_MODEL_FUNC_IF(self->beepDuration != 0, self, 4),					ObjectModelEntryFlags::live },
 	{ "currentTool",			OBJECT_MODEL_FUNC((int32_t)self->GetCurrentToolNumber()),				ObjectModelEntryFlags::live },
 	{ "displayMessage",			OBJECT_MODEL_FUNC(self->message.c_str()),								ObjectModelEntryFlags::live },
 	{ "laserPwm",				OBJECT_MODEL_FUNC_IF(self->gCodes->GetMachineType() == MachineType::laser, self->platform->GetLaserPwm(), 2),					ObjectModelEntryFlags::live },
@@ -268,8 +268,8 @@ constexpr ObjectModelTableEntry RepRap::objectModelTable[] =
 	{ "upTime",					OBJECT_MODEL_FUNC_NOSELF((int32_t)((millis64()/1000u) & 0x7FFFFFFF)),	ObjectModelEntryFlags::live },
 
 	// 4. MachineModel.state.beep
-	{ "duration",				OBJECT_MODEL_FUNC((int32_t)self->beepDuration),							ObjectModelEntryFlags::none },
-	{ "frequency",				OBJECT_MODEL_FUNC((int32_t)self->beepFrequency),						ObjectModelEntryFlags::none },
+	{ "duration",				OBJECT_MODEL_FUNC((int32_t)self->beepDuration),							ObjectModelEntryFlags::live },
+	{ "frequency",				OBJECT_MODEL_FUNC((int32_t)self->beepFrequency),						ObjectModelEntryFlags::live },
 
 	// 5. MachineModel.state.messageBox (FIXME add wrapper that acquires the lock when reading from mbox)
 	{ "axisControls",			OBJECT_MODEL_FUNC((int32_t)self->mbox.controls.GetRaw()),				ObjectModelEntryFlags::none },

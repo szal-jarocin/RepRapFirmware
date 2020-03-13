@@ -26,7 +26,7 @@ constexpr ObjectModelArrayDescriptor LinearDeltaKinematics::towersArrayDescripto
 {
 	nullptr,					// no lock needed
 	[] (const ObjectModel *self, const ObjectExplorationContext&) noexcept -> size_t { return ((const LinearDeltaKinematics*)self)->numTowers; },
-	[] (const ObjectModel *self, ObjectExplorationContext& context) noexcept -> ExpressionValue { return ExpressionValue(self, 2); }
+	[] (const ObjectModel *self, ObjectExplorationContext& context) noexcept -> ExpressionValue { return ExpressionValue(self, 1); }
 };
 
 constexpr ObjectModelTableEntry LinearDeltaKinematics::objectModelTable[] =
@@ -35,7 +35,7 @@ constexpr ObjectModelTableEntry LinearDeltaKinematics::objectModelTable[] =
 	// 0. kinematics members
 	{ "deltaRadius",		OBJECT_MODEL_FUNC(self->radius, 3), 									ObjectModelEntryFlags::none },
 	{ "homedHeight",		OBJECT_MODEL_FUNC(self->homedHeight, 3), 								ObjectModelEntryFlags::none },
-	{ "name",				OBJECT_MODEL_FUNC(self->GetName(false)), 								ObjectModelEntryFlags::none },
+	{ "name",				OBJECT_MODEL_FUNC(self->GetName(true)), 								ObjectModelEntryFlags::none },
 	{ "printRadius",		OBJECT_MODEL_FUNC(self->printRadius, 1), 								ObjectModelEntryFlags::none },
 	{ "towers",				OBJECT_MODEL_FUNC_NOSELF(&towersArrayDescriptor),						ObjectModelEntryFlags::none },
 	{ "xTilt",				OBJECT_MODEL_FUNC(self->xTilt, 3), 										ObjectModelEntryFlags::none },
