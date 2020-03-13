@@ -1343,7 +1343,6 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeEx
 				int32_t toolNumber = 0;
 				bool seenT = false;
 				gb.TryGetIValue('T', toolNumber, seenT);
-				toolNumber += gb.GetToolNumberAdjust();
 				ReadLockedPointer<Tool> const applicableTool = (seenT) ? reprap.GetTool(toolNumber) : reprap.GetCurrentOrDefaultTool();
 
 				// Check that we have a tool
@@ -1370,8 +1369,8 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeEx
 						return false;
 					}
 
-					gb.MachineState().newToolNumber = applicableTool->Number();
-					gb.MachineState().toolChangeParam = (simulationMode != 0) ? 0 : DefaultToolChangeParam;
+					newToolNumber = applicableTool->Number();
+					toolChangeParam = (simulationMode != 0) ? 0 : DefaultToolChangeParam;
 					gb.SetState(GCodeState::m109ToolChange0);
 					result = GCodeResult::ok;
 				}
@@ -1498,9 +1497,7 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeEx
 				if (gb.Seen('P'))
 				{
 					// Wait for the heaters associated with the specified tool to be ready
-					int toolNumber = gb.GetIValue();
-					toolNumber += gb.GetToolNumberAdjust();
-					if (!ToolHeatersAtSetTemperatures(reprap.GetTool(toolNumber).Ptr(), true, tolerance))
+					if (!ToolHeatersAtSetTemperatures(reprap.GetTool(gb.GetIValue()).Ptr(), true, tolerance))
 					{
 						CheckReportDue(gb, reply);				// check whether we need to send a temperature or status report
 						isWaiting = true;
@@ -4289,7 +4286,6 @@ bool GCodes::HandleTcode(GCodeBuffer& gb, const StringRef& reply)
 	{
 		seen = true;
 		toolNum = gb.GetCommandNumber();
-		toolNum += gb.GetToolNumberAdjust();
 	}
 	else if (gb.Seen('R'))
 	{
@@ -4318,10 +4314,10 @@ bool GCodes::HandleTcode(GCodeBuffer& gb, const StringRef& reply)
 		// If old and new are the same we no longer follow the sequence. User can deselect and then reselect the tool if he wants the macros run.
 		if (oldTool == nullptr || oldTool->Number() != toolNum)
 		{
-			gb.MachineState().newToolNumber = toolNum;
-			gb.MachineState().toolChangeParam = (simulationMode != 0) ? 0
-													: gb.Seen('P') ? gb.GetUIValue()
-														: DefaultToolChangeParam;
+			newToolNumber = toolNum;
+			toolChangeParam = (simulationMode != 0) ? 0
+								: gb.Seen('P') ? gb.GetUIValue()
+									: DefaultToolChangeParam;
 			gb.SetState(GCodeState::toolChange0);
 			return true;							// proceeding with state machine, so don't unlock or send a reply
 		}
