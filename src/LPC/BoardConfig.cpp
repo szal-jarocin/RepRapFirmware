@@ -137,7 +137,7 @@ BoardConfig::BoardConfig() noexcept
 void BoardConfig::Init() noexcept
 {
 
-    String<100> pathName;
+    constexpr char boardConfigPath[] = "0:/sys/board.txt";
     FIL configFile;
     FATFS fs;
     FRESULT rslt;
@@ -151,12 +151,11 @@ void BoardConfig::Init() noexcept
     if (rslt == FR_OK)
     {
         //Open File
-        pathName.printf("%sboard.txt", DEFAULT_SYS_DIR);
-        rslt = f_open (&configFile, pathName.c_str(), FA_READ);
+        rslt = f_open (&configFile, boardConfigPath, FA_READ);
         if (rslt != FR_OK)
         {
             delay(3000);        // Wait a few seconds so users have a chance to see this
-            reprap.GetPlatform().MessageF(UsbMessage, "Unable to read board configuration: %sboard.txt...\n",DEFAULT_SYS_DIR );
+            reprap.GetPlatform().MessageF(UsbMessage, "Unable to read board configuration: %s...\n",boardConfigPath );
             f_unmount ("0:");
             return;
         }
@@ -171,7 +170,7 @@ void BoardConfig::Init() noexcept
     if(rslt == FR_OK)
     {
             
-        reprap.GetPlatform().MessageF(UsbMessage, "Loading config from %sboard.txt...\n", DEFAULT_SYS_DIR );
+        reprap.GetPlatform().MessageF(UsbMessage, "Loading LPC config from %s...\n", boardConfigPath );
 
         
         //First find the board entry to load the correct PinTable for looking up Pin by name
@@ -203,9 +202,8 @@ void BoardConfig::Init() noexcept
             {
                 if(stepPin != NoPin)
                 {
+                    // configured step pins are not on the same port - not using parallel writes
                     hasStepPinsOnDifferentPorts = true;
-                    // will use a basic mapping for stepping instead of parallel port writes.....
-                    reprap.GetPlatform().MessageF(UsbMessage, "Step pins are on different ports. Pins will not be written in parallel.\n" );
                 }
             }
         }
