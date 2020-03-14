@@ -245,7 +245,7 @@ constexpr ObjectModelTableEntry Platform::objectModelTable[] =
 # endif
 	{ "supports12864",		OBJECT_MODEL_FUNC_NOSELF(SUPPORT_12864_LCD ? true : false),											ObjectModelEntryFlags::none },
 #if HAS_12V_MONITOR
-	{ "v12",				OBJECT_MODEL_FUNC(self, 7),																			ObjectModelEntryFlags::live },
+	{ "v12",				OBJECT_MODEL_FUNC(self, 6),																			ObjectModelEntryFlags::live },
 #endif
 	{ "vIn",				OBJECT_MODEL_FUNC(self, 2),																			ObjectModelEntryFlags::live },
 
@@ -3348,7 +3348,7 @@ GCodeResult Platform::ConfigureLogging(GCodeBuffer& gb, const StringRef& reply) 
 // Return the log file name, or nullptr if logging is not active
 const char *Platform::GetLogFileName() const noexcept
 {
-	return logger->GetFileName();
+	return (logger == nullptr) ? nullptr : logger->GetFileName();
 }
 
 #endif
@@ -3746,7 +3746,7 @@ FileStore* Platform::OpenFile(const char* folder, const char* fileName, OpenMode
 bool Platform::Delete(const char* folder, const char *filename) const noexcept
 {
 	String<MaxFilenameLength> location;
-	return MassStorage::CombineName(location.GetRef(), folder, filename) && MassStorage::Delete(location.c_str());
+	return MassStorage::CombineName(location.GetRef(), folder, filename) && MassStorage::Delete(location.c_str(), true);
 }
 
 bool Platform::FileExists(const char* folder, const char *filename) const noexcept
@@ -3800,7 +3800,7 @@ FileStore* Platform::OpenSysFile(const char *filename, OpenMode mode) const noex
 bool Platform::DeleteSysFile(const char *filename) const noexcept
 {
 	String<MaxFilenameLength> location;
-	return MakeSysFileName(location.GetRef(), filename) && MassStorage::Delete(location.c_str());
+	return MakeSysFileName(location.GetRef(), filename) && MassStorage::Delete(location.c_str(), true);
 }
 
 bool Platform::MakeSysFileName(const StringRef& result, const char *filename) const noexcept
