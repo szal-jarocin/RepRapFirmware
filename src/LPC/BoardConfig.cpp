@@ -43,6 +43,7 @@ static const boardConfigEntry_t boardConfigs[]=
     //Heater sensors
     {"heat.tempSensePins", TEMP_SENSE_PINS, &NumThermistorInputs, cvPinType},
     {"heat.spiTempSensorCSPins", SpiTempSensorCsPins, &MaxSpiTempSensors, cvPinType},
+    {"heat.spiTempSensorChannel", &TempSensorSSPChannel, nullptr, cvUint8Type},
     
     //ATX Power
     {"atx.powerPin", &ATX_POWER_PIN, nullptr, cvPinType},

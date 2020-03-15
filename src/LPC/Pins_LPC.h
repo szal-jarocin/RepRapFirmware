@@ -170,7 +170,7 @@ constexpr float DefaultThermistorSeriesR = 4700.0;
 
 constexpr size_t MaxSpiTempSensors = 2;
 extern Pin SpiTempSensorCsPins[MaxSpiTempSensors];  // Digital pins the 31855s have their select lines tied to
-constexpr SSPChannel TempSensorSSPChannel = SSP0;   //Connect SPI Temp sensor to SSP0
+extern SSPChannel TempSensorSSPChannel;
 
 #if HAS_LINUX_INTERFACE
     extern Pin LinuxTfrReadyPin;

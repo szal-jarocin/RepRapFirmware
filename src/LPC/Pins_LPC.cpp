@@ -11,6 +11,7 @@
 
 Pin TEMP_SENSE_PINS[NumThermistorInputs] = {NoPin, NoPin, NoPin, NoPin};
 Pin SpiTempSensorCsPins[MaxSpiTempSensors] = { NoPin, NoPin };
+SSPChannel TempSensorSSPChannel = SSP0;   //default SPI Temp sensor on SSP0
 
 Pin ATX_POWER_PIN = NoPin;
 bool ATX_POWER_INVERTED = false;
