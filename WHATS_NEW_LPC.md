@@ -7,9 +7,35 @@ Version 3.01 RC3
 
 * Added configurable UART class to allow selecting UART from board config by using the RX/TX pins for AUX serial and WIFI Serial.
     * AUX serial pins will default to the UART0 pins as it has done in previous versions. Setting Aux serial to NoPin, NoPin can save a bit of memory as the buffers won't be created.
-* New board.txt entries:
-    * 8266wifi.SerialRxTxPins - array of pins {RX, TX}
-    * lpc.auxSerialRxTxPins - array of pins {RX, TX}
+    * New board.txt entries:
+        * 8266wifi.serialRxTxPins - array of pins {RX, TX} (Requires WIFI to be compiled into binary)
+        * serial.aux.rxTxPins - array of pins {RX, TX}
+        * serial.aux2.rxTxPins - array of pins {RX, TX}  (Requires AUX2 to be compiled into binary)
+
+* Added board.txt entry "heat.spiTempSensorChannel" to select the spi channel for the SPI Temperature sensors. Defaults to SSP0.
+
+### Changed board entries
+For naming consistancy, the following board.txt entries have been changed:
+| New  | Previous   |
+|---|---|
+| atx.powerPin  | atxPowerPin  |
+| atx.powerPinInverted  | atxPowerPinInverted  |
+| sdCard.internal.spiFrequencyHz | lpc.internalSDCard.spiFrequencyHz   |
+| sdCard.external.csPin  | externalSDCard.csPin  |
+| sdCard.external.cardDetectPin  | externalSDCard.cardDetectPin  |
+| sdCard.external.spiFrequencyHz  | lpc.externalSDCard.spiFrequencyHz  |
+| sdCard.external.spiChannel  | lpc.externalSDCard.spiChannel  |
+| softwareSPI.pins  | lpc.softwareSPI.pins  |
+| 8266wifi.espDataReadyPin  | 8266wifi.EspDataReadyPin  |
+| 8266wifi.lpcTfrReadyPin  | 8266wifi.LpcTfrReadyPin  |
+| 8266wifi.espResetPin| 8266wifi.EspResetPin |
+| 8266wifi.serialRxTxPins  | 8266wifi.SerialRxTxPins  |
+| sbc.lpcTfrReadyPin  | linuxTfrReadyPin  |
+| adc.prefilter.enable  | lpc.adcEnablePreFilter  |
+| adc.preFilter.numberSamples  | lpc.adcPreFilterNumberSamples |
+| adc.preFilter.sampleRate | lpc.adcPreFilterSampleRate |
+
+  
 
 Version 3.01 Beta2
 =================
