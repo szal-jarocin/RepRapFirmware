@@ -27,9 +27,10 @@ Licence: GPL
 #define TOOL_H_
 
 #include <RepRapFirmware.h>
+#include <RepRap.h>
 #include <ObjectModel/ObjectModel.h>
 #include <General/FreelistManager.h>
-#include <NamedEnum.h>
+#include <General/NamedEnum.h>
 
 #undef array
 #include <functional>
@@ -78,6 +79,14 @@ public:
 	Tool *Next() const noexcept { return next; }
 	ToolState GetState() const noexcept { return state; }
 
+	bool IsRetracted() const noexcept { return isRetracted; }
+	float GetRetractLength() const noexcept { return retractLength; }
+	float GetRetractHop() const noexcept { return retractHop; }
+	float GetRetractExtra() const noexcept { return retractExtra; }
+	float GetRetractSpeed() const noexcept { return retractSpeed; }
+	float GetUnRetractSpeed() const noexcept { return unRetractSpeed; }
+	void SetRetracted(bool b) noexcept { isRetracted = b; }
+
 #if HAS_MASS_STORAGE
 	bool WriteSettings(FileStore *f) const noexcept;							// write the tool's settings to file
 #endif
@@ -86,6 +95,7 @@ public:
 	float GetToolHeaterStandbyTemperature(size_t heaterNumber) const noexcept;
 	void SetToolHeaterActiveTemperature(size_t heaterNumber, float temp) THROWS(GCodeException);
 	void SetToolHeaterStandbyTemperature(size_t heaterNumber, float temp) THROWS(GCodeException);
+	void SetFirmwareRetraction(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeException);
 
 	bool HasTemperatureFault() const noexcept { return heaterFault; }
 
@@ -117,24 +127,36 @@ private:
 	bool AllHeatersAtHighTemperature(bool forExtrusion) const noexcept;
 	bool UsesHeater(int8_t heater) const noexcept;
 
+	static void ToolUpdated() noexcept { reprap.ToolsUpdated(); }	// call this whenever we change a variable that is reported in the OM as non-live
+
 	Tool* next;
 	Filament *filament;
+	int filamentExtruder;
 	const char *name;
 	float offset[MaxAxes];
 	float mix[MaxExtrudersPerTool];
 	float activeTemperatures[MaxHeatersPerTool];
 	float standbyTemperatures[MaxHeatersPerTool];
+
+	// Firmware retraction settings
+	float retractLength, retractExtra;			// retraction length and extra length to un-retract
+	float retractSpeed;							// retract speed in mm/min
+	float unRetractSpeed;						// un=retract speed in mm/min
+	float retractHop;							// Z hop when retracting
+
+	FansBitmap fanMapping;
 	uint8_t driveCount;
 	uint8_t heaterCount;
 	uint16_t myNumber;
 	AxesBitmap axisMapping[2];
 	AxesBitmap axisOffsetsProbed;
-	FansBitmap fanMapping;
+
 	uint8_t drives[MaxExtrudersPerTool];
 	int8_t heaters[MaxHeatersPerTool];
 
 	ToolState state;
 	bool heaterFault;
+	bool isRetracted;							// true if filament has been firmware-retracted
 	volatile bool displayColdExtrudeWarning;
 };
 

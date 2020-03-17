@@ -32,7 +32,7 @@ static xdmac_channel_config_t xdmac_tx_cfg, xdmac_rx_cfg;
 volatile bool dataReceived = false, transferReadyHigh = false;
 volatile unsigned int spiTxUnderruns = 0, spiRxOverruns = 0;
 
-void setup_spi(void *inBuffer, const void *outBuffer, size_t bytesToTransfer)
+static void setup_spi(void *inBuffer, const void *outBuffer, size_t bytesToTransfer) noexcept
 {
 	// Reset SPI
 	spi_reset(SBC_SPI);
@@ -105,7 +105,7 @@ void setup_spi(void *inBuffer, const void *outBuffer, size_t bytesToTransfer)
 	digitalWrite(LinuxTfrReadyPin, transferReadyHigh);
 }
 
-void disable_spi()
+void disable_spi() noexcept
 {
 	// Disable the XDMAC channels
 	xdmac_channel_disable(XDMAC, DmacChanLinuxRx);
@@ -154,7 +154,7 @@ __nocache uint32_t DataTransfer::txResponse;
 __nocache uint32_t DataTransfer::rxBuffer32[LinuxTransferBufferSize / 4];
 __nocache uint32_t DataTransfer::txBuffer32[LinuxTransferBufferSize / 4];
 
-DataTransfer::DataTransfer() : state(SpiState::ExchangingData), lastTransferTime(0), lastTransferNumber(0), failedTransfers(0),
+DataTransfer::DataTransfer() noexcept : state(SpiState::ExchangingData), lastTransferTime(0), lastTransferNumber(0), failedTransfers(0),
 	rxPointer(0), txPointer(0), packetId(0)
 {
 	rxResponse = TransferResponse::Success;
@@ -169,7 +169,8 @@ DataTransfer::DataTransfer() : state(SpiState::ExchangingData), lastTransferTime
 	txHeader.sequenceNumber = 0;
 }
 
-void DataTransfer::Init() {
+void DataTransfer::Init() noexcept
+{
 	// Initialise transfer ready pin
 	pinMode(LinuxTfrReadyPin, OUTPUT_LOW);
 
@@ -203,7 +204,7 @@ void DataTransfer::Init() {
 #endif
 }
 
-void DataTransfer::Diagnostics(MessageType mtype)
+void DataTransfer::Diagnostics(MessageType mtype) noexcept
 {
 	reprap.GetPlatform().MessageF(mtype, "State: %d, failed transfers: %u\n", (int)state, failedTransfers);
 	reprap.GetPlatform().MessageF(mtype, "Last transfer: %" PRIu32 "ms ago\n", millis() - lastTransferTime);
@@ -211,7 +212,7 @@ void DataTransfer::Diagnostics(MessageType mtype)
 	reprap.GetPlatform().MessageF(mtype, "SPI underruns %u, overruns %u\n", spiTxUnderruns, spiRxOverruns);
 }
 
-const PacketHeader *DataTransfer::ReadPacket()
+const PacketHeader *DataTransfer::ReadPacket() noexcept
 {
 	if (rxPointer >= rxHeader.dataLength)
 	{
@@ -223,27 +224,27 @@ const PacketHeader *DataTransfer::ReadPacket()
 	return header;
 }
 
-const char *DataTransfer::ReadData(size_t dataLength)
+const char *DataTransfer::ReadData(size_t dataLength) noexcept
 {
 	const char *data = rxBuffer() + rxPointer;
 	rxPointer += AddPadding(dataLength);
 	return data;
 }
 
-template<typename T> const T *DataTransfer::ReadDataHeader()
+template<typename T> const T *DataTransfer::ReadDataHeader() noexcept
 {
 	const T *header = reinterpret_cast<const T*>(rxBuffer() + rxPointer);
 	rxPointer += sizeof(T);
 	return header;
 }
 
-uint8_t DataTransfer::ReadGetObjectModel()
+uint8_t DataTransfer::ReadGetObjectModel() noexcept
 {
 	const ObjectModelHeader *header = ReadDataHeader<ObjectModelHeader>();
 	return header->module;
 }
 
-void DataTransfer::ReadPrintStartedInfo(size_t packetLength, StringRef& filename, GCodeFileInfo& info)
+void DataTransfer::ReadPrintStartedInfo(size_t packetLength, StringRef& filename, GCodeFileInfo& info) noexcept
 {
 	// Read header
 	const PrintStartedHeader *header = ReadDataHeader<PrintStartedHeader>();
@@ -272,20 +273,20 @@ void DataTransfer::ReadPrintStartedInfo(size_t packetLength, StringRef& filename
 	info.generatedBy.copy(data, header->generatedByLength);
 }
 
-PrintStoppedReason DataTransfer::ReadPrintStoppedInfo()
+PrintStoppedReason DataTransfer::ReadPrintStoppedInfo() noexcept
 {
 	const PrintStoppedHeader *header = ReadDataHeader<PrintStoppedHeader>();
 	return header->reason;
 }
 
-void DataTransfer::ReadMacroCompleteInfo(GCodeChannel& channel, bool &error)
+GCodeChannel DataTransfer::ReadMacroCompleteInfo(bool &error) noexcept
 {
 	const MacroCompleteHeader *header = ReadDataHeader<MacroCompleteHeader>();
-	channel = header->channel;
 	error = header->error;
+	return GCodeChannel(header->channel);
 }
 
-void DataTransfer::ReadHeightMap()
+void DataTransfer::ReadHeightMap() noexcept
 {
 	// Read heightmap header
 	const HeightMapHeader *header = ReadDataHeader<HeightMapHeader>();
@@ -312,13 +313,13 @@ void DataTransfer::ReadHeightMap()
 	reprap.GetGCodes().ActivateHeightmap(true);
 }
 
-void DataTransfer::ReadLockUnlockRequest(GCodeChannel& channel)
+GCodeChannel DataTransfer::ReadLockUnlockRequest() noexcept
 {
 	const LockUnlockHeader *header = ReadDataHeader<LockUnlockHeader>();
-	channel = header->channel;
+	return GCodeChannel(header->channel);
 }
 
-void DataTransfer::ReadAssignFilament(int& extruder, StringRef& filamentName)
+void DataTransfer::ReadAssignFilament(int& extruder, StringRef& filamentName) noexcept
 {
 	// Read header
 	const AssignFilamentHeader *header = ReadDataHeader<AssignFilamentHeader>();
@@ -329,7 +330,7 @@ void DataTransfer::ReadAssignFilament(int& extruder, StringRef& filamentName)
 	filamentName.copy(name, header->filamentLength);
 }
 
-void DataTransfer::ReadFileChunk(char *buffer, int32_t& dataLength, uint32_t& fileLength)
+void DataTransfer::ReadFileChunk(char *buffer, int32_t& dataLength, uint32_t& fileLength) noexcept
 {
 	// Read header
 	const FileChunk *header = ReadDataHeader<FileChunk>();
@@ -343,27 +344,27 @@ void DataTransfer::ReadFileChunk(char *buffer, int32_t& dataLength, uint32_t& fi
 	}
 }
 
-void DataTransfer::ExchangeHeader()
+void DataTransfer::ExchangeHeader() noexcept
 {
 	state = SpiState::ExchangingHeader;
 	setup_spi(&rxHeader, &txHeader, sizeof(TransferHeader));
 }
 
-void DataTransfer::ExchangeResponse(uint32_t response)
+void DataTransfer::ExchangeResponse(uint32_t response) noexcept
 {
 	txResponse = response;
 	state = (state == SpiState::ExchangingHeader) ? SpiState::ExchangingHeaderResponse : SpiState::ExchangingDataResponse;
 	setup_spi(&rxResponse, &txResponse, sizeof(uint32_t));
 }
 
-void DataTransfer::ExchangeData()
+void DataTransfer::ExchangeData() noexcept
 {
 	size_t bytesToExchange = max<size_t>(rxHeader.dataLength, txHeader.dataLength);
 	state = SpiState::ExchangingData;
 	setup_spi(rxBuffer(), txBuffer(), bytesToExchange);
 }
 
-void DataTransfer::ResetTransfer(bool ownRequest)
+void DataTransfer::ResetTransfer(bool ownRequest) noexcept
 {
 	if (reprap.Debug(moduleLinuxInterface))
 	{
@@ -385,7 +386,7 @@ void DataTransfer::ResetTransfer(bool ownRequest)
 	}
 }
 
-bool DataTransfer::IsReady()
+bool DataTransfer::IsReady() noexcept
 {
 	if (dataReceived)
 	{
@@ -569,7 +570,7 @@ bool DataTransfer::IsReady()
 	return false;
 }
 
-void DataTransfer::StartNextTransfer()
+void DataTransfer::StartNextTransfer() noexcept
 {
 	lastTransferNumber = rxHeader.sequenceNumber;
 
@@ -592,7 +593,7 @@ void DataTransfer::StartNextTransfer()
 	ExchangeHeader();
 }
 
-bool DataTransfer::WriteObjectModel(uint8_t module, OutputBuffer *data)
+bool DataTransfer::WriteObjectModel(uint8_t module, OutputBuffer *data) noexcept
 {
 	// Try to write the packet header. This packet type cannot deal with truncated messages
 	if (!CanWritePacket(data->Length()))
@@ -618,7 +619,7 @@ bool DataTransfer::WriteObjectModel(uint8_t module, OutputBuffer *data)
 	return true;
 }
 
-bool DataTransfer::WriteCodeBufferUpdate(uint16_t bufferSpace)
+bool DataTransfer::WriteCodeBufferUpdate(uint16_t bufferSpace) noexcept
 {
 	if (!CanWritePacket(sizeof(CodeBufferUpdateHeader)))
 	{
@@ -635,7 +636,7 @@ bool DataTransfer::WriteCodeBufferUpdate(uint16_t bufferSpace)
 	return true;
 }
 
-bool DataTransfer::WriteCodeReply(MessageType type, OutputBuffer *&response)
+bool DataTransfer::WriteCodeReply(MessageType type, OutputBuffer *&response) noexcept
 {
 	// Try to write the packet header. This packet type can deal with truncated messages
 	const size_t minBytesToWrite = min<size_t>(16, (response == nullptr) ? 0 : response->Length());
@@ -690,7 +691,7 @@ bool DataTransfer::WriteCodeReply(MessageType type, OutputBuffer *&response)
 	return true;
 }
 
-bool DataTransfer::WriteMacroRequest(GCodeChannel channel, const char *filename, bool reportMissing, bool fromCode)
+bool DataTransfer::WriteMacroRequest(GCodeChannel channel, const char *filename, bool reportMissing, bool fromCode) noexcept
 {
 	size_t filenameLength = strlen(filename);
 	if (!CanWritePacket(sizeof(ExecuteMacroHeader) + filenameLength))
@@ -713,7 +714,7 @@ bool DataTransfer::WriteMacroRequest(GCodeChannel channel, const char *filename,
 	return true;
 }
 
-bool DataTransfer::WriteAbortFileRequest(GCodeChannel channel, bool abortAll)
+bool DataTransfer::WriteAbortFileRequest(GCodeChannel channel, bool abortAll) noexcept
 {
 	if (!CanWritePacket(sizeof(AbortFileHeader)))
 	{
@@ -731,7 +732,7 @@ bool DataTransfer::WriteAbortFileRequest(GCodeChannel channel, bool abortAll)
 	return true;
 }
 
-bool DataTransfer::WriteStackEvent(GCodeChannel channel, GCodeMachineState& state)
+bool DataTransfer::WriteStackEvent(GCodeChannel channel, GCodeMachineState& state) noexcept
 {
 	if (!CanWritePacket(sizeof(StackEventHeader)))
 	{
@@ -773,7 +774,7 @@ bool DataTransfer::WriteStackEvent(GCodeChannel channel, GCodeMachineState& stat
 	return true;
 }
 
-bool DataTransfer::WritePrintPaused(FilePosition position, PrintPausedReason reason)
+bool DataTransfer::WritePrintPaused(FilePosition position, PrintPausedReason reason) noexcept
 {
 	if (!CanWritePacket(sizeof(PrintPausedHeader)))
 	{
@@ -792,7 +793,7 @@ bool DataTransfer::WritePrintPaused(FilePosition position, PrintPausedReason rea
 	return true;
 }
 
-bool DataTransfer::WriteHeightMap()
+bool DataTransfer::WriteHeightMap() noexcept
 {
 	const GridDefinition& grid = reprap.GetMove().GetGrid();
 	size_t numPoints = reprap.GetMove().AccessHeightMap().UsingHeightMap() ? grid.NumPoints() : 0;
@@ -827,7 +828,7 @@ bool DataTransfer::WriteHeightMap()
 	return true;
 }
 
-bool DataTransfer::WriteLocked(GCodeChannel channel)
+bool DataTransfer::WriteLocked(GCodeChannel channel) noexcept
 {
 	if (!CanWritePacket(sizeof(LockUnlockHeader)))
 	{
@@ -838,14 +839,14 @@ bool DataTransfer::WriteLocked(GCodeChannel channel)
 	WritePacketHeader(FirmwareRequest::Locked, sizeof(LockUnlockHeader));
 
 	// Write header
-	LockUnlockHeader *header = WriteDataHeader<LockUnlockHeader>();
-	header->channel = channel;
+	LockUnlockHeader * const header = WriteDataHeader<LockUnlockHeader>();
+	header->channel = channel.ToBaseType();
 	header->paddingA = 0;
 	header->paddingB = 0;
 	return true;
 }
 
-bool DataTransfer::WriteFileChunkRequest(const char *filename, uint32_t offset, uint32_t maxLength)
+bool DataTransfer::WriteFileChunkRequest(const char *filename, uint32_t offset, uint32_t maxLength) noexcept
 {
 	const size_t filenameLength = strlen(filename);
 	if (!CanWritePacket(sizeof(FileChunkRequest) + filenameLength))
@@ -866,7 +867,7 @@ bool DataTransfer::WriteFileChunkRequest(const char *filename, uint32_t offset, 
 	return true;
 }
 
-PacketHeader *DataTransfer::WritePacketHeader(FirmwareRequest request, size_t dataLength, uint16_t resendPacketId)
+PacketHeader *DataTransfer::WritePacketHeader(FirmwareRequest request, size_t dataLength, uint16_t resendPacketId) noexcept
 {
 	// Make sure to stay aligned if the last packet ended with a string
 	txPointer = AddPadding(txPointer);
@@ -881,21 +882,21 @@ PacketHeader *DataTransfer::WritePacketHeader(FirmwareRequest request, size_t da
 	return header;
 }
 
-void DataTransfer::WriteData(const char *data, size_t length)
+void DataTransfer::WriteData(const char *data, size_t length) noexcept
 {
 	// Strings can be concatenated here, don't add any padding yet
 	memcpy(txBuffer() + txPointer, data, length);
 	txPointer += length;
 }
 
-template<typename T> T *DataTransfer::WriteDataHeader()
+template<typename T> T *DataTransfer::WriteDataHeader() noexcept
 {
 	T *header = reinterpret_cast<T*>(txBuffer() + txPointer);
 	txPointer += sizeof(T);
 	return header;
 }
 
-uint16_t DataTransfer::CRC16(const char *buffer, size_t length) const
+uint16_t DataTransfer::CRC16(const char *buffer, size_t length) const noexcept
 {
 	static const uint16_t crc16_table[] =
 	{

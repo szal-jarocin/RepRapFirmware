@@ -23,13 +23,14 @@
 
 // Macro to build a standard lambda function that includes the necessary type conversions
 #define OBJECT_MODEL_FUNC(...) OBJECT_MODEL_FUNC_BODY(GpInputPort, __VA_ARGS__)
+#define OBJECT_MODEL_FUNC_IF(_condition,...) OBJECT_MODEL_FUNC_IF_BODY(GpInputPort, _condition,__VA_ARGS__)
 
 constexpr ObjectModelTableEntry GpInputPort::objectModelTable[] =
 {
 	// Within each group, these entries must be in alphabetical order
 	// 0. sensors members
 	{ "configured",			OBJECT_MODEL_FUNC(!self->IsUnused()),							ObjectModelEntryFlags::none },
-	{ "value",				OBJECT_MODEL_FUNC(self->GetState()),							ObjectModelEntryFlags::live },
+	{ "value",				OBJECT_MODEL_FUNC_IF(!self->IsUnused(), self->GetState()),		ObjectModelEntryFlags::live },
 };
 
 constexpr uint8_t GpInputPort::objectModelTableDescriptor[] = { 1, 2 };
@@ -85,12 +86,14 @@ GCodeResult GpInputPort::Configure(uint32_t gpinNumber, GCodeBuffer &gb, const S
 		port.Release();
 		currentState = false;
 
+		GCodeResult rslt;
+
 #if SUPPORT_CAN_EXPANSION
 		const CanAddress newBoard = IoPort::RemoveBoardAddress(pinName.GetRef());
 		if (newBoard != CanId::MasterAddress)
 		{
 			handle.Set(RemoteInputHandle::typeGpIn, gpinNumber, 0);
-			const GCodeResult rslt = CanInterface::CreateHandle(newBoard, handle, pinName.c_str(), 0, MinimumGpinReportInterval, currentState, reply);
+			rslt = CanInterface::CreateHandle(newBoard, handle, pinName.c_str(), 0, MinimumGpinReportInterval, currentState, reply);
 			if (rslt == GCodeResult::ok)
 			{
 				boardAddress = newBoard;
@@ -99,14 +102,23 @@ GCodeResult GpInputPort::Configure(uint32_t gpinNumber, GCodeBuffer &gb, const S
 			{
 				currentState = false;
 			}
-			return rslt;
 		}
+		else
 #endif
-		if (!port.AssignPort(pinName.c_str(), reply, PinUsedBy::gpin, PinAccess::read))
 		{
-			return GCodeResult::error;
+			if (port.AssignPort(pinName.c_str(), reply, PinUsedBy::gpin, PinAccess::read))
+			{
+				currentState = port.Read();
+				rslt = GCodeResult::ok;
+			}
+			else
+			{
+				rslt = GCodeResult::error;
+			}
 		}
-		currentState = port.Read();
+
+		reprap.InputsUpdated();
+		return rslt;
 	}
 	else
 	{
@@ -168,6 +180,8 @@ GCodeResult GpOutputPort::Configure(uint32_t gpioNumber, bool isServo, GCodeBuff
 			freq = (isServo) ? ServoRefreshFrequency : DefaultPinWritePwmFreq;
 		}
 
+		GCodeResult rslt;
+
 #if SUPPORT_CAN_EXPANSION
 		boardAddress = IoPort::RemoveBoardAddress(pinName.GetRef());
 		if (boardAddress != CanId::MasterAddress)
@@ -177,14 +191,25 @@ GCodeResult GpOutputPort::Configure(uint32_t gpioNumber, bool isServo, GCodeBuff
 			cons.AddUParam('Q', freq);
 			cons.AddUParam('S', (isServo) ? 1 : 0);
 			cons.AddStringParam('C', pinName.c_str());
-			return cons.SendAndGetResponse(CanMessageType::m950Gpio, boardAddress, reply);
+			rslt = cons.SendAndGetResponse(CanMessageType::m950Gpio, boardAddress, reply);
 		}
+		else
 #endif
-		if (!port.AssignPort(pinName.c_str(), reply, PinUsedBy::gpout, (isServo) ? PinAccess::servo : PinAccess::pwm))
 		{
-			return GCodeResult::error;
+			if (port.AssignPort(pinName.c_str(), reply, PinUsedBy::gpout, (isServo) ? PinAccess::servo : PinAccess::pwm))
+			{
+				rslt = GCodeResult::ok;
+				port.SetFrequency(freq);
+			}
+			else
+			{
+				rslt = GCodeResult::error;
+			}
 		}
-		port.SetFrequency(freq);
+
+		// GPOut pins are not yet in the object model
+		// reprap.OutputsUpdated();
+		return rslt;
 	}
 	else if (seenFreq)
 	{
@@ -194,10 +219,12 @@ GCodeResult GpOutputPort::Configure(uint32_t gpioNumber, bool isServo, GCodeBuff
 			CanMessageGenericConstructor cons(M950GpioParams);
 			cons.AddUParam('P', gpioNumber);
 			cons.AddUParam('Q', freq);
+			// reprap.OutputsUpdated();
 			return cons.SendAndGetResponse(CanMessageType::m950Gpio, boardAddress, reply);
 		}
 #endif
 		port.SetFrequency(freq);
+		// reprap.OutputsUpdated();
 	}
 	else
 	{

@@ -60,6 +60,20 @@ extern "C" [[noreturn]] void SensorsTaskStart(void * pvParameters) noexcept
 // Note: if using GCC version 7.3.1 20180622 and lambda functions are used in this table, you must compile this file with option -std=gnu++17.
 // Otherwise the table will be allocated in RAM instead of flash, which wastes too much RAM.
 
+constexpr ObjectModelArrayDescriptor Heat::bedHeatersArrayDescriptor =
+{
+	&heatersLock,
+	[] (const ObjectModel *self, const ObjectExplorationContext&) noexcept -> size_t { return MaxBedHeaters; },
+	[] (const ObjectModel *self, ObjectExplorationContext& context) noexcept -> ExpressionValue { return ExpressionValue((int32_t)((const Heat*)self)->bedHeaters[context.GetLastIndex()]); }
+};
+
+constexpr ObjectModelArrayDescriptor Heat::chamberHeatersArrayDescriptor =
+{
+	&heatersLock,
+	[] (const ObjectModel *self, const ObjectExplorationContext&) noexcept -> size_t { return MaxChamberHeaters; },
+	[] (const ObjectModel *self, ObjectExplorationContext& context) noexcept -> ExpressionValue { return ExpressionValue((int32_t)((const Heat*)self)->chamberHeaters[context.GetLastIndex()]); }
+};
+
 constexpr ObjectModelArrayDescriptor Heat::heatersArrayDescriptor =
 {
 	&heatersLock,
@@ -74,12 +88,14 @@ constexpr ObjectModelTableEntry Heat::objectModelTable[] =
 {
 	// These entries must be in alphabetical order
 	// 0. Heat class
-	{ "coldExtrudeTemperature",	OBJECT_MODEL_FUNC(self->extrusionMinTemp, 1),		ObjectModelEntryFlags::none},
-	{ "coldRetractTemperature", OBJECT_MODEL_FUNC(self->retractionMinTemp, 1),		ObjectModelEntryFlags::none},
-	{ "heaters",				OBJECT_MODEL_FUNC_NOSELF(&heatersArrayDescriptor),	ObjectModelEntryFlags::live },
+	{ "bedHeaters",				OBJECT_MODEL_FUNC_NOSELF(&bedHeatersArrayDescriptor), 		ObjectModelEntryFlags::none },
+	{ "chamberHeaters",			OBJECT_MODEL_FUNC_NOSELF(&chamberHeatersArrayDescriptor), 	ObjectModelEntryFlags::none },
+	{ "coldExtrudeTemperature",	OBJECT_MODEL_FUNC(self->extrusionMinTemp, 1),				ObjectModelEntryFlags::none},
+	{ "coldRetractTemperature", OBJECT_MODEL_FUNC(self->retractionMinTemp, 1),				ObjectModelEntryFlags::none},
+	{ "heaters",				OBJECT_MODEL_FUNC_NOSELF(&heatersArrayDescriptor),			ObjectModelEntryFlags::live },
 };
 
-constexpr uint8_t Heat::objectModelTableDescriptor[] = { 1, 3 };
+constexpr uint8_t Heat::objectModelTableDescriptor[] = { 1, 5 };
 
 DEFINE_GET_OBJECT_MODEL_TABLE(Heat)
 
@@ -157,6 +173,7 @@ GCodeResult Heat::SetPidParameters(unsigned int heater, GCodeBuffer& gb, const S
 		if (seen)
 		{
 			h->SetM301PidParameters(pp);
+			reprap.HeatUpdated();
 		}
 		else if (!model.UsePid())
 		{
@@ -464,6 +481,7 @@ GCodeResult Heat::ConfigureHeater(size_t heater, GCodeBuffer& gb, const StringRe
 			Heater *oldHeater = nullptr;
 			std::swap(oldHeater, heaters[heater]);
 			delete oldHeater;
+			reprap.HeatUpdated();
 			return GCodeResult::ok;
 		}
 
@@ -496,6 +514,7 @@ GCodeResult Heat::ConfigureHeater(size_t heater, GCodeBuffer& gb, const StringRe
 		{
 			delete newHeater;
 		}
+		reprap.HeatUpdated();
 		return rslt;
 	}
 
@@ -514,7 +533,9 @@ GCodeResult Heat::ConfigureHeater(size_t heater, GCodeBuffer& gb, const StringRe
 
 	if (gb.Seen('Q'))
 	{
-		return h->SetPwmFrequency(gb.GetPwmFrequency(), reply);
+		const GCodeResult rslt = h->SetPwmFrequency(gb.GetPwmFrequency(), reply);
+		reprap.HeatUpdated();
+		return rslt;
 	}
 
 	return h->ReportDetails(reply);
@@ -577,6 +598,7 @@ void Heat::SetBedHeater(size_t index, int heater) noexcept
 			h->SetDefaultMonitors();
 		}
 	}
+	reprap.HeatUpdated();
 }
 
 bool Heat::IsBedHeater(int heater) const noexcept
@@ -606,6 +628,7 @@ void Heat::SetChamberHeater(size_t index, int heater) noexcept
 	{
 		h->SetDefaultMonitors();
 	}
+	reprap.HeatUpdated();
 }
 
 bool Heat::IsChamberHeater(int heater) const noexcept
@@ -901,7 +924,8 @@ GCodeResult Heat::ConfigureSensor(GCodeBuffer& gb, const StringRef& reply)
 			return GCodeResult::error;
 		}
 
-		const GCodeResult rslt = newSensor->Configure(gb, reply);
+		bool changed = false;
+		const GCodeResult rslt = newSensor->Configure(gb, reply, changed);
 		if (rslt == GCodeResult::ok)
 		{
 			InsertSensor(newSensor);
@@ -933,7 +957,14 @@ GCodeResult Heat::ConfigureSensor(GCodeBuffer& gb, const StringRef& reply)
 		return GCodeResult::error;
 	}
 #endif
-	return sensor->Configure(gb, reply);
+
+	bool changed = false;
+	const GCodeResult rslt = sensor->Configure(gb, reply, changed);
+	if (changed)
+	{
+		reprap.SensorsUpdated();
+	}
+	return rslt;
 }
 
 // Get the name of a heater, or nullptr if it hasn't been named
@@ -1043,6 +1074,7 @@ void Heat::DeleteSensor(unsigned int sn) noexcept
 			}
 			delete sensorToDelete;
 			--sensorCount;
+			reprap.SensorsUpdated();
 			break;
 		}
 
@@ -1070,6 +1102,7 @@ void Heat::InsertSensor(TemperatureSensor *newSensor) noexcept
 				prev->SetNext(newSensor);
 			}
 			++sensorCount;
+			reprap.SensorsUpdated();
 			break;
 		}
 		prev = ts;

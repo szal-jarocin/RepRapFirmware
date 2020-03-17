@@ -15,7 +15,7 @@
 #include "GCodes/GCodeChannel.h"
 #include "GCodes/GCodeMachineState.h"
 #include "GCodes/GCodeResult.h"
-#include "Linux/MessageFormats.h"
+#include "Linux/LinuxMessageFormats.h"
 #include "MessageType.h"
 #include "ObjectModel/ObjectModel.h"
 
@@ -37,20 +37,23 @@ enum class GCodeBufferState : uint8_t
 };
 
 // Class to hold an individual GCode and provide functions to allow it to be parsed
-class GCodeBuffer
+class GCodeBuffer INHERIT_OBJECT_MODEL
 {
 public:
 	friend class BinaryParser;
 	friend class StringParser;
 
-	GCodeBuffer(GCodeChannel channel, GCodeInput *normalIn, FileGCodeInput *fileIn, MessageType mt, Compatibility c = Compatibility::reprapFirmware) noexcept;
+	GCodeBuffer(GCodeChannel::RawType channel, GCodeInput *normalIn, FileGCodeInput *fileIn, MessageType mt, Compatibility::RawType c = Compatibility::RepRapFirmware) noexcept;
 	void Reset() noexcept;														// Reset it to its state after start-up
 	void Init() noexcept;														// Set it up to parse another G-code
 	void Diagnostics(MessageType mtype) noexcept;								// Write some debug info
 
-	bool IsBinary() const noexcept { return isBinaryBuffer; }					// Return true if the code is in binary format
 	bool Put(char c) noexcept __attribute__((hot));								// Add a character to the end
-	void PutAndDecode(const char *data, size_t len, bool isBinary) noexcept;	// Add an entire G-Code, overwriting any existing content
+#if HAS_LINUX_INTERFACE
+	void PutAndDecode(const char *data, size_t len, bool isBinary = false) noexcept;	// Add an entire G-Code, overwriting any existing content
+#else
+	void PutAndDecode(const char *data, size_t len) noexcept;					// Add an entire G-Code, overwriting any existing content
+#endif
 	void PutAndDecode(const char *str) noexcept;								// Add a null-terminated string, overwriting any existing content
 	void StartNewFile() noexcept;												// Called when we start a new file
 	bool FileEnded() noexcept;													// Called when we reach the end of the file we are reading from
@@ -108,15 +111,19 @@ public:
 	GCodeMachineState& OriginalMachineState() const noexcept;
 	float ConvertDistance(float distance) const noexcept;
 	float InverseConvertDistance(float distance) const noexcept;
+	unsigned int GetStackDepth() const noexcept;
 	bool PushState(bool withinSameFile) noexcept;				// Push state returning true if successful (i.e. stack not overflowed)
 	bool PopState(bool withinSameFile) noexcept;				// Pop state returning true if successful (i.e. no stack underrun)
 
 	void AbortFile(bool abortAll, bool requestAbort = true) noexcept;
 	bool IsDoingFile() const noexcept;							// Return true if this source is executing a file
+	bool IsDoingLocalFile() const noexcept;						// Return true if this source is executing a file from the local SD card
 	bool IsDoingFileMacro() const noexcept;						// Return true if this source is executing a file macro
 	FilePosition GetFilePosition() const noexcept;				// Get the file position at the start of the current command
 
 #if HAS_LINUX_INTERFACE
+	bool IsBinary() const noexcept { return isBinaryBuffer; }	// Return true if the code is in binary format
+
 	void SetPrintFinished() noexcept;							// Mark the print file as finished
 	bool IsFileFinished() const noexcept;						// Return true if this source has finished execution of a file
 
@@ -143,12 +150,9 @@ public:
 	void MessageAcknowledged(bool cancelled) noexcept;
 
 	GCodeChannel GetChannel() const noexcept { return codeChannel; }
-	const char *GetIdentity() const noexcept { return gcodeChannelName[(size_t)codeChannel]; }
+	const char *GetIdentity() const noexcept { return codeChannel.ToString(); }
 	bool CanQueueCodes() const noexcept;
 	MessageType GetResponseMessageType() const noexcept;
-
-	int GetToolNumberAdjust() const noexcept { return toolNumberAdjust; }
-	void SetToolNumberAdjust(int arg) noexcept { toolNumberAdjust = arg; }
 
 #if HAS_MASS_STORAGE
 	bool OpenFileToWrite(const char* directory, const char* fileName, const FilePosition size, const bool binaryWrite, const uint32_t fileCRC32) noexcept;
@@ -184,7 +188,15 @@ public:
 	void MotionStopped() noexcept { motionCommanded = false; }
 	bool WasMotionCommanded() const noexcept { return motionCommanded; }
 
+protected:
+	DECLARE_OBJECT_MODEL
+
 private:
+
+#if SUPPORT_OBJECT_MODEL
+	const char *GetStateText() const noexcept;
+#endif
+
 	const GCodeChannel codeChannel;						// Channel number of this instance
 	GCodeInput *normalInput;							// Our normal input stream, or nullptr if there isn't one
 
@@ -194,22 +206,27 @@ private:
 
 	const MessageType responseMessageType;				// The message type we use for responses to string codes coming from this channel
 
-	int toolNumberAdjust;								// The adjustment to tool numbers in commands we receive
-
 	GCodeResult lastResult;
+
+#if HAS_LINUX_INTERFACE
 	BinaryParser binaryParser;
+#endif
+
 	StringParser stringParser;
 
 	GCodeBufferState bufferState;						// Idle, executing or paused
 	GCodeMachineState *machineState;					// Machine state for this gcode source
 
 	uint32_t whenTimerStarted;							// When we started waiting
+
+#if HAS_LINUX_INTERFACE
 	bool isBinaryBuffer;
+#endif
 	bool timerRunning;									// True if we are waiting
 	bool motionCommanded;								// true if this GCode stream has commanded motion since it last waited for motion to stop
 
 #if HAS_LINUX_INTERFACE
-	alignas(4) char buffer[MaxCodeBufferSize];
+	alignas(4) char buffer[MaxCodeBufferSize];			// must be aligned because we do dword fetches from it
 #else
 	char buffer[GCODE_LENGTH];
 #endif
@@ -261,6 +278,16 @@ inline bool GCodeBuffer::CanQueueCodes() const noexcept
 inline bool GCodeBuffer::IsDoingFile() const noexcept
 {
 	return machineState->DoingFile();
+}
+
+// Return true if this source is executing a file from the local SD card
+inline bool GCodeBuffer::IsDoingLocalFile() const noexcept
+{
+#if HAS_LINUX_INTERFACE
+	return !IsBinary() && IsDoingFile();
+#else
+	return IsDoingFile();
+#endif
 }
 
 #if HAS_LINUX_INTERFACE

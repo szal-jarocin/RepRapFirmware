@@ -222,7 +222,9 @@ constexpr ObjectModelTableEntry Platform::objectModelTable[] =
 #if SUPPORT_CAN_EXPANSION
 	{ "canAddress",			OBJECT_MODEL_FUNC_NOSELF((int32_t)0),																ObjectModelEntryFlags::none },
 #endif
+	{ "firmwareDate",		OBJECT_MODEL_FUNC_NOSELF(DATE),																		ObjectModelEntryFlags::none },
 	{ "firmwareFileName",	OBJECT_MODEL_FUNC_NOSELF(IAP_FIRMWARE_FILE),														ObjectModelEntryFlags::none },
+	{ "firmwareName",		OBJECT_MODEL_FUNC_NOSELF(FIRMWARE_NAME),															ObjectModelEntryFlags::none },
 	{ "firmwareVersion",	OBJECT_MODEL_FUNC_NOSELF(VERSION),																	ObjectModelEntryFlags::none },
 #if HAS_LINUX_INTERFACE
 	{ "iapFileNameSBC",		OBJECT_MODEL_FUNC_NOSELF(IAP_UPDATE_FILE_SBC),														ObjectModelEntryFlags::none },
@@ -241,8 +243,9 @@ constexpr ObjectModelTableEntry Platform::objectModelTable[] =
 	{ "name",				OBJECT_MODEL_FUNC_NOSELF(BOARD_NAME),																ObjectModelEntryFlags::none },
 	{ "shortName",			OBJECT_MODEL_FUNC_NOSELF(BOARD_SHORT_NAME),															ObjectModelEntryFlags::none },
 # endif
+	{ "supports12864",		OBJECT_MODEL_FUNC_NOSELF(SUPPORT_12864_LCD ? true : false),											ObjectModelEntryFlags::none },
 #if HAS_12V_MONITOR
-	{ "v12",				OBJECT_MODEL_FUNC(self, 7),																			ObjectModelEntryFlags::live },
+	{ "v12",				OBJECT_MODEL_FUNC(self, 6),																			ObjectModelEntryFlags::live },
 #endif
 	{ "vIn",				OBJECT_MODEL_FUNC(self, 2),																			ObjectModelEntryFlags::live },
 
@@ -252,47 +255,50 @@ constexpr ObjectModelTableEntry Platform::objectModelTable[] =
 	{ "min",				OBJECT_MODEL_FUNC(self->GetMcuTemperatures().min, 1),												ObjectModelEntryFlags::none },
 
 	// 2. vIn members
+#if HAS_VOLTAGE_MONITOR
 	{ "current",			OBJECT_MODEL_FUNC(self->GetCurrentPowerVoltage(), 1),												ObjectModelEntryFlags::live },
 	{ "max",				OBJECT_MODEL_FUNC(self->GetPowerVoltages().max, 1),													ObjectModelEntryFlags::none },
 	{ "min",				OBJECT_MODEL_FUNC(self->GetPowerVoltages().min, 1),													ObjectModelEntryFlags::none },
+#endif
 
 	// 3. move.axes[] members
 	{ "acceleration",		OBJECT_MODEL_FUNC(self->Acceleration(context.GetLastIndex()), 1),									ObjectModelEntryFlags::none },
 	{ "babystep",			OBJECT_MODEL_FUNC_NOSELF(reprap.GetGCodes().GetTotalBabyStepOffset(context.GetLastIndex()), 3),		ObjectModelEntryFlags::none },
+	{ "current",			OBJECT_MODEL_FUNC(self->GetMotorCurrent(context.GetLastIndex(), 906), 3),							ObjectModelEntryFlags::none },
 	{ "drivers",			OBJECT_MODEL_FUNC_NOSELF(&axisDriversArrayDescriptor),												ObjectModelEntryFlags::none },
 	{ "homed",				OBJECT_MODEL_FUNC_NOSELF(reprap.GetGCodes().IsAxisHomed(context.GetLastIndex())),					ObjectModelEntryFlags::live },
 	{ "jerk",				OBJECT_MODEL_FUNC(MinutesToSeconds * self->GetInstantDv(context.GetLastIndex()), 1),				ObjectModelEntryFlags::none },
 	{ "letter",				OBJECT_MODEL_FUNC_NOSELF(reprap.GetGCodes().GetAxisLetters()[context.GetLastIndex()]),				ObjectModelEntryFlags::none },
 	{ "machinePosition",	OBJECT_MODEL_FUNC_NOSELF(reprap.GetMove().LiveCoordinate(context.GetLastIndex(), reprap.GetCurrentTool()), 3),	ObjectModelEntryFlags::live },
 	{ "max",				OBJECT_MODEL_FUNC(self->AxisMaximum(context.GetLastIndex()), 1),									ObjectModelEntryFlags::none },
+	{ "maxProbed",			OBJECT_MODEL_FUNC(self->axisMaximaProbed.IsBitSet(context.GetLastIndex())),							ObjectModelEntryFlags::none },
 	{ "min",				OBJECT_MODEL_FUNC(self->AxisMinimum(context.GetLastIndex()), 1),									ObjectModelEntryFlags::none },
+	{ "minProbed",			OBJECT_MODEL_FUNC(self->axisMinimaProbed.IsBitSet(context.GetLastIndex())),							ObjectModelEntryFlags::none },
 	{ "speed",				OBJECT_MODEL_FUNC(MinutesToSeconds * self->MaxFeedrate(context.GetLastIndex()), 1),					ObjectModelEntryFlags::none },
 	{ "userPosition",		OBJECT_MODEL_FUNC_NOSELF(reprap.GetGCodes().GetUserCoordinate(context.GetLastIndex()), 3),			ObjectModelEntryFlags::live },
 	{ "visible",			OBJECT_MODEL_FUNC_NOSELF(context.GetLastIndex() < (int32_t)reprap.GetGCodes().GetVisibleAxes()),	ObjectModelEntryFlags::none },
 	{ "workplaceOffsets",	OBJECT_MODEL_FUNC_NOSELF(&workplaceOffsetsArrayDescriptor),											ObjectModelEntryFlags::none },
 
 	// 4. move.extruders[] members
+	{ "acceleration",		OBJECT_MODEL_FUNC(self->Acceleration(ExtruderToLogicalDrive(context.GetLastIndex())), 1),			ObjectModelEntryFlags::none },
+	{ "current",			OBJECT_MODEL_FUNC(self->GetMotorCurrent(ExtruderToLogicalDrive(context.GetLastIndex()), 906), 3),	ObjectModelEntryFlags::none },
 	{ "driver",				OBJECT_MODEL_FUNC(self->extruderDrivers[context.GetLastIndex()]),									ObjectModelEntryFlags::none },
 	{ "factor",				OBJECT_MODEL_FUNC_NOSELF(reprap.GetGCodes().GetExtrusionFactor(context.GetLastIndex()), 1),			ObjectModelEntryFlags::none },
 	{ "filament",			OBJECT_MODEL_FUNC_NOSELF(GetFilamentName(context.GetLastIndex())),									ObjectModelEntryFlags::none },
+	{ "jerk",				OBJECT_MODEL_FUNC(MinutesToSeconds * self->GetInstantDv(ExtruderToLogicalDrive(context.GetLastIndex())), 1),	ObjectModelEntryFlags::none },
 	{ "nonlinear",			OBJECT_MODEL_FUNC(self, 5),																			ObjectModelEntryFlags::none },
+	{ "position",			OBJECT_MODEL_FUNC_NOSELF(ExpressionValue(reprap.GetMove().LiveCoordinate(ExtruderToLogicalDrive(context.GetLastIndex()), reprap.GetCurrentTool()), 1)),	ObjectModelEntryFlags::live },
 	{ "pressureAdvance",	OBJECT_MODEL_FUNC(self->GetPressureAdvance(context.GetLastIndex()), 2),								ObjectModelEntryFlags::none },
-	{ "retraction",			OBJECT_MODEL_FUNC(self, 6),																			ObjectModelEntryFlags::none },
+	{ "rawPosition",		OBJECT_MODEL_FUNC_NOSELF(ExpressionValue(reprap.GetGCodes().GetRawExtruderTotalByDrive(context.GetLastIndex()), 1)), ObjectModelEntryFlags::live },
+	{ "speed",				OBJECT_MODEL_FUNC(MinutesToSeconds * self->MaxFeedrate(ExtruderToLogicalDrive(context.GetLastIndex())), 1),	ObjectModelEntryFlags::none },
 
 	// 5. move.extruders[].nonlinear members
 	{ "a",					OBJECT_MODEL_FUNC(self->nonlinearExtrusionA[context.GetLastIndex()], 3),							ObjectModelEntryFlags::none },
 	{ "b",					OBJECT_MODEL_FUNC(self->nonlinearExtrusionB[context.GetLastIndex()], 3),							ObjectModelEntryFlags::none },
 	{ "upperLimit",			OBJECT_MODEL_FUNC(self->nonlinearExtrusionLimit[context.GetLastIndex()], 2),						ObjectModelEntryFlags::none },
 
-	// 6. move.retraction members
-	{ "extraRestart",		OBJECT_MODEL_FUNC_NOSELF(reprap.GetGCodes().GetRetractExtraRestart(context.GetLastIndex()), 1),		ObjectModelEntryFlags::none },
-	{ "length",				OBJECT_MODEL_FUNC_NOSELF(reprap.GetGCodes().GetRetractLength(context.GetLastIndex()), 1),			ObjectModelEntryFlags::none },
-	{ "speed" ,				OBJECT_MODEL_FUNC_NOSELF(reprap.GetGCodes().GetRetractSpeed(context.GetLastIndex()), 1),			ObjectModelEntryFlags::none },
-	{ "unretractSpeed",		OBJECT_MODEL_FUNC_NOSELF(reprap.GetGCodes().GetUnretractSpeed(context.GetLastIndex()), 1),			ObjectModelEntryFlags::none },
-	{ "zHop",				OBJECT_MODEL_FUNC_NOSELF(reprap.GetGCodes().GetZHop(context.GetLastIndex()), 2),					ObjectModelEntryFlags::none },
-
 #if HAS_12V_MONITOR
-	// 7. v12 members
+	// 6. v12 members
 	{ "current",			OBJECT_MODEL_FUNC(self->GetV12Voltages().current, 1),												ObjectModelEntryFlags::live },
 	{ "max",				OBJECT_MODEL_FUNC(self->GetV12Voltages().max, 1),													ObjectModelEntryFlags::none },
 	{ "min",				OBJECT_MODEL_FUNC(self->GetV12Voltages().min, 1),													ObjectModelEntryFlags::none },
@@ -302,14 +308,17 @@ constexpr ObjectModelTableEntry Platform::objectModelTable[] =
 
 constexpr uint8_t Platform::objectModelTableDescriptor[] =
 {
-	7 + HAS_12V_MONITOR,													// number of sections
-	9 + HAS_LINUX_INTERFACE + HAS_12V_MONITOR + SUPPORT_CAN_EXPANSION,		// section 0: boards[]
+	6 + HAS_12V_MONITOR,													// number of sections
+	12 + HAS_LINUX_INTERFACE + HAS_12V_MONITOR + SUPPORT_CAN_EXPANSION,		// section 0: boards[]
 	3,																		// section 1: mcuTemp
+#if HAS_VOLTAGE_MONITOR
 	3,																		// section 2: vIn
-	13,																		// section 3: move.axes[]
-	6,																		// section 4: move.extruders[]
-	3,																		// section 5: move.extruders[].nonlinear
-	5,																		// section 6: move.extruders[].retraction
+#else
+	0,																		// section 2: vIn
+#endif
+	16,																		// section 3: move.axes[]
+	11,																		// section 4: move.extruders[]
+	3,																		// section 5: move.extruders[].pressureAdvance
 #if HAS_12V_MONITOR
 	3																		// section 7: v12
 #endif
@@ -2737,6 +2746,8 @@ float Platform::GetMotorCurrent(size_t drive, int code) const noexcept
 void Platform::SetIdleCurrentFactor(float f) noexcept
 {
 	idleCurrentFactor = constrain<float>(f, 0.0, 1.0);
+	reprap.MoveUpdated();
+
 #if SUPPORT_CAN_EXPANSION
 	CanDriversData canDriversToUpdate;
 #endif
@@ -3343,6 +3354,12 @@ GCodeResult Platform::ConfigureLogging(GCodeBuffer& gb, const StringRef& reply) 
 	return GCodeResult::ok;
 }
 
+// Return the log file name, or nullptr if logging is not active
+const char *Platform::GetLogFileName() const noexcept
+{
+	return (logger == nullptr) ? nullptr : logger->GetFileName();
+}
+
 #endif
 
 // This is called from EmergencyStop. It closes the log file and stops logging.
@@ -3738,7 +3755,7 @@ FileStore* Platform::OpenFile(const char* folder, const char* fileName, OpenMode
 bool Platform::Delete(const char* folder, const char *filename) const noexcept
 {
 	String<MaxFilenameLength> location;
-	return MassStorage::CombineName(location.GetRef(), folder, filename) && MassStorage::Delete(location.c_str());
+	return MassStorage::CombineName(location.GetRef(), folder, filename) && MassStorage::Delete(location.c_str(), true);
 }
 
 bool Platform::FileExists(const char* folder, const char *filename) const noexcept
@@ -3771,6 +3788,7 @@ GCodeResult Platform::SetSysDir(const char* dir, const StringRef& reply) noexcep
 	const char *nsd2 = nsd;
 	std::swap(sysDir, nsd2);
 	delete nsd2;
+	reprap.DirectoriesUpdated();
 	return GCodeResult::ok;
 }
 
@@ -3791,7 +3809,7 @@ FileStore* Platform::OpenSysFile(const char *filename, OpenMode mode) const noex
 bool Platform::DeleteSysFile(const char *filename) const noexcept
 {
 	String<MaxFilenameLength> location;
-	return MakeSysFileName(location.GetRef(), filename) && MassStorage::Delete(location.c_str());
+	return MakeSysFileName(location.GetRef(), filename) && MassStorage::Delete(location.c_str(), true);
 }
 
 bool Platform::MakeSysFileName(const StringRef& result, const char *filename) const noexcept
@@ -3800,10 +3818,16 @@ bool Platform::MakeSysFileName(const StringRef& result, const char *filename) co
 	return MassStorage::CombineName(result, InternalGetSysDir(), filename);
 }
 
-void Platform::GetSysDir(const StringRef & path) const noexcept
+void Platform::AppendSysDir(const StringRef & path) const noexcept
 {
 	MutexLocker lock(Tasks::GetSysDirMutex());
-	path.copy(InternalGetSysDir());
+	path.cat(InternalGetSysDir());
+}
+
+void Platform::EncodeSysDir(OutputBuffer *buf) const noexcept
+{
+	MutexLocker lock(Tasks::GetSysDirMutex());
+	buf->EncodeString(InternalGetSysDir(), false);
 }
 
 #endif
@@ -3845,6 +3869,7 @@ void Platform::SetAxisMaximum(size_t axis, float value, bool byProbing) noexcept
 	{
 		axisMaximaProbed.SetBit(axis);
 	}
+	reprap.MoveUpdated();
 }
 
 void Platform::SetAxisMinimum(size_t axis, float value, bool byProbing) noexcept
@@ -3854,6 +3879,7 @@ void Platform::SetAxisMinimum(size_t axis, float value, bool byProbing) noexcept
 	{
 		axisMinimaProbed.SetBit(axis);
 	}
+	reprap.MoveUpdated();
 }
 
 ZProbeType Platform::GetCurrentZProbeType() const noexcept

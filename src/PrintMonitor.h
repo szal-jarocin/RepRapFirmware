@@ -73,8 +73,7 @@ public:
 
 protected:
 	DECLARE_OBJECT_MODEL
-
-	static const ObjectModelArrayDescriptor filamentArrayDescriptor;
+	OBJECT_MODEL_ARRAY(filament)
 
 private:
 	Platform& platform;

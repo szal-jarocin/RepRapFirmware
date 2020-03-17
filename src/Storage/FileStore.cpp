@@ -64,7 +64,7 @@ bool FileStore::Open(const char* filePath, OpenMode mode, uint32_t preAllocSize)
 
 	if (writing)
 	{
-		if (!MassStorage::EnsurePath(filePath))
+		if (!MassStorage::EnsurePath(filePath, true))
 		{
 			return false;
 		}
@@ -114,6 +114,7 @@ bool FileStore::Open(const char* filePath, OpenMode mode, uint32_t preAllocSize)
 		}
 	}
 #endif
+	reprap.VolumesUpdated();
 	return true;
 }
 
@@ -211,6 +212,7 @@ bool FileStore::ForceClose() noexcept
 	usageMode = FileUseMode::free;
 	closeRequested = false;
 	openCount = 0;
+	reprap.VolumesUpdated();
 	return ok && fr == FR_OK;
 }
 

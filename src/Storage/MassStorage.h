@@ -21,6 +21,8 @@ struct FileInfo
 	bool isDirectory;
 };
 
+class ObjectModel;
+
 namespace MassStorage
 {
 	bool CombineName(const StringRef& out, const char* directory, const char* fileName) noexcept;	// returns false if error i.e. filename too long
@@ -32,10 +34,10 @@ namespace MassStorage
 	bool FindFirst(const char *directory, FileInfo &file_info) noexcept;
 	bool FindNext(FileInfo &file_info) noexcept;
 	void AbandonFindNext() noexcept;
-	bool Delete(const char* filePath) noexcept;
-	bool EnsurePath(const char* filePath) noexcept;
-	bool MakeDirectory(const char *directory) noexcept;
-	bool Rename(const char *oldFilePath, const char *newFilePath) noexcept;
+	bool Delete(const char* filePath, bool messageIfFailed) noexcept;
+	bool EnsurePath(const char* filePath, bool messageIfFailed) noexcept;
+	bool MakeDirectory(const char *directory, bool messageIfFailed) noexcept;
+	bool Rename(const char *oldFilePath, const char *newFilePath, bool messageIfFailed) noexcept;
 	bool FileExists(const char *filePath) noexcept;
 	bool DirectoryExists(const StringRef& path) noexcept;									// Warning: if 'path' has a trailing '/' or '\\' character, it will be removed!
 	bool DirectoryExists(const char *path) noexcept;
@@ -65,6 +67,12 @@ namespace MassStorage
 	};
 
 	InfoResult GetCardInfo(size_t slot, uint64_t& capacity, uint64_t& freeSpace, uint32_t& speed, uint32_t& clSize) noexcept;
+
+# if SUPPORT_OBJECT_MODEL
+	inline size_t GetNumVolumes() noexcept { return NumSdCards; }
+	const ObjectModel *GetVolume(size_t vol) noexcept;
+# endif
+
 #endif
 
 };
