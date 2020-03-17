@@ -185,15 +185,7 @@ constexpr float DefaultThermistorSeriesR = 4700.0;
 
 constexpr size_t MaxSpiTempSensors = 2;
 extern Pin SpiTempSensorCsPins[MaxSpiTempSensors];  // Digital pins the 31855s have their select lines tied to
-constexpr SSPChannel TempSensorSSPChannel = SSP0;   //Connect SPI Temp sensor to SSP0
-
-#if defined(ESP8266WIFI)
-    extern Pin EspDataReadyPin;
-    extern Pin SamTfrReadyPin;
-    extern Pin EspResetPin;
-    constexpr Pin SamCsPin = P0_16; //CS for SSP0
-    constexpr LPC175X_6X_IRQn_Type ESP_SPI_IRQn = SSP0_IRQn;
-#endif
+extern SSPChannel TempSensorSSPChannel;
 
 #if HAS_LINUX_INTERFACE
     extern Pin LinuxTfrReadyPin;
@@ -247,33 +239,39 @@ extern uint32_t ADCPreFilterSampleRate;
 constexpr size_t NumSoftwareSPIPins = 3;
 extern Pin SoftwareSPIPins[3]; //GPIO pins for softwareSPI (used with SharedSPI)
 
-#include "usart.h"
+
+#define SERIAL_AUX_DEVICE   UART_Slot0
+#define SERIAL_WIFI_DEVICE  UART_Slot1
+//#define SERIAL_AUX2_DEVICE  UART_Slot2
+
+constexpr size_t NUM_SERIAL_CHANNELS = 2; // USB + AUX
+
+constexpr size_t NumberSerialPins = 2;
+extern Pin AuxSerialRxTxPins[NumberSerialPins];
+
+#if defined(SERIAL_AUX2_DEVICE)
+    extern Pin Aux2SerialRxTxPins[NumberSerialPins];
+#endif
+
 // Use TX0/RX0 for the auxiliary serial line
 #if defined(__MBED__)
     #define SERIAL_MAIN_DEVICE  Serial0 //TX0/RX0 connected to via seperate USB
-    #define SERIAL_AUX_DEVICE   Serial  //USB pins unconnected.
-    constexpr size_t NUM_SERIAL_CHANNELS = 2;
-
-    #if defined(ESP8266WIFI)
-        #define SERIAL_WIFI_DEVICE Serial3 //TXD3/RXD3 as uart0 is in use
-        static const Pin APIN_Serial1_TXD = USART3->channel->TxPin;
-        static const Pin APIN_Serial1_RXD = USART3->channel->RxPin;
-    #endif
-
 #else
     #define SERIAL_MAIN_DEVICE  Serial  //USB
-    #if defined(ESP8266WIFI_SERIAL)
-        //No AUX Serial, Serial0 is connected to the ESP8266
-        constexpr size_t NUM_SERIAL_CHANNELS = 1;
-        #define SERIAL_WIFI_DEVICE Serial0
+#endif
 
-        //Compatibility with RRF code
-        static const Pin APIN_Serial1_TXD = USART0->channel->TxPin;
-        static const Pin APIN_Serial1_RXD = USART0->channel->RxPin;
-    #else
-        #define SERIAL_AUX_DEVICE   Serial0
-        constexpr size_t NUM_SERIAL_CHANNELS = 2;
-    #endif
+
+#if defined(ESP8266WIFI)
+    extern Pin EspDataReadyPin;
+    extern Pin SamTfrReadyPin;
+    extern Pin EspResetPin;
+    constexpr Pin SamCsPin = P0_16; //CS for SSP0
+    constexpr LPC175X_6X_IRQn_Type ESP_SPI_IRQn = SSP0_IRQn;
+
+    extern Pin APIN_Serial1_TXD;
+    extern Pin APIN_Serial1_RXD;
+    extern Pin WifiSerialRxTxPins[NumberSerialPins];
+
 
 #endif
 
@@ -376,7 +374,9 @@ struct BoardEntry
 //Known boards with built in stepper configurations and pin table 
 constexpr BoardEntry LPC_Boards[] =
 {
+#if defined(__MBED__)
     {"mbed",             PinTable_Mbed,             ARRAY_SIZE(PinTable_Mbed),             mbedDefaults}, //for debugging
+#else
     {"generic",          PinTable_Generic,          ARRAY_SIZE(PinTable_Generic),          genericDefaults},
 
     //known boards
@@ -388,6 +388,7 @@ constexpr BoardEntry LPC_Boards[] =
     {"biquskr_1.3",      PinTable_BIQU_SKR_v1_3,    ARRAY_SIZE(PinTable_BIQU_SKR_v1_3),    biquskr_1_3_Defaults},
     {"biquskr_1.4",      PinTable_BIQU_SKR_v1_4,    ARRAY_SIZE(PinTable_BIQU_SKR_v1_4),    biquskr_1_4_Defaults},
     {"azteegx5mini_1.1", PinTable_AzteegX5MiniV1_1, ARRAY_SIZE(PinTable_AzteegX5MiniV1_1), azteegX5Mini1_1Defaults},
+#endif
 };
 
 

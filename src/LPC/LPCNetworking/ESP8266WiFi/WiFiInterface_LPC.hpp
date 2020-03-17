@@ -40,7 +40,7 @@ static inline void spi_tx_dma_disable()
     LPC_SSP0->DMACR &= ~SSP_DMA_TX;
 }
 
-static void spi_dma_disable()
+static inline void spi_dma_disable()
 {
 	spi_tx_dma_disable();
 	spi_rx_dma_disable();
@@ -95,7 +95,8 @@ void ESP_SPI_HANDLER(void) noexcept
 void WiFiInterface::SpiInterrupt() noexcept
 {
     const uint32_t status = LPC_SSP0->SR;
-    
+    spi_dma_disable();
+
     if((status & (1<<3)) != 0) //(Slave Abort) is set when the Slave Select (SSEL) signal goes inactive before a data transfer completes. )
     {
         
@@ -110,7 +111,6 @@ void WiFiInterface::SpiInterrupt() noexcept
     }
 
     //pinMode(P1_21, OUTPUT_HIGH); //turn on LED3
-    spi_dma_disable();
     digitalWrite(SamTfrReadyPin, LOW);
 
     transferPending = false;

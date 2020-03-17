@@ -33,23 +33,28 @@ static const boardConfigEntry_t boardEntryConfig[]=
 static const boardConfigEntry_t boardConfigs[]=
 {
     {"leds.diagnostic", &DiagPin, nullptr, cvPinType},
-    {"lpc.internalSDCard.spiFrequencyHz", &InternalSDCardFrequency, nullptr, cvUint32Type},
 
+    //Steppers
     {"stepper.enablePins", ENABLE_PINS, &MaxTotalDrivers, cvPinType},
     {"stepper.stepPins", STEP_PINS, &MaxTotalDrivers, cvPinType},
     {"stepper.directionPins", DIRECTION_PINS, &MaxTotalDrivers, cvPinType},
     {"stepper.digipotFactor", &digipotFactor, nullptr, cvFloatType},
 
+    //Heater sensors
     {"heat.tempSensePins", TEMP_SENSE_PINS, &NumThermistorInputs, cvPinType},
     {"heat.spiTempSensorCSPins", SpiTempSensorCsPins, &MaxSpiTempSensors, cvPinType},
+    {"heat.spiTempSensorChannel", &TempSensorSSPChannel, nullptr, cvUint8Type},
     
-    {"atxPowerPin", &ATX_POWER_PIN, nullptr, cvPinType},
-    {"atxPowerPinInverted", &ATX_POWER_INVERTED, nullptr, cvBoolType},
-    
-    {"externalSDCard.csPin", &SdSpiCSPins[1], nullptr, cvPinType},
-    {"externalSDCard.cardDetectPin", &SdCardDetectPins[1], nullptr, cvPinType},
-    {"lpc.externalSDCard.spiFrequencyHz", &ExternalSDCardFrequency, nullptr, cvUint32Type},
-    {"lpc.externalSDCard.spiChannel", &ExternalSDCardSSPChannel, nullptr, cvUint8Type},
+    //ATX Power
+    {"atx.powerPin", &ATX_POWER_PIN, nullptr, cvPinType},
+    {"atx.powerPinInverted", &ATX_POWER_INVERTED, nullptr, cvBoolType},
+
+    //SDCards
+    {"sdCard.internal.spiFrequencyHz", &InternalSDCardFrequency, nullptr, cvUint32Type},
+    {"sdCard.external.csPin", &SdSpiCSPins[1], nullptr, cvPinType},
+    {"sdCard.external.cardDetectPin", &SdCardDetectPins[1], nullptr, cvPinType},
+    {"sdCard.external.spiFrequencyHz", &ExternalSDCardFrequency, nullptr, cvUint32Type},
+    {"sdCard.external.spiChannel", &ExternalSDCardSSPChannel, nullptr, cvUint8Type},
 
 #if SUPPORT_12864_LCD
     {"lcd.lcdCSPin", &LcdCSPin, nullptr, cvPinType},
@@ -62,21 +67,29 @@ static const boardConfigEntry_t boardConfigs[]=
     {"lcd.spiChannel", &LcdSpiChannel, nullptr, cvUint8Type},
 #endif
     
-    {"lpc.softwareSPI.pins", SoftwareSPIPins, &NumSoftwareSPIPins, cvPinType}, //SCK, MISO, MOSI
+    {"softwareSPI.pins", SoftwareSPIPins, &NumSoftwareSPIPins, cvPinType}, //SCK, MISO, MOSI
     
 #if HAS_WIFI_NETWORKING
-    {"8266wifi.EspDataReadyPin", &EspDataReadyPin, nullptr, cvPinType},
-    {"8266wifi.LpcTfrReadyPin", &SamTfrReadyPin, nullptr, cvPinType},
-    {"8266wifi.EspResetPin", &EspResetPin, nullptr, cvPinType},
+    {"8266wifi.espDataReadyPin", &EspDataReadyPin, nullptr, cvPinType},
+    {"8266wifi.lpcTfrReadyPin", &SamTfrReadyPin, nullptr, cvPinType},
+    {"8266wifi.espResetPin", &EspResetPin, nullptr, cvPinType},
+    {"8266wifi.serialRxTxPins", &WifiSerialRxTxPins, &NumberSerialPins, cvPinType},
 #endif
 
 #if HAS_LINUX_INTERFACE
-    {"linux.TfrReadyPin", &LinuxTfrReadyPin, nullptr, cvPinType},
+    {"sbc.lpcTfrReadyPin", &LinuxTfrReadyPin, nullptr, cvPinType},
 #endif
 
-    {"lpc.adcEnablePreFilter", &ADCEnablePreFilter, nullptr, cvBoolType},
-    {"lpc.adcPreFilterNumberSamples", &ADCPreFilterNumberSamples, nullptr, cvUint8Type},
-    {"lpc.adcPreFilterSampleRate", &ADCPreFilterSampleRate, nullptr, cvUint32Type},
+#if defined(SERIAL_AUX_DEVICE)
+    {"serial.aux.rxTxPins", &AuxSerialRxTxPins, &NumberSerialPins, cvPinType},
+#endif
+#if defined(SERIAL_AUX2_DEVICE)
+    {"serial.aux2.rxTxPins", &Aux2SerialRxTxPins, &NumberSerialPins, cvPinType},
+#endif
+    
+    {"adc.prefilter.enable", &ADCEnablePreFilter, nullptr, cvBoolType},
+    {"adc.preFilter.numberSamples", &ADCPreFilterNumberSamples, nullptr, cvUint8Type},
+    {"adc.preFilter.sampleRate", &ADCPreFilterSampleRate, nullptr, cvUint32Type},
 
     
 #if LPC_TMC_SOFT_UART
@@ -89,28 +102,28 @@ static const boardConfigEntry_t boardConfigs[]=
 
 extern "C"
 {
-	// Create a sync object. We already created it, we just need to copy the handle.
-	int ff_cre_syncobj (BYTE vol, FF_SYNC_t* psy)
-	{
-		return 1;
-	}
+    // Create a sync object. We already created it, we just need to copy the handle.
+    int ff_cre_syncobj (BYTE vol, FF_SYNC_t* psy)
+    {
+        return 1;
+    }
 
-	// Lock sync object
-	int ff_req_grant (FF_SYNC_t sy)
-	{
-		return 1;
-	}
+    // Lock sync object
+    int ff_req_grant (FF_SYNC_t sy)
+    {
+        return 1;
+    }
 
-	// Unlock sync object
-	void ff_rel_grant (FF_SYNC_t sy)
-	{
-	}
+    // Unlock sync object
+    void ff_rel_grant (FF_SYNC_t sy)
+    {
+    }
 
-	// Delete a sync object
-	int ff_del_syncobj (FF_SYNC_t sy)
-	{
-		return 1;		// nothing to do, we never delete the mutex
-	}
+    // Delete a sync object
+    int ff_del_syncobj (FF_SYNC_t sy)
+    {
+        return 1;        // nothing to do, we never delete the mutex
+    }
 }
 #endif
 
@@ -128,26 +141,25 @@ BoardConfig::BoardConfig() noexcept
 void BoardConfig::Init() noexcept
 {
 
-    String<100> pathName;
+    constexpr char boardConfigPath[] = "0:/sys/board.txt";
     FIL configFile;
     FATFS fs;
     FRESULT rslt;
     
     NVIC_SetPriority(DMA_IRQn, NvicPrioritySpi);
 #if !HAS_MASS_STORAGE
-	sd_mmc_init(SdWriteProtectPins, SdSpiCSPins);
+    sd_mmc_init(SdWriteProtectPins, SdSpiCSPins);
 #endif
     // Mount the internal SD card
     rslt = f_mount (&fs, "0:", 1);
     if (rslt == FR_OK)
     {
         //Open File
-        pathName.printf("%sboard.txt", DEFAULT_SYS_DIR);
-        rslt = f_open (&configFile, pathName.c_str(), FA_READ);
+        rslt = f_open (&configFile, boardConfigPath, FA_READ);
         if (rslt != FR_OK)
         {
             delay(3000);        // Wait a few seconds so users have a chance to see this
-            reprap.GetPlatform().MessageF(UsbMessage, "Unable to read board configuration: %sboard.txt...\n",DEFAULT_SYS_DIR );
+            reprap.GetPlatform().MessageF(UsbMessage, "Unable to read board configuration: %s...\n",boardConfigPath );
             f_unmount ("0:");
             return;
         }
@@ -158,11 +170,11 @@ void BoardConfig::Init() noexcept
         delay(3000);        // Wait a few seconds so users have a chance to see this
         reprap.GetPlatform().MessageF(UsbMessage, "Failed to mount sd card\n");
         return;
-    } 
+    }
     if(rslt == FR_OK)
     {
-        
-        reprap.GetPlatform().MessageF(UsbMessage, "Loading config from %sboard.txt...\n", DEFAULT_SYS_DIR );
+            
+        reprap.GetPlatform().MessageF(UsbMessage, "Loading LPC config from %s...\n", boardConfigPath );
 
         
         //First find the board entry to load the correct PinTable for looking up Pin by name
@@ -194,9 +206,8 @@ void BoardConfig::Init() noexcept
             {
                 if(stepPin != NoPin)
                 {
+                    // configured step pins are not on the same port - not using parallel writes
                     hasStepPinsOnDifferentPorts = true;
-                    // will use a basic mapping for stepping instead of parallel port writes.....
-                    reprap.GetPlatform().MessageF(UsbMessage, "Step pins are on different ports. Pins will not be written in parallel.\n" );
                 }
             }
         }
@@ -229,8 +240,45 @@ void BoardConfig::Init() noexcept
         #if HAS_WIFI_NETWORKING
             if(SamCsPin != NoPin) pinMode(SamCsPin, OUTPUT_LOW);
             if(EspResetPin != NoPin) pinMode(EspResetPin, OUTPUT_LOW);
+            
+            if(WifiSerialRxTxPins[0] != NoPin && WifiSerialRxTxPins[1] != NoPin)
+            {
+                //Setup the Serial Port for ESP Wifi
+                APIN_Serial1_RXD = WifiSerialRxTxPins[0];
+                APIN_Serial1_TXD = WifiSerialRxTxPins[1];
+                
+                if(!SERIAL_WIFI_DEVICE.Configure(WifiSerialRxTxPins[0], WifiSerialRxTxPins[1]))
+                {
+                    reprap.GetPlatform().MessageF(UsbMessage, "Failed to set WIFI Serial with pins %d.%d and %d.%d.\n", (WifiSerialRxTxPins[0] >> 5), (WifiSerialRxTxPins[0] & 0x1F), (WifiSerialRxTxPins[1] >> 5), (WifiSerialRxTxPins[1] & 0x1F) );
+                }
+            }
         #endif
 
+        #if defined(SERIAL_AUX_DEVICE)
+            //Configure Aux Serial
+            if(AuxSerialRxTxPins[0] != NoPin && AuxSerialRxTxPins[1] != NoPin)
+            {
+                if(!SERIAL_AUX_DEVICE.Configure(AuxSerialRxTxPins[0], AuxSerialRxTxPins[1]))
+                {
+                    reprap.GetPlatform().MessageF(UsbMessage, "Failed to set AUX Serial with pins %d.%d and %d.%d.\n", (AuxSerialRxTxPins[0] >> 5), (AuxSerialRxTxPins[0] & 0x1F), (AuxSerialRxTxPins[1] >> 5), (AuxSerialRxTxPins[1] & 0x1F) );
+                }
+
+            }
+        #endif
+
+        #if defined(SERIAL_AUX2_DEVICE)
+            //Configure Aux2 Serial
+            if(Aux2SerialRxTxPins[0] != NoPin && Aux2SerialRxTxPins[1] != NoPin)
+            {
+                if(!SERIAL_AUX2_DEVICE.Configure(Aux2SerialRxTxPins[0], Aux2SerialRxTxPins[1]))
+                {
+                    reprap.GetPlatform().MessageF(UsbMessage, "Failed to set AUX2 Serial with pins %d.%d and %d.%d.\n", (Aux2SerialRxTxPins[0] >> 5), (Aux2SerialRxTxPins[0] & 0x1F), (Aux2SerialRxTxPins[1] >> 5), (Aux2SerialRxTxPins[1] & 0x1F) );
+                }
+
+            }
+        #endif
+
+        
         //Init pins for LCD
         //make sure to init ButtonPin as input incase user presses button
         if(PanelButtonPin != NoPin) pinMode(PanelButtonPin, INPUT); //unused
@@ -249,20 +297,26 @@ void BoardConfig::Init() noexcept
 
 
 //Convert a pin string into a RRF Pin
+//Handle formats such as 1.23, 1_23, P1_23 or P1.23
 Pin BoardConfig::StringToPin(const char *strvalue) noexcept
 {
-    //check size.. should be 3chars or 4 chars i.e. 0.1, 2.25, 2nd char should always be .
+    if(strvalue == nullptr) return NoPin;
+    
+    if(tolower(*strvalue) == 'p') strvalue++; //skip P
+    
+    //check size.. should be 3chars or 4 chars i.e. 0.1, 2.25, 1_23. 2nd char should be . or _
     uint8_t len = strlen(strvalue);
-    if((len == 3 || len == 4) && strvalue[1] == '.' )
+    if((len == 3 || len == 4) && (*(strvalue+1) == '.' || *(strvalue+1) == '_') )
     {
-        const char *ptr = NULL;
+        const char *ptr = nullptr;
         
         uint8_t port = SafeStrtol(strvalue, &ptr, 10);
         if(ptr > strvalue && port <= 4)
         {
-            uint8_t pin = SafeStrtol(strvalue+2, &ptr, 10);
+            strvalue+=2;
+            uint8_t pin = SafeStrtol(strvalue, &ptr, 10);
             
-            if(ptr > strvalue+2 && pin < 32)
+            if(ptr > strvalue && pin < 32)
             {
                 //Convert the Port and Pin to match the arrays in CoreLPC
                 Pin lpcpin = (Pin) ( (port << 5) | pin);
@@ -270,7 +324,6 @@ Pin BoardConfig::StringToPin(const char *strvalue) noexcept
             }
         }
     }
-    //debugPrintf("Invalid pin %s, defaulting to NoPin\n", strvalue);
     
     return NoPin;
 }
@@ -375,6 +428,21 @@ void BoardConfig::Diagnostics(MessageType mtype) noexcept
 
         }
     }
+    
+#if defined(SERIAL_AUX_DEVICE) || defined(SERIAL_AUX2_DEVICE) || HAS_WIFI_NETWORKING
+    reprap.GetPlatform().MessageF(mtype, "\n== Hardware Serial ==\n");
+    #if defined(SERIAL_AUX_DEVICE)
+        reprap.GetPlatform().MessageF(mtype, "AUX Serial: %s%c\n", ((SERIAL_AUX_DEVICE.GetUARTPortNumber() == -1)?"Disabled": "UART "), (SERIAL_AUX_DEVICE.GetUARTPortNumber() == -1)?' ': ('0' + SERIAL_AUX_DEVICE.GetUARTPortNumber()));
+    #endif
+    #if defined(SERIAL_AUX2_DEVICE)
+        reprap.GetPlatform().MessageF(mtype, "AUX2 Serial: %s%c\n", ((SERIAL_AUX2_DEVICE.GetUARTPortNumber() == -1)?"Disabled": "UART "), (SERIAL_AUX2_DEVICE.GetUARTPortNumber() == -1)?' ': ('0' + SERIAL_AUX2_DEVICE.GetUARTPortNumber()));
+    #endif
+    #if HAS_WIFI_NETWORKING
+        reprap.GetPlatform().MessageF(mtype, "WIFI Serial: %s%c\n", ((SERIAL_WIFI_DEVICE.GetUARTPortNumber() == -1)?"Disabled": "UART "), (SERIAL_WIFI_DEVICE.GetUARTPortNumber() == -1)?' ': ('0' + SERIAL_WIFI_DEVICE.GetUARTPortNumber()));
+    #endif
+#endif
+    
+    
 
     reprap.GetPlatform().MessageF(mtype, "\n== Software PWM ==\n");
     for(uint8_t i=0; i<MaxNumberSoftwarePWMPins; i++)
@@ -383,7 +451,11 @@ void BoardConfig::Diagnostics(MessageType mtype) noexcept
         if(next != nullptr)
         {
             const Pin pin = next->GetPin();
+#ifdef LPC_DEBUG
             reprap.GetPlatform().MessageF(mtype, "Pin %d.%d @ %dHz (%s) - LateCnt: %lu\n", (pin >> 5), (pin & 0x1f), next->GetFrequency(), next->IsRunning()?"Enabled":"Disabled", next->GetLateCount() );
+#else
+            reprap.GetPlatform().MessageF(mtype, "Pin %d.%d @ %dHz (%s)\n", (pin >> 5), (pin & 0x1f), next->GetFrequency(), next->IsRunning()?"Enabled":"Disabled" );
+#endif
         }
     };
     
@@ -496,7 +568,7 @@ static size_t ReadLine(FIL *fp, char *p, int len)
     int nc = 0;
     UINT rc;
     uint8_t s;
-    len -= 1;	/* Make a room for the terminator */
+    len -= 1;    /* Make a room for the terminator */
     while (nc < len)
     {
         f_read(fp, &s, 1, &rc);
@@ -509,7 +581,7 @@ static size_t ReadLine(FIL *fp, char *p, int len)
         if (s == '\n') break;
         *p++ = s; nc++;
     }
-    *p = 0;		/* Terminate the string */
+    *p = 0;        /* Terminate the string */
     return nc;
 }
 

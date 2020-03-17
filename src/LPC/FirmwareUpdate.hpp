@@ -44,7 +44,7 @@ void RepRap::UpdateFirmware() noexcept
     String<MaxFilenameLength> location;
     MassStorage::CombineName(location.GetRef(), DEFAULT_SYS_DIR, FIRMWARE_FILE);
     
-    if(!MassStorage::Rename(location.c_str(), "0:/firmware.bin"))
+    if(!MassStorage::Rename(location.c_str(), "0:/firmware.bin", false))
     {
         //failed to rename
         platform->MessageF(FirmwareUpdateMessage, "Failed to move firmware file.\n");

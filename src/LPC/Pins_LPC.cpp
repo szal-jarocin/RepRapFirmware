@@ -11,6 +11,7 @@
 
 Pin TEMP_SENSE_PINS[NumThermistorInputs] = {NoPin, NoPin, NoPin, NoPin};
 Pin SpiTempSensorCsPins[MaxSpiTempSensors] = { NoPin, NoPin };
+SSPChannel TempSensorSSPChannel = SSP0;   //default SPI Temp sensor on SSP0
 
 Pin ATX_POWER_PIN = NoPin;
 bool ATX_POWER_INVERTED = false;
@@ -53,6 +54,24 @@ Pin SoftwareSPIPins[3] = {NoPin, NoPin, NoPin};         //GPIO pins for software
     Pin EspDataReadyPin = NoPin;
     Pin SamTfrReadyPin = NoPin;
     Pin EspResetPin = NoPin;
+
+    Pin APIN_Serial1_TXD = NoPin;
+    Pin APIN_Serial1_RXD = NoPin;
+
+    Pin WifiSerialRxTxPins[NumberSerialPins] = {NoPin, NoPin};
+#endif
+    
+//Aux Serial
+
+#if defined(SERIAL_AUX_DEVICE)
+    #if defined(__MBED__)
+        Pin AuxSerialRxTxPins[NumberSerialPins] = {NoPin, NoPin}; //UART0 is the Main Serial on MBED so set Aux to nopin
+    #else
+        Pin AuxSerialRxTxPins[NumberSerialPins] = {P0_3, P0_2}; //Default to UART0
+    #endif
+#endif
+#if defined(SERIAL_AUX2_DEVICE)
+    Pin Aux2SerialRxTxPins[NumberSerialPins] = {NoPin, NoPin};
 #endif
 
 #if HAS_LINUX_INTERFACE

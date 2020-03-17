@@ -430,6 +430,29 @@ void Platform::Init() noexcept
     SERIAL_MAIN_DEVICE.Start(UsbVBusPin);
 #endif
 
+    // Initialise the IO port subsystem
+    IoPort::Init();
+
+    // File management and SD card interfaces
+    for (size_t i = 0; i < NumSdCards; ++i)
+    {
+        setPullup(SdCardDetectPins[i], true);    // setPullup is safe to call with a NoPin argument
+    }
+
+#if HAS_MASS_STORAGE
+    MassStorage::Init();
+#endif
+
+#ifdef __LPC17xx__
+    // Load HW pin assignments from sdcard
+    BoardConfig::Init();
+    pinMode(ATX_POWER_PIN,(ATX_POWER_INVERTED==false)?OUTPUT_LOW:OUTPUT_HIGH);
+#else
+    // Deal with power first (we assume this doesn't depend on identifying the board type)
+    pinMode(ATX_POWER_PIN,OUTPUT_LOW);
+#endif
+
+    
 #ifdef SERIAL_AUX_DEVICE
 	baudRates[1] = AUX_BAUD_RATE;
 	commsParams[1] = 1;							// by default we require a checksum on data from the aux port, to guard against overrun errors
@@ -446,27 +469,6 @@ void Platform::Init() noexcept
 	SERIAL_AUX2_DEVICE.begin(baudRates[2]);
 #endif
 
-	// Initialise the IO port subsystem
-	IoPort::Init();
-
-	// File management and SD card interfaces
-	for (size_t i = 0; i < NumSdCards; ++i)
-	{
-		setPullup(SdCardDetectPins[i], true);	// setPullup is safe to call with a NoPin argument
-	}
-
-#if HAS_MASS_STORAGE
-	MassStorage::Init();
-#endif
-
-#ifdef __LPC17xx__
-	// Load HW pin assignments from sdcard
-	BoardConfig::Init();
-	pinMode(ATX_POWER_PIN,(ATX_POWER_INVERTED==false)?OUTPUT_LOW:OUTPUT_HIGH);
-#else
-	// Deal with power first (we assume this doesn't depend on identifying the board type)
-	pinMode(ATX_POWER_PIN,OUTPUT_LOW);
-#endif
 
     // Ethernet networking defaults
 	ipAddress = DefaultIpAddress;

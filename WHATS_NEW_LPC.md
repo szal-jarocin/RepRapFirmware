@@ -1,11 +1,50 @@
 Summary of LPC specific changes
 ===============================================
 
+
+Version 3.01 RC4
+==============
+* Added initial experimental support for SBC interface
+
+* Added configurable UART class to allow selecting UART from board config by using the RX/TX pins for AUX serial and WIFI Serial.
+    * AUX serial pins will default to the UART0 pins as it has done in previous versions. Setting Aux serial to NoPin, NoPin can save a bit of memory as the buffers won't be created.
+    * New board.txt entries:
+        * 8266wifi.serialRxTxPins - array of pins {RX, TX} (Requires WIFI to be compiled into binary)
+        * serial.aux.rxTxPins - array of pins {RX, TX}
+        * serial.aux2.rxTxPins - array of pins {RX, TX}  (Requires AUX2 to be compiled into binary)
+
+* Added board.txt entry "heat.spiTempSensorChannel" to select the spi channel for the SPI Temperature sensors. Defaults to SSP0.
+
+### Changed board entries
+For naming consistancy, the following board.txt entries have been changed:
+| New  | Previous   |
+|---|---|
+| atx.powerPin  | atxPowerPin  |
+| atx.powerPinInverted  | atxPowerPinInverted  |
+| sdCard.internal.spiFrequencyHz | lpc.internalSDCard.spiFrequencyHz   |
+| sdCard.external.csPin  | externalSDCard.csPin  |
+| sdCard.external.cardDetectPin  | externalSDCard.cardDetectPin  |
+| sdCard.external.spiFrequencyHz  | lpc.externalSDCard.spiFrequencyHz  |
+| sdCard.external.spiChannel  | lpc.externalSDCard.spiChannel  |
+| softwareSPI.pins  | lpc.softwareSPI.pins  |
+| 8266wifi.espDataReadyPin  | 8266wifi.EspDataReadyPin  |
+| 8266wifi.lpcTfrReadyPin  | 8266wifi.LpcTfrReadyPin  |
+| 8266wifi.espResetPin| 8266wifi.EspResetPin |
+| 8266wifi.serialRxTxPins  | 8266wifi.SerialRxTxPins  |
+| sbc.lpcTfrReadyPin  | linuxTfrReadyPin  |
+| adc.prefilter.enable  | lpc.adcEnablePreFilter  |
+| adc.preFilter.numberSamples  | lpc.adcPreFilterNumberSamples |
+| adc.preFilter.sampleRate | lpc.adcPreFilterSampleRate |
+
+  
+
+
 Version 3.01 RC3
 ================
 * Added new build option TMC22XX set to true to provide support for TMC22XX drivers via the UART interface.
 * Added new build option ESP8266WIFI_SERIAL (available when usinf ESP8266 WiFi) define this to use enable the UART interface to the ESP8266 board. Note that on SKR based boards only a single UART device is easily available and so to allow the use of panel due and other serial based control screens this option should not be enabled.
 * New pin names. The pin names used for the various boards has been updated to provided a consistant naming policy across different boards.
+
 
 Version 3.01 Beta2
 =================

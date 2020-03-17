@@ -204,11 +204,7 @@ void WiFiInterface::Init() noexcept
 	{
 		sockets[i]->Init(i);
 	}
-#ifdef SERIAL_WIFI_DEVICE
 	uploader = new WifiFirmwareUploader(SERIAL_WIFI_DEVICE, *this);
-#else
-	uploader = nullptr;
-#endif
 	currentSocket = 0;
 }
 
@@ -694,7 +690,6 @@ void WiFiInterface::Spin() noexcept
 	default:
 		break;
 	}
-#ifdef SERIAL_WIFI_DEVICE
 	// Check for debug info received from the WiFi module
 	if (serialRunning)
 	{
@@ -727,7 +722,6 @@ void WiFiInterface::Spin() noexcept
 		debugMessageChars = 0;
 		debugPrintPending = false;
 	}
-#endif
 }
 
 // Translate a ESP8266 reset reason to text
@@ -1774,15 +1768,13 @@ void WiFiInterface::SpiInterrupt() noexcept
 void WiFiInterface::StartWiFi() noexcept
 {
 	digitalWrite(EspResetPin, HIGH);
-#ifdef SERIAL_WIFI_DEVICE
-#ifndef __LPC17xx__
+#ifdef __LPC17xx__
+    SERIAL_WIFI_DEVICE.Configure(WifiSerialRxTxPins[0], WifiSerialRxTxPins[1]);
+#else
 	ConfigurePin(g_APinDescription[APINS_Serial1]);				// connect the pins to UART1
 #endif
 	SERIAL_WIFI_DEVICE.begin(WiFiBaudRate);						// initialise the UART, to receive debug info
 	serialRunning = true;
-#else
-	serialRunning = false;
-#endif
 	debugMessageChars = 0;
 	debugPrintPending = false;
 }
@@ -1792,7 +1784,6 @@ void WiFiInterface::ResetWiFi() noexcept
 {
 	pinMode(EspResetPin, OUTPUT_LOW);							// assert ESP8266 /RESET
 	currentMode = WiFiState::disabled;
-#ifdef SERIAL_WIFI_DEVICE
 	pinMode(APIN_Serial1_TXD, INPUT_PULLUP);						// just enable pullups on TxD and RxD pins for now to avoid floating pins
 	pinMode(APIN_Serial1_RXD, INPUT_PULLUP);
 	if (serialRunning)
@@ -1800,7 +1791,6 @@ void WiFiInterface::ResetWiFi() noexcept
 		SERIAL_WIFI_DEVICE.end();
 		serialRunning = false;
 	}
-#endif
 }
 
 // Reset the ESP8266 to take commands from the UART or from external input. The caller must wait for the reset to complete after calling this.
@@ -1811,13 +1801,11 @@ void WiFiInterface::ResetWiFi() noexcept
 // 0		0		1		SD card boot (not used in on Duet)
 void WiFiInterface::ResetWiFiForUpload(bool external) noexcept
 {
-#ifdef SERIAL_WIFI_DEVICE
 	if (serialRunning)
 	{
 		SERIAL_WIFI_DEVICE.end();
 		serialRunning = false;
 	}
-#endif
 
 	// Make sure the ESP8266 is in the reset state
 	pinMode(EspResetPin, OUTPUT_LOW);
@@ -1842,7 +1830,6 @@ void WiFiInterface::ResetWiFiForUpload(bool external) noexcept
 	// Make sure it has time to reset - no idea how long it needs, but 50ms should be plenty
 	delay(50);
 
-#ifdef SERIAL_WIFI_DEVICE
 	if (external)
 	{
 		pinMode(APIN_Serial1_TXD, INPUT_PULLUP);					// just enable pullups on TxD and RxD pins
@@ -1850,11 +1837,12 @@ void WiFiInterface::ResetWiFiForUpload(bool external) noexcept
 	}
 	else
 	{
-#ifndef __LPC17xx__
+#ifdef __LPC17xx__
+        SERIAL_WIFI_DEVICE.Configure(WifiSerialRxTxPins[0], WifiSerialRxTxPins[1]);
+#else
 		ConfigurePin(g_APinDescription[APINS_Serial1]);				// connect the pins to the UART
 #endif
 	}
-#endif
 
 	// Release the reset on the ESP8266
 	digitalWrite(EspResetPin, HIGH);
