@@ -385,9 +385,9 @@ void GCodes::Spin() noexcept
 	GCodeBuffer *gbp = autoPauseGCode;
 	if (gbp->IsCompletelyIdle()
 #if HAS_MASS_STORAGE
-        && !(gbp->MachineState().fileState.IsLive())
+		&& !(gbp->MachineState().fileState.IsLive())
 #endif
-        )	// if autoPause is not active
+	   )	// if autoPause is not active
 	{
 		do
 		{
