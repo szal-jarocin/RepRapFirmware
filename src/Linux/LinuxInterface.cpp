@@ -330,7 +330,7 @@ void LinuxInterface::Spin()
 
 			if (gb == nullptr)
 			{
-				reprap.GetPlatform().MessageF(DebugMessage, "Unable to get requested channel buffer %d\n", i);
+				//reprap.GetPlatform().MessageF(DebugMessage, "Unable to get requested channel buffer %d\n", i);
 				continue;
 			}
 
