@@ -27,6 +27,7 @@ enum class GCodeBufferState : uint8_t
 	parseNotStarted,								// we haven't started parsing yet
 	parsingLineNumber,								// we saw N at the start and we are parsing the line number
 	parsingWhitespace,								// parsing whitespace after the line number
+	parsingComment,									// parsing a whole-line comment that we may be interested in
 	parsingGCode,									// parsing GCode words
 	parsingBracketedComment,						// inside a (...) comment
 	parsingQuotedString,							// inside a double-quoted string
@@ -64,6 +65,7 @@ public:
 	bool HasCommandNumber() const noexcept;
 	int GetCommandNumber() const noexcept;
 	int8_t GetCommandFraction() const noexcept;
+	const char *GetCompleteParameters() noexcept;								// Get all of the line following the command. Currently called only for the Q0 command.
 	int32_t GetLineNumber() const noexcept { return machineState->lineNumber; }
 	GCodeResult GetLastResult() const noexcept { return lastResult; }
 	void SetLastResult(GCodeResult r) noexcept { lastResult = r; }
@@ -74,9 +76,11 @@ public:
 	float GetFValue() THROWS(GCodeException) __attribute__((hot));					// Get a float after a key letter
 	float GetDistance() THROWS(GCodeException);										// Get a distance or coordinate and convert it from inches to mm if necessary
 	int32_t GetIValue() THROWS(GCodeException) __attribute__((hot));				// Get an integer after a key letter
-	int32_t GetLimitedIValue(char c, int32_t minValue, int32_t maxValue) THROWS(GCodeException);	// Get an integer after a key letter
+	int32_t GetLimitedIValue(char c, int32_t minValue, int32_t maxValue) THROWS(GCodeException)
+		post(minValue <= result; result <= maxValue);								// Get an integer after a key letter
 	uint32_t GetUIValue() THROWS(GCodeException);									// Get an unsigned integer value
-	uint32_t GetLimitedUIValue(char c, uint32_t maxValuePlusOne) THROWS(GCodeException);	// Get an unsigned integer value, throw if >= limit
+	uint32_t GetLimitedUIValue(char c, uint32_t maxValuePlusOne) THROWS(GCodeException)
+		post(result < maxValuePlusOne);												// Get an unsigned integer value, throw if >= limit
 	void GetIPAddress(IPAddress& returnedIp) THROWS(GCodeException);				// Get an IP address quad after a key letter
 	void GetMacAddress(MacAddress& mac) THROWS(GCodeException);						// Get a MAC address sextet after a key letter
 	PwmFrequency GetPwmFrequency() THROWS(GCodeException);							// Get a PWM frequency
