@@ -1,6 +1,10 @@
 Summary of LPC specific changes
 ===============================================
 
+Version 3.01 RC5
+==============
+* Updated with latest RC5 from DC42. 
+
 
 Version 3.01 RC4
 ==============
