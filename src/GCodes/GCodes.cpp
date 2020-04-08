@@ -841,6 +841,11 @@ void GCodes::DoPause(GCodeBuffer& gb, PauseReason reason, const char *msg) noexc
 	{
 		// Pausing a file print via another input source or for some other reason
 		pauseRestorePoint.feedRate = fileGCode->MachineState().feedRate;				// set up the default
+
+		// Save the spindle speeds if we are in CNC mode
+		//TODO if we have to execute some more moves, there might be a pending M3 command in the GCodeQueue and we should allow for that
+		SaveSpindleSpeeds(pauseRestorePoint);
+
 		const bool movesSkipped = reprap.GetMove().PausePrint(pauseRestorePoint);		// tell Move we wish to pause the current print
 		if (movesSkipped)
 		{
@@ -2751,8 +2756,7 @@ void GCodes::DoManualProbe(GCodeBuffer& gb, const char *message, const char *tit
 {
 	if (Push(gb, true))													// stack the machine state including the file position and set the state to GCodeState::normal
 	{
-		gb.MachineState().CloseFile();									// stop reading from file if we were
-		gb.MachineState().waitingForAcknowledgement = true;				// flag that we are waiting for acknowledgement
+		gb.MachineState().WaitForAcknowledgement();						// flag that we are waiting for acknowledgement
 		const MessageType mt = GetMessageBoxDevice(gb);
 		platform.SendAlert(mt, message, title, 2, 0.0, axes);
 	}
@@ -3381,7 +3385,11 @@ void GCodes::HandleReply(GCodeBuffer& gb, GCodeResult rslt, const char* reply) n
 
 	// Don't report empty responses if a file or macro is being processed, or if the GCode was queued
 	// Also check that this response was triggered by a gcode
-	if (reply[0] == 0 && (gb.MachineState().doingFileMacro || &gb == fileGCode || &gb == queuedGCode || &gb == triggerGCode || &gb == autoPauseGCode))
+	if (   reply[0] == 0
+		&& (   (gb.MachineState().doingFileMacro && !gb.MachineState().waitingForAcknowledgement)			// we must acknowledge M292
+			|| &gb == fileGCode || &gb == queuedGCode || &gb == triggerGCode || &gb == autoPauseGCode
+		   )
+	   )
 	{
 		return;
 	}
@@ -3858,7 +3866,7 @@ void GCodes::StopPrint(StopPrintReason reason) noexcept
 	}
 
 	updateFileWhenSimulationComplete = false;
-	reprap.GetPrintMonitor().StoppedPrint();		// must do this after printing the simulation details because it clears the filename
+	reprap.GetPrintMonitor().StoppedPrint();		// must do this after printing the simulation details not before, because it clears the filename and pause time
 	buildObjects.Init();
 }
 
@@ -3885,7 +3893,7 @@ void GCodes::UpdateCurrentUserPosition() noexcept
 	ToolOffsetInverseTransform(moveBuffer.coords, currentUserPosition);
 }
 
-// Save position to a restore point.
+// Save position etc. to a restore point.
 // Note that restore point coordinates are not affected by workplace coordinate offsets. This allows them to be used in resume.g.
 void GCodes::SavePosition(RestorePoint& rp, const GCodeBuffer& gb) const noexcept
 {
@@ -3898,6 +3906,16 @@ void GCodes::SavePosition(RestorePoint& rp, const GCodeBuffer& gb) const noexcep
 	rp.virtualExtruderPosition = virtualExtruderPosition;
 	rp.filePos = gb.GetFilePosition();
 
+	SaveSpindleSpeeds(rp);
+
+#if SUPPORT_LASER || SUPPORT_IOBITS
+	rp.laserPwmOrIoBits = moveBuffer.laserPwmOrIoBits;
+#endif
+}
+
+// Save spindle speeds to a restore point
+void GCodes::SaveSpindleSpeeds(RestorePoint& rp) const noexcept
+{
 	if (machineType == MachineType::cnc)
 	{
 		for (unsigned int i = 0; i < MaxSpindles; ++i)
@@ -3905,10 +3923,6 @@ void GCodes::SavePosition(RestorePoint& rp, const GCodeBuffer& gb) const noexcep
 			rp.spindleSpeeds[i] = platform.AccessSpindle(i).GetRpm();
 		}
 	}
-
-#if SUPPORT_LASER || SUPPORT_IOBITS
-	rp.laserPwmOrIoBits = moveBuffer.laserPwmOrIoBits;
-#endif
 }
 
 // Restore user position from a restore point. Also restore the laser power, but not the spindle speed (the user must do that explicitly).

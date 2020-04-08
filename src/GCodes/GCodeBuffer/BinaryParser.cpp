@@ -33,6 +33,7 @@ void BinaryParser::Put(const char *data, size_t len) noexcept
 	bufferLength = len;
 	gb.bufferState = GCodeBufferState::ready;
 	gb.machineState->g53Active = (header->flags & CodeFlags::EnforceAbsolutePosition) != 0;
+	gb.machineState->lineNumber = header->lineNumber;
 
 	if (reprap.Debug(moduleGcodes))
 	{
@@ -579,8 +580,7 @@ template<typename T> void BinaryParser::GetArray(T arr[], size_t& length, bool d
 		}
 		lastIndex = seenParameter->intValue - 1;
 		break;
-	case DataType::String:
-	case DataType::Expression:
+	default:
 		length = 0;
 		return;
 	}
@@ -691,8 +691,23 @@ void BinaryParser::WriteParameters(const StringRef& s, bool quoteStrings) const 
 						s.cat(':');
 					}
 					const uint32_t driver = *reinterpret_cast<const uint32_t*>(val);
-					s.catf("%c%d.%d", param->letter, (int)(driver >> 16), (int)(driver & 0xFFFF));
+					s.catf("%d.%d", (int)(driver >> 16), (int)(driver & 0xFFFF));
 					val += sizeof(uint32_t);
+				}
+				break;
+			case DataType::Bool:
+				s.catf("%c%c", param->letter, (param->intValue != 0) ? '1' : '0');
+				break;
+			case DataType::BoolArray:
+				s.cat(param->letter);
+				for (int k = 0; k < param->intValue; k++)
+				{
+					if (k != 0)
+					{
+						s.cat(':');
+					}
+					s.cat(((const uint8_t*)val != 0) ? '1' : '0');
+					val += sizeof(uint8_t);
 				}
 				break;
 			}
@@ -702,17 +717,17 @@ void BinaryParser::WriteParameters(const StringRef& s, bool quoteStrings) const 
 
 GCodeException BinaryParser::ConstructParseException(const char *str) const noexcept
 {
-	return GCodeException(lineNumber, -1, str);
+	return GCodeException(header->lineNumber, -1, str);
 }
 
 GCodeException BinaryParser::ConstructParseException(const char *str, const char *param) const noexcept
 {
-	return GCodeException(lineNumber, -1, str, param);
+	return GCodeException(header->lineNumber, -1, str, param);
 }
 
 GCodeException BinaryParser::ConstructParseException(const char *str, uint32_t param) const noexcept
 {
-	return GCodeException(lineNumber, -1, str, param);
+	return GCodeException(header->lineNumber, -1, str, param);
 }
 
 #endif

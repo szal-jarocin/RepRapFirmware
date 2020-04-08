@@ -107,7 +107,7 @@ void GCodeBuffer::Reset() noexcept
 	while (PopState(false)) { }
 #if HAS_LINUX_INTERFACE
 	requestedMacroFile.Clear();
-	reportMissingMacro = isMacroFromCode = abortFile = abortAllFiles = reportStack = false;
+	reportMissingMacro = isMacroFromCode = abortFile = abortAllFiles = false;
 	isBinaryBuffer = false;
 #endif
 	Init();
@@ -117,6 +117,7 @@ void GCodeBuffer::Reset() noexcept
 void GCodeBuffer::Init() noexcept
 {
 #if HAS_LINUX_INTERFACE
+	sendToSbc = false;
 	binaryParser.Init();
 #endif
 	stringParser.Init();
@@ -580,6 +581,9 @@ void GCodeBuffer::SetFinished(bool f) noexcept
 {
 	if (f)
 	{
+#if HAS_LINUX_INTERFACE
+		sendToSbc = false;
+#endif
 		PARSER_OPERATION(SetFinished());
 	}
 	else
@@ -658,9 +662,6 @@ bool GCodeBuffer::PopState(bool withinSameFile) noexcept
 	}
 	delete ms;
 
-#if HAS_LINUX_INTERFACE
-	reportStack = true;
-#endif
 	return true;
 }
 

@@ -131,7 +131,7 @@ public:
 	void SetPrintFinished() noexcept;							// Mark the print file as finished
 	bool IsFileFinished() const noexcept;						// Return true if this source has finished execution of a file
 
-	bool IsMacroRequested() const noexcept { return !requestedMacroFile.IsEmpty(); }					// Indicates if a macro file is being requested
+	bool IsMacroRequested() const noexcept { return !requestedMacroFile.IsEmpty(); }			// Indicates if a macro file is being requested
 	void RequestMacroFile(const char *filename, bool reportMissing, bool fromCode) noexcept;	// Request execution of a file macro
 	const char *GetRequestedMacroFile(bool& reportMissing, bool &fromCode) const noexcept;		// Return requested macro file or nullptr if none
 
@@ -139,12 +139,11 @@ public:
 	bool IsAbortAllRequested() const noexcept;					// Is the cancellation of all files being executed on this channel requested?
 	void AcknowledgeAbort() noexcept;							// Indicates that the current macro file is being cancelled
 
-	void ReportStack() noexcept { reportStack = true; }			// Flags current stack details to be reported
-	bool IsStackEventFlagged() const noexcept;					// Did the stack change?
-	void AcknowledgeStackEvent() noexcept;						// Indicates that the last stack event has been written
-
 	bool IsInvalidated() const noexcept { return invalidated; }	// Indicates if the channel is invalidated
 	void Invalidate(bool i = true) noexcept { invalidated = i; }	// Invalidate this channel (or not)
+
+	bool IsSendRequested() const noexcept { return sendToSbc; }	// Is this code supposed to be sent to the SBC
+	void SendToSbc() noexcept { sendToSbc = true; }				// Send this code to the attached SBC
 #endif
 
 	GCodeState GetState() const noexcept;
@@ -243,7 +242,7 @@ private:
 		abortFile : 1,
 		abortAllFiles : 1,
 		invalidated : 1,
-		reportStack : 1;
+		sendToSbc : 1;
 #endif
 };
 
@@ -309,16 +308,6 @@ inline bool GCodeBuffer::IsAbortAllRequested() const noexcept
 inline void GCodeBuffer::AcknowledgeAbort() noexcept
 {
 	abortFile = abortAllFiles = false;
-}
-
-inline bool GCodeBuffer::IsStackEventFlagged() const noexcept
-{
-	return reportStack;
-}
-
-inline void GCodeBuffer::AcknowledgeStackEvent() noexcept
-{
-	reportStack = false;
 }
 
 #endif

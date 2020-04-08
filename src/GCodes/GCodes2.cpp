@@ -422,6 +422,15 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeEx
 		return true;			// we don't simulate most M codes
 	}
 
+#if HAS_LINUX_INTERFACE
+	// TODO add more codes
+	if (reprap.UsingLinuxInterface() && !gb.IsBinary() && code == 20)
+	{
+		gb.SendToSbc();
+		return false;
+	}
+#endif
+
 	OutputBuffer *outBuf = nullptr;
 
 	try
@@ -2303,8 +2312,7 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeEx
 				if ((sParam == 2 || sParam == 3) && Push(gb, true))					// stack the machine state including the file position
 				{
 					UnlockMovement(gb);												// allow movement so that e.g. an SD card print can call M291 and then DWC or PanelDue can be used to jog axes
-					gb.MachineState().CloseFile();									// stop reading from file
-					gb.MachineState().waitingForAcknowledgement = true;				// flag that we are waiting for acknowledgement
+					gb.MachineState().WaitForAcknowledgement();						// flag that we are waiting for acknowledgement
 				}
 
 				// Display the message box on all relevant devices. Acknowledging any one of them clears them all.
