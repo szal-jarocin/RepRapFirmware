@@ -39,7 +39,7 @@
 #include <TaskPriorities.h>
 
 #ifdef __LPC17xx__
-constexpr size_t NetworkStackWords = 375;
+constexpr size_t NetworkStackWords = 575;
 #else
 constexpr size_t NetworkStackWords = 575;				// need to be enough to support rr_model
 #endif
