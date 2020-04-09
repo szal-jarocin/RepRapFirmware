@@ -1,6 +1,12 @@
 Summary of LPC specific changes
 ===============================================
 
+Version 3.01 RC6
+==============
+* Updated with latest RC6 from DC42. 
+* Various SBC communication parameters adjusted to bring them into line with the Duet.
+* Network task stack size increased to avoid stack overflow resets
+
 Version 3.01 RC5
 ==============
 * Updated with latest RC5 from DC42. 
