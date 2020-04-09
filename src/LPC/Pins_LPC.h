@@ -53,7 +53,6 @@
 #define SUPPORT_WORKPLACE_COORDINATES    1
 #define SUPPORT_LASER                    1
 
-#define SUPPORT_TELNET                   0
 #define SUPPORT_FTP                      0
 
 
@@ -65,6 +64,7 @@
     #define SUPPORT_12864_LCD            1
     #define HAS_WIFI_NETWORKING          0
     #define HAS_MASS_STORAGE             1
+    #define SUPPORT_TELNET               0
 
     #define BOARD_NAME          "LPC176x Ethernet"
     #define BOARD_SHORT_NAME    "LPCEth"
@@ -74,6 +74,7 @@
     #define SUPPORT_12864_LCD            0
     #define HAS_WIFI_NETWORKING          1
     #define HAS_MASS_STORAGE             1
+    #define SUPPORT_TELNET               0
 
     #define BOARD_NAME          "LPC176x WiFi"
     #define BOARD_SHORT_NAME    "LPCWiFi"
@@ -84,6 +85,7 @@
     #define HAS_WIFI_NETWORKING          0
     #define HAS_MASS_STORAGE             0
     #define HAS_LINUX_INTERFACE          1
+    #define SUPPORT_TELNET               1
 
     #define BOARD_NAME          "LPC176x SBC"
     #define BOARD_SHORT_NAME    "LPCSBC"
@@ -93,6 +95,7 @@
     #define SUPPORT_12864_LCD            1
     #define HAS_WIFI_NETWORKING          0
     #define HAS_MASS_STORAGE             1
+    #define SUPPORT_TELNET               0
 
     #define BOARD_NAME          "LPC176x"
     #define BOARD_SHORT_NAME    "LPC"
