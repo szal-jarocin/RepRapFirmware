@@ -107,7 +107,7 @@ void GCodeBuffer::Reset() noexcept
 	while (PopState(false)) { }
 #if HAS_LINUX_INTERFACE
 	requestedMacroFile.Clear();
-	reportMissingMacro = isMacroFromCode = abortFile = abortAllFiles = false;
+	reportMissingMacro = isMacroFromCode = macroRequested = abortFile = abortAllFiles = false;
 	isBinaryBuffer = false;
 #endif
 	Init();
@@ -187,8 +187,8 @@ void GCodeBuffer::Diagnostics(MessageType mtype) noexcept
 	const GCodeMachineState *ms = machineState;
 	do
 	{
-		scratchString.catf(" %d", (int)ms->state);
-		ms = ms->previous;
+		scratchString.catf(" %d", (int)ms->GetState());
+		ms = ms->GetPrevious();
 	} while (ms != nullptr);
 	if (IsDoingFileMacro())
 	{
@@ -440,6 +440,24 @@ bool GCodeBuffer::TryGetIValue(char c, int32_t& val, bool& seen)
 	return ret;
 }
 
+// Try to get a signed integer value, throw if outside limits
+bool GCodeBuffer::TryGetLimitedIValue(char c, int32_t& val, bool& seen, int32_t minValue, int32_t maxValue) THROWS(GCodeException)
+{
+	const bool b = TryGetIValue(c, val, seen);
+	if (b)
+	{
+		if (val < minValue)
+		{
+			throw GCodeException(machineState->lineNumber, -1, "parameter '%c' too low", (uint32_t)c);
+		}
+		if (val > maxValue)
+		{
+			throw GCodeException(machineState->lineNumber, -1, "parameter '%c' too high", (uint32_t)c);
+		}
+	}
+	return b;
+}
+
 // If the specified parameter character is found, fetch 'value' and set 'seen'. Otherwise leave val and seen alone.
 bool GCodeBuffer::TryGetUIValue(char c, uint32_t& val, bool& seen)
 {
@@ -450,6 +468,17 @@ bool GCodeBuffer::TryGetUIValue(char c, uint32_t& val, bool& seen)
 		seen = true;
 	}
 	return ret;
+}
+
+// Try to get an unsigned integer value, throw if >= limit
+bool GCodeBuffer::TryGetLimitedUIValue(char c, uint32_t& val, bool& seen, uint32_t maxValuePlusOne) THROWS(GCodeException)
+{
+	const bool b = TryGetUIValue(c, val, seen);
+	if (b && val >= maxValuePlusOne)
+	{
+		throw GCodeException(machineState->lineNumber, -1, "parameter '%c' too high", (uint32_t)c);
+	}
+	return b;
 }
 
 // If the specified parameter character is found, fetch 'value' as a Boolean and set 'seen'. Otherwise leave val and seen alone.
@@ -601,9 +630,9 @@ void GCodeBuffer::SetCommsProperties(uint32_t arg) noexcept
 GCodeMachineState& GCodeBuffer::OriginalMachineState() const noexcept
 {
 	GCodeMachineState *ms = machineState;
-	while (ms->previous != nullptr)
+	while (ms->GetPrevious() != nullptr)
 	{
-		ms = ms->previous;
+		ms = ms->GetPrevious();
 	}
 	return *ms;
 }
@@ -624,7 +653,7 @@ float GCodeBuffer::InverseConvertDistance(float distance) const noexcept
 unsigned int GCodeBuffer::GetStackDepth() const noexcept
 {
 	unsigned int depth = 0;
-	for (const GCodeMachineState *m1 = machineState; m1->previous != nullptr; m1 = m1->previous)
+	for (const GCodeMachineState *m1 = machineState; m1->GetPrevious() != nullptr; m1 = m1->GetPrevious())
 	{
 		++depth;
 	}
@@ -648,14 +677,14 @@ bool GCodeBuffer::PushState(bool withinSameFile) noexcept
 bool GCodeBuffer::PopState(bool withinSameFile) noexcept
 {
 	GCodeMachineState * const ms = machineState;
-	if (ms->previous == nullptr)
+	if (ms->GetPrevious() == nullptr)
 	{
 		ms->messageAcknowledged = false;			// avoid getting stuck in a loop trying to pop
 		ms->waitingForAcknowledgement = false;
 		return false;
 	}
 
-	machineState = ms->previous;
+	machineState = ms->GetPrevious();
 	if (withinSameFile)
 	{
 		machineState->lineNumber = ms->lineNumber;
@@ -687,12 +716,16 @@ void GCodeBuffer::AbortFile(bool abortAll, bool requestAbort) noexcept
 				machineState->CloseFile();
 			}
 		} while (PopState(false) && (abortAll || !machineState->DoingFile()));
-	}
 
 #if HAS_LINUX_INTERFACE
-	abortFile = requestAbort;
-	abortAllFiles = requestAbort && abortAll;
+		abortFile = requestAbort;
+		abortAllFiles = requestAbort && abortAll;
+	}
+	else if (!requestAbort)
+	{
+		abortFile = abortAllFiles = false;
 #endif
+	}
 }
 
 #if HAS_LINUX_INTERFACE
@@ -705,7 +738,7 @@ bool GCodeBuffer::IsFileFinished() const noexcept
 void GCodeBuffer::SetPrintFinished() noexcept
 {
 	const uint32_t fileId = OriginalMachineState().fileId;
-	for (GCodeMachineState *ms = machineState; ms != nullptr; ms = ms->previous)
+	for (GCodeMachineState *ms = machineState; ms != nullptr; ms = ms->GetPrevious())
 	{
 		if (ms->fileId == fileId)
 		{
@@ -718,25 +751,25 @@ void GCodeBuffer::SetPrintFinished() noexcept
 void GCodeBuffer::RequestMacroFile(const char *filename, bool reportMissing, bool fromCode) noexcept
 {
 	machineState->SetFileExecuting();
-	if (filename == nullptr)
+	if (!fromCode)
 	{
-		requestedMacroFile.Clear();
+		// This suppresses unwanted replies in the USB console
+		isBinaryBuffer = true;
 	}
-	else
-	{
-		requestedMacroFile.copy(filename);
-	}
+
+	requestedMacroFile.copy(filename);
 	reportMissingMacro = reportMissing;
 	isMacroFromCode = fromCode;
+	macroRequested = true;
+
 	abortFile = abortAllFiles = false;
-	isBinaryBuffer = true;
 }
 
 const char *GCodeBuffer::GetRequestedMacroFile(bool& reportMissing, bool& fromCode) const noexcept
 {
 	reportMissing = reportMissingMacro;
 	fromCode = isMacroFromCode;
-	return requestedMacroFile.IsEmpty() ? nullptr : requestedMacroFile.c_str();
+	return requestedMacroFile.c_str();
 }
 
 #endif
@@ -745,7 +778,7 @@ const char *GCodeBuffer::GetRequestedMacroFile(bool& reportMissing, bool& fromCo
 // Allow for the possibility that the source may have started running a macro since it started waiting
 void GCodeBuffer::MessageAcknowledged(bool cancelled) noexcept
 {
-	for (GCodeMachineState *ms = machineState; ms != nullptr; ms = ms->previous)
+	for (GCodeMachineState *ms = machineState; ms != nullptr; ms = ms->GetPrevious())
 	{
 		if (ms->waitingForAcknowledgement)
 		{
@@ -833,6 +866,23 @@ void GCodeBuffer::PrintCommand(const StringRef& s) const noexcept
 void GCodeBuffer::AppendFullCommand(const StringRef &s) const noexcept
 {
 	PARSER_OPERATION(AppendFullCommand(s));
+}
+
+bool GCodeBuffer::IsPausing() const
+{
+	const GCodeState topState = OriginalMachineState().GetState();
+	return (   topState == GCodeState::pausing1 || topState == GCodeState::pausing2
+			|| topState == GCodeState::filamentChangePause1 || topState == GCodeState::filamentChangePause2
+#if HAS_VOLTAGE_MONITOR
+			|| topState == GCodeState::powerFailPausing1
+#endif
+	   	   );
+}
+
+bool GCodeBuffer::IsResuming() const
+{
+	const GCodeState topState = OriginalMachineState().GetState();
+	return topState == GCodeState::resuming1 || topState == GCodeState::resuming2 || topState == GCodeState::resuming3;
 }
 
 // End

@@ -152,7 +152,7 @@ public:
 	bool GetFileInfoResponse(const char *filename, OutputBuffer *&response, bool quitEarly) noexcept;
 
 #if SUPPORT_OBJECT_MODEL
-	OutputBuffer *GetModelResponse(const char *key, const char *flags);
+	OutputBuffer *GetModelResponse(const char *key, const char *flags) const THROWS(GCodeException);
 #endif
 
 	void Beep(unsigned int freq, unsigned int ms) noexcept;
@@ -203,6 +203,7 @@ protected:
 	OBJECT_MODEL_ARRAY(inputs)
 	OBJECT_MODEL_ARRAY(spindles)
 	OBJECT_MODEL_ARRAY(tools)
+	OBJECT_MODEL_ARRAY(restorePoints)
 	OBJECT_MODEL_ARRAY(volumes)
 
 private:

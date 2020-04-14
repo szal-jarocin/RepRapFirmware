@@ -73,8 +73,8 @@ const uint32_t WiFiStableMillis = 100;
 const unsigned int MaxHttpConnections = 4;
 
 // Forward declarations of static functions
-static void spi_dma_disable();
-static bool spi_dma_check_rx_complete();
+static void spi_dma_disable() noexcept;
+static bool spi_dma_check_rx_complete() noexcept;
 
 struct MessageBufferOut
 {
@@ -895,7 +895,7 @@ void WiFiInterface::SetIPAddress(IPAddress p_ip, IPAddress p_netmask, IPAddress 
 	gateway = p_gateway;
 }
 
-GCodeResult WiFiInterface::HandleWiFiCode(int mcode, GCodeBuffer &gb, const StringRef& reply, OutputBuffer*& longReply)
+GCodeResult WiFiInterface::HandleWiFiCode(int mcode, GCodeBuffer &gb, const StringRef& reply, OutputBuffer*& longReply) THROWS(GCodeException)
 {
 	switch (mcode)
 	{
@@ -1232,7 +1232,7 @@ static xdmac_channel_config_t xdmac_tx_cfg, xdmac_rx_cfg;
 
 #endif
 
-static inline void spi_rx_dma_enable()
+static inline void spi_rx_dma_enable() noexcept
 {
 #if USE_PDC
 	pdc_enable_transfer(spi_pdc, PERIPH_PTCR_RXTEN);
@@ -1247,7 +1247,7 @@ static inline void spi_rx_dma_enable()
 #endif
 }
 
-static inline void spi_tx_dma_enable()
+static inline void spi_tx_dma_enable() noexcept
 {
 #if USE_PDC
 	pdc_enable_transfer(spi_pdc, PERIPH_PTCR_TXTEN);
@@ -1262,7 +1262,7 @@ static inline void spi_tx_dma_enable()
 #endif
 }
 
-static inline void spi_rx_dma_disable()
+static inline void spi_rx_dma_disable() noexcept
 {
 #if USE_PDC
 	pdc_disable_transfer(spi_pdc, PERIPH_PTCR_RXTDIS);
@@ -1277,7 +1277,7 @@ static inline void spi_rx_dma_disable()
 #endif
 }
 
-static inline void spi_tx_dma_disable()
+static inline void spi_tx_dma_disable() noexcept
 {
 #if USE_PDC
 	pdc_disable_transfer(spi_pdc, PERIPH_PTCR_TXTDIS);
@@ -1292,13 +1292,13 @@ static inline void spi_tx_dma_disable()
 #endif
 }
 
-static void spi_dma_disable()
+static void spi_dma_disable() noexcept
 {
 	spi_tx_dma_disable();
 	spi_rx_dma_disable();
 }
 
-static inline void spi_dma_enable()
+static inline void spi_dma_enable() noexcept
 {
 #if USE_PDC
 	pdc_enable_transfer(spi_pdc, PERIPH_PTCR_TXTEN | PERIPH_PTCR_RXTEN);
@@ -1310,7 +1310,7 @@ static inline void spi_dma_enable()
 #endif
 }
 
-static bool spi_dma_check_rx_complete()
+static bool spi_dma_check_rx_complete() noexcept
 {
 #if USE_PDC
 	return true;
@@ -1346,7 +1346,7 @@ static bool spi_dma_check_rx_complete()
 	return false;
 }
 
-static void spi_tx_dma_setup(const void *buf, uint32_t transferLength)
+static void spi_tx_dma_setup(const void *buf, uint32_t transferLength) noexcept
 {
 #if USE_PDC
 	pdc_packet_t pdc_spi_packet;
@@ -1399,7 +1399,7 @@ static void spi_tx_dma_setup(const void *buf, uint32_t transferLength)
 #endif
 }
 
-static void spi_rx_dma_setup(const void *buf, uint32_t transferLength)
+static void spi_rx_dma_setup(const void *buf, uint32_t transferLength) noexcept
 {
 #if USE_PDC
 	pdc_packet_t pdc_spi_packet;
@@ -1455,7 +1455,7 @@ static void spi_rx_dma_setup(const void *buf, uint32_t transferLength)
 /**
  * \brief Set SPI slave transfer.
  */
-static void spi_slave_dma_setup(uint32_t dataOutSize, uint32_t dataInSize)
+static void spi_slave_dma_setup(uint32_t dataOutSize, uint32_t dataInSize) noexcept
 {
 #if USE_PDC
 	pdc_disable_transfer(spi_pdc, PERIPH_PTCR_TXTDIS | PERIPH_PTCR_RXTDIS);
