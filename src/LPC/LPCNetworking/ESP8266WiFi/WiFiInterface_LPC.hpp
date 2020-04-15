@@ -40,7 +40,7 @@ static inline void spi_tx_dma_disable()
     LPC_SSP0->DMACR &= ~SSP_DMA_TX;
 }
 
-static inline void spi_dma_disable()
+static inline void spi_dma_disable() noexcept
 {
 	spi_tx_dma_disable();
 	spi_rx_dma_disable();
@@ -52,7 +52,7 @@ static inline void spi_dma_enable()
     spi_tx_dma_enable();
 }
 
-static bool spi_dma_check_rx_complete()
+static bool spi_dma_check_rx_complete() noexcept
 {
     //DMA Interrupt will notifiy when transfer is complete, just return true here
     return true;
