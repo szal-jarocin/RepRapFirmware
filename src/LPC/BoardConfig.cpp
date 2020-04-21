@@ -103,24 +103,24 @@ static const boardConfigEntry_t boardConfigs[]=
 extern "C"
 {
     // Create a sync object. We already created it, we just need to copy the handle.
-    int ff_cre_syncobj (BYTE vol, FF_SYNC_t* psy)
+    int ff_cre_syncobj (BYTE vol, FF_SYNC_t* psy) noexcept
     {
         return 1;
     }
 
     // Lock sync object
-    int ff_req_grant (FF_SYNC_t sy)
+    int ff_req_grant (FF_SYNC_t sy) noexcept
     {
         return 1;
     }
 
     // Unlock sync object
-    void ff_rel_grant (FF_SYNC_t sy)
+    void ff_rel_grant (FF_SYNC_t sy) noexcept
     {
     }
 
     // Delete a sync object
-    int ff_del_syncobj (FF_SYNC_t sy)
+    int ff_del_syncobj (FF_SYNC_t sy) noexcept
     {
         return 1;        // nothing to do, we never delete the mutex
     }
