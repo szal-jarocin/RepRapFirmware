@@ -272,9 +272,11 @@ constexpr ObjectModelTableEntry Platform::objectModelTable[] =
 	{ "machinePosition",	OBJECT_MODEL_FUNC_NOSELF(reprap.GetMove().LiveCoordinate(context.GetLastIndex(), reprap.GetCurrentTool()), 3),	ObjectModelEntryFlags::live },
 	{ "max",				OBJECT_MODEL_FUNC(self->AxisMaximum(context.GetLastIndex()), 1),									ObjectModelEntryFlags::none },
 	{ "maxProbed",			OBJECT_MODEL_FUNC(self->axisMaximaProbed.IsBitSet(context.GetLastIndex())),							ObjectModelEntryFlags::none },
+	{ "microstepping",		OBJECT_MODEL_FUNC(self, 7),																			ObjectModelEntryFlags::none },
 	{ "min",				OBJECT_MODEL_FUNC(self->AxisMinimum(context.GetLastIndex()), 1),									ObjectModelEntryFlags::none },
 	{ "minProbed",			OBJECT_MODEL_FUNC(self->axisMinimaProbed.IsBitSet(context.GetLastIndex())),							ObjectModelEntryFlags::none },
 	{ "speed",				OBJECT_MODEL_FUNC(MinutesToSeconds * self->MaxFeedrate(context.GetLastIndex()), 1),					ObjectModelEntryFlags::none },
+	{ "stepsPerMm",			OBJECT_MODEL_FUNC(self->driveStepsPerUnit[context.GetLastIndex()], 2),								ObjectModelEntryFlags::none },
 	{ "userPosition",		OBJECT_MODEL_FUNC_NOSELF(reprap.GetGCodes().GetUserCoordinate(context.GetLastIndex()), 3),			ObjectModelEntryFlags::live },
 	{ "visible",			OBJECT_MODEL_FUNC_NOSELF(context.GetLastIndex() < (int32_t)reprap.GetGCodes().GetVisibleAxes()),	ObjectModelEntryFlags::none },
 	{ "workplaceOffsets",	OBJECT_MODEL_FUNC_NOSELF(&workplaceOffsetsArrayDescriptor),											ObjectModelEntryFlags::none },
@@ -286,11 +288,13 @@ constexpr ObjectModelTableEntry Platform::objectModelTable[] =
 	{ "factor",				OBJECT_MODEL_FUNC_NOSELF(reprap.GetGCodes().GetExtrusionFactor(context.GetLastIndex()), 2),			ObjectModelEntryFlags::none },
 	{ "filament",			OBJECT_MODEL_FUNC_NOSELF(GetFilamentName(context.GetLastIndex())),									ObjectModelEntryFlags::none },
 	{ "jerk",				OBJECT_MODEL_FUNC(MinutesToSeconds * self->GetInstantDv(ExtruderToLogicalDrive(context.GetLastIndex())), 1),	ObjectModelEntryFlags::none },
+	{ "microstepping",		OBJECT_MODEL_FUNC(self, 8),																			ObjectModelEntryFlags::none },
 	{ "nonlinear",			OBJECT_MODEL_FUNC(self, 5),																			ObjectModelEntryFlags::none },
 	{ "position",			OBJECT_MODEL_FUNC_NOSELF(ExpressionValue(reprap.GetMove().LiveCoordinate(ExtruderToLogicalDrive(context.GetLastIndex()), reprap.GetCurrentTool()), 1)),	ObjectModelEntryFlags::live },
 	{ "pressureAdvance",	OBJECT_MODEL_FUNC(self->GetPressureAdvance(context.GetLastIndex()), 2),								ObjectModelEntryFlags::none },
 	{ "rawPosition",		OBJECT_MODEL_FUNC_NOSELF(ExpressionValue(reprap.GetGCodes().GetRawExtruderTotalByDrive(context.GetLastIndex()), 1)), ObjectModelEntryFlags::live },
 	{ "speed",				OBJECT_MODEL_FUNC(MinutesToSeconds * self->MaxFeedrate(ExtruderToLogicalDrive(context.GetLastIndex())), 1),	ObjectModelEntryFlags::none },
+	{ "stepsPerMm",			OBJECT_MODEL_FUNC(self->driveStepsPerUnit[ExtruderToLogicalDrive(context.GetLastIndex())], 2),		ObjectModelEntryFlags::none },
 
 	// 5. move.extruders[].nonlinear members
 	{ "a",					OBJECT_MODEL_FUNC(self->nonlinearExtrusionA[context.GetLastIndex()], 3),							ObjectModelEntryFlags::none },
@@ -304,11 +308,18 @@ constexpr ObjectModelTableEntry Platform::objectModelTable[] =
 	{ "min",				OBJECT_MODEL_FUNC(self->GetV12Voltages().min, 1),													ObjectModelEntryFlags::none },
 #endif
 
+	// 7. move.axes[].microstepping members
+	{ "interpolated",		OBJECT_MODEL_FUNC((self->microstepping[context.GetLastIndex()] & 0x8000) != 0),						ObjectModelEntryFlags::none },
+	{ "value",				OBJECT_MODEL_FUNC((int32_t)(self->microstepping[context.GetLastIndex()] & 0x7FFF)),					ObjectModelEntryFlags::none },
+
+	// 8. move.extruders[].microstepping members
+	{ "interpolated",		OBJECT_MODEL_FUNC((self->microstepping[ExtruderToLogicalDrive(context.GetLastIndex())] & 0x8000) != 0),		ObjectModelEntryFlags::none },
+	{ "value",				OBJECT_MODEL_FUNC((int32_t)(self->microstepping[ExtruderToLogicalDrive(context.GetLastIndex())] & 0x7FFF)),	ObjectModelEntryFlags::none },
 };
 
 constexpr uint8_t Platform::objectModelTableDescriptor[] =
 {
-	6 + HAS_12V_MONITOR,													// number of sections
+	9,																		// number of sections
 	12 + HAS_LINUX_INTERFACE + HAS_12V_MONITOR + SUPPORT_CAN_EXPANSION,		// section 0: boards[]
 	3,																		// section 1: mcuTemp
 #if HAS_VOLTAGE_MONITOR
@@ -316,20 +327,34 @@ constexpr uint8_t Platform::objectModelTableDescriptor[] =
 #else
 	0,																		// section 2: vIn
 #endif
-	16,																		// section 3: move.axes[]
-	11,																		// section 4: move.extruders[]
-	3,																		// section 5: move.extruders[].pressureAdvance
+	18,																		// section 3: move.axes[]
+	13,																		// section 4: move.extruders[]
+	3,																		// section 5: move.extruders[].nonlinear
 #if HAS_12V_MONITOR
-	3																		// section 7: v12
+	3,																		// section 6: v12
+#else
+	0,																		// section 6: v12
 #endif
+	2,																		// section 7: move.axes[].microstepping
+	2,																		// section 8: move.extruders[].microstepping
 };
 
 DEFINE_GET_OBJECT_MODEL_TABLE(Platform)
 
-size_t Platform::GetNumInputsToReport() const noexcept
+size_t Platform::GetNumGpInputsToReport() const noexcept
 {
 	size_t ret = MaxGpInPorts;
 	while (ret != 0 && gpinPorts[ret - 1].IsUnused())
+	{
+		--ret;
+	}
+	return ret;
+}
+
+size_t Platform::GetNumGpOutputsToReport() const noexcept
+{
+	size_t ret = MaxGpOutPorts;
+	while (ret != 0 && gpoutPorts[ret - 1].IsUnused())
 	{
 		--ret;
 	}
@@ -1231,10 +1256,12 @@ void Platform::Spin() noexcept
 	}
 
 	// Thermostatically-controlled fans (do this after getting TMC driver status)
-	if (now - lastFanCheckTime >= FanCheckInterval)
+	// We should call CheckFans frequently so that blip time is terminated at the right time, but we don't need or want to check sensors that often
+	const bool checkFanSensors = (now - lastFanCheckTime >= FanCheckInterval);
+	const bool thermostaticFanRunning = reprap.GetFansManager().CheckFans(checkFanSensors);
+	if (checkFanSensors)
 	{
 		lastFanCheckTime = now;
-		bool thermostaticFanRunning = reprap.GetFansManager().CheckFans();
 
 		if (deferredPowerDown && !thermostaticFanRunning)
 		{
@@ -2023,11 +2050,12 @@ GCodeResult Platform::DiagnosticTest(GCodeBuffer& gb, const StringRef& reply, Ou
 #endif
 			buf->lcat((testFailed) ? "***** ONE OR MORE CHECKS FAILED *****" : "All checks passed");
 
-	#if SAM4E || SAM4S || SAME70
+#if SAM4E || SAM4S || SAME70
 			if (!testFailed)
 			{
 				AppendUniqueId(reply);
 				buf->lcat(reply.c_str());
+				reply.Clear();
 			}
 #endif
 		}
@@ -2768,6 +2796,7 @@ void Platform::SetDriveStepsPerUnit(size_t axisOrExtruder, float value, uint32_t
 		}
 	}
 	driveStepsPerUnit[axisOrExtruder] = max<float>(value, 1.0);	// don't allow zero or negative
+	reprap.MoveUpdated();
 }
 
 // Set the microstepping for a driver, returning true if successful
@@ -2803,6 +2832,7 @@ bool Platform::SetMicrostepping(size_t axisOrExtruder, int microsteps, bool inte
 {
 	//TODO check that it is a valid microstep setting
 	microstepping[axisOrExtruder] = (interp) ? microsteps | 0x8000 : microsteps;
+	reprap.MoveUpdated();
 	bool ok = true;
 #if SUPPORT_CAN_EXPANSION
 	CanDriversData canDriversToUpdate;
@@ -2840,8 +2870,8 @@ bool Platform::SetMicrostepping(size_t axisOrExtruder, int microsteps, bool inte
 						}
 					}
 				  );
-	return ok;
 #endif
+	return ok;
 }
 
 // Get the microstepping for an axis or extruder
@@ -2996,7 +3026,7 @@ void Platform::AppendAuxReply(OutputBuffer *reply, bool rawMessage) noexcept
 		}
 		else
 		{
-			// Other responses are stored for M105/M408
+			// Other responses are stored for M408
 			auxSeq++;
 			auxGCodeReply.Push(reply);
 		}
