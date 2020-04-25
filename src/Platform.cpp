@@ -376,7 +376,11 @@ Platform::Platform() noexcept :
 	sysDir(nullptr),
 #endif
 	tickState(0), debugCode(0),
-	lastWarningMillis(0), lastLaserPwm(0.0), deferredPowerDown(false), deliberateError(false)
+	lastWarningMillis(0),
+#if SUPPORT_LASER
+	lastLaserPwm(0.0),
+#endif
+	deferredPowerDown(false), deliberateError(false)
 {
 }
 
@@ -3849,6 +3853,8 @@ void Platform::EncodeSysDir(OutputBuffer *buf) const noexcept
 
 #endif
 
+#if SUPPORT_LASER
+
 // CNC and laser support
 
 void Platform::SetLaserPwm(Pwm_t pwm) noexcept
@@ -3877,6 +3883,8 @@ void Platform::SetLaserPwmFrequency(PwmFrequency freq) noexcept
 {
 	laserPort.SetFrequency(freq);
 }
+
+#endif
 
 // Axis limits
 void Platform::SetAxisMaximum(size_t axis, float value, bool byProbing) noexcept
