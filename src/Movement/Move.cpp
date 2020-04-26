@@ -136,7 +136,7 @@ constexpr ObjectModelTableEntry Move::objectModelTable[] =
 	{ "mean",					OBJECT_MODEL_FUNC(self->latestMeshDeviation.GetMean(), 3),								ObjectModelEntryFlags::none },
 };
 
-constexpr uint8_t Move::objectModelTableDescriptor[] = { 9, 12, 3, 2, 4 + SUPPORT_LASER, 3, 2, 2, 4 + HAS_MASS_STORAGE, 2 };
+constexpr uint8_t Move::objectModelTableDescriptor[] = { 9, 12, 3, 2, 4 + SUPPORT_LASER, 3, 2, 2, 4 + (HAS_MASS_STORAGE || HAS_LINUX_INTERFACE), 2 };
 
 DEFINE_GET_OBJECT_MODEL_TABLE(Move)
 
