@@ -472,13 +472,13 @@ GCodeResult GCodes::WaitForPin(GCodeBuffer& gb, const StringRef &reply)
 
 	const bool activeHigh = (!gb.Seen('S') || gb.GetUIValue() >= 1);
 	Platform& platform = reprap.GetPlatform();
-	const bool ok = endstopsToWaitFor.IterateWhile([&platform, activeHigh](unsigned int axis, bool)->bool
+	const bool ok = endstopsToWaitFor.IterateWhile([&platform, activeHigh](unsigned int axis, unsigned int)->bool
 								{
 									const bool stopped = platform.GetEndstops().Stopped(axis) == EndStopHit::atStop;
 									return stopped == activeHigh;
 								}
 							 )
-				&& portsToWaitFor.IterateWhile([&platform, activeHigh](unsigned int port, bool)->bool
+				&& portsToWaitFor.IterateWhile([&platform, activeHigh](unsigned int port, unsigned int)->bool
 								{
 									return (port >= MaxGpInPorts || platform.GetGpInPort(port).GetState() == activeHigh);
 								}
@@ -527,6 +527,7 @@ GCodeResult GCodes::DoDriveMapping(GCodeBuffer& gb, const StringRef& reply) THRO
 	}
 
 	bool seen = false;
+	const size_t originalVisibleAxes = numVisibleAxes;
 	const char *lettersToTry = AllowedAxisLetters;
 	char c;
 	while ((c = *lettersToTry) != 0)
@@ -599,10 +600,14 @@ GCodeResult GCodes::DoDriveMapping(GCodeBuffer& gb, const StringRef& reply) THRO
 
 	if (seen)
 	{
-		// In the DDA ring, the axis positions for invisible non-moving axes are not always copied over from previous moves.
-		// So if we have more visible axes than before, then we need to update their positions to get them in sync.
-		// We could do this only when we increase the number of visible axes, but for simplicity we do it always.
-		reprap.GetMove().SetNewPosition(moveBuffer.coords, true);		// tell the Move system where the axes are
+		reprap.MoveUpdated();
+		if (numVisibleAxes > originalVisibleAxes)
+		{
+			// In the DDA ring, the axis positions for invisible non-moving axes are not always copied over from previous moves.
+			// So if we have more visible axes than before, then we need to update their positions to get them in sync.
+			ToolOffsetTransform(currentUserPosition, moveBuffer.coords);	// ensure that the position of any new axes are updated in moveBuffer
+			reprap.GetMove().SetNewPosition(moveBuffer.coords, true);		// tell the Move system where the axes are
+		}
 	}
 	else
 	{
@@ -906,7 +911,7 @@ GCodeResult GCodes::SetDateTime(GCodeBuffer& gb, const StringRef& reply) THROWS(
 		// Set date
 		String<12> dateString;
 		gb.GetPossiblyQuotedString(dateString.GetRef());
-		if (strptime(dateString.c_str(), "%Y-%m-%d", &timeInfo) == nullptr)
+		if (SafeStrptime(dateString.c_str(), "%Y-%m-%d", &timeInfo) == nullptr)
 		{
 			reply.copy("Invalid date format");
 			return GCodeResult::error;
@@ -920,7 +925,7 @@ GCodeResult GCodes::SetDateTime(GCodeBuffer& gb, const StringRef& reply) THROWS(
 		// Set time
 		String<12> timeString;
 		gb.GetPossiblyQuotedString(timeString.GetRef());
-		if (strptime(timeString.c_str(), "%H:%M:%S", &timeInfo) == nullptr)
+		if (SafeStrptime(timeString.c_str(), "%H:%M:%S", &timeInfo) == nullptr)
 		{
 			reply.copy("Invalid time format");
 			return GCodeResult::error;
@@ -1442,7 +1447,7 @@ bool GCodes::ProcessWholeLineComment(GCodeBuffer& gb, const StringRef& reply) TH
 				case 5:		// layer (counting from 0)
 					{
 						const char *endptr;
-						const uint32_t layer = SafeStrtoul(text, &endptr);
+						const uint32_t layer = StrToU32(text, &endptr);
 						if (endptr != text)
 						{
 							reprap.GetPrintMonitor().SetLayerNumber((i == 5) ? layer + 1 : layer);

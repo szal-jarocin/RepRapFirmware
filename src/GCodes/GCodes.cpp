@@ -518,10 +518,10 @@ void GCodes::StartNextGCode(GCodeBuffer& gb, const StringRef& reply) noexcept
 		if (gotCommand)
 		{
 			gb.DecodeCommand();
-#ifdef SERIAL_AUX_DEVICE
-			if (&gb == auxGCode)
+#if defined(SERIAL_AUX_DEVICE) && !defined(DUET3)
+			if (&gb == auxGCode && !platform.IsAuxEnabled())
 			{
-				platform.SetAuxDetected();			// by default we assume no PanelDue is attached, so flag when we receive a command from it
+				platform.EnableAux();				// by default we assume no PanelDue is attached, so flag when we receive a command from it
 			}
 #endif
 		}
@@ -2371,7 +2371,7 @@ void GCodes::FinaliseMove(GCodeBuffer& gb) noexcept
 }
 
 // Set up a move to travel to the resume point. Return true if successful, false if needs to be called again.
-// By the tie this is called, the user position has been overwritten with the final position of the pending move, so we can't use it.
+// By the time this is called, the user position has been overwritten with the final position of the pending move, so we can't use it.
 // But the expected position was saved by buildObjects when the state changed from printing a cancelled object to printing a live object.
 bool GCodes::TravelToStartPoint(GCodeBuffer& gb) noexcept
 {
@@ -2384,6 +2384,7 @@ bool GCodes::TravelToStartPoint(GCodeBuffer& gb) noexcept
 	ToolOffsetTransform(currentUserPosition, moveBuffer.initialCoords);
 	ToolOffsetTransform(buildObjects.GetInitialPosition().moveCoords, moveBuffer.coords);
 	moveBuffer.feedRate = buildObjects.GetInitialPosition().feedRate;
+	moveBuffer.tool = reprap.GetCurrentTool();
 	NewMoveAvailable(1);
 	return true;
 }
@@ -3318,7 +3319,7 @@ void GCodes::SetMappedFanSpeed(float f) noexcept
 	else
 	{
 		const FansBitmap fanMap = ct->GetFanMapping();
-		fanMap.Iterate([f](unsigned int i, bool) noexcept { reprap.GetFansManager().SetFanValue(i, f); });
+		fanMap.Iterate([f](unsigned int i, unsigned int) noexcept { reprap.GetFansManager().SetFanValue(i, f); });
 	}
 }
 
@@ -3386,7 +3387,7 @@ void GCodes::HandleReplyPreserveResult(GCodeBuffer& gb, GCodeResult rslt, const 
 	// Also check that this response was triggered by a gcode
 	if (   reply[0] == 0
 		&& (   (gb.MachineState().doingFileMacro && !gb.MachineState().waitingForAcknowledgement)			// we must acknowledge M292
-			|| &gb == fileGCode || &gb == queuedGCode || &gb == triggerGCode || &gb == autoPauseGCode || &gb == auxGCode
+			|| &gb == fileGCode || &gb == queuedGCode || &gb == triggerGCode || &gb == autoPauseGCode || (&gb == auxGCode && !platform.IsAuxRaw())
 		   )
 	   )
 	{
@@ -3464,7 +3465,7 @@ void GCodes::HandleReply(GCodeBuffer& gb, OutputBuffer *reply) noexcept
 #endif
 
 	// Second UART device, e.g. dc42's PanelDue. Do NOT use emulation for this one!
-	if (&gb == auxGCode)
+	if (&gb == auxGCode && !platform.IsAuxRaw())
 	{
 		platform.AppendAuxReply(reply, (*reply)[0] == '{');
 		return;
@@ -3579,9 +3580,9 @@ GCodeResult GCodes::RetractFilament(GCodeBuffer& gb, bool retract)
 
 			// New code does the retraction and the Z hop as separate moves
 			// Get ready to generate a move
+			SetMoveBufferDefaults();
 			moveBuffer.tool = reprap.GetCurrentTool();
 			reprap.GetMove().GetCurrentUserPosition(moveBuffer.coords, 0, moveBuffer.tool);
-			SetMoveBufferDefaults();
 			moveBuffer.filePos = (&gb == fileGCode) ? gb.GetFilePosition() : noFilePosition;
 
 			if (retract)
@@ -4446,7 +4447,7 @@ void GCodes::UnlockAll(const GCodeBuffer& gb) noexcept
 // Append a list of axes to a string
 void GCodes::AppendAxes(const StringRef& reply, AxesBitmap axes) const noexcept
 {
-	axes.Iterate([reply, this](unsigned int axis, bool) noexcept { reply.cat(this->axisLetters[axis]); });
+	axes.Iterate([reply, this](unsigned int axis, unsigned int) noexcept { reply.cat(this->axisLetters[axis]); });
 }
 
 // Get the name of the current machine mode

@@ -761,6 +761,9 @@ void RepRap::Diagnostics(MessageType mtype) noexcept
 	// Now print diagnostics for other modules
 	Tasks::Diagnostics(mtype);
 	platform->Diagnostics(mtype);				// this includes a call to our Timing() function
+#if HAS_MASS_STORAGE
+	MassStorage::Diagnostics(mtype);
+#endif
 	move->Diagnostics(mtype);
 	heat->Diagnostics(mtype);
 	gCodes->Diagnostics(mtype);
@@ -1315,7 +1318,7 @@ OutputBuffer *RepRap::GetStatusResponse(uint8_t type, ResponseSource source) con
 
 	// Output notifications
 	{
-		const bool sendBeep = ((source == ResponseSource::AUX || !platform->HaveAux()) && beepDuration != 0 && beepFrequency != 0);
+		const bool sendBeep = ((source == ResponseSource::AUX || !platform->IsAuxEnabled()) && beepDuration != 0 && beepFrequency != 0);
 		const bool sendMessage = !message.IsEmpty();
 
 		float timeLeft = 0.0;
@@ -1691,9 +1694,9 @@ OutputBuffer *RepRap::GetStatusResponse(uint8_t type, ResponseSource source) con
 				// Axis mapping
 				response->cat(",\"axisMap\":[[");
 				tool->GetXAxisMap().Iterate
-					([response](unsigned int xi, bool first) noexcept
+					([response](unsigned int xi, unsigned int count) noexcept
 						{
-							if (!first)
+							if (count != 0)
 							{
 								response->cat(',');
 							}
@@ -1703,9 +1706,9 @@ OutputBuffer *RepRap::GetStatusResponse(uint8_t type, ResponseSource source) con
 				response->cat("],[");
 
 				tool->GetYAxisMap().Iterate
-					([response](unsigned int yi, bool first) noexcept
+					([response](unsigned int yi, unsigned int count) noexcept
 						{
-							if (!first)
+							if (count != 0)
 							{
 								response->cat(',');
 							}
@@ -1796,19 +1799,6 @@ OutputBuffer *RepRap::GetStatusResponse(uint8_t type, ResponseSource source) con
 							(double)(printMonitor->EstimateTimeLeft(fileBased)),
 							(double)(printMonitor->EstimateTimeLeft(filamentBased)),
 							(double)(printMonitor->EstimateTimeLeft(layerBased)));
-		}
-	}
-
-	if (source == ResponseSource::AUX)
-	{
-		OutputBuffer *reply = platform->GetAuxGCodeReply();
-		if (response != nullptr)
-		{
-			// Send the response to the last command. Do this last
-			response->catf(",\"seq\":%" PRIu32 ",\"resp\":", platform->GetAuxSeq());	// send the response sequence number
-
-			// Send the JSON response
-			response->EncodeReply(reply);												// also releases the OutputBuffer chain
 		}
 	}
 
@@ -2075,21 +2065,6 @@ OutputBuffer *RepRap::GetLegacyStatusResponse(uint8_t type, int seq) const noexc
 		response->EncodeString(myName, false);
 		response->cat(",\"firmwareName\":");
 		response->EncodeString(FIRMWARE_NAME, false);
-	}
-
-	// Send the response to the last command. Do this last because it can be long and may need to be truncated.
-	// auxSeq is the last sequence number that PanelDue has received from us.
-	// It's possible that we have queued several messages since PanelDue last polled us.
-	if (type < 2 || seq != -1)
-	{
-		// PanelDue has asked us for any new responses
-		OutputBuffer * const buf = platform->GetAuxGCodeReply();
-		const int auxSeq = (int)platform->GetAuxSeq();
-		if (buf != nullptr || auxSeq != seq)
-		{
-			response->catf(",\"seq\":%d,\"resp\":", auxSeq);				// send the response sequence number
-			response->EncodeReply(buf);										// also releases the OutputBuffer chain
-		}
 	}
 
 	response->cat('}');
@@ -2457,7 +2432,7 @@ void RepRap::Beep(unsigned int freq, unsigned int ms) noexcept
 	}
 #endif
 
-	if (platform->HaveAux())
+	if (platform->IsAuxEnabled())
 	{
 		platform->Beep(freq, ms);
 		bleeped = true;
@@ -2481,7 +2456,7 @@ void RepRap::SetMessage(const char *msg) noexcept
 #endif
 	StateUpdated();
 
-	if (platform->HaveAux())
+	if (platform->IsAuxEnabled())
 	{
 		platform->SendAuxMessage(msg);
 	}

@@ -450,11 +450,12 @@ bool HttpResponder::CharFromClient(char c) noexcept
 bool HttpResponder::GetJsonResponse(const char* request, OutputBuffer *&response, bool& keepOpen) noexcept
 {
 	keepOpen = false;	// assume we don't want to persist the connection
-	if (StringEqualsIgnoreCase(request, "connect") && GetKeyValue("password") != nullptr)
+	const char *parameter;
+	if (StringEqualsIgnoreCase(request, "connect") && (parameter = GetKeyValue("password")) != nullptr)
 	{
 		if (!CheckAuthenticated())
 		{
-			if (!reprap.CheckPassword(GetKeyValue("password")))
+			if (!reprap.CheckPassword(parameter))
 			{
 				// Wrong password
 				response->copy("{\"err\":1}");
@@ -481,7 +482,7 @@ bool HttpResponder::GetJsonResponse(const char* request, OutputBuffer *&response
 		{
 			struct tm timeInfo;
 			memset(&timeInfo, 0, sizeof(timeInfo));
-			if (strptime(timeString, "%Y-%m-%dT%H:%M:%S", &timeInfo) != nullptr)
+			if (SafeStrptime(timeString, "%Y-%m-%dT%H:%M:%S", &timeInfo) != nullptr)
 			{
 				GetPlatform().SetDateTime(mktime(&timeInfo));
 			}
@@ -503,7 +504,7 @@ bool HttpResponder::GetJsonResponse(const char* request, OutputBuffer *&response
 		if (typeString != nullptr)
 		{
 			// New-style JSON status responses
-			int type = SafeStrtol(typeString);
+			int32_t type = StrToI32(typeString);
 			if (type < 1 || type > 3)
 			{
 				type = 1;
@@ -519,10 +520,15 @@ bool HttpResponder::GetJsonResponse(const char* request, OutputBuffer *&response
 			response = reprap.GetLegacyStatusResponse(1, 0);
 		}
 	}
-	else if (StringEqualsIgnoreCase(request, "gcode") && GetKeyValue("gcode") != nullptr)
+	else if (StringEqualsIgnoreCase(request, "gcode"))
 	{
+		const char *command = GetKeyValue("gcode");
 		NetworkGCodeInput * const httpInput = reprap.GetGCodes().GetHTTPInput();
-		httpInput->Put(HttpMessage, GetKeyValue("gcode"));
+		// If the command is empty, just report the buffer space. This allows rr_gcode to be used to poll the buffer space without using it up.
+		if (command != nullptr && command[0] != 0)
+		{
+			httpInput->Put(HttpMessage, command);
+		}
 		response->printf("{\"buff\":%u}", httpInput->BufferSpaceLeft());
 	}
 #if HAS_MASS_STORAGE
@@ -530,17 +536,17 @@ bool HttpResponder::GetJsonResponse(const char* request, OutputBuffer *&response
 	{
 		response->printf("{\"err\":%d}", (uploadError) ? 1 : 0);
 	}
-	else if (StringEqualsIgnoreCase(request, "delete") && GetKeyValue("name") != nullptr)
+	else if (StringEqualsIgnoreCase(request, "delete") && (parameter = GetKeyValue("name")) != nullptr)
 	{
-		const bool ok = MassStorage::Delete(GetKeyValue("name"), false);
+		const bool ok = MassStorage::Delete(parameter, false);
 		response->printf("{\"err\":%d}", (ok) ? 0 : 1);
 	}
-	else if (StringEqualsIgnoreCase(request, "filelist") && GetKeyValue("dir") != nullptr)
+	else if (StringEqualsIgnoreCase(request, "filelist") && (parameter = GetKeyValue("dir")) != nullptr)
 	{
 		OutputBuffer::Release(response);
 		const char* const firstVal = GetKeyValue("first");
-		const unsigned int startAt = (firstVal == nullptr) ? 0 : (unsigned int)SafeStrtol(firstVal);
-		response = reprap.GetFilelistResponse(GetKeyValue("dir"), startAt);		// this may return nullptr
+		const unsigned int startAt = (firstVal == nullptr) ? 0 : StrToU32(firstVal);
+		response = reprap.GetFilelistResponse(parameter, startAt);		// this may return nullptr
 	}
 	else if (StringEqualsIgnoreCase(request, "files"))
 	{
@@ -551,9 +557,9 @@ bool HttpResponder::GetJsonResponse(const char* request, OutputBuffer *&response
 			dir = GetPlatform().GetGCodeDir();
 		}
 		const char* const firstVal = GetKeyValue("first");
-		const unsigned int startAt = (firstVal == nullptr) ? 0 : SafeStrtol(firstVal);
+		const unsigned int startAt = (firstVal == nullptr) ? 0 : StrToU32(firstVal);
 		const char* const flagDirsVal = GetKeyValue("flagDirs");
-		const bool flagDirs = flagDirsVal != nullptr && SafeStrtol(flagDirsVal) == 1;
+		const bool flagDirs = flagDirsVal != nullptr && StrToU32(flagDirsVal) == 1;
 		response = reprap.GetFilesResponse(dir, startAt, flagDirs);				// this may return nullptr
 	}
 	else if (StringEqualsIgnoreCase(request, "move"))
@@ -1173,7 +1179,7 @@ void HttpResponder::ProcessRequest() noexcept
 					{
 						if (StringEqualsIgnoreCase(headers[i].key, "Content-Length"))
 						{
-							postFileLength = atoi(headers[i].value);
+							postFileLength = StrToU32(headers[i].value);
 							contentLengthFound = true;
 							break;
 						}
@@ -1208,7 +1214,7 @@ void HttpResponder::ProcessRequest() noexcept
 					{
 						struct tm timeInfo;
 						memset(&timeInfo, 0, sizeof(timeInfo));
-						if (strptime(lastModifiedString, "%Y-%m-%dT%H:%M:%S", &timeInfo) != nullptr)
+						if (SafeStrptime(lastModifiedString, "%Y-%m-%dT%H:%M:%S", &timeInfo) != nullptr)
 						{
 							fileLastModified  = mktime(&timeInfo);
 						}

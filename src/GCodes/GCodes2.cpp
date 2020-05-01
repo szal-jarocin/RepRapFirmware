@@ -258,6 +258,15 @@ bool GCodes::HandleGcode(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeEx
 		break;
 
 	case 29: // Grid-based bed probing
+
+#if HAS_LINUX_INTERFACE
+		// Pass file- and system-related commands to DSF if they came from somewhere else. They will be passed back to us via a binary buffer or separate SPI message if necessary.
+		if (reprap.UsingLinuxInterface() && reprap.GetLinuxInterface().IsConnected() && !gb.IsBinary())
+		{
+			gb.SendToSbc();
+			return false;
+		}
+#endif
 		if (!LockMovementAndWaitForStandstill(gb))		// do this first to make sure that a new grid isn't being defined
 		{
 			return false;
@@ -2272,6 +2281,7 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeEx
 						// The pipeline is empty, so execute the babystepping move immediately
 						SetMoveBufferDefaults();
 						moveBuffer.feedRate = DefaultFeedRate;
+						moveBuffer.tool = reprap.GetCurrentTool();
 						NewMoveAvailable(1);
 					}
 				}
@@ -3315,7 +3325,7 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeEx
 				}
 				if (gb.Seen('S'))
 				{
-					uint32_t val = gb.GetIValue();
+					const uint32_t val = gb.GetIValue();
 					platform.SetCommsProperties(chan, val);
 					switch (chan)
 					{
@@ -3326,7 +3336,12 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeEx
 						if (auxGCode != nullptr)
 						{
 							auxGCode->SetCommsProperties(val);
-							platform.SetAuxDetected();
+							const bool rawMode = (val & 2u) != 0;
+							platform.SetAuxRaw(rawMode);
+							if (rawMode && !platform.IsAuxEnabled())			// if enabling aux for the first time and in raw mode, set Marlin compatibility
+							{
+								auxGCode->MachineState().compatibility = Compatibility::Marlin;
+							}
 						}
 						break;
 					default:
@@ -3334,10 +3349,25 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeEx
 					}
 					seen = true;
 				}
-				if (!seen)
+				if (seen)
 				{
-					uint32_t cp = platform.GetCommsProperties(chan);
+					if (chan == 1 && !platform.IsAuxEnabled())
+					{
+						platform.EnableAux();
+					}
+					else
+					{
+						platform.ResetChannel(chan);
+					}
+				}
+				else
+				{
+					const uint32_t cp = platform.GetCommsProperties(chan);
 					reply.printf("Channel %d: baud rate %" PRIu32 ", %s checksum", chan, platform.GetBaudRate(chan), (cp & 1) ? "requires" : "does not require");
+					if (chan == 1 && platform.IsAuxRaw())
+					{
+						reply.cat(", raw mode");
+					}
 				}
 			}
 			break;
@@ -3776,6 +3806,7 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeEx
 					}
 					moveBuffer.feedRate = gb.MachineState().feedRate;
 					moveBuffer.usingStandardFeedrate = true;
+					moveBuffer.tool = reprap.GetCurrentTool();
 					NewMoveAvailable(1);
 
 					gb.SetState(GCodeState::waitingForSpecialMoveToComplete);

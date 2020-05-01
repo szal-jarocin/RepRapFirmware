@@ -277,6 +277,11 @@ GCodeException ObjectExplorationContext::ConstructParseException(const char *msg
 	return GCodeException(line, column, msg);
 }
 
+GCodeException ObjectExplorationContext::ConstructParseException(const char *msg, const char *sparam) const noexcept
+{
+	return GCodeException(line, column, msg, sparam);
+}
+
 // Report this object
 void ObjectModel::ReportAsJson(OutputBuffer* buf, ObjectExplorationContext& context, uint8_t tableNumber, const char* filter) const
 {
@@ -373,7 +378,7 @@ void ObjectModel::ReportItemAsJson(OutputBuffer *buf, ObjectExplorationContext& 
 				else
 				{
 					const char *endptr;
-					const long index = SafeStrtol(filter, &endptr);
+					const int32_t index = StrToI32(filter, &endptr);
 					if (endptr == filter || *endptr != ']' || index < 0 || (size_t)index >= val.omadVal->GetNumElements(this, context))
 					{
 						buf->cat("null");					// avoid returning badly-formed JSON
@@ -467,7 +472,7 @@ void ObjectModel::ReportItemAsJson(OutputBuffer *buf, ObjectExplorationContext& 
 				else
 				{
 					const char *endptr;
-					const long index = SafeStrtol(filter, &endptr);
+					const int32_t index = StrToI32(filter, &endptr);
 					if (endptr == filter || *endptr != ']' || index < 0 || (size_t)index >= val.omadVal->GetNumElements(this, context))
 					{
 						buf->cat("null");				// avoid returning badly-formed JSON
@@ -489,9 +494,9 @@ void ObjectModel::ReportItemAsJson(OutputBuffer *buf, ObjectExplorationContext& 
 				const auto bm = Bitmap<uint32_t>::MakeFromRaw(val.uVal);
 				buf->cat('[');
 				bm.Iterate
-					([buf](unsigned int bn, bool first) noexcept
+					([buf](unsigned int bn, unsigned int count) noexcept
 						{
-							if (!first)
+							if (count != 0)
 							{
 								buf->cat(',');
 							}
@@ -513,7 +518,7 @@ void ObjectModel::ReportItemAsJson(OutputBuffer *buf, ObjectExplorationContext& 
 				else
 				{
 					const char *endptr;
-					const long index = SafeStrtol(filter, &endptr);
+					const int32_t index = StrToI32(filter, &endptr);
 					if (endptr == filter || *endptr != ']' || index < 0 || (size_t)index >= val.omadVal->GetNumElements(this, context))
 					{
 						buf->cat("null");				// avoid returning badly-formed JSON
@@ -535,9 +540,9 @@ void ObjectModel::ReportItemAsJson(OutputBuffer *buf, ObjectExplorationContext& 
 				const auto bm = Bitmap<uint64_t>::MakeFromRaw(val.Get56BitValue());
 				buf->cat('[');
 				bm.Iterate
-					([buf](unsigned int bn, bool first) noexcept
+					([buf](unsigned int bn, unsigned int count) noexcept
 						{
-							if (!first)
+							if (count != 0)
 							{
 								buf->cat(',');
 							}
@@ -735,7 +740,7 @@ ExpressionValue ObjectModel::GetObjectValue(ObjectExplorationContext& context, c
 	const ObjectModelTableEntry *const e = FindObjectModelTableEntry(tableNumber, idString);
 	if (e == nullptr)
 	{
-		throw context.ConstructParseException("unknown value");		// idString will have gone out of scope by the time the exception is caught
+		throw context.ConstructParseException("unknown value '%s'", idString);
 	}
 
 	idString = GetNextElement(idString);

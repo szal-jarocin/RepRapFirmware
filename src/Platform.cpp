@@ -486,9 +486,11 @@ void Platform::Init() noexcept
 	baudRates[1] = AUX_BAUD_RATE;
 	commsParams[1] = 1;							// by default we require a checksum on data from the aux port, to guard against overrun errors
 	auxMutex.Create("Aux");
-	auxDetected = false;
+	auxEnabled = auxRaw = false;
 	auxSeq = 0;
+# ifndef DUET3									// for Duet 3 we only enable the aux device if it is requested by M575
 	SERIAL_AUX_DEVICE.begin(baudRates[1]);		// this can't be done in the constructor because the port initialisation in CoreNG isn't complete at that point
+# endif
 #endif
 
 #ifdef SERIAL_AUX2_DEVICE
@@ -859,14 +861,17 @@ void Platform::Beep(int freq, int ms) noexcept
 void Platform::SendAuxMessage(const char* msg) noexcept
 {
 #ifdef SERIAL_AUX_DEVICE
-	OutputBuffer *buf;
-	if (OutputBuffer::Allocate(buf))
+	if (auxEnabled)
 	{
-		buf->copy("{\"message\":");
-		buf->EncodeString(msg, false);
-		buf->cat("}\n");
-		auxOutput.Push(buf);
-		FlushAuxMessages();
+		OutputBuffer *buf;
+		if (OutputBuffer::Allocate(buf))
+		{
+			buf->copy("{\"message\":");
+			buf->EncodeString(msg, false);
+			buf->cat("}\n");
+			auxOutput.Push(buf);
+			FlushAuxMessages();
+		}
 	}
 #endif
 }
@@ -881,23 +886,26 @@ void Platform::Exit() noexcept
 	SmartDrivers::Exit();
 #endif
 
-	// Release all output buffers
-	usbOutput.ReleaseAll();
-	auxGCodeReply.ReleaseAll();
-#ifdef SERIAL_AUX2_DEVICE
-	aux2Output.ReleaseAll();
-#endif
-
 	// Stop processing data. Don't try to send a message because it will probably never get there.
 	active = false;
 
-	// Close down USB and serial ports
+	// Close down USB and serial ports and release output buffers
 	SERIAL_MAIN_DEVICE.end();
+	usbOutput.ReleaseAll();
+
 #ifdef SERIAL_AUX_DEVICE
-	SERIAL_AUX_DEVICE.end();
+# ifdef DUET3
+	if (auxEnabled)
+# endif
+	{
+		SERIAL_AUX_DEVICE.end();
+	}
+	auxOutput.ReleaseAll();
 #endif
+
 #ifdef SERIAL_AUX2_DEVICE
 	SERIAL_AUX2_DEVICE.end();
+	aux2Output.ReleaseAll();
 #endif
 
 }
@@ -929,16 +937,25 @@ bool Platform::FlushAuxMessages() noexcept
 	OutputBuffer *auxOutputBuffer = auxOutput.GetFirstItem();
 	if (auxOutputBuffer != nullptr)
 	{
-		const size_t bytesToWrite = min<size_t>(SERIAL_AUX_DEVICE.canWrite(), auxOutputBuffer->BytesLeft());
-		if (bytesToWrite > 0)
+		if (auxEnabled)
 		{
-			SERIAL_AUX_DEVICE.write(auxOutputBuffer->Read(bytesToWrite), bytesToWrite);
+			const size_t bytesToWrite = min<size_t>(SERIAL_AUX_DEVICE.canWrite(), auxOutputBuffer->BytesLeft());
+			if (bytesToWrite > 0)
+			{
+				SERIAL_AUX_DEVICE.write(auxOutputBuffer->Read(bytesToWrite), bytesToWrite);
+			}
+
+			if (auxOutputBuffer->BytesLeft() == 0)
+			{
+				auxOutput.ReleaseFirstItem();
+			}
+		}
+		else
+		{
+			OutputBuffer *buf = auxOutput.Pop();
+			OutputBuffer::ReleaseAll(buf);
 		}
 
-		if (auxOutputBuffer->BytesLeft() == 0)
-		{
-			auxOutput.ReleaseFirstItem();
-		}
 	}
 	return auxOutput.GetFirstItem() != nullptr;
 #else
@@ -1036,9 +1053,6 @@ void Platform::Spin() noexcept
 
 	// Try to flush messages to serial ports
 	(void)FlushMessages();
-
-	// Time out any stale PanelDue messages
-	auxGCodeReply.ApplyTimeout(AuxTimeout);
 
 	// Check the MCU max and min temperatures
 #if HAS_CPU_TEMP_SENSOR
@@ -1444,7 +1458,7 @@ void Platform::ReportDrivers(MessageType mt, DriversBitmap& whichDrivers, const 
 	{
 		String<StringLength100> scratchString;
 		scratchString.printf("%s reported by driver(s)", text);
-		whichDrivers.Iterate([&scratchString](unsigned int drive, bool) noexcept { scratchString.catf(" %u", drive); });
+		whichDrivers.Iterate([&scratchString](unsigned int drive, unsigned int) noexcept { scratchString.catf(" %u", drive); });
 		MessageF(mt, "%s\n", scratchString.c_str());
 		reported = true;
 		whichDrivers.Clear();
@@ -1826,21 +1840,6 @@ void Platform::Diagnostics(MessageType mtype) noexcept
 
 	// Show the current error codes
 	MessageF(mtype, "Error status: %" PRIx32 "\n", errorCodeBits);
-
-#if HAS_MASS_STORAGE
-	// Show the number of free entries in the file table
-	MessageF(mtype, "Free file entries: %u\n", MassStorage::GetNumFreeFiles());
-
-# if HAS_HIGH_SPEED_SD
-	// Show the HSMCI CD pin and speed
-	MessageF(mtype, "SD card 0 %s, interface speed: %.1fMBytes/sec\n", (MassStorage::IsCardDetected(0) ? "detected" : "not detected"), (double)((float)hsmci_get_speed() * 0.000001));
-# else
-	MessageF(mtype, "SD card 0 %s\n", (MassStorage::IsCardDetected(0) ? "detected" : "not detected"));
-# endif
-
-	// Show the longest SD card write time
-	MessageF(mtype, "SD card longest block write time: %.1fms, max retries %u\n", (double)FileStore::GetAndClearLongestWriteTime(), FileStore::GetAndClearMaxRetryCount());
-#endif
 
 #if HAS_CPU_TEMP_SENSOR
 	// Show the MCU temperatures
@@ -2257,7 +2256,7 @@ GCodeResult Platform::DiagnosticTest(GCodeBuffer& gb, const StringRef& reply, Ou
 void Platform::DriverCoolingFansOnOff(DriverChannelsBitmap driverChannelsMonitored, bool on) noexcept
 {
 	driverChannelsMonitored.Iterate
-		([this, on](unsigned int i, bool) noexcept
+		([this, on](unsigned int i, unsigned int) noexcept
 			{
 				if (on)
 				{
@@ -2360,7 +2359,7 @@ bool Platform::WriteAxisLimits(FileStore *f, AxesBitmap axesProbed, const float 
 
 	String<StringLength100> scratchString;
 	scratchString.printf("M208 S%d", sParam);
-	axesProbed.Iterate([&scratchString, limits](unsigned int axis, bool) noexcept { scratchString.catf(" %c%.2f", reprap.GetGCodes().GetAxisLetters()[axis], (double)limits[axis]); });
+	axesProbed.Iterate([&scratchString, limits](unsigned int axis, unsigned int) noexcept { scratchString.catf(" %c%.2f", reprap.GetGCodes().GetAxisLetters()[axis], (double)limits[axis]); });
 	scratchString.cat('\n');
 	return f->Write(scratchString.c_str());
 }
@@ -2984,28 +2983,47 @@ bool Platform::GetDriverStepTiming(size_t driver, float microseconds[4]) const n
 
 //-----------------------------------------------------------------------------------------------------
 
+// Aux port functions
+
+void Platform::EnableAux() noexcept
+{
+#ifdef DUET3
+	if (!auxEnabled)
+	{
+		// Initialize Serial port U(S)ART pins
+		ConfigurePin(APINS_Serial0);
+		setPullup(APIN_Serial0_RXD, true); 							// Enable pullup for RX0
+
+		SERIAL_AUX_DEVICE.begin(baudRates[1]);
+		auxEnabled = true;
+	}
+#else
+	auxEnabled = true;
+#endif
+}
+
 void Platform::AppendAuxReply(const char *msg, bool rawMessage) noexcept
 {
 #ifdef SERIAL_AUX_DEVICE
 	// Discard this response if either no aux device is attached or if the response is empty
-	if (msg[0] != 0 && HaveAux())
+	if (msg[0] != 0 && IsAuxEnabled())
 	{
 		MutexLocker lock(auxMutex);
 		OutputBuffer *buf;
 		if (OutputBuffer::Allocate(buf))
 		{
-			buf->copy(msg);
-			if (rawMessage)
+			if (rawMessage || auxRaw)
 			{
-				// Raw responses are sent directly to the AUX device
-				auxOutput.Push(buf);
+				buf->copy(msg);
 			}
 			else
 			{
-				// Regular text-based responses for AUX are currently stored and processed by M105/M408
 				auxSeq++;
-				auxGCodeReply.Push(buf);
+				buf->printf("{\"seq\":%" PRIu32 ",\"resp\":", auxSeq);
+				buf->EncodeString(msg, true, false);
+				buf->cat("}\n");
 			}
+			auxOutput.Push(buf);
 		}
 	}
 #endif
@@ -3015,24 +3033,32 @@ void Platform::AppendAuxReply(OutputBuffer *reply, bool rawMessage) noexcept
 {
 #ifdef SERIAL_AUX_DEVICE
 	// Discard this response if either no aux device is attached or if the response is empty
-	if (reply == nullptr || reply->Length() == 0 || !HaveAux())
+	if (reply == nullptr || reply->Length() == 0 || !IsAuxEnabled())
 	{
 		OutputBuffer::ReleaseAll(reply);
 	}
 	else
 	{
 		MutexLocker lock(auxMutex);
-		if (rawMessage)
+		if (rawMessage || auxRaw)
 		{
-			// JSON responses are always sent directly to the AUX device
-			// For big responses it makes sense to write big chunks of data in portions. Store this data here
 			auxOutput.Push(reply);
 		}
 		else
 		{
-			// Other responses are stored for M408
-			auxSeq++;
-			auxGCodeReply.Push(reply);
+			OutputBuffer *buf;
+			if (OutputBuffer::Allocate(buf))
+			{
+				auxSeq++;
+				buf->printf("{\"seq\":%" PRIu32 ",\"resp\":", auxSeq);
+				buf->EncodeReply(reply);
+				buf->cat("}\n");
+				auxOutput.Push(buf);
+			}
+			else
+			{
+				OutputBuffer::ReleaseAll(reply);
+			}
 		}
 	}
 #else
@@ -3535,7 +3561,6 @@ void Platform::SetBaudRate(size_t chan, uint32_t br) noexcept
 	if (chan < NUM_SERIAL_CHANNELS)
 	{
 		baudRates[chan] = br;
-		ResetChannel(chan);
 	}
 }
 
@@ -3549,7 +3574,6 @@ void Platform::SetCommsProperties(size_t chan, uint32_t cp) noexcept
 	if (chan < NUM_SERIAL_CHANNELS)
 	{
 		commsParams[chan] = cp;
-		ResetChannel(chan);
 	}
 }
 
@@ -3574,8 +3598,11 @@ void Platform::ResetChannel(size_t chan) noexcept
 
 #ifdef SERIAL_AUX_DEVICE
 	case 1:
-		SERIAL_AUX_DEVICE.end();
-		SERIAL_AUX_DEVICE.begin(baudRates[1]);
+		if (auxEnabled)
+		{
+			SERIAL_AUX_DEVICE.end();
+			SERIAL_AUX_DEVICE.begin(baudRates[1]);
+		}
 		break;
 #endif
 
@@ -4116,25 +4143,25 @@ GCodeResult Platform::ConfigureStallDetection(GCodeBuffer& gb, const StringRef& 
 	{
 		seen = true;
 		const int sgThreshold = gb.GetIValue();
-		drivers.Iterate([sgThreshold](unsigned int drive, bool) noexcept { SmartDrivers::SetStallThreshold(drive, sgThreshold); });
+		drivers.Iterate([sgThreshold](unsigned int drive, unsigned int) noexcept { SmartDrivers::SetStallThreshold(drive, sgThreshold); });
 	}
 	if (gb.Seen('F'))
 	{
 		seen = true;
 		const bool sgFilter = (gb.GetIValue() == 1);
-		drivers.Iterate([sgFilter](unsigned int drive, bool) noexcept { SmartDrivers::SetStallFilter(drive, sgFilter); });
+		drivers.Iterate([sgFilter](unsigned int drive, unsigned int) noexcept { SmartDrivers::SetStallFilter(drive, sgFilter); });
 	}
 	if (gb.Seen('H'))
 	{
 		seen = true;
 		const unsigned int stepsPerSecond = gb.GetUIValue();
-		drivers.Iterate([stepsPerSecond](unsigned int drive, bool) noexcept { SmartDrivers::SetStallMinimumStepsPerSecond(drive, stepsPerSecond); });
+		drivers.Iterate([stepsPerSecond](unsigned int drive, unsigned int) noexcept { SmartDrivers::SetStallMinimumStepsPerSecond(drive, stepsPerSecond); });
 	}
 	if (gb.Seen('T'))
 	{
 		seen = true;
 		const uint16_t coolStepConfig = (uint16_t)gb.GetUIValue();
-		drivers.Iterate([coolStepConfig](unsigned int drive, bool) noexcept { SmartDrivers::SetRegister(drive, SmartDriverRegister::coolStep, coolStepConfig); } );
+		drivers.Iterate([coolStepConfig](unsigned int drive, unsigned int) noexcept { SmartDrivers::SetRegister(drive, SmartDriverRegister::coolStep, coolStepConfig); } );
 	}
 	if (gb.Seen('R'))
 	{
@@ -4194,7 +4221,7 @@ GCodeResult Platform::ConfigureStallDetection(GCodeBuffer& gb, const StringRef& 
 	}
 
 	drivers.Iterate
-		([buf, this, &reply](unsigned int drive, bool) noexcept
+		([buf, this, &reply](unsigned int drive, unsigned int) noexcept
 			{
 #if SUPPORT_CAN_EXPANSION
 				buf->lcatf("Driver 0.%u: ", drive);
