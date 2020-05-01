@@ -83,6 +83,7 @@ DRESULT disk_read (BYTE drv, BYTE *buff, DWORD sector, BYTE count) noexcept
     {
         uint32_t time = StepTimer::GetTimerTicks();
         DRESULT res = _ffs[drv]->disk_read(buff, sector, count);
+		time = StepTimer::GetTimerTicks() - time;
 		if (time > longestReadTime)
 		{
 			longestReadTime = time;
@@ -131,6 +132,7 @@ DRESULT disk_write (BYTE drv, const BYTE *buff, DWORD sector, BYTE count) noexce
     {
         uint32_t time = StepTimer::GetTimerTicks();
         DRESULT res = _ffs[drv]->disk_write(buff, sector, count);
+		time = StepTimer::GetTimerTicks() - time;
         if (time > longestWriteTime)
 		{
 			longestWriteTime = time;
