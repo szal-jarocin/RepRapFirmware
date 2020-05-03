@@ -6,8 +6,31 @@
 
 volatile bool dataReceived = false, transferReadyHigh = false;
 volatile unsigned int spiTxUnderruns = 0, spiRxOverruns = 0;
-
 void InitSpi() noexcept;
+
+// Flush the TX fifo. Note this code makes use of "reserved" registers
+// these are actually test registers for the ARM PrimeCell Synchronous Serial
+// Port (PL022), which is used to provide SSP devices on the LPC1768 device.
+// For details see: 
+// http://infocenter.arm.com/help/topic/com.arm.doc.ddi0194g/DDI0194G_ssp_pl022_r1p3_trm.pdf 
+#define SSPTCR(SSP) ((__IO uint32_t *)((__IO uint8_t *)(SSP) + 0x80))
+#define SSPTDR(SSP) ((__IO uint32_t *)((__IO uint8_t *)(SSP) + 0x8C))
+
+static inline void flush_tx_fifo()
+{
+    if (LPC_SSP0->SR & (1UL << 0)) return;
+    // enable test mode access to the TX fifo 
+    *SSPTCR(LPC_SSP0) |= 0x2;
+    //debugPrintf("status reg %x\n", LPC_SSP0->SR);
+    int cnt = 8;
+    while(!(LPC_SSP0->SR & (1UL << 0)) && cnt-- > 0)
+    {
+        (void)(*SSPTDR(LPC_SSP0));
+    }
+    // back to normal mode
+    *SSPTCR(LPC_SSP0) &= ~2;
+    //debugPrintf("status reg %x cnt %d\n", LPC_SSP0->SR, cnt);
+}
 
 static inline void flush_rx_fifo()
 {
@@ -64,17 +87,16 @@ static void spi_rx_dma_setup(const void *buf, uint32_t transferLength) noexcept
 
 void setup_spi(void *inBuffer, const void *outBuffer, size_t bytesToTransfer)
 {
-    flush_rx_fifo(); //flush SPI
-    InitSpi();
-    spi_dma_enable();
+    flush_rx_fifo();
+    flush_tx_fifo();
 
     spi_tx_dma_setup(outBuffer, bytesToTransfer);
     spi_rx_dma_setup(inBuffer, bytesToTransfer);
-    
+    spi_dma_enable();
+        
     // Begin transfer
     transferReadyHigh = !transferReadyHigh;
     digitalWrite(LinuxTfrReadyPin, transferReadyHigh);
-
 }
 
 void disable_spi()
@@ -90,6 +112,9 @@ void disable_spi()
 // interrupt handler
 void SpiInterrupt() noexcept
 {
+    // The following status register values only seem to be valid when using the LPC SPI
+    // module not when using the LPC SSP module, so the tests have been removed for now.
+#if 0
     const uint32_t status = LPC_SSP0->SR;
     
     if((status & (1<<3)) != 0) //(Slave Abort) is set when the Slave Select (SSEL) signal goes inactive before a data transfer completes. )
@@ -104,7 +129,7 @@ void SpiInterrupt() noexcept
     {
         ++spiTxUnderruns;
     }
-
+#endif
     spi_dma_disable();
 
     dataReceived = true;
