@@ -796,3 +796,77 @@ bool BoardConfig::GetConfigKeys(FIL *configFile, const boardConfigEntry_t *board
     }
     return false;
 }
+
+#if HAS_LINUX_INTERFACE
+
+// Routines to support firmware update from the Linux SBC.
+static constexpr char firmwarePath[] = "0:/firmware.bin";
+static FIL *firmwareFile = nullptr;
+static FATFS *fs = nullptr;
+
+bool BoardConfig::BeginFirmwareUpdate()
+{
+    bool res = true;
+    FRESULT rslt;
+    fs = new FATFS;
+    firmwareFile = new FIL;
+    rslt = f_mount (fs, "0:", 1);
+    if (rslt == FR_OK)
+    {
+        //Open File, abd zero length
+        rslt = f_open (firmwareFile, firmwarePath, FA_WRITE|FA_CREATE_ALWAYS);
+        if (rslt != FR_OK)
+        {
+            reprap.GetPlatform().MessageF(UsbMessage, "Unable to create firmware file: %s...\n", firmwarePath);
+            f_unmount ("0:");
+            res = false;
+        }
+    }
+    else
+    {
+        // failed to mount card
+        reprap.GetPlatform().MessageF(UsbMessage, "Failed to mount sd card\n");
+        res = false;
+    }
+    if (!res)
+    {
+        delete firmwareFile;
+        delete fs;
+        firmwareFile = nullptr;
+        fs = nullptr;
+    }
+    return res;
+}
+
+bool BoardConfig::WriteFirmwareData(const char *data, uint16_t length)
+{
+    FRESULT rslt;
+    UINT written;
+
+    if (firmwareFile == nullptr) return false;
+    rslt = f_write(firmwareFile, data, length, &written);
+    //debugPrintf("Write firmware data request %d actual %d\n", length, written);
+    return rslt == FR_OK && length == written;    
+}
+
+void BoardConfig::EndFirmwareUpdate()
+{
+    if (firmwareFile != nullptr)
+    {
+        f_close(firmwareFile);
+        f_unmount("0:");
+        delete fs;
+        delete firmwareFile;
+        fs = nullptr;
+        firmwareFile = nullptr;
+    }
+    //debugPrintf("Doing software reset\n");
+    reprap.EmergencyStop();			// turn off heaters etc.
+    reprap.SoftwareReset((uint16_t)SoftwareResetReason::user); // Reboot
+    //debugPrintf("OH dear we should not see this!\n");
+}
+#endif
+
+
+
+

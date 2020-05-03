@@ -19,6 +19,9 @@
 #include "RepRap.h"
 #include "RepRapFirmware.h"
 #include <Hardware/Cache.h>
+#ifdef __LPC17xx__
+#include "LPC/BoardConfig.h"
+#endif
 
 LinuxInterface::LinuxInterface() : transfer(new DataTransfer()), wasConnected(false), numDisconnects(0),
 	reportPause(false), rxPointer(0), txPointer(0), txLength(0), sendBufferUpdate(true),
@@ -245,7 +248,24 @@ void LinuxInterface::Spin()
 				break;
 			}
 
-#ifndef __LPC17xx__
+#ifdef __LPC17xx__
+			// On the LPC we repurpose the IAP code to download the firmware update data.
+			// on the Duet this is a two stage process (IAP followed by firmware), but we
+			// do not need the IAP and can instead use the error checked IAP download for
+			// the firmware data.
+			case LinuxRequest::WriteIap:
+				if (iapWritePointer == 0)
+					BoardConfig::BeginFirmwareUpdate();
+				BoardConfig::WriteFirmwareData(transfer->ReadData(packet->length), packet->length);
+				iapWritePointer += packet->length;
+				break;
+
+			// Launch the IAP binary
+			case LinuxRequest::StartIap:
+				transfer->EmulateIap();
+				BoardConfig::EndFirmwareUpdate(); // This reboots the board.
+				break;
+#else
 			// Write another chunk of the IAP binary to the designated Flash area
 			case LinuxRequest::WriteIap:
 				memcpy(reinterpret_cast<char *>(iapWritePointer), transfer->ReadData(packet->length), packet->length);

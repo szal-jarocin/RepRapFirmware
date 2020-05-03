@@ -66,6 +66,8 @@ public:
 	bool WriteDoCode(GCodeChannel channel, const char *code, size_t length) noexcept;
 	bool WriteWaitForAcknowledgement(GCodeChannel channel) noexcept;
 
+	void EmulateIap();
+
 	static void SpiInterrupt() noexcept;
 
 private:
@@ -120,6 +122,8 @@ private:
 	template<typename T> T *WriteDataHeader() noexcept;
 
 	size_t AddPadding(size_t length) const noexcept;
+
+	bool IapDataExchange(size_t len);
 };
 
 inline bool DataTransfer::IsConnected() const noexcept

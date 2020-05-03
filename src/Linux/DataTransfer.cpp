@@ -1113,4 +1113,50 @@ uint16_t DataTransfer::CRC16(const char *buffer, size_t length) const noexcept
 	return Crc;
 }
 
+
+#ifdef __LPC17xx__
+
+// Additional methods to emulate the Duet3 IAP. This allows us to
+// use the standard firmware update routines from the DSF for updating
+// LPC firmware.
+bool DataTransfer::IapDataExchange(size_t len)
+{
+	lastTransferTime = millis();
+	dataReceived = false;
+	setup_spi(rxBuffer(), txBuffer(), len);
+	while (!dataReceived && millis() - lastTransferTime < SpiTransferTimeout) {}
+	//if (!dataReceived)
+	//	debugPrintf("Timeout with length %d\n", (int)len);
+	return dataReceived;
+}
+
+void DataTransfer::EmulateIap()
+{
+	uint32_t offset = 0;
+	//debugPrintf("Emulate IAP\n");
+	transferReadyHigh = false;
+	digitalWrite(LinuxTfrReadyPin, false);
+	disable_spi();
+	delay(3000);
+	// Discard the firmware data transfer. This is terminated
+	// by a deliberate timeout on the exchange.
+	while(true)
+	{
+		if (!IapDataExchange(2048)) break;
+		offset += 2048;
+		//debugPrintf("Data packet offset %d\n", (int)offset);
+	}
+
+	disable_spi();
+	// read the CRC packet
+	if (!IapDataExchange(8))
+		debugPrintf("Unexpected timeout on CRC\n");
+	//debugPrintf("Got CRC len %d\n", *reinterpret_cast<int*>(rxBuffer()));
+	// Send Ok response
+	*reinterpret_cast<char*>(txBuffer()) = 0xC;
+	if (!IapDataExchange(1))
+		debugPrintf("Unexpected timeout on CRC Ack\n");
+	//debugPrintf("Iap complete\n");
+}
+#endif
 #endif
