@@ -430,7 +430,7 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeEx
 	if (   simulationMode != 0
 		&& (code < 20 || code > 37)
 		&& code != 0 && code != 1 && code != 82 && code != 83 && code != 105 && code != 109 && code != 111 && code != 112 && code != 122
-		&& code != 200 && code != 204 && code != 207 && code != 408 && code != 409 && code != 999)
+		&& code != 200 && code != 204 && code != 207 && code != 408 && code != 409 && code != 486 && code != 999)
 	{
 		HandleReply(gb, GCodeResult::ok, "");
 		return true;			// we don't simulate most M codes
@@ -2780,7 +2780,7 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeEx
 			break;
 
 		case 486: // number object or cancel object
-			result = buildObjects.HandleM486(gb, reply);
+			result = buildObjects.HandleM486(gb, reply, outBuf);
 			break;
 
 		case 500: // Store parameters in config-override.g
