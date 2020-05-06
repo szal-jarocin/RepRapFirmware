@@ -1,5 +1,9 @@
 Summary of LPC specific changes
 ===============================================
+Version 3.01 RC12
+=============
+* Updated to RC12 from DC42
+* Added capability to update the LPC firmware via DWC when operating in SBC mode
 
 Version 3.01 RC6
 ==============
