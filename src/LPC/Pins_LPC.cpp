@@ -45,6 +45,7 @@ Pin STEP_PINS[NumDirectDrivers] =       {NoPin, NoPin, NoPin, NoPin, NoPin};
 Pin DIRECTION_PINS[NumDirectDrivers] =  {NoPin, NoPin, NoPin, NoPin, NoPin};
 #if LPC_TMC_SOFT_UART
     Pin TMC_UART_PINS[NumDirectDrivers] = {NoPin, NoPin, NoPin, NoPin, NoPin};
+    size_t lpcSmartDrivers;
 #endif
 uint32_t STEP_DRIVER_MASK = 0;                          //SD: mask of the step pins on Port 2 used for writing to step pins in parallel
 bool hasStepPinsOnDifferentPorts = false;               //for boards that don't have all step pins on port2
@@ -53,6 +54,8 @@ float digipotFactor = 0.0;                              //defualt factor for con
 
 
 Pin SoftwareSPIPins[3] = {NoPin, NoPin, NoPin};         //GPIO pins for softwareSPI (used with SharedSPI)
+Pin SSP0Pins[4] = {SPI0_SCK, SPI0_MISO, SPI0_MOSI, SPI0_SSEL}; //GPIO pins for SSP0 (used with SharedSPI)
+
 
 #if HAS_WIFI_NETWORKING
     Pin EspDataReadyPin = NoPin;
@@ -134,6 +137,7 @@ bool SetBoard(const char* bn) noexcept
             SetDefaultPinArray(LPC_Boards[i].defaults.dirPins, DIRECTION_PINS, MaxTotalDrivers);
 #if LPC_TMC_SOFT_UART
             SetDefaultPinArray(LPC_Boards[i].defaults.uartPins, TMC_UART_PINS, MaxTotalDrivers);
+            lpcSmartDrivers = LPC_Boards[i].defaults.numSmartDrivers;
 #endif
 
 

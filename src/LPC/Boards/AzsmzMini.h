@@ -63,6 +63,7 @@ constexpr BoardDefaults azsmzDefaults = {
     {P0_5,  P0_11, P0_20, P0_22,  P2_13},   //dirPins
 #if LPC_TMC_SOFT_UART
     {NoPin, NoPin, NoPin, NoPin, NoPin},    //uartPins
+    0,                                      // Smart drivers
 #endif
     0,                                      //digiPot Factor
 };

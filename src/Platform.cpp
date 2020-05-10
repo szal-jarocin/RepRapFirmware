@@ -586,7 +586,7 @@ void Platform::Init() noexcept
 # elif defined(DUET3)
 	numSmartDrivers = MaxSmartDrivers;
 # elif defined(__LPC17xx__)
-	numSmartDrivers = MaxSmartDrivers;
+	numSmartDrivers = lpcSmartDrivers;
 # endif
 #endif
 

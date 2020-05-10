@@ -39,6 +39,10 @@ static const boardConfigEntry_t boardConfigs[]=
     {"stepper.stepPins", STEP_PINS, &MaxTotalDrivers, cvPinType},
     {"stepper.directionPins", DIRECTION_PINS, &MaxTotalDrivers, cvPinType},
     {"stepper.digipotFactor", &digipotFactor, nullptr, cvFloatType},
+#if LPC_TMC_SOFT_UART
+    {"stepper.TmcUartPins", TMC_UART_PINS, &MaxTotalDrivers, cvPinType},
+    {"stepper.numSmartDrivers", &lpcSmartDrivers, nullptr, cvUint32Type},
+#endif
 
     //Heater sensors
     {"heat.tempSensePins", TEMP_SENSE_PINS, &NumThermistorInputs, cvPinType},
@@ -68,6 +72,7 @@ static const boardConfigEntry_t boardConfigs[]=
 #endif
     
     {"softwareSPI.pins", SoftwareSPIPins, &NumSoftwareSPIPins, cvPinType}, //SCK, MISO, MOSI
+    {"SSP0.pins", SSP0Pins, &NumSSP0Pins, cvPinType}, // SCK, MISO, MOSI, CS
     
 #if HAS_WIFI_NETWORKING
     {"8266wifi.espDataReadyPin", &EspDataReadyPin, nullptr, cvPinType},
@@ -90,11 +95,6 @@ static const boardConfigEntry_t boardConfigs[]=
     {"adc.prefilter.enable", &ADCEnablePreFilter, nullptr, cvBoolType},
     {"adc.preFilter.numberSamples", &ADCPreFilterNumberSamples, nullptr, cvUint8Type},
     {"adc.preFilter.sampleRate", &ADCPreFilterSampleRate, nullptr, cvUint32Type},
-
-    
-#if LPC_TMC_SOFT_UART
-    {"stepper.TmcUartPins", TMC_UART_PINS, &MaxTotalDrivers, cvPinType},
-#endif
 };
 
 #if !HAS_MASS_STORAGE
@@ -220,6 +220,9 @@ void BoardConfig::Init() noexcept
         
         //Setup the Software SPI Pins
         sspi_setPinsForChannel(SWSPI0, SoftwareSPIPins[0], SoftwareSPIPins[1], SoftwareSPIPins[2]);
+        //Setup the pins for SSP0
+        sspi_setPinsForChannel(SSP0, SSP0Pins[0], SSP0Pins[1], SSP0Pins[2], SSP0Pins[3]);
+
 
         //Internal SDCard SPI Frequency
         sd_mmc_reinit_slot(0, SdSpiCSPins[0], InternalSDCardFrequency);

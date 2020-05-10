@@ -241,6 +241,8 @@ extern uint32_t ADCPreFilterSampleRate;
 
 constexpr size_t NumSoftwareSPIPins = 3;
 extern Pin SoftwareSPIPins[3]; //GPIO pins for softwareSPI (used with SharedSPI)
+constexpr size_t NumSSP0Pins = 4;
+extern Pin SSP0Pins[];         //GPIO pins for SSP0 (used with SharedSPI)
 
 
 #define SERIAL_AUX_DEVICE   UART_Slot0
@@ -342,6 +344,7 @@ bool SetBoard(const char* bn)  noexcept;
 
 constexpr size_t MaxBoardNameLength = 20;
 extern char lpcBoardName[MaxBoardNameLength];
+extern size_t lpcSmartDrivers;
 
 struct BoardDefaults
 {
@@ -350,6 +353,7 @@ struct BoardDefaults
     const Pin dirPins[NumDirectDrivers];
 #if LPC_TMC_SOFT_UART
     const Pin uartPins[NumDirectDrivers];
+    const uint32_t numSmartDrivers;
 #endif
     const float digipotFactor;    
 };

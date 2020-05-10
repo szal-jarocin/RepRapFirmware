@@ -67,6 +67,7 @@ constexpr BoardDefaults biquskr_1_1_Defaults = {
     {P0_5,  P2_2, P0_21, P2_13, P0_0},      //dirPins
 #if LPC_TMC_SOFT_UART
     {NoPin, NoPin, NoPin, NoPin, NoPin},    //uartPins
+    0,                                      // Smart drivers
 #endif
     0,                                      //digiPot Factor
 };
@@ -150,6 +151,7 @@ constexpr BoardDefaults biquskr_1_3_Defaults = {
     {P2_6, P0_20, P2_11, P0_11,  P0_0},     //dirPins
 #if LPC_TMC_SOFT_UART
     {P1_17, P1_15, P1_10, P1_8, P1_1},      //uartPins
+    5,                                      // Smart drivers
 #endif
     0                                       //digiPot Factor
 };
@@ -248,6 +250,7 @@ constexpr BoardDefaults biquskr_1_4_Defaults = {
     {P2_6, P0_20, P2_11, P0_11,  P1_14},    //dirPins
 #if LPC_TMC_SOFT_UART
     {P1_10, P1_9, P1_8, P1_4, P1_1},        //uartPins
+    5,                                      // Smart drivers
 #endif
     0                                       //digiPot Factor
 };
