@@ -1,5 +1,14 @@
 Summary of LPC specific changes
 ===============================================
+Version 3.01 RC12+
+=============
+* New features
+    * Added configuration option stepper.numSmartDrivers = <n> to allow the number of smart drivers (TMC22XX) to be limited. The drivers must be contiguous and start at unit 0. So if you have a BTT SKR V1.4 board with say 3 TMC2208s and 1 other driver, the 2208s must be in slots 0, 1, 3 and the remainiong driver in slot 4 or 5. You can use RRF to assign any of those slots to an axis/extruder.
+    * Added configuration option SSP0.pins = {SCK, MISO, MOSI, CS} to allow using the alternate hardware pins on port 1 to be used for the SSP0 pins SCK can be 0.15/1.20, MISO 0.17/1.23, MOSI 0.18/1.24 and CS 0.16/1.21. This options allows a modified SBase board to be used with a standard WiFi firmware build.
+* Known issues
+    * Running with just a single TMC22XX driver will result in a large number of read timeouts.
+
+
 Version 3.01 RC12
 =============
 * Updated to RC12 from DC42
