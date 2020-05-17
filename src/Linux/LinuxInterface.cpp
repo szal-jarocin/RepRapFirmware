@@ -267,13 +267,13 @@ void LinuxInterface::Spin()
 						BoardConfig::BeginFirmwareUpdate();
 						writingIap = true;
 					}
-					BoardConfig::WriteFirmwareData(transfer->ReadData(packet->length), packet->length);
+					BoardConfig::WriteFirmwareData(transfer.ReadData(packet->length), packet->length);
 					iapWritePointer += packet->length;
 					break;
 
 				// Launch the IAP binary
 				case LinuxRequest::StartIap:
-					transfer->EmulateIap();
+					transfer.EmulateIap();
 					BoardConfig::EndFirmwareUpdate(); // This reboots the board.
 					break;
 #else
