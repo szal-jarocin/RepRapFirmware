@@ -125,7 +125,9 @@ constexpr PinEntry PinTable_AzteegX5MiniV3[] =
     //5V
     
     //Misc
-    {P4_12,  PinCapability::rwpwm, "Halt","P4.12"},
+    //{P4_12,  PinCapability::rwpwm, "Halt","P4.12"},
+
+
 };
 
 constexpr BoardDefaults azteegX5Mini3Defaults = {
