@@ -528,6 +528,8 @@ void Platform::Init() noexcept
     // Load HW pin assignments from sdcard
     BoardConfig::Init();
     pinMode(ATX_POWER_PIN,(ATX_POWER_INVERTED==false)?OUTPUT_LOW:OUTPUT_HIGH);
+	// Set default Mac address
+	defaultMacAddress.SetDefault();
 #else
     // Deal with power first (we assume this doesn't depend on identifying the board type)
     pinMode(ATX_POWER_PIN,OUTPUT_LOW);
