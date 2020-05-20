@@ -1,39 +1,31 @@
-Please Note
-===========
-The information contained in this file is old and may be out of date, but is retained as it may contain useful information. For up to date details of the LPC RRF port V3 please see following links:
-https://github.com/gloomyandy/RepRapFirmware/blob/v3.01-dev-lpc/WHATS_NEW_LPC.md
-https://github.com/gloomyandy/RepRapFirmware/wiki
-
-
-
-
-LPC Port of RepRapFirmware
+# LPC Port of RepRapFirmware v3
 ==========================
 
-This is an experimental port of [dc42's RepRapFirmware](https://github.com/dc42/RepRapFirmware/)) for LPC1768/LPC1769 based boards.  
+This is an experimental port of [RepRapFirmware](https://github.com/Duet3D/RepRapFirmware) for LPC1768/LPC1769 based boards.  
 
-*Note: This firmware does not show up as a mass storage device when connected to a computer. Physical access to the internal sdcard may be required in order to revert back or update.*
+# What is it?
+It is a port of the [RepRapFirmware](https://github.com/Duet3D/RepRapFirmware) version 3 (RRF3) used on the Duet family of controllers.  
+The firmware can be used to control 3D printers, CNC machines, laser cutters and more.  
+There are a couple of features which sets it aside from Marlin, Smoothieware etc
+  - All settings for the firmware are configurable dynamically. No recompiling required
+  - Although it supports USB control through software such as Pronterface or Octoprint, the Duet Web Control (DWC) is the best way to control and configure the software
+  - Native network control through Wifi, Ethernet or an SBC
 
-### Main Differences to [dc42's RepRapFirmware](https://github.com/dc42/RepRapFirmware)
-The CPUs targeted in this port only have 64K RAM which is less than those that run dc42s RepRapFirmware. Further, there is also some differences between the CPUs, and the following outlines the main differences in this port:  
-* A maximum of 4 files can be open at a time.
-* Reduced write buffers for SDCard to save memory.
-* External interrupts (i.e., fan rpm etc) are limited to 3.
-* Reduced number of networking buffers and reduced MTU to save memory.
-* Only 2 HTTP Sockets and Responders. Only 1 HTTP session at a time.
-* Disabled Ftp and Telnet interfaces
-* Configuration:
-  * GCode [M350](https://duet3d.dozuki.com/Wiki/Gcode#Section_M350_Set_microstepping_mode) - Microstepping for boards included in this port is done via hardware and thus M350 is not required. You may include it in your config.g if you like, but the command has no effect on the operation of the firmware.
-  * Some drivers (such as the DRV8825) require specifying the timing information as they require longer pulse timings than the configured default that can result in missed steps. Timing information for stepper drivers can be added using [M569](https://duet3d.dozuki.com/Wiki/Gcode#Section_M569_Set_motor_driver_direction_enable_polarity_and_step_pulse_timing). Timing information can usually be found in the stepper driver data sheets.    
-  * Auto-calibration restrictions to save memory:
-    * Maximum number of probe points of 121; and
-    * Delta maximum calibration points of 16
-  * To support the number of different boards, a /sys/board.txt config file on the SDCard is used to configure the hardware pin assignments. Some example board config files [can be found here](https://github.com/sdavi/RepRapFirmware/tree/v2-dev-lpc/EdgeRelease/ExampleBoardConfig)
-    * M122 P200 command is used to print the mappings have been loaded by board.txt  and displays all options supported by board.txt
+The boards which are currently supported are detailed in the wiki [here](https://github.com/gloomyandy/RepRapFirmware/wiki)
+
+### Main Differences to the Duet RRF
+The main differences are detailed within the wiki [here](https://github.com/gloomyandy/RepRapFirmware/wiki/Differences)
+
+## Getting Started
+Information to support using this firmware can be found on the [wiki](https://github.com/gloomyandy/RepRapFirmware/wiki/Getting-Started---RRF3)  
+The wiki also details different methods of connecting for different boards.
+
+## Support
+For LPC specific questions (and general questions too), please get in touch over at the [RepRap Forum](https://reprap.org/forum/read.php?147,859857,page=1)  
+There is also a [Discord Channel](https://discord.gg/uS97Qs7) where LPC support can also be found.  
+For generic RepRapFirmware questions, please use the [Duet Forum](forum.duet.com)  
 
 **The LPC port is experimental and is likely to contain bugs - Use at your own risk**
-
-
 
 Licence
 =======
