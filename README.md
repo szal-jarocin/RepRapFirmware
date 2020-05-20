@@ -1,10 +1,10 @@
-# LPC Port of RepRapFirmware
+# LPC Port of RepRapFirmware v3
 ==========================
 
-This is an experimental port of [dc42's RepRapFirmware](https://github.com/dc42/RepRapFirmware/)) for LPC1768/LPC1769 based boards.  
+This is an experimental port of [RepRapFirmware](https://github.com/Duet3D/RepRapFirmware) for LPC1768/LPC1769 based boards.  
 
 # What is it?
-It is a port of the [RepRapFirmware](https://github.com/dc42/RepRapFirmware) version 3 (RRF3) used on the Duet family of controllers.  
+It is a port of the [RepRapFirmware](https://github.com/Duet3D/RepRapFirmware) version 3 (RRF3) used on the Duet family of controllers.  
 The firmware can be used to control 3D printers, CNC machines, laser cutters and more.  
 There are a couple of features which sets it aside from Marlin, Smoothieware etc
   - All settings for the firmware are configurable dynamically. No recompiling required
@@ -22,6 +22,7 @@ The wiki also details different methods of connecting for different boards.
 
 ## Support
 For LPC specific questions (and general questions too), please get in touch over at the [RepRap Forum](https://reprap.org/forum/read.php?147,859857,page=1)  
+There is also a [Discord Channel](https://discord.gg/uS97Qs7) where LPC support can also be found.  
 For generic RepRapFirmware questions, please use the [Duet Forum](forum.duet.com)  
 
 **The LPC port is experimental and is likely to contain bugs - Use at your own risk**
