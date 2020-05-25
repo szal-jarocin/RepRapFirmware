@@ -150,6 +150,7 @@ void BoardConfig::Init() noexcept
 #if !HAS_MASS_STORAGE
     sd_mmc_init(SdWriteProtectPins, SdSpiCSPins);
 #endif
+
     // Mount the internal SD card
     rslt = f_mount (&fs, "0:", 1);
     if (rslt == FR_OK)
@@ -454,14 +455,11 @@ void BoardConfig::Diagnostics(MessageType mtype) noexcept
         if(next != nullptr)
         {
             const Pin pin = next->GetPin();
-#ifdef LPC_DEBUG
-            reprap.GetPlatform().MessageF(mtype, "Pin %d.%d @ %dHz (%s) - LateCnt: %lu\n", (pin >> 5), (pin & 0x1f), next->GetFrequency(), next->IsRunning()?"Enabled":"Disabled", next->GetLateCount() );
-#else
+
             reprap.GetPlatform().MessageF(mtype, "Pin %d.%d @ %dHz (%s)\n", (pin >> 5), (pin & 0x1f), next->GetFrequency(), next->IsRunning()?"Enabled":"Disabled" );
-#endif
+
         }
-    };
-    
+    }
     
     //Print Servo PWM Timer or HW PWM assignments
     reprap.GetPlatform().MessageF(mtype, "\n== Servo PWM ==\n");
