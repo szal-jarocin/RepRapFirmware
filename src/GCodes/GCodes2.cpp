@@ -49,6 +49,10 @@
 # include <CAN/ExpansionManager.h>
 #endif
 
+#ifdef __LPC17xx__
+#include "BoardConfig.h"
+#endif
+
 #include <utility>			// for std::swap
 
 // If the code to act on is completed, this returns true, otherwise false.
@@ -1714,6 +1718,10 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeEx
 				{
 					reprap.Diagnostics(mt);
 				}
+#ifdef __LPC17xx__
+				else if (type == (unsigned int)DiagnosticTestType::PrintBoardConfiguration)
+					BoardConfig::Diagnostics(mt);
+#endif
 				else
 				{
 					result = platform.DiagnosticTest(gb, reply, outBuf, type);

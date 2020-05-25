@@ -45,6 +45,9 @@
 # include "sam/drivers/hsmci/hsmci.h"
 #else
 # include "LPC/BoardConfig.h"
+# ifdef LPC_DEBUG
+#  include "SoftwarePWMTimer.h"
+# endif
 #endif
 
 #include "sd_mmc.h"
@@ -1913,6 +1916,10 @@ void Platform::Diagnostics(MessageType mtype) noexcept
 			adcFilters[VssaFilterIndex].GetSum()/div, adcFilters[VrefFilterIndex].GetSum()/div, adcFilters[0].GetSum()/div, adcFilters[1].GetSum()/div);
 #endif
 
+#ifdef LPC_DEBUG
+    softwarePWMTimer.Diagnostics(mtype);
+#endif
+
 #ifdef SOFT_TIMER_DEBUG
 	MessageF(mtype, "Soft timer interrupts executed %u, next %u scheduled at %u, now %u\n",
 		numSoftTimerInterruptsExecuted, STEP_TC->TC_CHANNEL[STEP_TC_CHAN].TC_RB, lastSoftTimerInterruptScheduledAt, GetTimerTicks());
@@ -2255,10 +2262,15 @@ GCodeResult Platform::DiagnosticTest(GCodeBuffer& gb, const StringRef& reply, Ou
 #endif
 
 #ifdef __LPC17xx__
+	// This code is now called directly from the gcode module to allow it to have access to the
+	// I/O stream with a push modifier (used for standard M122). Without this the output in DSF
+	// is split into multiple responses. 
+#if 0
 	// Diagnostic for LPC board configuration
 	case (int)DiagnosticTestType::PrintBoardConfiguration:
 		BoardConfig::Diagnostics(gb.GetResponseMessageType());
 		break;
+#endif
 #endif
 
 	default:
