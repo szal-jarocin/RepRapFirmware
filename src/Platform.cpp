@@ -47,6 +47,8 @@
 # include "LPC/BoardConfig.h"
 # ifdef LPC_DEBUG
 #  include "SoftwarePWMTimer.h"
+   extern uint32_t minWDTValue;
+   extern int lateTimers;
 # endif
 #endif
 
@@ -1908,6 +1910,12 @@ void Platform::Diagnostics(MessageType mtype) noexcept
 #endif
 
 	reprap.Timing(mtype);
+#ifdef LPC_DEBUG
+	MessageF(mtype, "Watchdog timer: %" PRIu32 "/%" PRIu32 "\n", minWDTValue, SystemCoreClock / 16);
+	minWDTValue = 0xffffffff;
+	MessageF(mtype, "Step timer: target %" PRIu32 " count %" PRIu32 " delta %d late %d\n", STEP_TC->MR[0], STEP_TC->TC, (int)(STEP_TC->MR[0] - STEP_TC->TC), lateTimers);
+
+#endif
 
 #if 0
 	// Debugging temperature readings
@@ -1918,6 +1926,7 @@ void Platform::Diagnostics(MessageType mtype) noexcept
 
 #ifdef LPC_DEBUG
     softwarePWMTimer.Diagnostics(mtype);
+	reprap.GetMove().AccessHeightMap().Diagnostics(mtype);
 #endif
 
 #ifdef SOFT_TIMER_DEBUG

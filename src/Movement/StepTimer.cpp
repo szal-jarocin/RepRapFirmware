@@ -9,7 +9,11 @@
 #include <RTOSIface/RTOSIface.h>
 #include "Move.h"
 
-#ifndef __LPC17xx__
+#ifdef __LPC17xx__
+# ifdef LPC_DEBUG
+int lateTimers = 0;
+# endif
+#else
 # include "sam/drivers/tc/tc.h"
 #endif
 
@@ -133,12 +137,15 @@ bool StepTimer::ScheduleTimerInterrupt(uint32_t tim) noexcept
 #ifdef __LPC17xx__
 	STEP_TC->MR[0] = tim;											// set MR0 compare register
 	STEP_TC->MCR |= (1u<<SBIT_MR0I);									// enable interrupt on MR0 match
+# ifdef LPC_DEBUG
+	if ((int)(STEP_TC->MR[0] - GetTimerTicks()) <= 0)
+		lateTimers++;
+# endif
 #else
 	STEP_TC->TC_CHANNEL[STEP_TC_CHAN].TC_RB = tim;					// set up the compare register
 	(void)STEP_TC->TC_CHANNEL[STEP_TC_CHAN].TC_SR;					// read the status register, which clears the status bits and any pending interrupt
 	STEP_TC->TC_CHANNEL[STEP_TC_CHAN].TC_IER = TC_IER_CPBS;			// enable the interrupt
 #endif
-
 	cpu_irq_restore(flags);
 	return false;
 }
