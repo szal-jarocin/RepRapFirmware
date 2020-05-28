@@ -1930,7 +1930,7 @@ void Platform::Diagnostics(MessageType mtype) noexcept
 			adcFilters[VssaFilterIndex].GetSum()/div, adcFilters[VrefFilterIndex].GetSum()/div, adcFilters[0].GetSum()/div, adcFilters[1].GetSum()/div);
 #endif
 
-#ifdef LPC_DEBUG
+#ifdef LPC_DEBUG_HM
     softwarePWMTimer.Diagnostics(mtype);
 	reprap.GetMove().AccessHeightMap().Diagnostics(mtype);
 #endif
