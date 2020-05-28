@@ -1841,9 +1841,15 @@ void Platform::Diagnostics(MessageType mtype) noexcept
 			{
 				// We saved a stack dump, so print it
 				scratchString.Clear();
+				int i = 0;
 				for (uint32_t stval : srdBuf[slot].stack)
 				{
 					scratchString.catf(" %08" PRIx32, stval);
+					if (++i % 10 == 0)
+					{
+						MessageF(mtype, "Stack:%s\n", scratchString.c_str());
+						scratchString.Clear();						
+					}
 				}
 				MessageF(mtype, "Stack:%s\n", scratchString.c_str());
 			}

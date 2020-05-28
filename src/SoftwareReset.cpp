@@ -9,7 +9,11 @@
 #include "Tasks.h"
 
 extern uint32_t _estack;			// defined in the linker script
-
+#ifdef __LPC17xx__
+extern uint32_t __data_start__;
+extern uint8_t __AHB0_block_start;
+extern uint8_t __AHB0_end;
+#endif
 // The following must be kept in line with enum class SoftwareResetReason
 const char *const SoftwareResetData::ReasonText[] =
 {
@@ -79,7 +83,11 @@ void SoftwareResetData::Populate(uint16_t reason, uint32_t time, const uint32_t 
 		sp = reinterpret_cast<uint32_t>(stk);
 		for (uint32_t& stval : stack)
 		{
+#ifdef __LPC17xx__
+			stval = ((stk >= &__data_start__ && stk < &_estack) || (stk >= (uint32_t *)&__AHB0_block_start && stk < (uint32_t *)&__AHB0_end)) ? *stk : 0xFFFFFFFF;
+#else
 			stval = (stk < &_estack) ? *stk : 0xFFFFFFFF;
+#endif
 			++stk;
 		}
 	}
