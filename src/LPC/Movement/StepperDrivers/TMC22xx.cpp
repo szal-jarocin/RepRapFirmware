@@ -3,8 +3,9 @@
  *
  *  Created on: 23 Jan 2016
  *      Author: David
+ * Modified on: 1 Jun 2020 to support TMC2209 (based on Duet expansion board code) on the LPC platform
+ *		Author: gloomyandy
  */
-
 #include "RepRapFirmware.h"
 
 #if SUPPORT_TMC22xx
@@ -716,9 +717,9 @@ pre(!driversPowered)
 void TmcDriverState::SetStallDetectThreshold(int sgThreshold) noexcept
 {
 	// TMC2209 stall threshold is 0 to 255 with 255 being most sensitive.
-	// RRF is -63 to 64 with -63 being most sensitive
-	// We keep the RRF range but adjust it for TMC2209
-	const uint32_t sgthrs = 255 - 2*(uint32_t)(constrain<int>(sgThreshold, -64, 63) + 64);
+	// RRF is normally -63 to 64 with -63 being most sensitive
+	// We expand the RRF range but adjust it for TMC2209
+	const uint32_t sgthrs = 255 - (uint32_t)(constrain<int>(sgThreshold, -128, 127) + 128);
 	UpdateRegister(WriteSgthrs, sgthrs);
 }
 
@@ -729,7 +730,7 @@ void TmcDriverState::SetStallMinimumStepsPerSecond(unsigned int stepsPerSecond) 
 
 void TmcDriverState::AppendStallConfig(const StringRef& reply) const noexcept
 {
-	const int threshold = (int)((255 - writeRegisters[WriteSgthrs])/2 - 64);
+	const int threshold = (int)((255 - writeRegisters[WriteSgthrs]) - 128);
 	reply.catf("stall threshold %d, steps/sec %" PRIu32 ", coolstep %" PRIx32,
 				threshold, 12000000 / (256 * writeRegisters[WriteTcoolthrs]), writeRegisters[WriteCoolconf] & 0xFFFF);
 }
