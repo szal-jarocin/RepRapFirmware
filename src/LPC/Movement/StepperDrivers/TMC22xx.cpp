@@ -32,12 +32,26 @@
 // The TMC2224 does handle a write request immediately followed by a read request.
 // The TMC2224 does _not_ handle back-to-back read requests, it needs a short delay between them.
 
-constexpr float MaximumMotorCurrent = 1600.0;				// we can't go any higher without switching to the low sensitivity range
+// Motor current calculations
+// Full scale current has two ranges (VSENSE 1 or 0) and is given by
+// iMax = 0.32/(RSense + 0.02) (for VSENSE 0) iMax = 0.18/(RSense + 0.02) (for VSENSE = 1)
+// On typical TMC2209 driver boards RSense is 0.11Ohms on the Duet it is 0.082 Ohms
+#ifdef __LPC17xx__
+constexpr float RSense = 0.11;
+#else
+constexpr float RSense = 0.082;
+#endif
+// Which gives iMax values in mA of...
+constexpr int32_t iMax_VS1 = (int32_t)((0.18/(RSense + 0.02))*1000 + 0.5);
+constexpr int32_t iMax_VS0 = (int32_t)((0.32/(RSense + 0.02))*1000 + 0.5);
+
+constexpr float MaximumMotorCurrent = iMax_VS0;
 constexpr float MaximumStandstillCurrent = 1400.0;
 constexpr float MinimumOpenLoadMotorCurrent = 300;			// minimum current in mA for the open load status to be taken seriously
 constexpr uint32_t DefaultMicrosteppingShift = 4;			// x16 microstepping
 constexpr bool DefaultInterpolation = true;					// interpolation enabled
 constexpr uint32_t DefaultTpwmthrsReg = 2000;				// low values (high changeover speed) give horrible jerk at the changeover from stealthChop to spreadCycle
+constexpr uint32_t MaximumWaitTime = 100;					// Wait time for commands we need to complete
 
 #if HAS_STALL_DETECT
 const int DefaultStallDetectThreshold = 1;
@@ -353,6 +367,7 @@ private:
 	void SetupDMASend(uint8_t regnum, uint32_t outVal, uint8_t crc) noexcept __attribute__ ((hot));			// set up the PDC to send a register
 	void SetupDMAReceive(uint8_t regnum, uint8_t crc) noexcept __attribute__ ((hot));						// set up the PDC to receive a register
 #endif
+	bool WaitForUpdateComplete(uint32_t timeout) noexcept;
 
 #if HAS_STALL_DETECT
 	static constexpr unsigned int NumWriteRegisters = 9;		// the number of registers that we write to on a TMC2209
@@ -547,6 +562,15 @@ inline bool TmcDriverState::UpdatePending() const noexcept
 		&& (IsTmc2209() || LowestSetBit(registersToUpdate) < NumWriteRegistersNon09)
 #endif
 		;
+}
+
+bool TmcDriverState::WaitForUpdateComplete(uint32_t timeout) noexcept
+{
+	uint32_t startTime = millis();
+	while (UpdatePending() && (millis() - startTime) < timeout)
+		SmartDrivers::Spin(true);
+	debugPrintf("Wait complete after %d\n", (int)(millis() - startTime));
+	return true;
 }
 
 // Set up the PDC or DMAC to send a register
@@ -902,14 +926,31 @@ void TmcDriverState::SetCurrent(float current) noexcept
 
 void TmcDriverState::UpdateCurrent() noexcept
 {
-	// The current sense resistor on the Duet M is 0.082 ohms, to which we must add 0.03 ohms internal resistance.
-	// Full scale peak motor current in the high sensitivity range is give by I = 0.18/(R+0.03) = 0.18/0.105 ~= 1.6A
-	// This gives us a range of 50mA to 1.6A in 50mA steps in the high sensitivity range (VSENSE = 1)
-	const uint32_t iRunCsBits = (32 * motorCurrent - 800)/1615;		// formula checked by simulation on a spreadsheet
+	// Set run and hold currents, adjust vsense as needed to keep bits in range.
+	uint32_t vsense;
+	uint32_t iRunCsBits;
+	uint32_t iHoldCsBits;
 	const uint32_t iHoldCurrent = min<uint32_t>((motorCurrent * standstillCurrentFraction)/256, (uint32_t)MaximumStandstillCurrent);	// calculate standstill current
-	const uint32_t iHoldCsBits = (32 * iHoldCurrent - 800)/1615;	// formula checked by simulation on a spreadsheet
+
+	if (motorCurrent <= iMax_VS1)
+	{
+		// we can use the high sensitivity setting
+	 	iRunCsBits = (32 * motorCurrent - iMax_VS1/2)/iMax_VS1;
+		iHoldCsBits = (32 * iHoldCurrent - iMax_VS1/2)/iMax_VS1;
+		vsense = CHOPCONF_VSENSE_HIGH;
+	}
+	else
+	{
+		// use the standard vsense setting
+	 	iRunCsBits = (32 * motorCurrent - iMax_VS0/2)/iMax_VS0;
+		iHoldCsBits = (32 * iHoldCurrent - iMax_VS0/2)/iMax_VS0;
+		vsense = 0;
+	}
+	debugPrintf("TMC current iMax %d %d, set I %d IH %d csBits 0x%x 0x%x vsense 0x%x\n", (int)iMax_VS0, (int)iMax_VS1, (int)motorCurrent, (int)iHoldCurrent, (unsigned)iRunCsBits, (unsigned)iHoldCsBits, (unsigned)vsense);
 	UpdateRegister(WriteIholdIrun,
 					(writeRegisters[WriteIholdIrun] & ~(IHOLDIRUN_IRUN_MASK | IHOLDIRUN_IHOLD_MASK)) | (iRunCsBits << IHOLDIRUN_IRUN_SHIFT) | (iHoldCsBits << IHOLDIRUN_IHOLD_SHIFT));
+	configuredChopConfReg = (configuredChopConfReg & ~CHOPCONF_VSENSE_HIGH) | vsense;
+	UpdateChopConfRegister();
 }
 
 // Enable or disable the driver
@@ -923,6 +964,7 @@ void TmcDriverState::Enable(bool en) noexcept
 			digitalWrite(enablePin, !en);			// we assume that smart drivers always have active low enables
 		}
 		UpdateChopConfRegister();
+		WaitForUpdateComplete(MaximumWaitTime);
 	}
 }
 
