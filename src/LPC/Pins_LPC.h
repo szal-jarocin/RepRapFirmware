@@ -158,8 +158,8 @@ extern Pin DIAG_PINS[NumDirectDrivers];
 #if LPC_TMC_SOFT_UART
     extern Pin TMC_UART_PINS[NumDirectDrivers];
     constexpr Pin GlobalTmc22xxEnablePin = NoPin;			// The pin that drives ENN of all drivers
-    constexpr uint32_t DriversBaudRate = 9600;
-    constexpr uint32_t TransferTimeout = 100;				// any transfer should complete within 100 ticks @ 1ms/tick
+    constexpr uint32_t DriversBaudRate = 50000;
+    constexpr uint32_t TransferTimeout = 10;				// any transfer should complete within 100 ticks @ 1ms/tick
 
 #endif
 

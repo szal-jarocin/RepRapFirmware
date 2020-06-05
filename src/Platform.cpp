@@ -1696,11 +1696,13 @@ void Platform::InitialiseInterrupts() noexcept
 #if defined(__LPC17xx__)
 	// set rest of the Timer Interrupt priorities
 	// Timer 0 is used for step generation (set elsewhere)
-	NVIC_SetPriority(TIMER1_IRQn, 8);                       //Timer 1 and Timer 3 are optionally used for ADC pre-filtering and for
-	NVIC_SetPriority(TIMER3_IRQn, 8);                       //TMC22XX UART emulation. Both are DMA based and do not use the timer interrupt.
+	// DMA and SPI priorites are defined in BoardConfig as they are needed for File I/O
+	NVIC_SetPriority(TIMER1_IRQn, 8);                       //Timer 1 is optionally used for ADC pre-filtering.
+	NVIC_SetPriority(TIMER3_IRQn, 8);                       //Timer3 is optionally used for TMC22XX UART emulation. Both are DMA based and do not use the timer interrupt.
 	NVIC_SetPriority(TIMER2_IRQn, NvicPriorityTimerServo);  //Timer 2 runs the PWM for Servos at 50hz
 	NVIC_SetPriority(RITIMER_IRQn, NvicPriorityTimerPWM);   //RIT runs the microsecond free running timer to generate heater/fan PWM
 	NVIC_SetPriority(ADC_IRQn, NvicPriorityADC);            //ADC interrupt priority when using burst with pre-filtering
+
 #endif
 
     // Tick interrupt for ADC conversions
@@ -1920,7 +1922,7 @@ void Platform::Diagnostics(MessageType mtype) noexcept
 	MessageF(mtype, "Watchdog timer: %" PRIu32 "/%" PRIu32 "\n", minWDTValue, SystemCoreClock / 16);
 	minWDTValue = 0xffffffff;
 	MessageF(mtype, "Step timer: target %" PRIu32 " count %" PRIu32 " delta %d late %d\n", STEP_TC->MR[0], STEP_TC->TC, (int)(STEP_TC->MR[0] - STEP_TC->TC), lateTimers);
-
+	MessageF(mtype, "USBSerial connected %d\n", (int)SERIAL_MAIN_DEVICE.IsConnected());
 #endif
 
 #if 0
