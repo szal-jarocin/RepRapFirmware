@@ -508,8 +508,8 @@ const uint32_t NvicPriorityWatchdog = 0;		// the secondary watchdog has the high
 // blocked by RTOS operations. This also means they can not call RTOS APIs
 const uint32_t NvicPriorityWatchdog = 0;		// the secondary watchdog has the highest priority
 const uint32_t NvicPriorityDriversSerialTMC = 1;// LPC uses a software UART, make this a very high priority
-const uint32_t NvicPriorityPanelDueUart = 2;	// UART is next highest to avoid character loss (it has only a 1-character receive buffer)
-constexpr uint32_t NvicPriorityTimerPWM = 3;
+const uint32_t NvicPriorityTimerPWM = 2;		// Run PWM timing as high as we can to avoid jitter
+const uint32_t NvicPriorityPanelDueUart = 3;	// UART is next we have a 16 byte FIFO so less critical than the Duet
 constexpr uint32_t NvicPriorityADC = 4;
 constexpr uint32_t NvicPriorityTimerServo = 5;
 // decide what priority to run DMA operations at
