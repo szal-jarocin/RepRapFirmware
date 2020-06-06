@@ -569,7 +569,6 @@ bool TmcDriverState::WaitForUpdateComplete(uint32_t timeout) noexcept
 	uint32_t startTime = millis();
 	while (UpdatePending() && (millis() - startTime) < timeout)
 		SmartDrivers::Spin(true);
-	debugPrintf("Wait complete after %d\n", (int)(millis() - startTime));
 	return true;
 }
 
@@ -946,7 +945,7 @@ void TmcDriverState::UpdateCurrent() noexcept
 		iHoldCsBits = (32 * iHoldCurrent - iMax_VS0/2)/iMax_VS0;
 		vsense = 0;
 	}
-	debugPrintf("TMC current iMax %d %d, set I %d IH %d csBits 0x%x 0x%x vsense 0x%x\n", (int)iMax_VS0, (int)iMax_VS1, (int)motorCurrent, (int)iHoldCurrent, (unsigned)iRunCsBits, (unsigned)iHoldCsBits, (unsigned)vsense);
+	//debugPrintf("TMC current iMax %d %d, set I %d IH %d csBits 0x%x 0x%x vsense 0x%x\n", (int)iMax_VS0, (int)iMax_VS1, (int)motorCurrent, (int)iHoldCurrent, (unsigned)iRunCsBits, (unsigned)iHoldCsBits, (unsigned)vsense);
 	UpdateRegister(WriteIholdIrun,
 					(writeRegisters[WriteIholdIrun] & ~(IHOLDIRUN_IRUN_MASK | IHOLDIRUN_IHOLD_MASK)) | (iRunCsBits << IHOLDIRUN_IRUN_SHIFT) | (iHoldCsBits << IHOLDIRUN_IHOLD_SHIFT));
 	configuredChopConfReg = (configuredChopConfReg & ~CHOPCONF_VSENSE_HIGH) | vsense;
@@ -1048,12 +1047,12 @@ void TmcDriverState::AppendDriverStatus(const StringRef& reply) noexcept
 	}
 	else
 	{
-		reply.cat(", SG min/max not available");
+		reply.cat(", SG min/max N/A");
 	}
 	ResetLoadRegisters();
 #endif
 
-	reply.catf(", rd err %u, wr err %u, ifcnt %u, rds %u, wrs %u, t/o %u, failedOp 0x%02x",
+	reply.catf(", error r/w %u/%u, ifcnt %u, cnt r/w %u/%u, timeout %u, failedOp 0x%02x",
 					readErrors, writeErrors, lastIfCount, numReads, numWrites, numTimeouts, failedOp);
 	readErrors = writeErrors = numReads = numWrites = numTimeouts = numDmaErrors = 0;
 	failedOp = 0xFF;
