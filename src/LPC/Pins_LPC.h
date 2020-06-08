@@ -372,6 +372,7 @@ struct BoardEntry
 #include "Boards/Mbed.h"
 #include "Boards/Smoothieboard.h"
 #include "Boards/MKSSBase.h"
+#include "Boards/MKSSGenL.h"
 #include "Boards/AzsmzMini.h"
 #include "Boards/BIQU_SKR.h"
 #include "Boards/Generic.h"
@@ -390,11 +391,13 @@ constexpr BoardEntry LPC_Boards[] =
     {"smoothieboard",    PinTable_Smoothieboard,    ARRAY_SIZE(PinTable_Smoothieboard),    smoothieBoardDefaults},
     {"rearm",            PinTable_Rearm,            ARRAY_SIZE(PinTable_Rearm),            rearmDefaults},
     {"mkssbase_1.3",     PinTable_MKSSbase1_3,      ARRAY_SIZE(PinTable_MKSSbase1_3),      mkssbase1_3_Defaults},
+	{"mkssgenl_1.0",     PinTable_MKSSGenL1_0,      ARRAY_SIZE(PinTable_MKSSGenL1_0),      mkssgenl1_0_Defaults},
     {"azsmzmini",        PinTable_AZSMZ,            ARRAY_SIZE(PinTable_AZSMZ),            azsmzDefaults},
     {"biquskr_1.1",      PinTable_BIQU_SKR_v1_1,    ARRAY_SIZE(PinTable_BIQU_SKR_v1_1),    biquskr_1_1_Defaults},
     {"biquskr_1.3",      PinTable_BIQU_SKR_v1_3,    ARRAY_SIZE(PinTable_BIQU_SKR_v1_3),    biquskr_1_3_Defaults},
     {"biquskr_1.4",      PinTable_BIQU_SKR_v1_4,    ARRAY_SIZE(PinTable_BIQU_SKR_v1_4),    biquskr_1_4_Defaults},
     {"azteegx5mini_1.1", PinTable_AzteegX5MiniV1_1, ARRAY_SIZE(PinTable_AzteegX5MiniV1_1), azteegX5Mini1_1Defaults},
+	{"azteegx5mini_2",   PinTable_AzteegX5MiniV2,   ARRAY_SIZE(PinTable_AzteegX5MiniV2),   azteegX5Mini2Defaults},
     {"azteegx5mini_3",   PinTable_AzteegX5MiniV3,   ARRAY_SIZE(PinTable_AzteegX5MiniV3),   azteegX5Mini3Defaults},
 #endif
 };
