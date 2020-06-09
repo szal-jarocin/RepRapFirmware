@@ -1931,9 +1931,10 @@ void Platform::Diagnostics(MessageType mtype) noexcept
 	MessageF(mtype, "Vssa %" PRIu32 " Vref %" PRIu32 " Temp0 %" PRIu32 " Temp1 %" PRIu32 "\n",
 			adcFilters[VssaFilterIndex].GetSum()/div, adcFilters[VrefFilterIndex].GetSum()/div, adcFilters[0].GetSum()/div, adcFilters[1].GetSum()/div);
 #endif
-
-#ifdef LPC_DEBUG_HM
+#ifdef LPC_DEBUG
     softwarePWMTimer.Diagnostics(mtype);
+#endif
+#ifdef LPC_DEBUG_HM
 	reprap.GetMove().AccessHeightMap().Diagnostics(mtype);
 #endif
 
