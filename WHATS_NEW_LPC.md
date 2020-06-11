@@ -5,6 +5,21 @@ Please note
 ============
 The sample board.txt files which are here: https://github.com/gloomyandy/RepRapFirmware/tree/v3.01-dev-lpc/LPC/ExampleBoardConfig are out of date and may contain invalid settings. In addition the current software is not very good at detecting errors in these files and providing feedback to the user. Hopefully this will be improved soon, but for now the best way to check if the settings are correct is to issue an M122 p200 and check that the configuration matches your board. The current best source for the available settings is the configuration source: https://github.com/gloomyandy/RepRapFirmware/blob/v3.01-dev-lpc/src/LPC/BoardConfig.cpp#L33
 
+Version 3.1.1-8
+=============
+This version contains one major new feature, support for TMC2209 devices which includes stall detection and sensorless homing. However it also includes a number of other changes (some to support the TMC2209 feature, others to fix bugs or improve other features), these are detailed below:
+* New board.txt setting stepper.TmcDiagPins = {<pin 0>, <pin 2>, ...} This setting is used to provide details of the pins used for the TMC2209 DIAG output. This must be provided for the drivers which use stall detection/sensorless homing. By Default no pins are defined.
+* SerialUSB Writeable now returns the number of bytes that can be written. This will hopefully fix some of the watchdog timeouts caused by the firmware attempting to write data when no program was consuming the output. There may still be problems with debug output.
+* New software PWM implementation. This new implementation has a lower overhead then the original version and is more robust to situations in which the timer is set to times that have already passed. 
+* Fix watchdog timeout caused by PanelDue or other serial devices. This was caused by by the PanelDue output generating framing errors that were not cleared when enabling the UART.
+* DMA completion interrupts. These have been reworked to allow devices to use completion interrupts that are called at a different interrupt level to that used by the main DMA device. This in turn allows us to use a higher priority interrupt for the DMA devices itself while still allowing the use of DMA with devices that make use of RTOS scheduling.
+* Various build system changes. The new TMC2209 driver is now located in the LPC specific part of the tree, the build scripts have been updated for this and to preserve the map files for debug use.
+* Flash accelerator configuration. Previous builds used settings that are in theory invalid for the LPC1769 chip.
+* Zero allocated memory. Allocated memory was previously left uninitialised, this could cause unpredictable results in some situations.
+* Adjusted interrupt priorities. This allows the TMC2209 driver to run the serial communications (via the software UART) at a higher baud rate, which allows changes to stall detection, motor current etc. to propagate to the drivers more rapidly.
+* Increased GCode buffer size from 101 to 201 bytes to match Duet settings.
+* Various debug enhancements, allow better stack capture/display, pwm debug display, USBSerial display.
+
 Version 3.1.1
 =============
 * Updated to include bugfixes from DC42
