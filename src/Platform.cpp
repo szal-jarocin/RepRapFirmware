@@ -1923,6 +1923,8 @@ void Platform::Diagnostics(MessageType mtype) noexcept
 	minWDTValue = 0xffffffff;
 	MessageF(mtype, "Step timer: target %" PRIu32 " count %" PRIu32 " delta %d late %d\n", STEP_TC->MR[0], STEP_TC->TC, (int)(STEP_TC->MR[0] - STEP_TC->TC), lateTimers);
 	MessageF(mtype, "USBSerial connected %d\n", (int)SERIAL_MAIN_DEVICE.IsConnected());
+	MessageF(mtype, "ADC not ready %" PRIu32 " ADC Init %" PRIu32 "\n", ADCNotReadyCnt, ADCInitCnt);
+	ADCNotReadyCnt = 0;
 #endif
 
 #if 0
@@ -2280,12 +2282,17 @@ GCodeResult Platform::DiagnosticTest(GCodeBuffer& gb, const StringRef& reply, Ou
 #endif
 
 #ifdef __LPC17xx__
+	case (unsigned int)DiagnosticTestType::ADCReset:
+		// try to clear a fault on the ADC by restarting it
+		AnalogInInit();
+		break;
+
 	// This code is now called directly from the gcode module to allow it to have access to the
 	// I/O stream with a push modifier (used for standard M122). Without this the output in DSF
 	// is split into multiple responses. 
 #if 0
 	// Diagnostic for LPC board configuration
-	case (int)DiagnosticTestType::PrintBoardConfiguration:
+	case (unsigned int)DiagnosticTestType::PrintBoardConfiguration:
 		BoardConfig::Diagnostics(gb.GetResponseMessageType());
 		break;
 #endif
