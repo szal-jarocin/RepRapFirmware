@@ -9,7 +9,7 @@
 #define SRC_VERSION_H_
 
 #ifndef VERSION
-# define MAIN_VERSION	"3.1.1-10"
+# define MAIN_VERSION	"3.1.1-11"
 # ifdef USE_CAN0
 #  define VERSION_SUFFIX	" (CAN0)"
 # else
@@ -19,7 +19,7 @@
 #endif
 
 #ifndef DATE
-# define DATE "2020-22-6b10"
+# define DATE "2020-23-6b11"
 #endif
 
 #define AUTHORS "reprappro, dc42, chrishamm, t3p3, dnewman, printm3d"

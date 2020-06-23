@@ -1923,7 +1923,7 @@ void Platform::Diagnostics(MessageType mtype) noexcept
 	minWDTValue = 0xffffffff;
 	MessageF(mtype, "Step timer: target %" PRIu32 " count %" PRIu32 " delta %d late %d\n", STEP_TC->MR[0], STEP_TC->TC, (int)(STEP_TC->MR[0] - STEP_TC->TC), lateTimers);
 	MessageF(mtype, "USBSerial connected %d\n", (int)SERIAL_MAIN_DEVICE.IsConnected());
-	MessageF(mtype, "ADC not ready %" PRIu32 " ADC Init %" PRIu32 "\n", ADCNotReadyCnt, ADCInitCnt);
+	MessageF(mtype, "ADC not ready %" PRIu32 " ADC error threshold %" PRIu32 " ADC Init %" PRIu32 "\n", ADCNotReadyCnt, ADCErrorThreshold, ADCInitCnt);
 	ADCNotReadyCnt = 0;
 #endif
 
