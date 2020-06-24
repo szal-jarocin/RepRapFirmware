@@ -161,7 +161,6 @@ enum class DiagnosticTestType : unsigned int
 
 #ifdef __LPC17xx__
     PrintBoardConfiguration = 200,  //Prints out all pin/values loaded from SDCard to configure board
-	ADCReset = 201,					// Re-init the ADC convertor
 #endif
 
 	TestWatchdog = 1001,			// test that we get a watchdog reset if the tick interrupt stops
