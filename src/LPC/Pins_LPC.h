@@ -107,7 +107,7 @@
 constexpr size_t NumDirectDrivers = 5;               // The maximum number of drives supported by the electronics
 #if defined(SUPPORT_TMC22xx)
     constexpr size_t MaxSmartDrivers = 5;            // The maximum number of smart drivers
-    constexpr size_t NumTmcDriversSenseChannels = 2;
+    constexpr size_t NumTmcDriversSenseChannels = 1;
     #define LPC_TMC_SOFT_UART 1
 #else
     constexpr size_t MaxSmartDrivers = 0;            // The maximum number of smart drivers
@@ -152,11 +152,14 @@ constexpr size_t MaxSpindles = 4;                    // Maximum number of config
 extern Pin ENABLE_PINS[NumDirectDrivers];
 extern Pin STEP_PINS[NumDirectDrivers];
 extern Pin DIRECTION_PINS[NumDirectDrivers];
+#if SUPPORT_TMC22xx
+extern Pin DIAG_PINS[NumDirectDrivers];
+#endif
 #if LPC_TMC_SOFT_UART
     extern Pin TMC_UART_PINS[NumDirectDrivers];
     constexpr Pin GlobalTmc22xxEnablePin = NoPin;			// The pin that drives ENN of all drivers
-    constexpr uint32_t DriversBaudRate = 9600;
-    constexpr uint32_t TransferTimeout = 100;				// any transfer should complete within 100 ticks @ 1ms/tick
+    constexpr uint32_t DriversBaudRate = 50000;
+    constexpr uint32_t TransferTimeout = 10;				// any transfer should complete within 100 ticks @ 1ms/tick
 
 #endif
 
