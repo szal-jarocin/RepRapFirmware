@@ -5,6 +5,14 @@ Please note
 ============
 The sample board.txt files which are here: https://github.com/gloomyandy/RepRapFirmware/tree/v3.01-dev-lpc/LPC/ExampleBoardConfig are out of date and may contain invalid settings. In addition the current software is not very good at detecting errors in these files and providing feedback to the user. Hopefully this will be improved soon, but for now the best way to check if the settings are correct is to issue an M122 p200 and check that the configuration matches your board. The current best source for the available settings is the configuration source: https://github.com/gloomyandy/RepRapFirmware/blob/v3.01-dev-lpc/src/LPC/BoardConfig.cpp#L33
 
+Version 3.1.1-12
+=============
+This version contains a number of fixes and minor improvements following user testing.
+* Detect ADC problems and attempt to fix them. In some situations the ADC does not seem to start operation correctly after reboot. This results in very high (2000 degrees plus) temperature readings. This change attempts to detect this and restart the ADC.
+* UART 3 support is now enabled by default. This allows the WiFi UART interface and PanelDue to be used at the same time on some hardware (BTT SKR V1.4).
+* Fix firmware reset caused by division by zero when setting the PWM frequency to zero.
+* Added Azteeg X5 mini v2 and MKS SGen L (thanks to Jay_S).
+
 Version 3.1.1-9
 =============
 This version contains changes to allow the updating of ESP8266 WiFi firmware via the serial port interface. Note that to use this change may require hardware changes to any adaptor boards you are using. Also includes updates to the USB serial port implementation to reduce memory and improve performance.
