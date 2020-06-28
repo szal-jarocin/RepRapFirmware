@@ -608,7 +608,7 @@ void WifiFirmwareUploader::Spin() noexcept
 			}
 			uploadPort.begin(baud);
 #ifndef __LPC17XX__
-			uploadPort.setInterruptPriority(1);				// we are going to move data at seriously high speeds
+			uploadPort.setInterruptPriority(NvicPriorityWiFiUart);				// we are going to move data at seriously high speeds
 #endif
 			interface.ResetWiFiForUpload(false);
 			lastAttemptTime = lastResetTime = millis();

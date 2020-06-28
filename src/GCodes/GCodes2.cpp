@@ -17,7 +17,7 @@
 # include "Linux/LinuxInterface.h"
 #endif
 #include "Movement/Move.h"
-#include "Network.h"
+#include "Networking/Network.h"
 #include "Scanner.h"
 #include "PrintMonitor.h"
 #include "RepRap.h"
@@ -271,12 +271,25 @@ bool GCodes::HandleGcode(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeEx
 			return false;
 		}
 #endif
-		if (!LockMovementAndWaitForStandstill(gb))		// do this first to make sure that a new grid isn't being defined
+		if (!LockMovementAndWaitForStandstill(gb))			// do this first to make sure that a new grid isn't being defined
 		{
 			return false;
 		}
 		{
-			const int sparam = (gb.Seen('S')) ? gb.GetIValue() : 0;
+			int sparam;
+			if (gb.Seen('S'))
+			{
+				sparam = gb.GetIValue();
+			}
+			else if (DoFileMacro(gb, MESH_G, false, 29))	// no S parameter found so try to execute mesh.g
+			{
+				break;
+			}
+			else
+			{
+				sparam = 0;									// mesh.g not found, so treat G29 the same as G29 S0
+			}
+
 			switch(sparam)
 			{
 			case 0:		// probe and save height map
@@ -993,7 +1006,7 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeEx
 			{
 				String<MaxFilenameLength> filename;
 				gb.GetUnprecedentedString(filename.GetRef());
-				result = (platform.Delete(platform.GetGCodeDir(), filename.c_str())) ? GCodeResult::ok : GCodeResult::error;
+				result = (platform.Delete(platform.GetGCodeDir(), filename.c_str())) ? GCodeResult::ok : GCodeResult::warning;
 			}
 			break;
 #endif
@@ -3078,39 +3091,28 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeEx
 		case 559:
 		case 560: // Binary writing
 			{
-				String<MaxFilenameLength> sysDir;
-				const char* defaultFile;
-				const char *folder;
+				String<MaxFilenameLength> defaultFolder;
 				if (code == 560)
 				{
-					folder = platform.GetWebDir();
-					defaultFile = INDEX_PAGE_FILE;
+					defaultFolder.copy(platform.GetWebDir());
 				}
 				else
 				{
-					platform.AppendSysDir(sysDir.GetRef());
-					folder = sysDir.c_str();
-					defaultFile = CONFIG_FILE;
+					platform.AppendSysDir(defaultFolder.GetRef());
 				}
 				String<MaxFilenameLength> filename;
-				if (gb.Seen('P'))
-				{
-					gb.GetPossiblyQuotedString(filename.GetRef());
-				}
-				else
-				{
-					filename.copy(defaultFile);
-				}
+				gb.MustSee('P');
+				gb.GetQuotedString(filename.GetRef());
 				const FilePosition size = (gb.Seen('S') ? (FilePosition)gb.GetIValue() : 0);
 				const uint32_t crc32 = (gb.Seen('C') ? gb.GetUIValue() : 0);
-				const bool ok = gb.OpenFileToWrite(folder, filename.c_str(), size, true, crc32);
+				const bool ok = gb.OpenFileToWrite(defaultFolder.c_str(), filename.c_str(), size, true, crc32);
 				if (ok)
 				{
 					reply.printf("Writing to file: %s", filename.c_str());
 				}
 				else
 				{
-					reply.printf("Can't open file %s for writing.", filename.c_str());
+					reply.printf("Can't open file %s for writing", filename.c_str());
 					result = GCodeResult::error;
 				}
 			}
@@ -4085,7 +4087,15 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeEx
 #if HAS_SMART_DRIVERS
 		case 917: // Set/report standstill motor current percentage
 #endif
-			// Note that we no longer wait for movement to stop. This is so that we can use these commands (in particular, M913) in the M911 power fail script.
+#if HAS_VOLTAGE_MONITOR
+			if (gb.GetState() != GCodeState::powerFailPausing1)			// we don't wait for movement to stop if we are running the power fail script
+#endif
+			{
+				if (!LockMovementAndWaitForStandstill(gb))
+				{
+					return false;
+				}
+			}
 			{
 				bool seen = false;
 				for (size_t axis = 0; axis < numTotalAxes; axis++)
@@ -4268,7 +4278,17 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeEx
 
 #if SUPPORT_12864_LCD
 		case 918: // Configure direct-connect display
+# ifdef DUET_NG
+			// On Duet 2 configuring the display may affect the number of supported stepper drivers, so wait until there is no movement
+			if (!LockMovementAndWaitForStandstill(gb))
+			{
+				return false;
+			}
+# endif
 			result = reprap.GetDisplay().Configure(gb, reply);
+# ifdef DUET_NG
+			platform.AdjustNumDrivers((reprap.GetDisplay().IsPresent()) ? 2 : 0);
+# endif
 			break;
 #endif
 

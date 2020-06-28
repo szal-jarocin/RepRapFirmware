@@ -27,7 +27,7 @@
 #include "Movement/StepTimer.h"
 #include "Tools/Tool.h"
 #include "Endstops/ZProbe.h"
-#include "Network.h"
+#include "Networking/Network.h"
 #include "PrintMonitor.h"
 #include "FilamentMonitors/FilamentMonitor.h"
 #include "RepRap.h"
@@ -39,20 +39,25 @@
 #include "Hardware/Cache.h"
 #include "Math/Isqrt.h"
 #include "Hardware/I2C.h"
-
-#ifndef __LPC17xx__
-# include "sam/drivers/tc/tc.h"
-# include "sam/drivers/hsmci/hsmci.h"
-#else
+#include "Hardware/SharedSpi/SharedSpiDevice.h"
+#ifdef __LPC17xx__
 # include "LPC/BoardConfig.h"
 # ifdef LPC_DEBUG
 #  include "SoftwarePWMTimer.h"
    extern uint32_t minWDTValue;
    extern int lateTimers;
 # endif
+# include <sd_mmc.h>
+#else
+#if SAME5x
+# include <AnalogIn.h>
+using AnalogIn::AdcBits;
+#else
+# include "sam/drivers/tc/tc.h"
+# include "sam/drivers/hsmci/hsmci.h"
 #endif
-
-#include "sd_mmc.h"
+#include <Libraries/sd_mmc/sd_mmc.h>
+#endif
 
 #if SUPPORT_TMC2660
 # include "Movement/StepperDrivers/TMC2660.h"
@@ -156,7 +161,7 @@ extern "C" void UrgentInit()
 	// When the reset button is pressed on pre-production Duet WiFi boards, if the TMC2660 drivers were previously enabled then we get
 	// uncommanded motor movements if the STEP lines pick up any noise. Try to reduce that by initialising the pins that control the drivers early here.
 	// On the production boards the ENN line is pulled high by an external pullup resistor and that prevents motor movements.
-	for (size_t drive = 0; drive < NumDirectDrivers; ++drive)
+	for (size_t drive = 0; drive < MaxSmartDrivers; ++drive)
 	{
 		pinMode(STEP_PINS[drive], OUTPUT_LOW);
 		pinMode(DIRECTION_PINS[drive], OUTPUT_LOW);
@@ -254,7 +259,7 @@ constexpr ObjectModelTableEntry Platform::objectModelTable[] =
 	{ "shortName",			OBJECT_MODEL_FUNC_NOSELF(BOARD_SHORT_NAME),															ObjectModelEntryFlags::none },
 # endif
 	{ "supports12864",		OBJECT_MODEL_FUNC_NOSELF(SUPPORT_12864_LCD ? true : false),											ObjectModelEntryFlags::verbose },
-#if SUPPORTS_UNIQUE_ID
+#if MCU_HAS_UNIQUE_ID
 	{ "uniqueId",			OBJECT_MODEL_FUNC(self->GetUniqueIdString()),														ObjectModelEntryFlags::none },
 #endif
 #if HAS_12V_MONITOR
@@ -262,10 +267,12 @@ constexpr ObjectModelTableEntry Platform::objectModelTable[] =
 #endif
 	{ "vIn",				OBJECT_MODEL_FUNC(self, 2),																			ObjectModelEntryFlags::live },
 
+#if HAS_CPU_TEMP_SENSOR
 	// 1. mcuTemp members
 	{ "current",			OBJECT_MODEL_FUNC(self->GetMcuTemperatures().current, 1),											ObjectModelEntryFlags::live },
 	{ "max",				OBJECT_MODEL_FUNC(self->GetMcuTemperatures().max, 1),												ObjectModelEntryFlags::none },
 	{ "min",				OBJECT_MODEL_FUNC(self->GetMcuTemperatures().min, 1),												ObjectModelEntryFlags::none },
+#endif
 
 	// 2. vIn members
 #if HAS_VOLTAGE_MONITOR
@@ -277,7 +284,7 @@ constexpr ObjectModelTableEntry Platform::objectModelTable[] =
 	// 3. move.axes[] members
 	{ "acceleration",		OBJECT_MODEL_FUNC(self->Acceleration(context.GetLastIndex()), 1),									ObjectModelEntryFlags::none },
 	{ "babystep",			OBJECT_MODEL_FUNC_NOSELF(reprap.GetGCodes().GetTotalBabyStepOffset(context.GetLastIndex()), 3),		ObjectModelEntryFlags::none },
-	{ "current",			OBJECT_MODEL_FUNC(lrintf(self->GetMotorCurrent(context.GetLastIndex(), 906))),						ObjectModelEntryFlags::none },
+	{ "current",			OBJECT_MODEL_FUNC((int32_t)lrintf(self->GetMotorCurrent(context.GetLastIndex(), 906))),				ObjectModelEntryFlags::none },
 	{ "drivers",			OBJECT_MODEL_FUNC_NOSELF(&axisDriversArrayDescriptor),												ObjectModelEntryFlags::none },
 	{ "homed",				OBJECT_MODEL_FUNC_NOSELF(reprap.GetGCodes().IsAxisHomed(context.GetLastIndex())),					ObjectModelEntryFlags::live },
 	{ "jerk",				OBJECT_MODEL_FUNC(MinutesToSeconds * self->GetInstantDv(context.GetLastIndex()), 1),				ObjectModelEntryFlags::none },
@@ -296,7 +303,7 @@ constexpr ObjectModelTableEntry Platform::objectModelTable[] =
 
 	// 4. move.extruders[] members
 	{ "acceleration",		OBJECT_MODEL_FUNC(self->Acceleration(ExtruderToLogicalDrive(context.GetLastIndex())), 1),			ObjectModelEntryFlags::none },
-	{ "current",			OBJECT_MODEL_FUNC(lrintf(self->GetMotorCurrent(ExtruderToLogicalDrive(context.GetLastIndex()), 906))),	ObjectModelEntryFlags::none },
+	{ "current",			OBJECT_MODEL_FUNC((int32_t)lrintf(self->GetMotorCurrent(ExtruderToLogicalDrive(context.GetLastIndex()), 906))),	ObjectModelEntryFlags::none },
 	{ "driver",				OBJECT_MODEL_FUNC(self->extruderDrivers[context.GetLastIndex()]),									ObjectModelEntryFlags::none },
 	{ "factor",				OBJECT_MODEL_FUNC_NOSELF(reprap.GetGCodes().GetExtrusionFactor(context.GetLastIndex()), 2),			ObjectModelEntryFlags::none },
 	{ "filament",			OBJECT_MODEL_FUNC_NOSELF(GetFilamentName(context.GetLastIndex())),									ObjectModelEntryFlags::none },
@@ -332,9 +339,11 @@ constexpr ObjectModelTableEntry Platform::objectModelTable[] =
 
 constexpr uint8_t Platform::objectModelTableDescriptor[] =
 {
-	9,																		// number of sections
-	12 + HAS_LINUX_INTERFACE + HAS_12V_MONITOR + SUPPORT_CAN_EXPANSION + SUPPORTS_UNIQUE_ID,		// section 0: boards[0]
+	8 + HAS_CPU_TEMP_SENSOR,																		// number of sections
+	12 + HAS_LINUX_INTERFACE + HAS_12V_MONITOR + SUPPORT_CAN_EXPANSION + MCU_HAS_UNIQUE_ID,		// section 0: boards[0]
+#if HAS_CPU_TEMP_SENSOR
 	3,																		// section 1: mcuTemp
+#endif
 #if HAS_VOLTAGE_MONITOR
 	3,																		// section 2: vIn
 #else
@@ -400,10 +409,8 @@ Platform::Platform() noexcept :
 // Initialise the Platform. Note: this is the first module to be initialised, so don't call other modules from here!
 void Platform::Init() noexcept
 {
-	pinMode(DiagPin, OUTPUT_LOW);				// set up diag LED for debugging and turn it off
-
-#if defined(DUET3)
-	pinMode(PhyResetPin, OUTPUT_LOW);			// hold the Ethernet Phy chip in reset, hopefully this will prevent it being too noisy if Ethernet is not enabled
+#if defined(DUET3) || defined(DUET_5LC)
+	pinMode(EthernetPhyResetPin, OUTPUT_LOW);			// hold the Ethernet Phy chip in reset, hopefully this will prevent it being too noisy if Ethernet is not enabled
 #endif
 
 	// Deal with power first (we assume this doesn't depend on identifying the board type)
@@ -415,7 +422,7 @@ void Platform::Init() noexcept
 	pinMode(GlobalTmc2660EnablePin, OUTPUT_HIGH);
 #endif
 
-#if defined(DUET_M) || defined(PCCB_08) || defined(PCCB_08_X5)
+#if defined(DUET_M) || defined(PCCB_08) || defined(PCCB_08_X5) || defined(DUET_5LC)
 	// Make sure the on-board TMC22xx drivers are disabled
 	pinMode(GlobalTmc22xxEnablePin, OUTPUT_HIGH);
 #endif
@@ -424,89 +431,10 @@ void Platform::Init() noexcept
 	DmacManager::Init();
 #endif
 
-#if SUPPORTS_UNIQUE_ID
-	// Read the unique ID of the MCU, if it has one
-	memset(uniqueId, 0, sizeof(uniqueId));
-
-	Cache::Disable();
-	cpu_irq_disable();
-	const uint32_t rc = flash_read_unique_id(uniqueId, 4);
-	cpu_irq_enable();
-	Cache::Enable();
-
-	if (rc == 0)
-	{
-		// Put the checksum at the end
-		// We only print 30 5-bit characters = 128 data bits + 22 checksum bits. So compress the 32 checksum bits into 22.
-		uniqueId[4] = uniqueId[0] ^ uniqueId[1] ^ uniqueId[2] ^ uniqueId[3];
-		uniqueId[4] ^= (uniqueId[4] >> 10);
-
-		// On the Duet Ethernet and SAM E70, use the unique chip ID as most of the MAC address.
-		// The unique ID is 128 bits long whereas the whole MAC address is only 48 bits,
-		// so we can't guarantee that each Duet will get a unique MAC address this way.
-		memset(defaultMacAddress.bytes, 0, sizeof(defaultMacAddress.bytes));
-		defaultMacAddress.bytes[0] = 0xBE;					// use a fixed first byte with the locally-administered bit set
-		const uint8_t * const idBytes = reinterpret_cast<const uint8_t *>(uniqueId);
-		for (size_t i = 0; i < 15; ++i)
-		{
-			defaultMacAddress.bytes[(i % 5) + 1] ^= idBytes[i];
-		}
-
-		// Convert the unique ID and checksum to a string as 30 base5 alphanumeric digits
-		char *digitPtr = uniqueIdChars;
-		for (size_t i = 0; i < 30; ++i)
-		{
-			if ((i % 5) == 0 && i != 0)
-			{
-				*digitPtr++ = '-';
-			}
-			const size_t index = (i * 5) / 32;
-			const size_t shift = (i * 5) % 32;
-			uint32_t val = uniqueId[index] >> shift;
-			if (shift > 32 - 5)
-			{
-				// We need some bits from the next dword too
-				val |= uniqueId[index + 1] << (32 - shift);
-			}
-			val &= 31;
-			char c;
-			if (val < 10)
-			{
-				c = val + '0';
-			}
-			else
-			{
-				c = val + ('A' - 10);
-				// We have 26 letters in the usual A-Z alphabet and we only need 22 of them plus 0-9.
-				// So avoid using letters C, E, I and O which are easily mistaken for G, F, 1 and 0.
-				if (c >= 'C')
-				{
-					++c;
-				}
-				if (c >= 'E')
-				{
-					++c;
-				}
-				if (c >= 'I')
-				{
-					++c;
-				}
-				if (c >= 'O')
-				{
-					++c;
-				}
-			}
-			*digitPtr++ = c;
-		}
-		*digitPtr = 0;
-
-	}
-	else
-	{
-		defaultMacAddress.SetDefault();
-		strcpy(uniqueIdChars, "unknown");
-	}
+#if MCU_HAS_UNIQUE_ID
+	ReadUniqueId();
 #endif
+
 
 	// Real-time clock
 	realTime = 0;
@@ -515,36 +443,12 @@ void Platform::Init() noexcept
 	baudRates[0] = MAIN_BAUD_RATE;
 	commsParams[0] = 0;
 	usbMutex.Create("USB");
-#if defined(__LPC17xx__)
+#if SAME5x
+    SERIAL_MAIN_DEVICE.Start();
+#elif defined(__LPC17xx__)
 	SERIAL_MAIN_DEVICE.begin(baudRates[0]);
 #else
     SERIAL_MAIN_DEVICE.Start(UsbVBusPin);
-#endif
-
-    // Initialise the IO port subsystem
-    IoPort::Init();
-
-    // File management and SD card interfaces
-    for (size_t i = 0; i < NumSdCards; ++i)
-    {
-        setPullup(SdCardDetectPins[i], true);    // setPullup is safe to call with a NoPin argument
-    }
-
-#if HAS_MASS_STORAGE
-    MassStorage::Init();
-#endif
-
-#ifdef __LPC17xx__
-    // Load HW pin assignments from sdcard
-    BoardConfig::Init();
-    pinMode(ATX_POWER_PIN,(ATX_POWER_INVERTED==false)?OUTPUT_LOW:OUTPUT_HIGH);
-#if HAS_NETWORKING
-	// Set default Mac address
-	defaultMacAddress.SetDefault();
-#endif
-#else
-    // Deal with power first (we assume this doesn't depend on identifying the board type)
-    pinMode(ATX_POWER_PIN,OUTPUT_LOW);
 #endif
 
     
@@ -556,6 +460,10 @@ void Platform::Init() noexcept
 	auxSeq = 0;
 #endif
 
+#ifdef DUET_5LC
+	EnableAux();			//TODO temporary!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+#endif
+
 #ifdef SERIAL_AUX2_DEVICE
 	baudRates[2] = AUX2_BAUD_RATE;
 	commsParams[2] = 0;
@@ -563,6 +471,30 @@ void Platform::Init() noexcept
 	SERIAL_AUX2_DEVICE.begin(baudRates[2]);
 #endif
 
+	// Initialise the IO port subsystem
+	IoPort::Init();
+	// Shared SPI subsystem
+	SharedSpiDevice::Init();
+
+
+	// File management and SD card interfaces
+	for (size_t i = 0; i < NumSdCards; ++i)
+	{
+		pinMode(SdCardDetectPins[i], INPUT_PULLUP);
+	}
+
+#if HAS_MASS_STORAGE
+	MassStorage::Init();
+#endif
+
+#ifdef __LPC17xx__
+	// Load HW pin assignments from sdcard
+	BoardConfig::Init();
+	pinMode(ATX_POWER_PIN,(ATX_POWER_INVERTED==false)?OUTPUT_LOW:OUTPUT_HIGH);
+#else
+	// Deal with power first (we assume this doesn't depend on identifying the board type)
+	pinMode(ATX_POWER_PIN,OUTPUT_LOW);
+#endif
 
     // Ethernet networking defaults
 	ipAddress = DefaultIpAddress;
@@ -570,6 +502,9 @@ void Platform::Init() noexcept
 	gateWay = DefaultGateway;
 
 	// Do hardware dependent initialisation
+#if VARIABLE_NUM_DRIVERS
+	numActualDirectDrivers = NumDirectDrivers;					// assume they are all available until we know otherwise
+#endif
 
 #if HAS_SMART_DRIVERS
 # if defined(DUET_NG)
@@ -601,6 +536,8 @@ void Platform::Init() noexcept
 	numSmartDrivers = MaxSmartDrivers;
 # elif defined(__LPC17xx__)
 	numSmartDrivers = lpcSmartDrivers;
+# elif defined(DUET_5LC)
+	numSmartDrivers = MaxSmartDrivers;							// support the expansion board, but don't mind if it's missing
 # endif
 #endif
 
@@ -683,19 +620,6 @@ void Platform::Init() noexcept
 
 	// Motors
 
-#ifndef __LPC17xx__
-	// Disable parallel writes to all pins. We re-enable them for the step pins.
-	PIOA->PIO_OWDR = 0xFFFFFFFF;
-	PIOB->PIO_OWDR = 0xFFFFFFFF;
-	PIOC->PIO_OWDR = 0xFFFFFFFF;
-# ifdef PIOD
-	PIOD->PIO_OWDR = 0xFFFFFFFF;
-# endif
-# ifdef PIOE
-	PIOE->PIO_OWDR = 0xFFFFFFFF;
-# endif
-#endif
-
 	// Clear out the axis and extruder driver bitmaps
 	for (size_t i = 0; i < MaxAxesPlusExtruders; ++i)
 	{
@@ -717,13 +641,8 @@ void Platform::Init() noexcept
 		// Set up the control pins
 		pinMode(STEP_PINS[driver], OUTPUT_LOW);
 		pinMode(DIRECTION_PINS[driver], OUTPUT_LOW);
-#if !defined(DUET3)
+#if !defined(DUET3) && !defined(DUET_5LC)
 		pinMode(ENABLE_PINS[driver], OUTPUT_HIGH);				// this is OK for the TMC2660 CS pins too
-#endif
-
-#ifndef __LPC17xx__
-		const PinDescription& pinDesc = g_APinDescription[STEP_PINS[driver]];
-		pinDesc.pPort->PIO_OWER = pinDesc.ulPin;				// enable parallel writes to the step pins
 #endif
 	}
 
@@ -780,7 +699,13 @@ void Platform::Init() noexcept
 	// Initialise TMC driver module
 # if SUPPORT_TMC51xx
 	SmartDrivers::Init();
-#else
+# elif SUPPORT_TMC22xx
+#  if TMC22xx_VARIABLE_NUM_DRIVERS
+	SmartDrivers::Init(numSmartDrivers);
+#  else
+	SmartDrivers::Init();
+#  endif
+# else
 	SmartDrivers::Init(ENABLE_PINS, numSmartDrivers);
 # endif
 	temperatureShutdownDrivers.Clear();
@@ -816,7 +741,7 @@ void Platform::Init() noexcept
 	// Initialise the configured heaters to just the default bed heater (there are no default chamber heaters)
 	configuredHeaters.Clear();
 
-#ifndef DUET3
+#if !defined(DUET3) && !defined(DUET_5LC)
 	if (DefaultBedHeater >= 0)
 	{
 		configuredHeaters.SetBit(DefaultBedHeater);
@@ -834,7 +759,7 @@ void Platform::Init() noexcept
 	// Enable the pullup resistor, with luck this will make it float high instead.
 #if SAM3XA
 	pinMode(APIN_SHARED_SPI_MISO, INPUT_PULLUP);
-#elif defined(__LPC17xx__)
+#elif defined(__LPC17xx__) || defined(SAME5x)
 	// nothing to do here
 #else
 	pinMode(APIN_USART_SSPI_MISO, INPUT_PULLUP);
@@ -914,6 +839,104 @@ void Platform::Init() noexcept
 	active = true;
 }
 
+#if MCU_HAS_UNIQUE_ID
+
+// Read the unique ID of the MCU, if it has one
+void Platform::ReadUniqueId()
+{
+# if SAME5x
+	for (size_t i = 0; i < 4; ++i)
+	{
+		uniqueId[i] = *reinterpret_cast<const uint32_t*>(SerialNumberAddresses[i]);
+	}
+# else
+	memset(uniqueId, 0, sizeof(uniqueId));
+
+	Cache::Disable();
+	cpu_irq_disable();
+	const uint32_t rc = flash_read_unique_id(uniqueId, 4);
+	cpu_irq_enable();
+	Cache::Enable();
+
+	if (rc == 0)
+	{
+# endif
+		// Put the checksum at the end
+		// We only print 30 5-bit characters = 128 data bits + 22 checksum bits. So compress the 32 checksum bits into 22.
+		uniqueId[4] = uniqueId[0] ^ uniqueId[1] ^ uniqueId[2] ^ uniqueId[3];
+		uniqueId[4] ^= (uniqueId[4] >> 10);
+
+		// On the Duet Ethernet and SAM E70, use the unique chip ID as most of the MAC address.
+		// The unique ID is 128 bits long whereas the whole MAC address is only 48 bits,
+		// so we can't guarantee that each Duet will get a unique MAC address this way.
+		memset(defaultMacAddress.bytes, 0, sizeof(defaultMacAddress.bytes));
+		defaultMacAddress.bytes[0] = 0xBE;					// use a fixed first byte with the locally-administered bit set
+		const uint8_t * const idBytes = reinterpret_cast<const uint8_t *>(uniqueId);
+		for (size_t i = 0; i < 15; ++i)
+		{
+			defaultMacAddress.bytes[(i % 5) + 1] ^= idBytes[i];
+		}
+
+		// Convert the unique ID and checksum to a string as 30 base5 alphanumeric digits
+		char *digitPtr = uniqueIdChars;
+		for (size_t i = 0; i < 30; ++i)
+		{
+			if ((i % 5) == 0 && i != 0)
+			{
+				*digitPtr++ = '-';
+			}
+			const size_t index = (i * 5) / 32;
+			const size_t shift = (i * 5) % 32;
+			uint32_t val = uniqueId[index] >> shift;
+			if (shift > 32 - 5)
+			{
+				// We need some bits from the next dword too
+				val |= uniqueId[index + 1] << (32 - shift);
+			}
+			val &= 31;
+			char c;
+			if (val < 10)
+			{
+				c = val + '0';
+			}
+			else
+			{
+				c = val + ('A' - 10);
+				// We have 26 letters in the usual A-Z alphabet and we only need 22 of them plus 0-9.
+				// So avoid using letters C, E, I and O which are easily mistaken for G, F, 1 and 0.
+				if (c >= 'C')
+				{
+					++c;
+				}
+				if (c >= 'E')
+				{
+					++c;
+				}
+				if (c >= 'I')
+				{
+					++c;
+				}
+				if (c >= 'O')
+				{
+					++c;
+				}
+			}
+			*digitPtr++ = c;
+		}
+		*digitPtr = 0;
+
+# if !SAME5x
+	}
+	else
+	{
+		defaultMacAddress.SetDefault();
+		strcpy(uniqueIdChars, "unknown");
+	}
+# endif
+}
+
+#endif
+
 // Send the beep command to the aux channel. There is no flow control on this port, so it can't block for long.
 void Platform::Beep(int freq, int ms) noexcept
 {
@@ -957,9 +980,7 @@ void Platform::Exit() noexcept
 	usbOutput.ReleaseAll();
 
 #ifdef SERIAL_AUX_DEVICE
-# ifdef DUET3
 	if (auxEnabled)
-# endif
 	{
 		SERIAL_AUX_DEVICE.end();
 	}
@@ -1119,9 +1140,9 @@ void Platform::Spin() noexcept
 		return;
 	}
 
-#if defined(DUET3) || defined(__LPC17xx__)
+#if defined(DUET3) || defined(DUET_5LC) || defined(__LPC17xx__)
 	// Blink the LED at about 2Hz. Duet 3 expansion boards will blink in sync when they have established clock sync with us.
-	digitalWrite(DiagPin, (StepTimer::GetTimerTicks() & (1u << 19)) != 0);
+	digitalWrite(DiagPin, XNor(DiagOnPolarity, StepTimer::GetTimerTicks() & (1u << 19)) != 0);
 #endif
 
 #if HAS_MASS_STORAGE
@@ -1594,7 +1615,7 @@ bool Platform::GetAutoSaveSettings(float& saveVoltage, float&resumeVoltage) noex
 
 #endif
 
-#if HAS_CPU_TEMP_SENSOR
+#if HAS_CPU_TEMP_SENSOR && !SAME5x
 
 float Platform::AdcReadingToCpuTemperature(uint32_t adcVal) const noexcept
 {
@@ -1617,12 +1638,12 @@ float Platform::AdcReadingToCpuTemperature(uint32_t adcVal) const noexcept
 
 void Platform::InitialiseInterrupts() noexcept
 {
-#if SAM4E || SAME70 || defined(__LPC17xx__)
+#if SAM4E || SAME70 || SAME5x || defined(__LPC17xx__)
 	NVIC_SetPriority(WDT_IRQn, NvicPriorityWatchdog);			// set priority for watchdog interrupts
 #endif
 
 #if HAS_HIGH_SPEED_SD
-	NVIC_SetPriority(HSMCI_IRQn, NvicPriorityHSMCI);			// set priority for SD interface interrupts
+	NVIC_SetPriority(SdhcIRQn, NvicPriorityHSMCI);				// set priority for SD interface interrupts
 #endif
 
 	// Set PanelDue UART interrupt priority
@@ -1633,11 +1654,9 @@ void Platform::InitialiseInterrupts() noexcept
 	SERIAL_AUX2_DEVICE.setInterruptPriority(NvicPriorityPanelDueUart);
 #endif
 
-#if HAS_WIFI_NETWORKING
-	NVIC_SetPriority(UART1_IRQn, NvicPriorityWiFiUart);			// set priority for WiFi UART interrupt
-#endif
+// WiFi UART interrupt priority is now set in module WiFiInterface
 
-#if SUPPORT_TMC22xx
+#if SUPPORT_TMC22xx && !SAME5x											// SAME5x uses a DMA interrupt instead of the UART interrupt
 # if LPC_TMC_SOFT_UART
 	// Nothing to do
 # elif TMC22xx_HAS_MUX
@@ -1652,22 +1671,25 @@ void Platform::InitialiseInterrupts() noexcept
 	NVIC_SetPriority(TMC2660_SPI_IRQn, NvicPriorityDriversSerialTMC);	// set priority for TMC2660 SPI interrupt
 #endif
 
-	StepTimer::Init();										// initialise the step pulse timer
-
 #if HAS_LWIP_NETWORKING
 	// Set up the Ethernet interface priority here to because we have access to the priority definitions
-# if SAME70
+# if SAME70 || SAME5x
 	NVIC_SetPriority(GMAC_IRQn, NvicPriorityEthernet);
-	NVIC_SetPriority(XDMAC_IRQn, NvicPriorityDMA);
 # else
 	NVIC_SetPriority(EMAC_IRQn, NvicPriorityEthernet);
 # endif
 #endif
 
+#if SAME5x
+	// DMA IRQ priority is set in DmacManager::Init
+#elif SAME70
+	NVIC_SetPriority(XDMAC_IRQn, NvicPriorityDMA);
+#endif
+
 #ifdef __LPC17xx__
 	// Interrupt for GPIO pins. Only port 0 and 2 support interrupts and both share EINT3
 	NVIC_SetPriority(EINT3_IRQn, NvicPriorityPins);
-#else
+#elif !SAME5x
 	NVIC_SetPriority(PIOA_IRQn, NvicPriorityPins);
 	NVIC_SetPriority(PIOB_IRQn, NvicPriorityPins);
 	NVIC_SetPriority(PIOC_IRQn, NvicPriorityPins);
@@ -1679,7 +1701,12 @@ void Platform::InitialiseInterrupts() noexcept
 # endif
 #endif
 
-#if SAME70
+#if SAME5x
+	NVIC_SetPriority(USB_0_IRQn, NvicPriorityUSB);
+	NVIC_SetPriority(USB_1_IRQn, NvicPriorityUSB);
+	NVIC_SetPriority(USB_2_IRQn, NvicPriorityUSB);
+	NVIC_SetPriority(USB_3_IRQn, NvicPriorityUSB);
+#elif SAME70
 	NVIC_SetPriority(USBHS_IRQn, NvicPriorityUSB);
 #elif SAM4E || SAM4S
 	NVIC_SetPriority(UDP_IRQn, NvicPriorityUSB);
@@ -1688,7 +1715,7 @@ void Platform::InitialiseInterrupts() noexcept
 #elif defined(__LPC17xx__)
 	NVIC_SetPriority(USB_IRQn, NvicPriorityUSB);
 #else
-# error
+# error Unsupported processor
 #endif
 
 #if defined(DUET_NG) || defined(DUET_M) || defined(DUET_06_085)
@@ -1710,7 +1737,9 @@ void Platform::InitialiseInterrupts() noexcept
 
 #endif
 
-    // Tick interrupt for ADC conversions
+	StepTimer::Init();										// initialise the step pulse timer
+
+   // Tick interrupt for ADC conversions
 	tickState = 0;
 	currentFilterNumber = 0;
 }
@@ -1740,7 +1769,24 @@ void Platform::Diagnostics(MessageType mtype) noexcept
 	// Show the up time and reason for the last reset
 	const uint32_t now = (uint32_t)(millis64()/1000u);		// get up time in seconds
 
-#ifndef __LPC17xx__
+#if SAME5x
+	{
+		String<StringLength100> resetString;
+		resetString.printf("Last reset %02d:%02d:%02d ago, cause", (unsigned int)(now/3600), (unsigned int)((now % 3600)/60), (unsigned int)(now % 60));
+		const uint8_t resetReason = RSTC->RCAUSE.reg;
+		// The datasheet says only one of these bits will be set, but we don't assume that
+		if (resetReason & RSTC_RCAUSE_POR)		{ resetString.cat(": power up"); }
+		if (resetReason & RSTC_RCAUSE_BODCORE)	{ resetString.cat(": core brownout"); }
+		if (resetReason & RSTC_RCAUSE_BODVDD)	{ resetString.cat(": Vdd brownout"); }
+		if (resetReason & RSTC_RCAUSE_WDT)		{ resetString.cat(": watchdog"); }
+		if (resetReason & RSTC_RCAUSE_NVM)		{ resetString.cat(": NVM"); }
+		if (resetReason & RSTC_RCAUSE_EXT)		{ resetString.cat(": reset button"); }
+		if (resetReason & RSTC_RCAUSE_SYST)		{ resetString.cat(": system reset request"); }
+		if (resetReason & RSTC_RCAUSE_POR)		{ resetString.cat(": backup/hibernate"); }
+		resetString.cat('\n');
+		Message(mtype, resetString.c_str());
+	}
+#elif !defined(__LPC17xx__)
 	const char* resetReasons[8] = { "power up", "backup", "watchdog", "software",
 # ifdef DUET_NG
 	// On the SAM4E a watchdog reset may be reported as a user reset because of the capacitor on the NRST pin.
@@ -1756,8 +1802,12 @@ void Platform::Diagnostics(MessageType mtype) noexcept
 #endif //end ifndef __LPC17xx__
 
 	// Show the reset code stored at the last software reset
+#if SAME5x
+		//TODO
+		Message(mtype, "Last software reset details not available\n");
+#else
 	{
-#ifdef __LPC17xx__
+#if defined(__LPC17xx__)
 		// Reset Reason
 		MessageF(mtype, "Last reset %02d:%02d:%02d ago, cause: ",
 				 (unsigned int)(now/3600), (unsigned int)((now % 3600)/60), (unsigned int)(now % 60));
@@ -1866,6 +1916,7 @@ void Platform::Diagnostics(MessageType mtype) noexcept
 			Message(mtype, "Last software reset details not available\n");
 		}
 	}
+#endif	// if SAME5x
 
 	// Show the current error codes
 	MessageF(mtype, "Error status: %" PRIx32 "\n", errorCodeBits);
@@ -1898,7 +1949,7 @@ void Platform::Diagnostics(MessageType mtype) noexcept
 	// Show the motor stall status
 	for (size_t drive = 0; drive < numSmartDrivers; ++drive)
 	{
-		String<MediumStringLength> driverStatus;
+		String<StringLength256> driverStatus;
 		SmartDrivers::AppendDriverStatus(drive, driverStatus.GetRef());
 		MessageF(mtype, "Driver %u:%s\n", drive, driverStatus.c_str());
 	}
@@ -1980,9 +2031,9 @@ GCodeResult Platform::DiagnosticTest(GCodeBuffer& gb, const StringRef& reply, Ou
 				testFailed = true;
 			}
 # if HAS_HIGH_SPEED_SD
-			else if (hsmci_get_speed() != ExpectedSdCardSpeed)
+			else if (sd_mmc_get_interface_speed(0) != ExpectedSdCardSpeed)
 			{
-				buf->printf("SD card speed %.2fMbytes/sec is unexpected", (double)((float)hsmci_get_speed() * 0.000001));
+				buf->printf("SD card speed %.2fMbytes/sec is unexpected", (double)((float)sd_mmc_get_interface_speed(0) * 0.000001));
 				testFailed = true;
 			}
 # endif
@@ -2096,7 +2147,7 @@ GCodeResult Platform::DiagnosticTest(GCodeBuffer& gb, const StringRef& reply, Ou
 #endif
 			buf->lcat((testFailed) ? "***** ONE OR MORE CHECKS FAILED *****" : "All checks passed");
 
-#if SUPPORTS_UNIQUE_ID
+#if MCU_HAS_UNIQUE_ID
 			if (!testFailed)
 			{
 				buf->lcatf("Board ID: %s", GetUniqueIdString());
@@ -2104,6 +2155,29 @@ GCodeResult Platform::DiagnosticTest(GCodeBuffer& gb, const StringRef& reply, Ou
 #endif
 		}
 		break;
+
+	case (int)DiagnosticTestType::SetWriteBuffer:
+#if SAME70
+		reply.copy("Write buffer not supported on this processor");
+		return GCodeResult::error;
+#else
+		if (gb.Seen('S'))
+		{
+			if (gb.GetUIValue() > 0)
+			{
+				SCnSCB->ACTLR &= ~SCnSCB_ACTLR_DISDEFWBUF_Msk;		// enable write buffer
+			}
+			else
+			{
+				SCnSCB->ACTLR |= SCnSCB_ACTLR_DISDEFWBUF_Msk;		// disable write buffer
+			}
+		}
+		else
+		{
+			reply.printf("Write buffer is %s", (SCnSCB->ACTLR & SCnSCB_ACTLR_DISDEFWBUF_Msk) ? "disabled" : "enabled");
+		}
+		break;
+#endif
 
 	case (unsigned int)DiagnosticTestType::TestWatchdog:
 		deliberateError = true;
@@ -2135,7 +2209,10 @@ GCodeResult Platform::DiagnosticTest(GCodeBuffer& gb, const StringRef& reply, Ou
 
 	case (unsigned int)DiagnosticTestType::BusFault:
 		// Read from the "Undefined (Abort)" area
-#if SAME70
+#if SAME5x
+		deliberateError = true;
+		(void)*(reinterpret_cast<const volatile char*>(0x30000000));		//TODO test whether this works
+#elif SAME70
 # if USE_MPU
 		deliberateError = true;
 		(void)*(reinterpret_cast<const volatile char*>(0x30000000));
@@ -2153,7 +2230,7 @@ GCodeResult Platform::DiagnosticTest(GCodeBuffer& gb, const StringRef& reply, Ou
 		// The LPC176x/5x generates Bus Fault exception when accessing a reserved memory address
 		(void)*(reinterpret_cast<const volatile char*>(0x00080000));
 #else
-# error
+# error Unsupported processor
 #endif
 		break;
 
@@ -2221,23 +2298,10 @@ GCodeResult Platform::DiagnosticTest(GCodeBuffer& gb, const StringRef& reply, Ou
 				}
 			}
 
-			uint32_t tim2 = 0;
-			for (unsigned int i = 0; i < 100; ++i)
-			{
-				const double angle = (double)0.01 * i;
-				cpu_irq_disable();
-				const uint32_t now2 = StepTimer::GetTimerTicks();
-				const double d1 = RepRap::SinCos(angle);
-				tim2 += StepTimer::GetTimerTicks() - now2;
-				cpu_irq_enable();
-				if (d1 >= (double)1.5)
-				{
-					ok = false;		// need to use f1 to prevent the calculations being omitted
-				}
-			}
+			// We no longer calculate sin and cos for doubles because it pulls in those library functions, which we don't otherwise need
 			if (ok)			// should always be true
 			{
-				reply.printf("Sine + cosine: float %.2fus, double %.2fus", (double)(tim1 * 10000)/StepTimer::StepClockRate, (double)(tim2 * 10000)/StepTimer::StepClockRate);
+				reply.printf("Sine + cosine: float %.2fus", (double)(tim1 * 10000)/StepTimer::StepClockRate);
 			}
 		}
 		break;
@@ -2564,10 +2628,12 @@ void Platform::EnableOneLocalDriver(size_t driver, float requiredCurrent) noexce
 		{
 			SmartDrivers::EnableDrive(driver, true);
 		}
+# if !defined(DUET_5LC)		// no enable pins on 5LC
 		else
 		{
 			digitalWrite(ENABLE_PINS[driver], enableValues[driver] > 0);
 		}
+# endif
 #else
 		digitalWrite(ENABLE_PINS[driver], enableValues[driver] > 0);
 #endif
@@ -2579,7 +2645,7 @@ void Platform::EnableOneLocalDriver(size_t driver, float requiredCurrent) noexce
 // Disable a driver
 void Platform::DisableOneLocalDriver(size_t driver) noexcept
 {
-	if (driver < NumDirectDrivers)
+	if (driver < GetNumActualDirectDrivers())
 	{
 #if defined(DUET3) && HAS_SMART_DRIVERS
 		SmartDrivers::EnableDrive(driver, false);		// all drivers driven directly by the main board are smart
@@ -2588,10 +2654,12 @@ void Platform::DisableOneLocalDriver(size_t driver) noexcept
 		{
 			SmartDrivers::EnableDrive(driver, false);
 		}
+# if !defined(DUET_5LC)		// Duet 5LC has no enable pins
 		else
 		{
 			digitalWrite(ENABLE_PINS[driver], enableValues[driver] <= 0);
 		}
+# endif
 #else
 		digitalWrite(ENABLE_PINS[driver], enableValues[driver] <= 0);
 #endif
@@ -2632,7 +2700,7 @@ void Platform::DisableDrivers(size_t axisOrExtruder) noexcept
 // This is only called in an emergency, so we don't update the driver status
 void Platform::EmergencyDisableDrivers() noexcept
 {
-	for (size_t drive = 0; drive < NumDirectDrivers; drive++)
+	for (size_t drive = 0; drive < GetNumActualDirectDrivers(); drive++)
 	{
 		if (!inInterrupt())		// on the Duet 06/085 we need interrupts running to send the I2C commands to set motor currents
 		{
@@ -2767,7 +2835,7 @@ bool Platform::SetMotorCurrent(size_t axisOrExtruder, float currentOrPercent, in
 // This must not be called from an ISR, or with interrupts disabled.
 void Platform::UpdateMotorCurrent(size_t driver, float current) noexcept
 {
-	if (driver < NumDirectDrivers)
+	if (driver < GetNumActualDirectDrivers())
 	{
 #if HAS_SMART_DRIVERS
 		if (driver < numSmartDrivers)
@@ -2902,7 +2970,7 @@ void Platform::SetDriveStepsPerUnit(size_t axisOrExtruder, float value, uint32_t
 // Set the microstepping for a driver, returning true if successful
 bool Platform::SetDriverMicrostepping(size_t driver, unsigned int microsteps, int mode) noexcept
 {
-	if (driver < NumDirectDrivers)
+	if (driver < GetNumActualDirectDrivers())
 	{
 #if HAS_SMART_DRIVERS
 		if (driver < numSmartDrivers)
@@ -2983,7 +3051,7 @@ unsigned int Platform::GetMicrostepping(size_t drive, bool& interpolation) const
 
 void Platform::SetEnableValue(size_t driver, int8_t eVal) noexcept
 {
-	if (driver < NumDirectDrivers)
+	if (driver < GetNumActualDirectDrivers())
 	{
 		enableValues[driver] = eVal;
 		DisableOneLocalDriver(driver);				// disable the drive, because the enable polarity may have been wrong before
@@ -3687,7 +3755,9 @@ void Platform::ResetChannel(size_t chan) noexcept
 	{
 	case 0:
 		SERIAL_MAIN_DEVICE.end();
-#if defined(__LPC17xx__)
+#if SAME5x
+        SERIAL_MAIN_DEVICE.Start();
+#elif defined(__LPC17xx__)
 		SERIAL_MAIN_DEVICE.begin(baudRates[0]);
 #else
         SERIAL_MAIN_DEVICE.Start(UsbVBusPin);
@@ -3720,7 +3790,15 @@ void Platform::SetBoardType(BoardType bt) noexcept
 {
 	if (bt == BoardType::Auto)
 	{
-#if defined(DUET3)
+#if defined(DUET_5LC)
+		// Test whether this is a WiFi or an Ethernet board. Currently we do this based on the processor type.
+		const uint16_t deviceId = DSU->DID.reg >> 16;
+		board = (deviceId == 0x6184)						// if SAME54P20A
+				? BoardType::Duet5LC_Ethernet
+				: (deviceId == 0x6006)						// SAMD51P20A rev D
+				  ? BoardType::Duet5LC_WiFi
+					: BoardType::Duet5LC_Unknown;
+#elif defined(DUET3)
 		// Driver 0 direction has a pulldown resistor on v0.6 and v1.0 boards, but won't on v1.01 boards
 		pinMode(DIRECTION_PINS[0], INPUT_PULLUP);
 		delayMicroseconds(20);										// give the pullup resistor time to work
@@ -3745,6 +3823,9 @@ void Platform::SetBoardType(BoardType bt) noexcept
 			pinMode(VssaSensePin, INPUT);
 		}
 
+# if defined(USE_SBC)
+		board = (vssaSenseWorking) ? BoardType::Duet2SBC_102 : BoardType::Duet2SBC_10;
+# else
 		// Test whether the Ethernet module is present
 		if (digitalRead(W5500ModuleSensePin))					// the Ethernet module has this pin grounded
 		{
@@ -3754,6 +3835,7 @@ void Platform::SetBoardType(BoardType bt) noexcept
 		{
 			board = (vssaSenseWorking) ? BoardType::DuetEthernet_102 : BoardType::DuetEthernet_10;
 		}
+# endif
 #elif defined(DUET_M)
 		board = BoardType::DuetM_10;
 #elif defined(DUET_06_085)
@@ -3790,7 +3872,11 @@ const char* Platform::GetElectronicsString() const noexcept
 {
 	switch (board)
 	{
-#if defined(DUET3)
+#if defined(DUET_5LC)
+	case BoardType::Duet5LC_Unknown:		return "Duet 3 " BOARD_SHORT_NAME " unknown variant";
+	case BoardType::Duet5LC_WiFi:			return "Duet 3 " BOARD_SHORT_NAME " WiFi";
+	case BoardType::Duet5LC_Ethernet:		return "Duet 3 " BOARD_SHORT_NAME " Ethernet";
+#elif defined(DUET3)
 	case BoardType::Duet3_v06_100:			return "Duet 3 " BOARD_SHORT_NAME " v0.6 or 1.0";
 	case BoardType::Duet3_v101:				return "Duet 3 " BOARD_SHORT_NAME " v1.01 or later";
 #elif defined(SAME70XPLD)
@@ -3800,6 +3886,8 @@ const char* Platform::GetElectronicsString() const noexcept
 	case BoardType::DuetWiFi_102:			return "Duet WiFi 1.02 or later";
 	case BoardType::DuetEthernet_10:		return "Duet Ethernet 1.0 or 1.01";
 	case BoardType::DuetEthernet_102:		return "Duet Ethernet 1.02 or later";
+	case BoardType::Duet2SBC_10:			return "Duet 2 1.0 or 1.01 + SBC";
+	case BoardType::Duet2SBC_102:			return "Duet 2 1.02 or later + SBC";
 #elif defined(DUET_M)
 	case BoardType::DuetM_10:				return "Duet Maestro 1.0";
 #elif defined(DUET_06_085)
@@ -3828,7 +3916,11 @@ const char* Platform::GetBoardString() const noexcept
 {
 	switch (board)
 	{
-#if defined(DUET3)
+#if defined(DUET_5LC)
+	case BoardType::Duet5LC_Unknown:		return "duet5lcunknown";
+	case BoardType::Duet5LC_WiFi:			return "duet5lcwifi";
+	case BoardType::Duet5LC_Ethernet:		return "duet5lcethernet";
+#elif defined(DUET3)
 	case BoardType::Duet3_v06_100:			return "duet3mb6hc100";
 	case BoardType::Duet3_v101:				return "duet3mb6hc101";
 #elif defined(SAME70XPLD)
@@ -3838,6 +3930,8 @@ const char* Platform::GetBoardString() const noexcept
 	case BoardType::DuetWiFi_102:			return "duetwifi102";
 	case BoardType::DuetEthernet_10:		return "duetethernet10";
 	case BoardType::DuetEthernet_102:		return "duetethernet102";
+	case BoardType::Duet2SBC_10:			return "duet2sbc10";
+	case BoardType::Duet2SBC_102:			return "duet2sbc102";
 #elif defined(DUET_M)
 	case BoardType::DuetM_10:				return "duetmaestro100";
 #elif defined(DUET_06_085)
@@ -3869,18 +3963,28 @@ bool Platform::IsDuetWiFi() const noexcept
 	return board == BoardType::DuetWiFi_10 || board == BoardType::DuetWiFi_102;
 }
 
-const char *Platform::GetBoardName() const
+const char *Platform::GetBoardName() const noexcept
 {
-	return board == BoardType::Duet2SBC
+	return (board == BoardType::Duet2SBC_10 || board == BoardType::Duet2SBC_102)
 			? BOARD_NAME_SBC
 			: (IsDuetWiFi()) ? BOARD_NAME_WIFI : BOARD_NAME_ETHERNET;
 }
 
-const char *Platform::GetBoardShortName() const
+const char *Platform::GetBoardShortName() const noexcept
 {
-	return board == BoardType::Duet2SBC
+	return (board == BoardType::Duet2SBC_10 || board == BoardType::Duet2SBC_102)
 			? BOARD_SHORT_NAME_SBC
 			: (IsDuetWiFi()) ? BOARD_SHORT_NAME_WIFI : BOARD_SHORT_NAME_ETHERNET;
+}
+
+#endif
+
+#ifdef DUET_5LC
+
+// Return true if this is a Duet WiFi, false if it is a Duet Ethernet
+bool Platform::IsDuetWiFi() const noexcept
+{
+	return board == BoardType::Duet5LC_WiFi || board == BoardType::Duet5LC_Unknown;
 }
 
 #endif
@@ -4138,7 +4242,11 @@ MinMaxCurrent Platform::GetV12Voltages() const noexcept
 // TMC driver temperatures
 float Platform::GetTmcDriversTemperature(unsigned int board) const noexcept
 {
-#if defined(DUET3)
+#if defined(DUET_5LC)
+	const DriversBitmap mask = (board == 0)
+							? DriversBitmap::MakeLowestNBits(5)							// drivers 0-4 are on the main board
+								: DriversBitmap::MakeLowestNBits(3).ShiftUp(5);			// drivers 5-7 are on the daughter board
+#elif defined(DUET3)
 	const DriversBitmap mask = DriversBitmap::MakeLowestNBits(6);						// there are 6 drivers, only one board
 #elif defined(DUET_NG)
 	const DriversBitmap mask = DriversBitmap::MakeLowestNBits(5).ShiftUp(5 * board);	// there are 5 drivers on each board
@@ -4156,6 +4264,8 @@ float Platform::GetTmcDriversTemperature(unsigned int board) const noexcept
 	const DriversBitmap mask = DriversBitmap::MakeLowestNBits(2);						// drivers 0, 1 are on-board, no expansion supported
 #elif defined(__LPC17xx__)
 	const DriversBitmap mask = DriversBitmap::MakeLowestNBits(MaxSmartDrivers);			// All drivers
+#else
+# error Undefined board
 #endif
 	return (temperatureShutdownDrivers.Intersects(mask)) ? 150.0
 			: (temperatureWarningDrivers.Intersects(mask)) ? 100.0
@@ -4455,9 +4565,9 @@ GCodeResult Platform::GetSetAncillaryPwm(GCodeBuffer& gb, const StringRef& reply
 	return GCodeResult::ok;
 }
 
-#if SAM4E || SAM4S || SAME70
+#if MCU_HAS_UNIQUE_ID
 
-// Get a pseudo-random number
+// Get a pseudo-random number (not a true random number)
 uint32_t Platform::Random() noexcept
 {
 	const uint32_t clocks = StepTimer::GetTimerTicks();
@@ -4477,7 +4587,9 @@ uint32_t Platform::Random() noexcept
 
 void Platform::Tick() noexcept
 {
+#if !SAME5x
 	AnalogInFinaliseConversion();
+#endif
 
 #if HAS_VOLTAGE_MONITOR || HAS_12V_MONITOR
 	if (tickState != 0)
@@ -4594,7 +4706,7 @@ void Platform::Tick() noexcept
 	// To reduce noise, we use x16 hardware averaging on AFEC0 and x256 on AFEC1. This is hard coded in file AnalogIn.cpp in project CoreNG.
 	// There is enough time to convert all AFEC0 channels in one tick, but only one AFEC1 channel because of the higher averaging.
 	AnalogInStartConversion(0x0FFF | (1u << filteredAdcChannels[currentFilterNumber]));
-#else
+#elif !SAME5x
 	AnalogInStartConversion();
 #endif
 }

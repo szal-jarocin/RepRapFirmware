@@ -41,9 +41,9 @@ const char feedrateLetter = 'F';						// GCode feedrate
 const char extrudeLetter = 'E'; 						// GCode extrude
 
 // Bits for T-code P-parameter to specify which macros are supposed to be run
-constexpr uint8_t TFreeBit = 1 << 0;
-constexpr uint8_t TPreBit = 1 << 1;
-constexpr uint8_t TPostBit = 1 << 2;
+constexpr uint8_t TFreeBit = 1u << 0;
+constexpr uint8_t TPreBit = 1u << 1;
+constexpr uint8_t TPostBit = 1u << 2;
 constexpr uint8_t DefaultToolChangeParam = TFreeBit | TPreBit | TPostBit;
 
 // Machine type enumeration. The numeric values must be in the same order as the corresponding M451..M453 commands.
@@ -258,6 +258,7 @@ public:
 	static constexpr const char* CONFIG_FILE = "config.g";
 	static constexpr const char* CONFIG_BACKUP_FILE = "config.g.bak";
 	static constexpr const char* BED_EQUATION_G = "bed.g";
+	static constexpr const char* MESH_G = "mesh.g";
 	static constexpr const char* PAUSE_G = "pause.g";
 	static constexpr const char* RESUME_G = "resume.g";
 	static constexpr const char* CANCEL_G = "cancel.g";
@@ -307,7 +308,7 @@ private:
 
 	void DoFilePrint(GCodeBuffer& gb, const StringRef& reply) noexcept;					// Get G Codes from a file and print them
 	bool DoFileMacro(GCodeBuffer& gb, const char* fileName, bool reportMissing, int codeRunning = -1) noexcept;
-		// Run a GCode macro file, optionally report error if not found
+																						// Run a GCode macro file, optionally report error if not found
 	void FileMacroCyclesReturn(GCodeBuffer& gb) noexcept;								// End a macro
 
 	bool ActOnCode(GCodeBuffer& gb, const StringRef& reply) noexcept;					// Do a G, M or T Code
@@ -468,7 +469,7 @@ private:
 	GCodeBuffer*& httpGCode = gcodeSources[GCodeChannel::ToBaseType(GCodeChannel::HTTP)];
 	GCodeBuffer*& telnetGCode = gcodeSources[GCodeChannel::ToBaseType(GCodeChannel::Telnet)];
 	GCodeBuffer*& fileGCode = gcodeSources[GCodeChannel::ToBaseType(GCodeChannel::File)];
-	GCodeBuffer*& usbGCode = gcodeSources[GCodeChannel::ToBaseType(GCodeChannel::USB)];
+	GCodeBuffer*& usbGCode = gcodeSources[GCodeChannel::ToBaseType(GCodeChannel::USBchan)];
 	GCodeBuffer*& auxGCode = gcodeSources[GCodeChannel::ToBaseType(GCodeChannel::Aux)];					// This one is for the PanelDue on the async serial interface
 	GCodeBuffer*& triggerGCode = gcodeSources[GCodeChannel::ToBaseType(GCodeChannel::Trigger)];			// Used for executing config.g and trigger macro files
 	GCodeBuffer*& queuedGCode = gcodeSources[GCodeChannel::ToBaseType(GCodeChannel::Queue)];

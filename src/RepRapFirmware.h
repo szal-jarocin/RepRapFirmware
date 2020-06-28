@@ -39,21 +39,29 @@ const char *SafeStrptime(const char *buf, const char *format, struct tm *timeptr
 #ifdef array
 # undef array			// needed because some files include <functional>
 #endif
-
-#include "Core.h"
-
-#ifndef SAMC21
-# define SAMC21	(defined(__SAMC21G18A__) && __SAMC21G18A__)
+#ifdef assert
+# undef assert
 #endif
 
-#ifndef SAME51
-# define SAME51	(defined(__SAME51N19A__) && __SAME51N19A__)
+#include <Core.h>
+
+#ifndef SAMC21
+# define SAMC21	0
+#endif
+
+#ifndef SAME5x
+# define SAME5x	0
+typedef uint8_t DmaChannel;
 #endif
 
 #if SAME70
 # define __nocache		__attribute__((section(".ram_nocache")))
 #else
 # define __nocache		// nothing
+#endif
+
+#if SAME5x
+# include <CoreIO.h>
 #endif
 
 // API level definition.
@@ -100,6 +108,7 @@ enum class PinUsedBy : uint8_t
 #include "Configuration.h"
 #include "Pins.h"
 
+static_assert(MinVisibleAxes <= MinAxes);
 static_assert(NumNamedPins <= 255 || sizeof(LogicalPin) > 1, "Need 16-bit logical pin numbers");
 
 #if SUPPORT_CAN_EXPANSION
@@ -372,6 +381,23 @@ inline void SetBasePriority(uint32_t prio) noexcept
 	__set_BASEPRI(prio << (8 - __NVIC_PRIO_BITS));
 }
 
+// Atomic section locker, alternative to InterruptCriticalSectionLocker (is safe to call from within an ISR, and may be faster)
+class AtomicCriticalSectionLocker
+{
+public:
+	AtomicCriticalSectionLocker() : flags(cpu_irq_save())
+	{
+	}
+
+	~AtomicCriticalSectionLocker()
+	{
+		cpu_irq_restore(flags);
+	}
+
+private:
+	irqflags_t flags;
+};
+
 // Classes to facilitate range-based for loops that iterate from 0 up to just below a limit
 template<class T> class SimpleRangeIterator
 {
@@ -470,7 +496,7 @@ typedef uint32_t FilePosition;
 const FilePosition noFilePosition = 0xFFFFFFFF;
 
 //-------------------------------------------------------------------------------------------------
-// Interrupt priorities - must be chosen with care! 0 is the highest priority, 15 is the lowest.
+// Interrupt priorities - must be chosen with care! 0 is the highest priority, 7 or 15 is the lowest.
 // This interacts with FreeRTOS config constant configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY which is currently defined as 3 for the SAME70 and 5 for the SAM4x.
 // ISRs with better (numerically lower) priorities than this value cannot make FreeRTOS calls, but those interrupts wont be disabled even in FreeRTOS critical sections.
 
@@ -479,11 +505,18 @@ const FilePosition noFilePosition = 0xFFFFFFFF;
 // Use priority 2 or lower for interrupts where low latency is critical and FreeRTOS calls are not needed.
 
 const uint32_t NvicPriorityWatchdog = 0;		// the secondary watchdog has the highest priority
+
+#if SAME5x
+const uint32_t NvicPriorityPanelDueUart = 3;	// the SAME5x driver makes FreeRTOS calls
+const uint32_t NvicPriorityWiFiUart = 3;		// UART used to receive debug data from the WiFi module
+#else
 const uint32_t NvicPriorityPanelDueUart = 1;	// UART is highest to avoid character loss (it has only a 1-character receive buffer)
 const uint32_t NvicPriorityWiFiUart = 2;		// UART used to receive debug data from the WiFi module
+#endif
 
 const uint32_t NvicPriorityMCan = 3;			// CAN interface
 const uint32_t NvicPriorityPins = 3;			// priority for GPIO pin interrupts - filament sensors must be higher than step
+const uint32_t NvicPriorityDriversSerialTMC = 3; // USART or UART used to control and monitor the smart drivers
 const uint32_t NvicPriorityStep = 4;			// step interrupt is next highest, it can preempt most other interrupts
 const uint32_t NvicPriorityUSB = 5;				// USB interrupt
 const uint32_t NvicPriorityHSMCI = 5;			// HSMCI command complete interrupt
@@ -520,7 +553,7 @@ constexpr uint32_t NvicPriorityTimerServo = 5;
 # endif
 #else
 const uint32_t NvicPriorityPanelDueUart = 1;	// UART is highest to avoid character loss (it has only a 1-character receive buffer)
-const uint32_t NvicPriorityDriversSerialTMC = 2; // USART or UART used to control and monitor the smart drivers
+const uint32_t NvicPriorityDriversSerialTMC = 5; // USART or UART used to control and monitor the smart drivers
 # endif
 
 const uint32_t NvicPriorityPins = 5;			// priority for GPIO pin interrupts - filament sensors must be higher than step

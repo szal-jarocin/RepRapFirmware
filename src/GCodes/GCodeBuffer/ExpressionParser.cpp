@@ -611,7 +611,7 @@ void ExpressionParser::CheckForExtraCharacters() THROWS(GCodeException)
 ExpressionValue ExpressionParser::ParseNumber() noexcept
 {
 	NumericConverter conv;
-	conv.Accumulate(CurrentCharacter(), true, true, [this]()->char { AdvancePointer(); return CurrentCharacter(); });		// must succeed because CurrentCharacter is a decimal digit
+	conv.Accumulate(CurrentCharacter(), NumericConverter::AcceptSignedFloat | NumericConverter::AcceptHex, [this]()->char { AdvancePointer(); return CurrentCharacter(); });		// must succeed because CurrentCharacter is a decimal digit
 	return (conv.FitsInInt32())
 			? ExpressionValue(conv.GetInt32())
 				: ExpressionValue(conv.GetFloat(), constrain<unsigned int>(conv.GetDigitsAfterPoint(), 1, MaxFloatDigitsDisplayedAfterPoint));
@@ -823,7 +823,7 @@ ExpressionValue ExpressionParser::ParseIdentifierExpression(bool evaluate, bool 
 		case Function::isnan:
 			ConvertToFloat(rslt, evaluate);
 			rslt.SetType(TypeCode::Bool);
-			rslt.bVal = (isnan(rslt.fVal) != 0);
+			rslt.bVal = (std::isnan(rslt.fVal) != 0);
 			break;
 
 		case Function::floor:

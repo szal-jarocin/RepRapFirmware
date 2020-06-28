@@ -96,7 +96,7 @@ constexpr unsigned int ZProbeAverageReadings = 8;		// We average this number of 
 // HEATERS - The bed is assumed to be the at index 0
 
 // Define the number of temperature readings we average for each thermistor. This should be a power of 2 and at least 4 ^ AD_OVERSAMPLE_BITS.
-#ifdef SAME70
+#if SAME70
 // On the SAME70 we read a thermistor on every tick so that we can average a higher number of readings
 // Keep THERMISTOR_AVERAGE_READINGS * NUM_HEATERS * 1ms no greater than HEAT_SAMPLE_TIME or the PIDs won't work well.
 constexpr unsigned int ThermistorAverageReadings = 16;
@@ -113,7 +113,11 @@ constexpr uint32_t maxPidSpinDelay = 5000;			// Maximum elapsed time in millisec
 enum class BoardType : uint8_t
 {
 	Auto = 0,
-#if defined(DUET3)
+#if defined(DUET_5LC)
+	Duet5LC_Unknown,
+	Duet5LC_WiFi,
+	Duet5LC_Ethernet,
+#elif defined(DUET3)
 	Duet3_v06_100 = 1,
 	Duet3_v101 = 2,
 #elif defined(SAME70XPLD)
@@ -123,7 +127,8 @@ enum class BoardType : uint8_t
 	DuetWiFi_102 = 2,
 	DuetEthernet_10 = 3,
 	DuetEthernet_102 = 4,
-	Duet2SBC = 5,
+	Duet2SBC_10 = 5,
+	Duet2SBC_102 = 6,
 #elif defined(DUET_M)
 	DuetM_10 = 1,
 #elif defined(DUET_06_085)
@@ -136,6 +141,8 @@ enum class BoardType : uint8_t
 	PCCB_v10 = 1
 #elif defined(PCCB_08) || defined(PCCB_08_X5)
 	PCCB_v08 = 1
+#elif defined(DUET_5LC)
+	Duet_5LC = 1
 #elif defined(__LPC17xx__)
 	Lpc = 1
 #else
@@ -161,8 +168,10 @@ enum class DiagnosticTestType : unsigned int
 	PrintObjectAddresses = 106,		// print the addresses and sizes of various objects
 
 #ifdef __LPC17xx__
-    PrintBoardConfiguration = 200,  //Prints out all pin/values loaded from SDCard to configure board
+	PrintBoardConfiguration = 200,	// Prints out all pin/values loaded from SDCard to configure board
 #endif
+
+	SetWriteBuffer = 500,			// enable/disable the write buffer
 
 	TestWatchdog = 1001,			// test that we get a watchdog reset if the tick interrupt stops
 	TestSpinLockup = 1002,			// test that we get a software reset if a Spin() function takes too long
@@ -302,11 +311,14 @@ public:
 	size_t GetNumGpOutputsToReport() const noexcept;
 #endif
 
-#ifdef DUET_NG
+#if defined(DUET_NG) || defined(DUET_5LC)
 	bool IsDuetWiFi() const noexcept;
+#endif
+
+#ifdef DUET_NG
 	bool IsDueXPresent() const noexcept { return expansionBoard != ExpansionBoardType::none; }
-	const char *GetBoardName() const;
-	const char *GetBoardShortName() const;
+	const char *GetBoardName() const noexcept;
+	const char *GetBoardShortName() const noexcept;
 #endif
 
 	const MacAddress& GetDefaultMacAddress() const noexcept { return defaultMacAddress; }
@@ -381,6 +393,7 @@ public:
 
 	// Movement
 	void EmergencyStop() noexcept;
+	size_t GetNumActualDirectDrivers() const noexcept;
 	void SetDirection(size_t axisOrExtruder, bool direction) noexcept;
 	void SetDirectionValue(size_t driver, bool dVal) noexcept;
 	bool GetDirectionValue(size_t driver) const noexcept;
@@ -424,7 +437,7 @@ public:
 	void SetAxisMinimum(size_t axis, float value, bool byProbing) noexcept;
 	float AxisTotalLength(size_t axis) const noexcept;
 	float GetPressureAdvance(size_t extruder) const noexcept;
-	GCodeResult SetPressureAdvance(float advance, GCodeBuffer& gb, const StringRef& reply);
+	GCodeResult SetPressureAdvance(float advance, GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeException);
 
 	const AxisDriversConfig& GetAxisDriversConfig(size_t axis) const noexcept
 		pre(axis < MaxAxes)
@@ -458,7 +471,7 @@ public:
 	ReadLockedPointer<ZProbe> GetZProbeOrDefault(size_t probeNumber) noexcept { return endstops.GetZProbeOrDefault(probeNumber); }
 	void InitZProbeFilters() noexcept;
 	const volatile ZProbeAveragingFilter& GetZProbeOnFilter() const noexcept { return zProbeOnFilter; }
-	const volatile ZProbeAveragingFilter& GetZProbeOffFilter() const  noexcept{ return zProbeOffFilter; }
+	const volatile ZProbeAveragingFilter& GetZProbeOffFilter() const noexcept{ return zProbeOffFilter; }
 
 #if HAS_MASS_STORAGE
 	bool WritePlatformParameters(FileStore *f, bool includingG31) const noexcept;
@@ -564,13 +577,17 @@ public:
 	const GpInputPort& GetGpInPort(size_t gpinPortNumber) const noexcept
 		pre(gpinPortNumber < MaxGpInPorts) 	{ return gpinPorts[gpinPortNumber]; }
 
-#if SUPPORTS_UNIQUE_ID
+#if MCU_HAS_UNIQUE_ID
 	uint32_t Random() noexcept;
 	const char *GetUniqueIdString() const noexcept { return uniqueIdChars; }
 #endif
 
 #if SUPPORT_CAN_EXPANSION
 	void HandleRemoteGpInChange(CanAddress src, uint8_t handleMajor, uint8_t handleMinor, bool state) noexcept;
+#endif
+
+#if VARIABLE_NUM_DRIVERS
+	void AdjustNumDrivers(size_t numDriversNotAvailable) noexcept;
 #endif
 
 protected:
@@ -609,7 +626,8 @@ private:
 	MacAddress defaultMacAddress;
 
 	// Board and processor
-#if SUPPORTS_UNIQUE_ID
+#if MCU_HAS_UNIQUE_ID
+	void ReadUniqueId();
 	uint32_t uniqueId[5];
 	char uniqueIdChars[30 + 5 + 1];			// 30 characters, 5 separators, 1 null terminator
 #endif
@@ -629,6 +647,10 @@ private:
 	void UpdateMotorCurrent(size_t driver, float current) noexcept;
 	void SetDriverDirection(uint8_t driver, bool direction) noexcept
 	pre(driver < DRIVES);
+
+#if VARIABLE_NUM_DRIVERS && SUPPORT_12864_LCD
+	size_t numActualDirectDrivers;
+#endif
 
 	bool directions[NumDirectDrivers];
 	int8_t enableValues[NumDirectDrivers];
@@ -912,6 +934,24 @@ inline void Platform::SetInstantDv(size_t drive, float value) noexcept
 	instantDvs[drive] = max<float>(value, 0.1);			// don't allow zero or negative values, they causes Move to loop indefinitely
 }
 
+inline size_t Platform::GetNumActualDirectDrivers() const noexcept
+{
+#if VARIABLE_NUM_DRIVERS
+	return numActualDirectDrivers;
+#else
+	return NumDirectDrivers;
+#endif
+}
+
+#if VARIABLE_NUM_DRIVERS
+
+inline void Platform::AdjustNumDrivers(size_t numDriversNotAvailable) noexcept
+{
+	numActualDirectDrivers = NumDirectDrivers - numDriversNotAvailable;
+}
+
+#endif
+
 inline void Platform::SetDirectionValue(size_t drive, bool dVal) noexcept
 {
 	directions[drive] = dVal;
@@ -924,18 +964,26 @@ inline bool Platform::GetDirectionValue(size_t drive) const noexcept
 
 inline void Platform::SetDriverDirection(uint8_t driver, bool direction) noexcept
 {
-	if (driver < NumDirectDrivers)
+	if (driver < GetNumActualDirectDrivers())
 	{
 		const bool d = (direction == FORWARDS) ? directions[driver] : !directions[driver];
+#if SAME5x
+		IoPort::WriteDigital(DIRECTION_PINS[driver], d);
+#else
 		digitalWrite(DIRECTION_PINS[driver], d);
+#endif
 	}
 }
 
 inline void Platform::SetDriverAbsoluteDirection(size_t driver, bool direction) noexcept
 {
-	if (driver < NumDirectDrivers)
+	if (driver < GetNumActualDirectDrivers())
 	{
+#if SAME5x
+		IoPort::WriteDigital(DIRECTION_PINS[driver], direction);
+#else
 		digitalWrite(DIRECTION_PINS[driver], direction);
+#endif
 	}
 }
 
@@ -961,7 +1009,7 @@ inline float Platform::AxisTotalLength(size_t axis) const noexcept
 
 // For the Duet we use the fan output for this
 // DC 2015-03-21: To allow users to control the cooling fan via gcodes generated by slic3r etc.,
-// only turn the fan on/off if the extruder ancilliary PWM has been set nonzero.
+// only turn the fan on/off if the extruder ancillary PWM has been set nonzero.
 // Caution: this is often called from an ISR, or with interrupts disabled!
 inline void Platform::ExtrudeOn() noexcept
 {
