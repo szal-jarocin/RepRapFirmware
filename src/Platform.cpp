@@ -45,6 +45,11 @@
 # include "sam/drivers/hsmci/hsmci.h"
 #else
 # include "LPC/BoardConfig.h"
+# ifdef LPC_DEBUG
+#  include "SoftwarePWMTimer.h"
+   extern uint32_t minWDTValue;
+   extern int lateTimers;
+# endif
 #endif
 
 #include "sd_mmc.h"
@@ -278,10 +283,10 @@ constexpr ObjectModelTableEntry Platform::objectModelTable[] =
 	{ "jerk",				OBJECT_MODEL_FUNC(MinutesToSeconds * self->GetInstantDv(context.GetLastIndex()), 1),				ObjectModelEntryFlags::none },
 	{ "letter",				OBJECT_MODEL_FUNC_NOSELF(reprap.GetGCodes().GetAxisLetters()[context.GetLastIndex()]),				ObjectModelEntryFlags::none },
 	{ "machinePosition",	OBJECT_MODEL_FUNC_NOSELF(reprap.GetMove().LiveCoordinate(context.GetLastIndex(), reprap.GetCurrentTool()), 3),	ObjectModelEntryFlags::live },
-	{ "max",				OBJECT_MODEL_FUNC(self->AxisMaximum(context.GetLastIndex()), 1),									ObjectModelEntryFlags::none },
+	{ "max",				OBJECT_MODEL_FUNC(self->AxisMaximum(context.GetLastIndex()), 2),									ObjectModelEntryFlags::none },
 	{ "maxProbed",			OBJECT_MODEL_FUNC(self->axisMaximaProbed.IsBitSet(context.GetLastIndex())),							ObjectModelEntryFlags::none },
 	{ "microstepping",		OBJECT_MODEL_FUNC(self, 7),																			ObjectModelEntryFlags::none },
-	{ "min",				OBJECT_MODEL_FUNC(self->AxisMinimum(context.GetLastIndex()), 1),									ObjectModelEntryFlags::none },
+	{ "min",				OBJECT_MODEL_FUNC(self->AxisMinimum(context.GetLastIndex()), 2),									ObjectModelEntryFlags::none },
 	{ "minProbed",			OBJECT_MODEL_FUNC(self->axisMinimaProbed.IsBitSet(context.GetLastIndex())),							ObjectModelEntryFlags::none },
 	{ "speed",				OBJECT_MODEL_FUNC(MinutesToSeconds * self->MaxFeedrate(context.GetLastIndex()), 1),					ObjectModelEntryFlags::none },
 	{ "stepsPerMm",			OBJECT_MODEL_FUNC(self->driveStepsPerUnit[context.GetLastIndex()], 2),								ObjectModelEntryFlags::none },
@@ -533,6 +538,10 @@ void Platform::Init() noexcept
     // Load HW pin assignments from sdcard
     BoardConfig::Init();
     pinMode(ATX_POWER_PIN,(ATX_POWER_INVERTED==false)?OUTPUT_LOW:OUTPUT_HIGH);
+#if HAS_NETWORKING
+	// Set default Mac address
+	defaultMacAddress.SetDefault();
+#endif
 #else
     // Deal with power first (we assume this doesn't depend on identifying the board type)
     pinMode(ATX_POWER_PIN,OUTPUT_LOW);
@@ -771,7 +780,7 @@ void Platform::Init() noexcept
 	// Initialise TMC driver module
 # if SUPPORT_TMC51xx
 	SmartDrivers::Init();
-# else
+#else
 	SmartDrivers::Init(ENABLE_PINS, numSmartDrivers);
 # endif
 	temperatureShutdownDrivers.Clear();
@@ -1692,11 +1701,13 @@ void Platform::InitialiseInterrupts() noexcept
 #if defined(__LPC17xx__)
 	// set rest of the Timer Interrupt priorities
 	// Timer 0 is used for step generation (set elsewhere)
-	NVIC_SetPriority(TIMER1_IRQn, 8);                       //Timer 1 and Timer 3 are optionally used for ADC pre-filtering and for
-	NVIC_SetPriority(TIMER3_IRQn, 8);                       //TMC22XX UART emulation. Both are DMA based and do not use the timer interrupt.
+	// DMA and SPI priorites are defined in BoardConfig as they are needed for File I/O
+	NVIC_SetPriority(TIMER1_IRQn, 8);                       //Timer 1 is optionally used for ADC pre-filtering.
+	NVIC_SetPriority(TIMER3_IRQn, 8);                       //Timer3 is optionally used for TMC22XX UART emulation. Both are DMA based and do not use the timer interrupt.
 	NVIC_SetPriority(TIMER2_IRQn, NvicPriorityTimerServo);  //Timer 2 runs the PWM for Servos at 50hz
 	NVIC_SetPriority(RITIMER_IRQn, NvicPriorityTimerPWM);   //RIT runs the microsecond free running timer to generate heater/fan PWM
 	NVIC_SetPriority(ADC_IRQn, NvicPriorityADC);            //ADC interrupt priority when using burst with pre-filtering
+
 #endif
 
     // Tick interrupt for ADC conversions
@@ -1837,9 +1848,15 @@ void Platform::Diagnostics(MessageType mtype) noexcept
 			{
 				// We saved a stack dump, so print it
 				scratchString.Clear();
+				int i = 0;
 				for (uint32_t stval : srdBuf[slot].stack)
 				{
 					scratchString.catf(" %08" PRIx32, stval);
+					if (++i % 10 == 0)
+					{
+						MessageF(mtype, "Stack:%s\n", scratchString.c_str());
+						scratchString.Clear();						
+					}
 				}
 				MessageF(mtype, "Stack:%s\n", scratchString.c_str());
 			}
@@ -1906,12 +1923,26 @@ void Platform::Diagnostics(MessageType mtype) noexcept
 #endif
 
 	reprap.Timing(mtype);
+#ifdef LPC_DEBUG
+	MessageF(mtype, "Watchdog timer: %" PRIu32 "/%" PRIu32 "\n", minWDTValue, SystemCoreClock / 16);
+	minWDTValue = 0xffffffff;
+	MessageF(mtype, "Step timer: target %" PRIu32 " count %" PRIu32 " delta %d late %d\n", STEP_TC->MR[0], STEP_TC->TC, (int)(STEP_TC->MR[0] - STEP_TC->TC), lateTimers);
+	MessageF(mtype, "USBSerial connected %d\n", (int)SERIAL_MAIN_DEVICE.IsConnected());
+	MessageF(mtype, "ADC not ready %" PRIu32 " ADC error threshold %" PRIu32 " ADC Init %" PRIu32 "\n", ADCNotReadyCnt, ADCErrorThreshold, ADCInitCnt);
+	ADCNotReadyCnt = 0;
+#endif
 
 #if 0
 	// Debugging temperature readings
 	const uint32_t div = ThermistorAveragingFilter::NumAveraged() >> 2;		// 2 oversample bits
 	MessageF(mtype, "Vssa %" PRIu32 " Vref %" PRIu32 " Temp0 %" PRIu32 " Temp1 %" PRIu32 "\n",
 			adcFilters[VssaFilterIndex].GetSum()/div, adcFilters[VrefFilterIndex].GetSum()/div, adcFilters[0].GetSum()/div, adcFilters[1].GetSum()/div);
+#endif
+#ifdef LPC_DEBUG
+    softwarePWMTimer.Diagnostics(mtype);
+#endif
+#ifdef LPC_DEBUG_HM
+	reprap.GetMove().AccessHeightMap().Diagnostics(mtype);
 #endif
 
 #ifdef SOFT_TIMER_DEBUG
@@ -2298,10 +2329,15 @@ GCodeResult Platform::DiagnosticTest(GCodeBuffer& gb, const StringRef& reply, Ou
 #endif
 
 #ifdef __LPC17xx__
+	// This code is now called directly from the gcode module to allow it to have access to the
+	// I/O stream with a push modifier (used for standard M122). Without this the output in DSF
+	// is split into multiple responses. 
+#if 0
 	// Diagnostic for LPC board configuration
-	case (int)DiagnosticTestType::PrintBoardConfiguration:
+	case (unsigned int)DiagnosticTestType::PrintBoardConfiguration:
 		BoardConfig::Diagnostics(gb.GetResponseMessageType());
 		break;
+#endif
 #endif
 
 	default:

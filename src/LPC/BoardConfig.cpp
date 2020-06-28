@@ -43,6 +43,9 @@ static const boardConfigEntry_t boardConfigs[]=
     {"stepper.TmcUartPins", TMC_UART_PINS, &MaxTotalDrivers, cvPinType},
     {"stepper.numSmartDrivers", &lpcSmartDrivers, nullptr, cvUint32Type},
 #endif
+#if HAS_STALL_DETECT
+    {"stepper.TmcDiagPins", DIAG_PINS, &MaxTotalDrivers, cvPinType},
+#endif
 
     //Heater sensors
     {"heat.tempSensePins", TEMP_SENSE_PINS, &NumThermistorInputs, cvPinType},
@@ -145,8 +148,12 @@ void BoardConfig::Init() noexcept
     FIL configFile;
     FATFS fs;
     FRESULT rslt;
+
+    // We need to setup DMA and SPI devices before we can use File I/O
+    NVIC_SetPriority(DMA_IRQn, NvicPriorityDMA);
+    NVIC_SetPriority(SSP0_IRQn, NvicPrioritySpi);
+    NVIC_SetPriority(SSP1_IRQn, NvicPrioritySpi);
     
-    NVIC_SetPriority(DMA_IRQn, NvicPrioritySpi);
 #if !HAS_MASS_STORAGE
     sd_mmc_init(SdWriteProtectPins, SdSpiCSPins);
 #endif
@@ -454,14 +461,11 @@ void BoardConfig::Diagnostics(MessageType mtype) noexcept
         if(next != nullptr)
         {
             const Pin pin = next->GetPin();
-#ifdef LPC_DEBUG
-            reprap.GetPlatform().MessageF(mtype, "Pin %d.%d @ %dHz (%s) - LateCnt: %lu\n", (pin >> 5), (pin & 0x1f), next->GetFrequency(), next->IsRunning()?"Enabled":"Disabled", next->GetLateCount() );
-#else
+
             reprap.GetPlatform().MessageF(mtype, "Pin %d.%d @ %dHz (%s)\n", (pin >> 5), (pin & 0x1f), next->GetFrequency(), next->IsRunning()?"Enabled":"Disabled" );
-#endif
+
         }
-    };
-    
+    }
     
     //Print Servo PWM Timer or HW PWM assignments
     reprap.GetPlatform().MessageF(mtype, "\n== Servo PWM ==\n");

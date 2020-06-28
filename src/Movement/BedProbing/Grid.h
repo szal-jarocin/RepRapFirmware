@@ -10,6 +10,9 @@
 
 #include "RepRapFirmware.h"
 #include "ObjectModel/ObjectModel.h"
+#ifdef LPC_DEBUG
+#include "MessageType.h"
+#endif
 
 class DataTransfer;
 class Deviation;
@@ -98,6 +101,10 @@ public:
 	unsigned int GetStatistics(Deviation& deviation, float& minError, float& maxError) const noexcept;
 																	// Return number of points probed, mean and RMS deviation, min and max error
 	void ExtrapolateMissing() noexcept;								// Extrapolate missing points to ensure consistency
+
+#ifdef LPC_DEBUG
+	void Diagnostics(MessageType mtype) noexcept;
+#endif
 
 private:
 	static const char * const HeightMapComment;						// The start of the comment we write at the start of the height map file

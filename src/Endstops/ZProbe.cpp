@@ -149,6 +149,9 @@ int ZProbe::GetReading() const noexcept
 #if HAS_STALL_DETECT
 			{
 				const DriversBitmap zDrivers = reprap.GetPlatform().GetAxisDriversConfig(Z_AXIS).GetDriversBitmap();
+#if SUPPORT_TMC22xx
+				UpdateStalledDriversState(zDrivers);
+#endif
 				zProbeVal = (zDrivers.Intersects(GetStalledDrivers())) ? 1000 : 0;
 			}
 #else
@@ -291,6 +294,7 @@ GCodeResult ZProbe::HandleG31(GCodeBuffer& gb, const StringRef& reply) THROWS(GC
 
 	if (seen)
 	{
+		reprap.SensorsUpdated();
 		if (!reprap.GetGCodes().LockMovementAndWaitForStandstill(gb))
 		{
 			return GCodeResult::notFinished;
@@ -351,6 +355,7 @@ GCodeResult ZProbe::Configure(GCodeBuffer& gb, const StringRef &reply, bool& see
 
 	if (seen)
 	{
+		reprap.SensorsUpdated();
 		return GCodeResult::ok;
 	}
 

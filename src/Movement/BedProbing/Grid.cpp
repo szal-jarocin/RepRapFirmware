@@ -643,4 +643,17 @@ void HeightMap::ExtrapolateMissing() noexcept
 	}
 }
 
+#ifdef LPC_DEBUG
+void HeightMap::Diagnostics(MessageType mtype) noexcept
+{
+    reprap.GetPlatform().MessageF(mtype, "== Height Map Contents ==\n");
+	for(uint32_t i = 0; i < MaxGridProbePoints; i++)
+	{
+		if (i % 8 == 0) reprap.GetPlatform().MessageF(mtype, "\n");
+		reprap.GetPlatform().MessageF(mtype, " %8.2f", (double)gridHeights[i]);
+	}
+	reprap.GetPlatform().MessageF(mtype, "\n==  ==\n");
+}
+#endif
+
 // End
