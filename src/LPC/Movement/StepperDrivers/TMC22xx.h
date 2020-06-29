@@ -39,8 +39,12 @@ const uint32_t TMC_RR_SG = 1u << 12;		// this is a reserved bit, which we use to
 
 namespace SmartDrivers
 {
-	void Init(const Pin[NumDirectDrivers], size_t numTmcDrivers) noexcept
-		pre(numTmcDrivers <= NumDirectDrivers);
+#if TMC22xx_VARIABLE_NUM_DRIVERS
+	void Init(size_t numTmcDrivers) noexcept
+	pre(numTmcDrivers <= MaxSmartDrivers);
+#else
+	void Init() noexcept;
+#endif
 	void Exit() noexcept;
 	void SetAxisNumber(size_t drive, uint32_t axisNumber) noexcept;
 	uint32_t GetAxisNumber(size_t drive) noexcept;

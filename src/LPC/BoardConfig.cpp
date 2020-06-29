@@ -85,7 +85,7 @@ static const boardConfigEntry_t boardConfigs[]=
 #endif
 
 #if HAS_LINUX_INTERFACE
-    {"sbc.lpcTfrReadyPin", &LinuxTfrReadyPin, nullptr, cvPinType},
+    {"sbc.lpcTfrReadyPin", &SbcTfrReadyPin, nullptr, cvPinType},
 #endif
 
 #if defined(SERIAL_AUX_DEVICE)
@@ -529,7 +529,7 @@ void BoardConfig::SetValueFromString(configValueType type, void *variable, char 
         case cvUint8Type:
             {
                 const char *ptr = nullptr;
-                uint8_t val = SafeStrtoul(valuePtr, &ptr, 10);
+                uint8_t val = StrToU32(valuePtr, &ptr);
                 if(val < 0) val = 0;
                 if(val > 0xFF) val = 0xFF;
                 
@@ -539,7 +539,7 @@ void BoardConfig::SetValueFromString(configValueType type, void *variable, char 
         case cvUint16Type:
             {
                 const char *ptr = nullptr;
-                uint16_t val = SafeStrtoul(valuePtr, &ptr, 10);
+                uint16_t val = StrToU32(valuePtr, &ptr);
                 if(val < 0) val = 0;
                 if(val > 0xFFFF) val = 0xFFFF;
                 
@@ -550,7 +550,7 @@ void BoardConfig::SetValueFromString(configValueType type, void *variable, char 
         case cvUint32Type:
             {
                 const char *ptr = nullptr;
-                *(uint32_t *)(variable) = SafeStrtoul(valuePtr, &ptr, 10);
+                *(uint32_t *)(variable) = StrToU32(valuePtr, &ptr);
             }
             break;
             

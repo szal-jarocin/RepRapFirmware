@@ -15,7 +15,9 @@
 #include <RTOSIface/RTOSIface.h>
 #include <ObjectModel/ObjectModel.h>
 #include <General/NamedEnum.h>
-
+#if defined(__LPC17xx__) && (HAS_WIFI_NETWORKING == 0) && (HAS_RTOSPLUSTCP_NETWORKING == 0)
+# include "LPC/NoNetwork/Network.h"
+#else
 #if defined(DUET3_V03)
 const size_t NumNetworkInterfaces = 2;
 #elif defined(SAME70XPLD) || defined(DUET3_V05) || defined(DUET3_V06) || defined(DUET_NG) || defined(DUET_M) || defined(__LPC17xx__) || defined(PCCB) || defined(__RADDS__) || defined(DUET_5LC)
@@ -139,5 +141,6 @@ private:
 
 	char hostname[16];								// Limit DHCP hostname to 15 characters + terminating 0
 };
+#endif
 
 #endif /* SRC_NETWORK_NETWORK_H_ */

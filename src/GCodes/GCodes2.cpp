@@ -17,7 +17,11 @@
 # include "Linux/LinuxInterface.h"
 #endif
 #include "Movement/Move.h"
-#include "Networking/Network.h"
+#ifdef __LPC17xx__
+# include "Network.h"
+#else
+# include "Networking/Network.h"
+#endif
 #include "Scanner.h"
 #include "PrintMonitor.h"
 #include "RepRap.h"

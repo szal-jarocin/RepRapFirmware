@@ -336,14 +336,14 @@ bool IoPort::SetMode(PinAccess access) noexcept
 #ifdef __LPC17xx__
 		if (access == PinAccess::servo)
 		{
-			if (!IsServoCapable(GetPinNoCheck)) //check that we have slots free to provide Servo
+			if (!IsServoCapable(GetPinNoCheck())) //check that we have slots free to provide Servo
 			{
 				return false;
 			}
 		}
 		else if (access == PinAccess::pwm)
 		{
-			if (!IsPwmCapable(GetPinNoCheck)) //Check if there is enough slots free for PWM
+			if (!IsPwmCapable(GetPinNoCheck())) //Check if there is enough slots free for PWM
 			{
 				return false;
 			}

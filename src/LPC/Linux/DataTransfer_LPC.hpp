@@ -26,7 +26,7 @@ void setup_spi(void *inBuffer, const void *outBuffer, size_t bytesToTransfer)
    
     // Begin transfer
     transferReadyHigh = !transferReadyHigh;
-    digitalWrite(LinuxTfrReadyPin, transferReadyHigh);
+    digitalWrite(SbcTfrReadyPin, transferReadyHigh);
 }
 
 void disable_spi()

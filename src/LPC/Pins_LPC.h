@@ -109,6 +109,11 @@ constexpr size_t NumDirectDrivers = 5;               // The maximum number of dr
     constexpr size_t MaxSmartDrivers = 5;            // The maximum number of smart drivers
     constexpr size_t NumTmcDriversSenseChannels = 1;
     #define LPC_TMC_SOFT_UART 1
+    #define TMC22xx_HAS_ENABLE_PINS			1
+    #define TMC22xx_VARIABLE_NUM_DRIVERS	0
+    #define TMC22xx_USE_SLAVEADDR 0
+    #define TMC22xx_HAS_MUX 0
+
 #else
     constexpr size_t MaxSmartDrivers = 0;            // The maximum number of smart drivers
     #define LPC_TMC_SOFT_UART 0
@@ -194,7 +199,7 @@ extern Pin SpiTempSensorCsPins[MaxSpiTempSensors];  // Digital pins the 31855s h
 extern SSPChannel TempSensorSSPChannel;
 
 #if HAS_LINUX_INTERFACE
-    extern Pin LinuxTfrReadyPin;
+    extern Pin SbcTfrReadyPin;
 #endif
 
 //Hardware LPC Timers
@@ -237,6 +242,7 @@ extern Pin EncoderPinSw;
 extern Pin PanelButtonPin;
 
 extern Pin DiagPin;
+constexpr bool DiagOnPolarity = true;
 
 extern bool ADCEnablePreFilter;
 extern uint8_t ADCPreFilterNumberSamples;
@@ -465,13 +471,20 @@ namespace StepPins
     // Set all step pins low
     // This needs to be as fast as possible, so we do a parallel write to the port(s).
     // We rely on only those port bits that are step pins being set in the STEP_DRIVER_MASK variable
-    static inline void StepDriversLow() noexcept
+    static inline void StepDriversLow(uint32_t driverMap) noexcept
     {
         if(hasStepPinsOnDifferentPorts == true )
         {
-            for(size_t d=0; d<NumDirectDrivers; d++)
+            //Using driver pos in bitmap to match position in STEP_PINS
+            uint8_t pos=0;
+            while (driverMap!=0 && pos < NumDirectDrivers)
             {
-                if(STEP_PINS[d] != NoPin) GPIO_PinWrite(STEP_PINS[d], 0); //set low
+                if(driverMap & 0x01)
+                {
+                    if(STEP_PINS[pos] != NoPin) GPIO_PinWrite(STEP_PINS[pos], 0); //set low
+                }
+                driverMap = driverMap >> 1;
+                pos++;
             }
         }
         else

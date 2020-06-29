@@ -85,7 +85,7 @@ Pin SSP0Pins[4] = {SPI0_SCK, SPI0_MISO, SPI0_MOSI, SPI0_SSEL}; //GPIO pins for S
 #endif
 
 #if HAS_LINUX_INTERFACE
-    Pin LinuxTfrReadyPin = NoPin;
+    Pin SbcTfrReadyPin = NoPin;
 #endif
 
 bool ADCEnablePreFilter = false;

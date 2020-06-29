@@ -53,14 +53,14 @@ float DiskioGetAndClearLongestWriteTime() noexcept
 /* drv - Physical drive nmuber (0..) */
 DSTATUS disk_initialize (BYTE drv) noexcept
 {
-    MutexLocker lock(Tasks::GetSpiMutex());
+    //MutexLocker lock(Tasks::GetSpiMutex());
 	return (DSTATUS)_ffs[drv]->disk_initialize();
 }
 
 /* drv - Physical drive nmuber (0..) */
 DSTATUS disk_status (BYTE drv) noexcept
 {
-    MutexLocker lock(Tasks::GetSpiMutex());
+    //MutexLocker lock(Tasks::GetSpiMutex());
 	return (DSTATUS)_ffs[drv]->disk_status();
 }
 
@@ -75,7 +75,7 @@ DRESULT disk_read (BYTE drv, BYTE *buff, DWORD sector, BYTE count) noexcept
         debugPrintf("Read %u %u %lu\n", drv, count, sector);
     }
 
-    MutexLocker lock(Tasks::GetSpiMutex());
+    //MutexLocker lock(Tasks::GetSpiMutex());
     
     unsigned int retryNumber = 0;
     uint32_t retryDelay = SdCardRetryDelay;
@@ -90,7 +90,7 @@ DRESULT disk_read (BYTE drv, BYTE *buff, DWORD sector, BYTE count) noexcept
 		}
         
         if (res == RES_OK) break;
-        lock.Release();
+        //lock.Release();
         ++retryNumber;
         if (retryNumber == MaxSdCardTries)
         {
@@ -98,7 +98,7 @@ DRESULT disk_read (BYTE drv, BYTE *buff, DWORD sector, BYTE count) noexcept
         }
         delay(retryDelay);
         retryDelay *= 2;
-        lock.ReAcquire();
+        //lock.ReAcquire();
     }
     
     if (retryNumber > highestSdRetriesDone)
@@ -118,7 +118,7 @@ DRESULT disk_read (BYTE drv, BYTE *buff, DWORD sector, BYTE count) noexcept
 
 DRESULT disk_write (BYTE drv, const BYTE *buff, DWORD sector, BYTE count) noexcept
 {
-    MutexLocker lock(Tasks::GetSpiMutex());
+    //MutexLocker lock(Tasks::GetSpiMutex());
     
     if (reprap.Debug(moduleStorage))
     {
@@ -138,7 +138,7 @@ DRESULT disk_write (BYTE drv, const BYTE *buff, DWORD sector, BYTE count) noexce
 			longestWriteTime = time;
 		}        
         if (res == RES_OK) break;
-        lock.Release();
+        //lock.Release();
         ++retryNumber;
         if (retryNumber == MaxSdCardTries)
         {
@@ -146,7 +146,7 @@ DRESULT disk_write (BYTE drv, const BYTE *buff, DWORD sector, BYTE count) noexce
         }
         delay(retryDelay);
         retryDelay *= 2;
-        lock.ReAcquire();
+        //lock.ReAcquire();
     }
     
     if (retryNumber > highestSdRetriesDone)
@@ -164,7 +164,7 @@ DRESULT disk_write (BYTE drv, const BYTE *buff, DWORD sector, BYTE count) noexce
 
 DRESULT disk_ioctl (BYTE drv, BYTE ctrl, void *buff) noexcept
 {
-    MutexLocker lock(Tasks::GetSpiMutex());
+    //MutexLocker lock(Tasks::GetSpiMutex());
     return _ffs[drv]->disk_ioctl(ctrl, buff);
 }
 

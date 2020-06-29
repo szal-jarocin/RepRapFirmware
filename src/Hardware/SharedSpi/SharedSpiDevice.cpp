@@ -4,6 +4,9 @@
  *  Created on: 16 Jun 2020
  *      Author: David
  */
+#ifdef __LPC17xx__
+	#include "LPC/Hardware/SharedSpi/SharedSpiDevice.hpp"
+#else
 
 #include "SharedSpiDevice.h"
 
@@ -336,5 +339,6 @@ void SharedSpiDevice::Init() noexcept
 	mainSharedSpiDevice = new SharedSpiDevice(0);
 #endif
 }
+#endif
 
 // End

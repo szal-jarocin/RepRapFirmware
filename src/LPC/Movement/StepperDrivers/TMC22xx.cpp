@@ -9,6 +9,22 @@
 #include "RepRapFirmware.h"
 
 #if SUPPORT_TMC22xx
+#ifndef TMC22xx_HAS_ENABLE_PINS
+# error TMC22xx_HAS_ENABLE_PINS not defined
+#endif
+
+#ifndef TMC22xx_HAS_MUX
+# error TMC22xx_HAS_MUX not defined
+#endif
+
+#ifndef TMC22xx_VARIABLE_NUM_DRIVERS
+# error TMC22xx_VARIABLE_NUM_DRIVERS not defined
+#endif
+
+#ifndef TMC22xx_USE_SLAVEADDR
+# error TMC22xx_USE_SLAVEADDR not defined
+#endif
+
 #include "TMC22xx.h"
 #include "RepRap.h"
 #include "Movement/Move.h"
@@ -58,8 +74,16 @@ const int DefaultStallDetectThreshold = 1;
 const unsigned int DefaultMinimumStepsPerSecond = 200;		// for stall detection: 1 rev per second assuming 1.8deg/step, as per the TMC5160 datasheet
 #endif
 
+#if TMC22xx_VARIABLE_NUM_DRIVERS
+
 static size_t numTmc22xxDrivers;
 static inline size_t GetNumTmcDrivers() { return numTmc22xxDrivers; }
+
+#else
+
+static inline constexpr size_t GetNumTmcDrivers() { return MaxSmartDrivers; }
+
+#endif
 
 enum class DriversState : uint8_t
 {
@@ -1304,10 +1328,15 @@ void UART_TMC_DRV1_Handler()
 //--------------------------- Public interface ---------------------------------
 // Initialise the driver interface and the drivers, leaving each drive disabled.
 // It is assumed that the drivers are not powered, so driversPowered(true) must be called after calling this before the motors can be moved.
-void SmartDrivers::Init(const Pin driverSelectPins[NumDirectDrivers], size_t numTmcDrivers) noexcept
+#if TMC22xx_VARIABLE_NUM_DRIVERS
+void SmartDrivers::Init(size_t numTmcDrivers) noexcept
+#else
+void SmartDrivers::Init() noexcept
+#endif
 {
+#if TMC22xx_VARIABLE_NUM_DRIVERS
 	numTmc22xxDrivers = min<size_t>(numTmcDrivers, MaxSmartDrivers);
-
+#endif
 	// Make sure the ENN pins are high
 #if LPC_TMC_SOFT_UART
 	LPCSoftUARTInit();
@@ -1355,7 +1384,14 @@ void SmartDrivers::Init(const Pin driverSelectPins[NumDirectDrivers], size_t num
 		uart->UART_CR = UART_CR_RSTRX | UART_CR_RSTTX | UART_CR_RXDIS | UART_CR_TXDIS | UART_CR_RSTSTA;
 		NVIC_EnableIRQ(TMC22xxUartIRQns[drive]);
 #endif
-		driverStates[drive].Init(drive, driverSelectPins[drive], DIAG_PINS[drive]);	// axes are mapped straight through to drivers initially
+		driverStates[drive].Init(drive
+#if TMC22xx_HAS_ENABLE_PINS
+								, ENABLE_PINS[drive]
+#endif
+#if HAS_STALL_DETECT
+								, DIAG_PINS[drive]
+#endif
+								);
 	}
 }
 

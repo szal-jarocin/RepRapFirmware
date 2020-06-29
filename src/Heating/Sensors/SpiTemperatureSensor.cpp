@@ -10,11 +10,14 @@
 #include <Hardware/SharedSpi/SharedSpiDevice.h>
 
 SpiTemperatureSensor::SpiTemperatureSensor(unsigned int sensorNum, const char *name, SpiMode spiMode, uint32_t clockFrequency) noexcept
-	: SensorWithPort(sensorNum, name), device(SharedSpiDevice::GetMainSharedSpiDevice(), clockFrequency, spiMode, NoPin, false)
-{
-#if defined(__LPC17xx__)
-    device.sspChannel = TempSensorSSPChannel;		// use SSP0 on LPC
+	: SensorWithPort(sensorNum, name), 
+#ifdef __LPC17xx__
+	device(SharedSpiDevice::GetSharedSpiDevice(TempSensorSSPChannel),
+#else
+	device(SharedSpiDevice::GetMainSharedSpiDevice(),
 #endif
+	 clockFrequency, spiMode, NoPin, false)
+{
 	lastTemperature = 0.0;
 	lastResult = TemperatureError::notInitialised;
 }

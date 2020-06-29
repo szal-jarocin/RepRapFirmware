@@ -11,11 +11,19 @@
 #include <RepRapFirmware.h>
 #include <RTOSIface/RTOSIface.h>
 #include "SpiMode.h"
+#ifdef __LPC17xx__
+#include "SharedSpi.h"
+#include "SPI.h"
+#endif
 
 class SharedSpiDevice
 {
 public:
+#ifdef __LPC17xx__
+	SharedSpiDevice(SSPChannel chan) noexcept;
+#else
 	SharedSpiDevice(uint8_t sercomNum) noexcept;
+#endif
 
 	void Disable() const noexcept;
 	void Enable() const noexcept;
@@ -25,7 +33,11 @@ public:
 	void Release() const noexcept { mutex.Release(); }
 
 	static void Init() noexcept;
+#ifdef __LPC17xx__
+	static SharedSpiDevice& GetSharedSpiDevice(SSPChannel chan) noexcept { return *Devices[chan]; }
+#else
 	static SharedSpiDevice& GetMainSharedSpiDevice() noexcept { return *mainSharedSpiDevice; }
+#endif
 
 private:
 	bool waitForTxReady() const noexcept;
@@ -36,13 +48,19 @@ private:
 	Sercom * const hardware;
 #elif USART_SPI
 	Usart * const hardware;
+#elif defined(__LPC17xx__)
+	SPI * const hardware;
 #else
 	Spi * const hardware;
 #endif
 
 	Mutex mutex;
 
+#ifdef __LPC17xx__
+	static SharedSpiDevice *Devices[];
+#else
 	static SharedSpiDevice *mainSharedSpiDevice;
+#endif
 };
 
 #endif /* SRC_HARDWARE_SHAREDSPI_SHAREDSPIDEVICE_H_ */
