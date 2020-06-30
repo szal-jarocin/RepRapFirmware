@@ -1953,21 +1953,18 @@ void WiFiInterface::SpiInterrupt() noexcept
 // Start the ESP
 void WiFiInterface::StartWiFi() noexcept
 {
-<<<<<<< HEAD
-	digitalWrite(EspResetPin, HIGH);
+	digitalWrite(EspResetPin, true);
 #ifdef __LPC17xx__
     SERIAL_WIFI_DEVICE.Configure(WifiSerialRxTxPins[0], WifiSerialRxTxPins[1]);
 #else
-=======
-	digitalWrite(EspResetPin, true);
 #if SAME5x
 	for (Pin p : WiFiUartSercomPins)
 	{
 		SetPinFunction(p, WiFiUartSercomPinsMode);
 	}
 #elif !defined(__LPC17xx__)
->>>>>>> upstream/v3.02-dev
 	ConfigurePin(g_APinDescription[APINS_Serial1]);				// connect the pins to UART1
+#endif
 #endif
 	SERIAL_WIFI_DEVICE.begin(WiFiBaudRate);						// initialise the UART, to receive debug info
 	serialRunning = true;
