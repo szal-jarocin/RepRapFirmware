@@ -12,7 +12,6 @@
 #include <RTOSIface/RTOSIface.h>
 #include "SpiMode.h"
 #ifdef __LPC17xx__
-#include "SharedSpi.h"
 #include "SPI.h"
 #endif
 

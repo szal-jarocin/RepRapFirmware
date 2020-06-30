@@ -16,7 +16,7 @@
 #include "RepRapFirmware.h"
 #include "GCodes/GCodeResult.h"
 #include "sd_mmc.h"
-#include "SharedSpi.h"
+#include "SPI.h"
 
 #include "Platform.h"
 
@@ -153,7 +153,7 @@ void BoardConfig::Init() noexcept
     NVIC_SetPriority(DMA_IRQn, NvicPriorityDMA);
     NVIC_SetPriority(SSP0_IRQn, NvicPrioritySpi);
     NVIC_SetPriority(SSP1_IRQn, NvicPrioritySpi);
-    
+    delay(5000);
 #if !HAS_MASS_STORAGE
     sd_mmc_init(SdWriteProtectPins, SdSpiCSPins);
 #endif
@@ -226,9 +226,9 @@ void BoardConfig::Init() noexcept
         }
         
         //Setup the Software SPI Pins
-        sspi_setPinsForChannel(SWSPI0, SoftwareSPIPins[0], SoftwareSPIPins[1], SoftwareSPIPins[2]);
+        SPI::getSSPDevice(SWSPI0)->initPins(SoftwareSPIPins[0], SoftwareSPIPins[1], SoftwareSPIPins[2]);
         //Setup the pins for SSP0
-        sspi_setPinsForChannel(SSP0, SSP0Pins[0], SSP0Pins[1], SSP0Pins[2], SSP0Pins[3]);
+        SPI::getSSPDevice(SSP0)->initPins(SSP0Pins[0], SSP0Pins[1], SSP0Pins[2], SSP0Pins[3]);
 
 
         //Internal SDCard SPI Frequency

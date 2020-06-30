@@ -10,8 +10,6 @@
 #include <Hardware/IoPorts.h>
 
 #include "Core.h"
-#include "SharedSpi.h"
-
 #include "SoftwareSPI.h"
 #include "HardwareSPI.h"
 
@@ -21,7 +19,7 @@ constexpr uint32_t SpiTimeout = 10000;
 // SharedSpiDevice members
 
 SharedSpiDevice::SharedSpiDevice(SSPChannel chan) noexcept
-    : hardware(getSSPDevice(chan))
+    : hardware(SPI::getSSPDevice(chan))
 {
 	mutex.Create("SPI");
 }
@@ -58,17 +56,13 @@ inline bool SharedSpiDevice::waitForRxReady() const noexcept
 
 void SharedSpiDevice::SetClockFrequencyAndMode(uint32_t freq, SpiMode mode) const noexcept
 {
-    struct sspi_device config;
-    config.bitsPerTransferControl = 8;
-    config.spiMode = (uint8_t)mode;
-    config.clockFrequency = freq;
-    hardware->setup_device(&config); 
+    hardware->configureDevice(8, (uint8_t)mode, freq); 
 }
 
 bool SharedSpiDevice::TransceivePacket(const uint8_t* tx_data, uint8_t* rx_data, size_t len) const noexcept
 {
 
-	return hardware->sspi_transceive_packet(tx_data, rx_data, len) == SPI_OK;
+	return hardware->transceivePacket(tx_data, rx_data, len) == SPI_OK;
 }
 
 // Static members
