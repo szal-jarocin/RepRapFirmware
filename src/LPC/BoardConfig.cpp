@@ -69,7 +69,7 @@ static const boardConfigEntry_t boardConfigs[]=
     {"lcd.encoderPinA", &EncoderPinA, nullptr, cvPinType},
     {"lcd.encoderPinB", &EncoderPinB, nullptr, cvPinType},
     {"lcd.encoderPinSw", &EncoderPinSw, nullptr, cvPinType},
-    {"lcd.lcdDCPin", &LcdDCPin, nullptr, cvPinType},
+    {"lcd.lcdDCPin", &LcdA0Pin, nullptr, cvPinType},
     {"lcd.panelButtonPin", &PanelButtonPin, nullptr, cvPinType},
     {"lcd.spiChannel", &LcdSpiChannel, nullptr, cvUint8Type},
 #endif
@@ -292,7 +292,7 @@ void BoardConfig::Init() noexcept
         //Init pins for LCD
         //make sure to init ButtonPin as input incase user presses button
         if(PanelButtonPin != NoPin) pinMode(PanelButtonPin, INPUT); //unused
-        if(LcdDCPin != NoPin) pinMode(LcdDCPin, OUTPUT_HIGH); //unused
+        if(LcdA0Pin != NoPin) pinMode(LcdA0Pin, OUTPUT_HIGH); //unused
         if(LcdBeepPin != NoPin) pinMode(LcdBeepPin, OUTPUT_LOW);
         // Set the 12864 display CS pin low to prevent it from receiving garbage due to other SPI traffic
         if(LcdCSPin != NoPin) pinMode(LcdCSPin, OUTPUT_LOW);

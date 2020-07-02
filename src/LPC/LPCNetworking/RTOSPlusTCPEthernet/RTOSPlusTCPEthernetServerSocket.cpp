@@ -39,7 +39,7 @@ RTOSPlusTCPEthernetServerSocket::RTOSPlusTCPEthernetServerSocket() noexcept
 }
 
 // Initialise a TCP socket
-Socket_t RTOSPlusTCPEthernetServerSocket::GetServerSocket(Port serverPort, NetworkProtocol p) noexcept
+Socket_t RTOSPlusTCPEthernetServerSocket::GetServerSocket(TcpPort serverPort, NetworkProtocol p) noexcept
 {
     static const TickType_t xReceiveTimeOut = 1; // time (in ticks) to wait for FreeRTOS_accept .. portMax_DELAY would wait indefinetly (block until client connection)
     static const TickType_t xSendTimeOut = 1;

@@ -23,7 +23,7 @@ class RTOSPlusTCPEthernetServerSocket
 public:
     
     static RTOSPlusTCPEthernetServerSocket *Instance() noexcept;
-    Socket_t GetServerSocket(Port serverPort, NetworkProtocol p) noexcept;
+    Socket_t GetServerSocket(TcpPort serverPort, NetworkProtocol p) noexcept;
 	void CloseServerSocket(NetworkProtocol p) noexcept;
     void CloseProtocol(NetworkProtocol p) noexcept;
     void CloseAllProtocols() noexcept;

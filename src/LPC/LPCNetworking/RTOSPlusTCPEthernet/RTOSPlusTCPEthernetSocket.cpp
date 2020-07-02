@@ -121,7 +121,7 @@ RTOSPlusTCPEthernetSocket::RTOSPlusTCPEthernetSocket(NetworkInterface *iface) no
 }
 
 // Initialise a TCP socket
-void RTOSPlusTCPEthernetSocket::Init(SocketNumber skt, Port serverPort, NetworkProtocol p) noexcept
+void RTOSPlusTCPEthernetSocket::Init(SocketNumber skt, TcpPort serverPort, NetworkProtocol p) noexcept
 {
     socketNum = skt;
 	localPort = serverPort;

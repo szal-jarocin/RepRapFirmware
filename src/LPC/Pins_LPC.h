@@ -234,7 +234,7 @@ extern SSPChannel ExternalSDCardSSPChannel;
 constexpr uint32_t LcdSpiClockFrequency = 2000000;    // 2.0MHz
 extern SSPChannel LcdSpiChannel;
 extern Pin LcdCSPin;
-extern Pin LcdDCPin;
+extern Pin LcdA0Pin;
 extern Pin LcdBeepPin;
 extern Pin EncoderPinA;
 extern Pin EncoderPinB;

@@ -40,7 +40,12 @@ inline void Lcd7920::DataDelay() noexcept
 }
 
 Lcd7920::Lcd7920(const LcdFont * const fnts[], size_t nFonts) noexcept
-	: fonts(fnts), numFonts(nFonts), device(SharedSpiDevice::GetMainSharedSpiDevice(), LcdSpiClockFrequency, SpiMode::mode0, NoPin, true)
+	: fonts(fnts), numFonts(nFonts), 
+#ifdef __LPC17xx__
+device(SharedSpiDevice::GetSharedSpiDevice(LcdSpiChannel), LcdSpiClockFrequency, SpiMode::mode0, NoPin, true)
+#else
+device(SharedSpiDevice::GetMainSharedSpiDevice(), LcdSpiClockFrequency, SpiMode::mode0, NoPin, true)
+#endif
 {
 }
 
@@ -56,9 +61,6 @@ void Lcd7920::Init(uint8_t p_controllerType, Pin csPin, Pin p_a0Pin, uint32_t fr
 	device.SetClockFrequency(freq);
 	device.SetCsPin(csPin);
 	device.SetCsPolarity(controllerType == 0);		// active high chip select for ST7920, active low for ST7567
-#ifdef __LPC17xx__
-    device.sspChannel = LcdSpiChannel;
-#endif
 
 	numContinuationBytesLeft = 0;
 	textInverted = false;

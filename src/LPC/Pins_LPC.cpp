@@ -29,7 +29,7 @@ uint32_t InternalSDCardFrequency = 25000000;            //default to 25MHz
 
 
 Pin LcdCSPin = NoPin;               //LCD Chip Select
-Pin LcdDCPin = NoPin;               //DataControl Pin (A0) if none used set to NoPin
+Pin LcdA0Pin = NoPin;               //DataControl Pin (A0) if none used set to NoPin
 Pin LcdBeepPin = NoPin;
 Pin EncoderPinA = NoPin;
 Pin EncoderPinB = NoPin;

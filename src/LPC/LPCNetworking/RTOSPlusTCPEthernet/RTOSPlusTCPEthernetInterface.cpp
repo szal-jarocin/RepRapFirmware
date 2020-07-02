@@ -109,7 +109,7 @@ GCodeResult RTOSPlusTCPEthernetInterface::EnableProtocol(NetworkProtocol protoco
 	{
 		MutexLocker lock(interfaceMutex);
 
-		const Port portToUse = (port < 0) ? DefaultPortNumbers[protocol] : port;
+		const TcpPort portToUse = (port < 0) ? DefaultPortNumbers[protocol] : port;
 		if (portToUse != portNumbers[protocol] && state == NetworkState::active)
 		{
 			// We need to shut down and restart the protocol if it is active because the port number has changed
@@ -513,7 +513,7 @@ void RTOSPlusTCPEthernetInterface::SetIPAddress(IPAddress p_ip, IPAddress p_netm
     gateway = p_gateway;
 }
 
-void RTOSPlusTCPEthernetInterface::OpenDataPort(Port port) noexcept
+void RTOSPlusTCPEthernetInterface::OpenDataPort(TcpPort port) noexcept
 {
 #if ENABLE_FTP
 	sockets[FtpDataSocketNumber]->Init(FtpDataSocketNumber, port, FtpDataProtocol);

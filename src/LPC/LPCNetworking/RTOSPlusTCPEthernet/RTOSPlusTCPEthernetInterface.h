@@ -70,7 +70,7 @@ public:
     GCodeResult SetMacAddress(const MacAddress& mac, const StringRef& reply) noexcept override;
     const MacAddress& GetMacAddress() const noexcept override { return macAddress; }
 
-	void OpenDataPort(Port port) noexcept override;
+	void OpenDataPort(TcpPort port) noexcept override;
 	void TerminateDataPort() noexcept override;
     
 protected:
@@ -120,7 +120,7 @@ private:
     RTOSPlusTCPEthernetSocket *sockets[NumRTOSPlusTCPEthernetTcpSockets];
     size_t nextSocketToPoll;                        // next TCP socket number to poll for read/write operations
 
-    Port portNumbers[NumProtocols];                    // port number used for each protocol
+    TcpPort portNumbers[NumProtocols];                    // port number used for each protocol
     bool protocolEnabled[NumProtocols];                // whether each protocol is enabled
 
 	NetworkState state;
