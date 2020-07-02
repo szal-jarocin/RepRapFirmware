@@ -5,6 +5,9 @@
  *      Author: David
  * Modified on: 1 Jun 2020 to support TMC2209 (based on Duet expansion board code) on the LPC platform
  *		Author: gloomyandy
+ * NOTE: The Duet3d TMC22XX driver now supports TMC2209 devices. However it uses an extra task to run the
+ * the driver code which requires an extra 400 bytes of RAM. For now we avoid this by continuing to use
+ * Spin to drive the device. We may need to review this at some point.
  */
 #include "RepRapFirmware.h"
 
@@ -415,10 +418,10 @@ private:
 #endif
 
 #if HAS_STALL_DETECT
-	static constexpr unsigned int NumReadRegisters = 6;			// the number of registers that we read from on a TMC2209
-	static constexpr unsigned int NumReadRegistersNon09 = 5;	// the number of registers that we read from on a TMC2208/2224
+	static constexpr unsigned int NumReadRegisters = 7;			// the number of registers that we read from on a TMC2209
+	static constexpr unsigned int NumReadRegistersNon09 = 6;	// the number of registers that we read from on a TMC2208/2224
 #else
-	static constexpr unsigned int NumReadRegisters = 5;		// the number of registers that we read from on a TMC2208/2224
+	static constexpr unsigned int NumReadRegisters = 6;		// the number of registers that we read from on a TMC2208/2224
 #endif
 	static const uint8_t ReadRegNumbers[NumReadRegisters];	// the register numbers that we read from
 
@@ -428,8 +431,9 @@ private:
 	static constexpr unsigned int ReadDrvStat = 2;			// drive status
 	static constexpr unsigned int ReadMsCnt = 3;			// microstep counter
 	static constexpr unsigned int ReadPwmScale = 4;			// PWM scaling
+	static constexpr unsigned int ReadPwmAuto = 5;			// PWM scaling
 #if HAS_STALL_DETECT
-	static constexpr unsigned int ReadSgResult = 5;			// stallguard result, TMC2209 only
+	static constexpr unsigned int ReadSgResult = 6;			// stallguard result, TMC2209 only
 #endif
 
 	volatile uint32_t writeRegisters[NumWriteRegisters];	// the values we want the TMC22xx writable registers to have
@@ -559,6 +563,7 @@ constexpr uint8_t TmcDriverState::ReadRegNumbers[NumReadRegisters] =
 	REGNUM_DRV_STATUS,
 	REGNUM_MSCNT,
 	REGNUM_PWM_SCALE,
+	REGNUM_PWM_AUTO,
 #if HAS_STALL_DETECT
 	REGNUM_SG_RESULT					// TMC2209 only
 #endif
@@ -571,8 +576,9 @@ constexpr uint8_t TmcDriverState::ReadRegCRCs[NumReadRegisters] =
 	CRCAddByte(InitialSendCRC, ReadRegNumbers[2]),
 	CRCAddByte(InitialSendCRC, ReadRegNumbers[3]),
 	CRCAddByte(InitialSendCRC, ReadRegNumbers[4]),
+	CRCAddByte(InitialSendCRC, ReadRegNumbers[5]),
 #if HAS_STALL_DETECT
-	CRCAddByte(InitialSendCRC, ReadRegNumbers[5])
+	CRCAddByte(InitialSendCRC, ReadRegNumbers[6])
 #endif
 };
 
@@ -888,6 +894,9 @@ uint32_t TmcDriverState::GetRegister(SmartDriverRegister reg) const noexcept
 
 	case SmartDriverRegister::pwmScale:
 		return readRegisters[ReadPwmScale];
+
+	case SmartDriverRegister::pwmAuto:
+		return readRegisters[ReadPwmAuto];
 
 	case SmartDriverRegister::hdec:
 	case SmartDriverRegister::coolStep:
