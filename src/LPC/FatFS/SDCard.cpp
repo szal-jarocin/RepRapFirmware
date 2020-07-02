@@ -179,11 +179,13 @@ int selected = 0;
 
 void SDCard::deselect (void)
 {
+#ifdef SD_DEBUG
     if (!selected)
     {
         debugPrintf("deselect when not selected\n");
         return;
     }
+#endif
     spi->Deselect();
     //xchg_spi(0xFF);    /* Dummy clock (force DO hi-z for multiple slave SPI) */
     selected = 0;
@@ -197,17 +199,21 @@ void SDCard::deselect (void)
 
 int SDCard::select (void)    /* 1:OK, 0:Timeout */
 {
+#ifdef SD_DEBUG
     if (selected)
     {
         debugPrintf("Selected when selected\n");
         return 0;
     }
+#endif
     if (!spi->Select(500)) return 0;
     selected = 1;
     xchg_spi(0xFF);    /* Dummy clock (force DO enabled) */
     
     if (wait_ready(500)) return 1;    /* Leading busy check: Wait for card ready */
+#ifdef SD_DEBUG
     debugPrintf("select timeout\n");
+#endif
     spi->Deselect();        /* Timeout */
     return 0;
 }
@@ -272,7 +278,7 @@ int SDCard::xmit_datablock (const uint8_t *buff, uint8_t token) /* 1:OK, 0:Faile
 uint8_t SDCard::send_cmd (uint8_t cmd, uint32_t arg)/* Return value: R1 resp (bit7==1:Failed to send) */
 {
     uint8_t n, res;
-debugPrintf("cmd %x\n", cmd);   
+   
     if (cmd & 0x80) {    /* Send a CMD55 prior to ACMD<n> */
         cmd &= 0x7F;
         res = send_cmd(CMD55, 0);
@@ -321,10 +327,8 @@ uint8_t SDCard::disk_initialize ()
     
     //Change frequency to slow clock for initialisation
     spi->SetClockFrequency(SCLK_INIT);
-debugPrintf("init 1\n");
     select();
     for (n = 10; n; n--) xchg_spi(0xFF);    /* Send 80 dummy clocks */
-    select();   
     ty = 0;
     if (send_cmd(CMD0, 0) == 1) {            /* Put the card SPI state */
        
@@ -332,7 +336,6 @@ debugPrintf("init 1\n");
         const uint32_t timeout = 1000;                        /* Initialization timeout = 1 sec */
         
         if (send_cmd(CMD8, 0x1AA) == 1) {    /* Is the card SDv2? */
-        debugPrintf("SDV2\n");
             for (n = 0; n < 4; n++) ocr[n] = xchg_spi(0xFF);    /* Get 32 bit return value of R7 resp */
             if (ocr[2] == 0x01 && ocr[3] == 0xAA) {                /* Does the card support 2.7-3.6V? */
                 while ((millis() - now) < timeout && send_cmd(ACMD41, 1UL << 30)) ;    /* Wait for end of initialization with ACMD41(HCS) */
@@ -344,17 +347,14 @@ debugPrintf("init 1\n");
         } else {    /* Not an SDv2 card */
             if (send_cmd(ACMD41, 0) <= 1)     {    /* SDv1 or MMCv3? */
                 ty = CT_SD1; cmd = ACMD41;    /* SDv1 (ACMD41(0)) */
-                debugPrintf("V1\n");
             } else {
                 ty = CT_MMC; cmd = CMD1;    /* MMCv3 (CMD1(0)) */
-                debugPrintf("MMCV3\n");
             }
             while ((millis() - now) < timeout && send_cmd(cmd, 0)) ;        /* Wait for the card leaves idle state */
             if ((millis() - now) > timeout || send_cmd(CMD16, 512) != 0){    /* Set block length: 512 */
                 ty = 0;
             }
         }
-debugPrintf("Init 2\n");        
         //set card Blockmode to 512
         if(send_cmd(CMD16, 512) != 0) {
             //failed to set block mode
@@ -364,7 +364,6 @@ debugPrintf("Init 2\n");
     }
     cardtype = ty;    /* Card type */
     deselect();
-debugPrintf("Init 3\n");   
     if (ty) {        /* OK */
 
         //sdavi: now find the max freq to run card at.
@@ -417,7 +416,6 @@ debugPrintf("Init 3\n");
         status = STA_NOINIT;
         return 1;
     }
-debugPrintf("Init end\n");
     return 0; //Success
 }
 
@@ -456,7 +454,7 @@ DRESULT SDCard::disk_read (uint8_t *buff, uint32_t sector, uint32_t count)
     if (!count) return RES_PARERR;        /* Check parameter */
     if (status & STA_NOINIT) return RES_NOTRDY;    /* Check if drive is ready */
     if (!(cardtype & CT_BLOCK)) sector *= 512;    /* LBA ot BA conversion (byte addressing cards) */
-   select(); 
+    select(); 
     cmd = count > 1 ? CMD18 : CMD17;            /*  READ_MULTIPLE_BLOCK : READ_SINGLE_BLOCK */
     if (send_cmd(cmd, sector) == 0) {
         do {
