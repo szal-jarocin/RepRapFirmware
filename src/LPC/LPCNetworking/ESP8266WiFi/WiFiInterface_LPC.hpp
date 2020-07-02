@@ -13,6 +13,11 @@ void spi_disable(SSPChannel sspChannel) noexcept
     spiDevice->disable();
 }
 
+static inline void DisableSpi() noexcept
+{
+	spi_disable(ESP_SPI);
+}
+
 static inline void spi_dma_disable() noexcept
 {
     // For RRF compatibility

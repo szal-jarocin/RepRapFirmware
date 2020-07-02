@@ -93,6 +93,7 @@ const uint32_t WiFiStableMillis = 100;
 
 const unsigned int MaxHttpConnections = 4;
 
+#ifndef __LPC17xx__
 // Forward declarations of static functions
 static inline void DisableSpi() noexcept
 {
@@ -124,7 +125,7 @@ static inline void ResetSpi()
 	spi_reset(ESP_SPI);				// this clears the transmit and receive registers and puts the SPI into slave mode
 #endif
 }
-
+#endif
 static void spi_dma_disable() noexcept;
 
 #if !SAME5x
