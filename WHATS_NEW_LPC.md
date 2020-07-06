@@ -36,7 +36,7 @@ This version contains one major new feature, support for TMC2209 devices which i
 Version 3.1.1
 =============
 * Updated to include bugfixes from DC42
-* Fixed problem with default MAC address for Ethernet builds that resulted in some routers not providing and IP address.
+* Fixed problem with default MAC address for Ethernet builds that resulted in some routers not providing an IP address.
 * Added board configuration for Azteeg X5 Mini V3 (Thanks to Jay_s)
 
 Version 3.1.0
