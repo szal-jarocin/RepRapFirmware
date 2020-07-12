@@ -88,10 +88,20 @@ Pin SSP0Pins[4] = {SPI0_SCK, SPI0_MISO, SPI0_MOSI, SPI0_SSEL}; //GPIO pins for S
     Pin LinuxTfrReadyPin = NoPin;
 #endif
 
-bool ADCEnablePreFilter = false;
-uint8_t ADCPreFilterNumberSamples = 8; //8 Samples per channel
-uint32_t ADCPreFilterSampleRate = 10000; //10KHz
+bool ADCEnablePreFilter = true;
 
+//BrownOut Detection
+//The brownout interrupt is triggered when the supply voltage drops below approx 2.2V
+//If the voltage falls below approx 1.8V the BOD will reset the CPU (and Brownout will be
+//shown in M122 as the reset cause when it restarts).
+//If the voltage falls below 1V this will trigger a Power-On reset (power on will be shown
+//in M122 as the reset cause)
+//Initial revision CPUs require Vdd to be above 3.0V as per the Errata sheet Rev. 10.4 — 17 March 2020
+volatile uint32_t BrownoutEvents = 0;
+void BOD_IRQHandler()
+{
+    BrownoutEvents++;
+}
 
 //Default to the Generic PinTable
 PinEntry *PinTable = (PinEntry *) PinTable_Generic;

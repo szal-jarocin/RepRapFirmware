@@ -47,8 +47,7 @@
 # include "LPC/BoardConfig.h"
 # ifdef LPC_DEBUG
 #  include "SoftwarePWMTimer.h"
-   extern uint32_t minWDTValue;
-   extern int lateTimers;
+  extern int lateTimers;
 # endif
 #endif
 
@@ -845,9 +844,18 @@ void Platform::Init() noexcept
 
 	for (size_t thermistor = 0; thermistor < NumThermistorInputs; thermistor++)
 	{
+#ifdef __LPC17xx__
+		if (TEMP_SENSE_PINS[thermistor] != NoPin)
+		{
+#endif
 		// TODO use ports for these?
 		pinMode(TEMP_SENSE_PINS[thermistor], AIN);
 		filteredAdcChannels[thermistor] = PinToAdcChannel(TEMP_SENSE_PINS[thermistor]);	// translate the pin number to the SAM ADC channel number;
+#ifdef __LPC17xx__
+		}
+		else
+			filteredAdcChannels[thermistor] = NO_ADC;
+#endif
 	}
 
 #if HAS_VREF_MONITOR
@@ -1697,11 +1705,12 @@ void Platform::InitialiseInterrupts() noexcept
 	// set rest of the Timer Interrupt priorities
 	// Timer 0 is used for step generation (set elsewhere)
 	// DMA and SPI priorites are defined in BoardConfig as they are needed for File I/O
-	NVIC_SetPriority(TIMER1_IRQn, 8);                       //Timer 1 is optionally used for ADC pre-filtering.
-	NVIC_SetPriority(TIMER3_IRQn, 8);                       //Timer3 is optionally used for TMC22XX UART emulation. Both are DMA based and do not use the timer interrupt.
+	NVIC_SetPriority(TIMER1_IRQn, 8);                       //Timer 1 is free
 	NVIC_SetPriority(TIMER2_IRQn, NvicPriorityTimerServo);  //Timer 2 runs the PWM for Servos at 50hz
-	NVIC_SetPriority(RITIMER_IRQn, NvicPriorityTimerPWM);   //RIT runs the microsecond free running timer to generate heater/fan PWM
+	NVIC_SetPriority(TIMER3_IRQn, 8);                       //Timer 3 is optionally used for TMC22XX UART emulation. This is DMA based and does not use the timer interrupt.
+	NVIC_SetPriority(RITIMER_IRQn, 8); 						//RIT is free
 	NVIC_SetPriority(ADC_IRQn, NvicPriorityADC);            //ADC interrupt priority when using burst with pre-filtering
+    NVIC_SetPriority(PWM1_IRQn, NvicPriorityTimerPWM);  	//HWPWM running in timer mode runs Software PWM
 
 #endif
 
@@ -1882,6 +1891,11 @@ void Platform::Diagnostics(MessageType mtype) noexcept
 	lowestVin = highestVin = currentVin;
 #endif
 
+#if defined(__LPC17xx__)
+    MessageF(mtype, "Supply voltage: under voltage events: %" PRIu32 "\n", BrownoutEvents);
+#endif
+
+
 #if HAS_12V_MONITOR
 	// Show the 12V rail voltage
 	MessageF(mtype, "12V rail voltage: min %.1f, current %.1f, max %.1f, under voltage events: %" PRIu32 "\n",
@@ -1919,12 +1933,11 @@ void Platform::Diagnostics(MessageType mtype) noexcept
 
 	reprap.Timing(mtype);
 #ifdef LPC_DEBUG
-	MessageF(mtype, "Watchdog timer: %" PRIu32 "/%" PRIu32 "\n", minWDTValue, SystemCoreClock / 16);
-	minWDTValue = 0xffffffff;
 	MessageF(mtype, "Step timer: target %" PRIu32 " count %" PRIu32 " delta %d late %d\n", STEP_TC->MR[0], STEP_TC->TC, (int)(STEP_TC->MR[0] - STEP_TC->TC), lateTimers);
 	MessageF(mtype, "USBSerial connected %d\n", (int)SERIAL_MAIN_DEVICE.IsConnected());
 	MessageF(mtype, "ADC not ready %" PRIu32 " ADC error threshold %" PRIu32 " ADC Init %" PRIu32 "\n", ADCNotReadyCnt, ADCErrorThreshold, ADCInitCnt);
 	ADCNotReadyCnt = 0;
+
 #endif
 
 #if 0
@@ -1932,9 +1945,6 @@ void Platform::Diagnostics(MessageType mtype) noexcept
 	const uint32_t div = ThermistorAveragingFilter::NumAveraged() >> 2;		// 2 oversample bits
 	MessageF(mtype, "Vssa %" PRIu32 " Vref %" PRIu32 " Temp0 %" PRIu32 " Temp1 %" PRIu32 "\n",
 			adcFilters[VssaFilterIndex].GetSum()/div, adcFilters[VrefFilterIndex].GetSum()/div, adcFilters[0].GetSum()/div, adcFilters[1].GetSum()/div);
-#endif
-#ifdef LPC_DEBUG
-    softwarePWMTimer.Diagnostics(mtype);
 #endif
 #ifdef LPC_DEBUG_HM
 	reprap.GetMove().AccessHeightMap().Diagnostics(mtype);
@@ -4479,8 +4489,8 @@ void Platform::Tick() noexcept
 	// Because we are in the tick ISR and no other ISR reads the averaging filter, we can cast away 'volatile' here.
 	if (tickState != 0)
 	{
-		ThermistorAveragingFilter& currentFilter = const_cast<ThermistorAveragingFilter&>(adcFilters[currentFilterNumber]);		// cast away 'volatile'
-		currentFilter.ProcessReading(AnalogInReadChannel(filteredAdcChannels[currentFilterNumber]));
+			ThermistorAveragingFilter& currentFilter = const_cast<ThermistorAveragingFilter&>(adcFilters[currentFilterNumber]);		// cast away 'volatile'
+			currentFilter.ProcessReading(AnalogInReadChannel(filteredAdcChannels[currentFilterNumber]));
 
 		++currentFilterNumber;
 		if (currentFilterNumber == NumAdcFilters)
@@ -4497,11 +4507,17 @@ void Platform::Tick() noexcept
 	case 3:
 		{
 #if !SAME70
+#ifdef __LPC17xx__
+			if(filteredAdcChannels[currentFilterNumber] != NO_ADC)
+			{
+#endif
 			// We read a filtered ADC channel on alternate ticks
 			// Because we are in the tick ISR and no other ISR reads the averaging filter, we can cast away 'volatile' here.
 			ThermistorAveragingFilter& currentFilter = const_cast<ThermistorAveragingFilter&>(adcFilters[currentFilterNumber]);		// cast away 'volatile'
 			currentFilter.ProcessReading(AnalogInReadChannel(filteredAdcChannels[currentFilterNumber]));
-
+#ifdef __LPC17xx__
+			}
+#endif
 			++currentFilterNumber;
 			if (currentFilterNumber == NumAdcFilters)
 			{
