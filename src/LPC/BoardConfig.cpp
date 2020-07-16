@@ -464,9 +464,9 @@ void BoardConfig::Diagnostics(MessageType mtype) noexcept
 
         }
     }
-    reprap.GetPlatform().MessageF(mtype, "\n== Servo PWM ==\n");
-    reprap.GetPlatform().MessageF(mtype, "Timer2 PWM = 50Hz ");
-    PrintPinArray(mtype, Timer2PWMPins, MaxTimerEntries);
+    reprap.GetPlatform().MessageF(mtype, "\n== Hardware PWM ==\n");
+    reprap.GetPlatform().MessageF(mtype, "Hardware PWM = %dHz ", HardwarePWMFrequency );
+    PrintPinArray(mtype, UsedHardwarePWMChannel, NumPwmChannels);
 }
 
 void BoardConfig::PrintPinArray(MessageType mtype, Pin arr[], uint16_t numEntries) noexcept
