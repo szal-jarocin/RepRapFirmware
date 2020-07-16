@@ -10,7 +10,7 @@
 // read characters from stream into buffer
 // returns the number of characters placed in the buffer
 #ifdef __LPC17xx__
-size_t Stream::readBytes(char *buffer, size_t length)
+size_t Stream::readBytes(char *buffer, size_t length) noexcept
 #else
 size_t Stream::readBytes(char *buffer, size_t length) noexcept
 #endif

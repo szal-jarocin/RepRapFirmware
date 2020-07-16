@@ -61,7 +61,7 @@
 #if defined(LPC_NETWORKING)
     //LPC Ethernet
     #define HAS_RTOSPLUSTCP_NETWORKING   1
-    #define SUPPORT_12864_LCD            1
+    #define SUPPORT_12864_LCD            0
     #define HAS_WIFI_NETWORKING          0
     #define HAS_MASS_STORAGE             1
     #define SUPPORT_TELNET               0
@@ -245,8 +245,6 @@ extern Pin DiagPin;
 constexpr bool DiagOnPolarity = true;
 
 extern bool ADCEnablePreFilter;
-extern uint8_t ADCPreFilterNumberSamples;
-extern uint32_t ADCPreFilterSampleRate;
 
 constexpr size_t NumSoftwareSPIPins = 3;
 extern Pin SoftwareSPIPins[3]; //GPIO pins for softwareSPI (used with SharedSPI)
@@ -295,6 +293,7 @@ extern Pin AuxSerialRxTxPins[NumberSerialPins];
 #define STEP_TC_IRQN        TIMER0_IRQn
 #define STEP_TC_HANDLER     TIMER0_IRQHandler
 
+extern volatile uint32_t BrownoutEvents;
 
 
 

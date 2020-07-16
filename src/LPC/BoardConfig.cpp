@@ -96,8 +96,6 @@ static const boardConfigEntry_t boardConfigs[]=
 #endif
     
     {"adc.prefilter.enable", &ADCEnablePreFilter, nullptr, cvBoolType},
-    {"adc.preFilter.numberSamples", &ADCPreFilterNumberSamples, nullptr, cvUint8Type},
-    {"adc.preFilter.sampleRate", &ADCPreFilterSampleRate, nullptr, cvUint32Type},
 };
 
 #if !HAS_MASS_STORAGE
@@ -153,7 +151,6 @@ void BoardConfig::Init() noexcept
     NVIC_SetPriority(DMA_IRQn, NvicPriorityDMA);
     NVIC_SetPriority(SSP0_IRQn, NvicPrioritySpi);
     NVIC_SetPriority(SSP1_IRQn, NvicPrioritySpi);
-    delay(5000);
 #if !HAS_MASS_STORAGE
     sd_mmc_init(SdWriteProtectPins, SdSpiCSPins);
 #endif
@@ -301,7 +298,7 @@ void BoardConfig::Init() noexcept
         pinMode(DiagPin, OUTPUT_LOW);
         
         //Configure ADC pre filter
-        ConfigureADCPreFilter(ADCEnablePreFilter, ADCPreFilterNumberSamples, ADCPreFilterSampleRate);
+        ConfigureADCPreFilter(ADCEnablePreFilter);
     }
 }
 
@@ -466,13 +463,9 @@ void BoardConfig::Diagnostics(MessageType mtype) noexcept
 
         }
     }
-    
-    //Print Servo PWM Timer or HW PWM assignments
-    reprap.GetPlatform().MessageF(mtype, "\n== Servo PWM ==\n");
+    reprap.GetPlatform().MessageF(mtype, "\n== Hardware PWM ==\n");
     reprap.GetPlatform().MessageF(mtype, "Hardware PWM = %dHz ", HardwarePWMFrequency );
     PrintPinArray(mtype, UsedHardwarePWMChannel, NumPwmChannels);
-    reprap.GetPlatform().MessageF(mtype, "Timer2 PWM = 50Hz ");
-    PrintPinArray(mtype, Timer2PWMPins, MaxTimerEntries);
 }
 
 void BoardConfig::PrintPinArray(MessageType mtype, Pin arr[], uint16_t numEntries) noexcept
