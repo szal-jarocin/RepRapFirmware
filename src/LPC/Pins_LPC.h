@@ -61,7 +61,7 @@
 #if defined(LPC_NETWORKING)
     //LPC Ethernet
     #define HAS_RTOSPLUSTCP_NETWORKING   1
-    #define SUPPORT_12864_LCD            1
+    #define SUPPORT_12864_LCD            0
     #define HAS_WIFI_NETWORKING          0
     #define HAS_MASS_STORAGE             1
     #define SUPPORT_TELNET               0
