@@ -68,7 +68,7 @@ static_assert(CONF_HSMCI_XDMAC_CHANNEL == DmacChanHsmci, "mismatched DMA channel
 // We call vTaskNotifyGiveFromISR from various interrupts, so the following must be true
 static_assert(configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY <= NvicPriorityHSMCI, "configMAX_SYSCALL_INTERRUPT_PRIORITY is set too high");
 
-#if !defined(__LPC17xx__) && !SAME5x	//TODO implement for SAME5x
+#if !defined(__LPC17xx__) && !defined(STM32F4)  && !SAME5x	//TODO implement for SAME5x
 
 static TaskHandle hsmciTask = nullptr;									// the task that is waiting for a HSMCI command to complete
 
@@ -472,6 +472,8 @@ void RepRap::Init() noexcept
 	NVIC_EnableIRQ(WDT_IRQn);														// enable the watchdog early warning interrupt
 #elif defined(__LPC17xx__)
 	wdt_init(1); // set wdt to 1 second. reset the processor on a watchdog fault
+#elif defined(STM32F4)
+	watchdogEnable(1000);
 #else
 	{
 		// The clock frequency for both watchdogs is about 32768/128 = 256Hz
@@ -891,7 +893,7 @@ void RepRap::SoftwareReset(uint16_t reason, const uint32_t *stk) noexcept
 		// Record the reason for the software reset
 		// First find a free slot (wear levelling)
 		size_t slot = SoftwareResetData::numberOfSlots;
-#if defined(__LPC17xx__)
+#if defined(__LPC17xx__) || defined(STM32F4)
         SoftwareResetData srdBuf[1];
 #else
         SoftwareResetData srdBuf[SoftwareResetData::numberOfSlots];
@@ -904,7 +906,7 @@ void RepRap::SoftwareReset(uint16_t reason, const uint32_t *stk) noexcept
 		if (flash_read_user_signature(reinterpret_cast<uint32_t*>(srdBuf), sizeof(srdBuf)/sizeof(uint32_t)) == FLASH_RC_OK)
 #elif SAM3XA
 		DueFlashStorage::read(SoftwareResetData::nvAddress, srdBuf, sizeof(srdBuf));
-#elif defined(__LPC17xx__)
+#elif defined(__LPC17xx__) || defined(STM32F4)
 		// nothing here
 #else
 # error
@@ -932,7 +934,7 @@ void RepRap::SoftwareReset(uint16_t reason, const uint32_t *stk) noexcept
 			slot = 0;
 		}
 
-#if defined(__LPC17xx__)
+#if defined(__LPC17xx__) || defined(STM32F4)
         srdBuf[0].Populate(reason, (uint32_t)platform->GetDateTime(), stk);
 #else
         srdBuf[slot].Populate(reason, (uint32_t)platform->GetDateTime(), stk);
@@ -945,6 +947,8 @@ void RepRap::SoftwareReset(uint16_t reason, const uint32_t *stk) noexcept
 		flash_write_user_signature(srdBuf, sizeof(srdBuf)/sizeof(uint32_t));
 #elif defined(__LPC17xx__)
 		LPC_WriteSoftwareResetData(slot, srdBuf, sizeof(srdBuf));
+#elif defined(STM32F4)
+// FIXME write reset data to flash
 #else
 		DueFlashStorage::write(SoftwareResetData::nvAddress, srdBuf, sizeof(srdBuf));
 #endif
@@ -952,6 +956,8 @@ void RepRap::SoftwareReset(uint16_t reason, const uint32_t *stk) noexcept
 
 #if defined(__LPC17xx__)
     LPC_SYSCTL->RSID = 0x3F;					// Clear bits in reset reasons stored in RSID
+#elif defined(STM32F4)
+	// FIXME handle reset stuff
 #elif !SAME5x
 # ifndef RSTC_MR_KEY_PASSWD
 // Definition of RSTC_MR_KEY_PASSWD is missing in the SAM3X ASF files
@@ -2725,6 +2731,8 @@ bool RepRap::WriteToolParameters(FileStore *f, const bool forceWriteOffsets) noe
 
 #ifdef __LPC17xx__
     #include "LPC/FirmwareUpdate.hpp"
+#elif defined(STM32F4)
+    #include "STM32/FirmwareUpdate.hpp"
 #else
 
 // Check the prerequisites for updating the main firmware. Return True if satisfied, else print a message to 'reply' and return false.

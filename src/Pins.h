@@ -34,7 +34,9 @@
 #  define PLATFORM Duet5LC
 # elif defined(__LPC17xx__)
 #  define PLATFORM LPC
-# else
+# elif defined(STM32F4)
+#  define PLATFORM STM32
+#else
 #  error Unknown platform
 # endif
 #endif

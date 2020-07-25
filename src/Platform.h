@@ -145,6 +145,8 @@ enum class BoardType : uint8_t
 	Duet_5LC = 1
 #elif defined(__LPC17xx__)
 	Lpc = 1
+#elif defined (STM32F4)
+	Stm32F4 = 1
 #else
 # error Unknown board
 #endif

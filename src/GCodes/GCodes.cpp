@@ -184,7 +184,7 @@ void GCodes::Init() noexcept
 	DotStarLed::Init();
 #endif
 
-#if defined(SERIAL_AUX_DEVICE) && !defined(__LPC17xx__)
+#if defined(SERIAL_AUX_DEVICE) && !defined(__LPC17xx__) && !defined(STM32F4)
 	SERIAL_AUX_DEVICE.SetInterruptCallback(GCodes::CommandEmergencyStop);
 #endif
 }

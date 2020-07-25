@@ -47,6 +47,9 @@
   extern int lateTimers;
 # endif
 # include <sd_mmc.h>
+#elif defined(STM32F4)
+# include "STM32/BoardConfig.h"
+# include <sd_mmc.h>
 #else
 #if SAME5x
 # include <AnalogIn.h>
@@ -447,7 +450,7 @@ void Platform::Init() noexcept
 	usbMutex.Create("USB");
 #if SAME5x
     SERIAL_MAIN_DEVICE.Start();
-#elif defined(__LPC17xx__)
+#elif defined(__LPC17xx__) || defined(STM32F4)
 	SERIAL_MAIN_DEVICE.begin(baudRates[0]);
 #else
     SERIAL_MAIN_DEVICE.Start(UsbVBusPin);
@@ -1700,6 +1703,8 @@ void Platform::InitialiseInterrupts() noexcept
 #ifdef __LPC17xx__
 	// Interrupt for GPIO pins. Only port 0 and 2 support interrupts and both share EINT3
 	NVIC_SetPriority(EINT3_IRQn, NvicPriorityPins);
+#elif defined(STM32F4)
+	// FIXME need to add int priorities
 #elif !SAME5x
 	NVIC_SetPriority(PIOA_IRQn, NvicPriorityPins);
 	NVIC_SetPriority(PIOB_IRQn, NvicPriorityPins);
@@ -1725,6 +1730,9 @@ void Platform::InitialiseInterrupts() noexcept
 	NVIC_SetPriority(UOTGHS_IRQn, NvicPriorityUSB);
 #elif defined(__LPC17xx__)
 	NVIC_SetPriority(USB_IRQn, NvicPriorityUSB);
+#elif defined(STM32F4)
+// FIXME
+// do nothing USB priority defined in core for now
 #else
 # error Unsupported processor
 #endif
@@ -1798,7 +1806,7 @@ void Platform::Diagnostics(MessageType mtype) noexcept
 		resetString.cat('\n');
 		Message(mtype, resetString.c_str());
 	}
-#elif !defined(__LPC17xx__)
+#elif !defined(__LPC17xx__) && !defined(STM32F4)
 	const char* resetReasons[8] = { "power up", "backup", "watchdog", "software",
 # ifdef DUET_NG
 	// On the SAM4E a watchdog reset may be reported as a user reset because of the capacitor on the NRST pin.
@@ -1848,6 +1856,10 @@ void Platform::Diagnostics(MessageType mtype) noexcept
 				break;
 			}
 		}
+#elif defined(STM32F4)
+//FIXME add STM stuff here
+		SoftwareResetData srdBuf[1];
+		int slot = -1;
 #else
 		SoftwareResetData srdBuf[SoftwareResetData::numberOfSlots];
 		memset(srdBuf, 0, sizeof(srdBuf));
@@ -2245,6 +2257,11 @@ GCodeResult Platform::DiagnosticTest(GCodeBuffer& gb, const StringRef& reply, Ou
 		deliberateError = true;
 		// The LPC176x/5x generates Bus Fault exception when accessing a reserved memory address
 		(void)*(reinterpret_cast<const volatile char*>(0x00080000));
+#elif defined(STM32F4)
+		deliberateError = true;
+		// FIXME need to test this probably not the correct address
+		(void)*(reinterpret_cast<const volatile char*>(0x00080000));
+
 #else
 # error Unsupported processor
 #endif
@@ -3773,7 +3790,7 @@ void Platform::ResetChannel(size_t chan) noexcept
 		SERIAL_MAIN_DEVICE.end();
 #if SAME5x
         SERIAL_MAIN_DEVICE.Start();
-#elif defined(__LPC17xx__)
+#elif defined(__LPC17xx__) || defined(STM32F4)
 		SERIAL_MAIN_DEVICE.begin(baudRates[0]);
 #else
         SERIAL_MAIN_DEVICE.Start(UsbVBusPin);
@@ -3873,6 +3890,8 @@ void Platform::SetBoardType(BoardType bt) noexcept
 		board = BoardType::PCCB_v08;
 #elif defined(__LPC17xx__)
 		board = BoardType::Lpc;
+#elif defined(STM32F4)
+		board = BoardType::Stm32F4;
 #else
 # error Undefined board type
 #endif
@@ -3920,6 +3939,9 @@ const char* Platform::GetElectronicsString() const noexcept
 	case BoardType::PCCB_v08:				return "PCCB 0.8";
 #elif defined(__LPC17xx__)
 	case BoardType::Lpc:					return LPC_ELECTRONICS_STRING;
+#elif defined(STM32F4)
+	case BoardType::Stm32F4:				return STM_ELECTRONICS_STRING;
+
 #else
 # error Undefined board type
 #endif
@@ -3964,6 +3986,8 @@ const char* Platform::GetBoardString() const noexcept
 	case BoardType::PCCB_v08:				return "pccb08";
 #elif defined(__LPC17xx__)
 	case BoardType::Lpc:					return LPC_BOARD_STRING;
+#elif defined(STM32F4)
+	case BoardType::Stm32F4:				return STM_BOARD_STRING;
 #else
 # error Undefined board type
 #endif

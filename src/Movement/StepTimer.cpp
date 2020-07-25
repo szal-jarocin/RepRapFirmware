@@ -13,6 +13,8 @@
 # ifdef LPC_DEBUG
 int lateTimers = 0;
 # endif
+#elif defined(STM32F4)
+// nothing to do at the moment
 #elif SAME5x
 # include <CoreIO.h>
 #else
@@ -70,6 +72,8 @@ void StepTimer::Init() noexcept
 	NVIC_SetPriority(STEP_TC_IRQN, NvicPriorityStep);			    // Set the priority for this IRQ
 	NVIC_EnableIRQ(STEP_TC_IRQN);
 	STEP_TC->TCR = (1 <<SBIT_CNTEN);							    // Start Timer
+#elif defined(STM32F4)
+	//FIXME need to setup the timer (probably TIM2 as that is 32 bit)
 #else
 	pmc_set_writeprotect(false);
 	pmc_enable_periph_clk(STEP_TC_ID);
@@ -173,6 +177,8 @@ bool StepTimer::ScheduleTimerInterrupt(uint32_t tim) noexcept
 	if ((int)(STEP_TC->MR[0] - GetTimerTicks()) <= 0)
 		lateTimers++;
 # endif
+#elif defined(STM32F4)
+	//FIXME 
 #else
 	STEP_TC->TC_CHANNEL[STEP_TC_CHAN].TC_RB = tim;					// set up the compare register
 	(void)STEP_TC->TC_CHANNEL[STEP_TC_CHAN].TC_SR;					// read the status register, which clears the status bits and any pending interrupt
@@ -188,6 +194,8 @@ void StepTimer::DisableTimerInterrupt() noexcept
 	StepTc->INTENCLR.reg = TC_INTFLAG_MC0;
 #elif defined(__LPC17xx__)
 	STEP_TC->MCR &= ~(1u<<SBIT_MR0I);								 // disable Int on MR1
+#elif defined(STM32F4)
+	//FIXME
 #else
 	STEP_TC->TC_CHANNEL[STEP_TC_CHAN].TC_IDR = TC_IER_CPBS;
 #endif
@@ -240,6 +248,9 @@ void STEP_TC_HANDLER() noexcept
 	{
 		STEP_TC->IR |= (1u<<SBIT_MRI0_IFM);							// clear interrupt
 		STEP_TC->MCR  &= ~(1u<<SBIT_MR0I);							// Disable Int on MR0
+#elif defined(STM32F4)
+	//FIXME
+	{
 #else
 	// ATSAM processor code
 	uint32_t tcsr = STEP_TC->TC_CHANNEL[STEP_TC_CHAN].TC_SR;		// read the status register, which clears the status bits

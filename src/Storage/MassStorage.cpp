@@ -4,11 +4,11 @@
 #include <ObjectModel/ObjectModel.h>
 #include <Libraries/Fatfs/diskio.h>
 
-#ifndef __LPC17xx__
+#if !defined(__LPC17xx__) && !defined(STM32F4) 
 #include <Libraries/sd_mmc/sd_mmc.h>
 #endif 
 
-#if !defined(__LPC17xx__) && !SAME5x
+#if !defined(__LPC17xx__) && !SAME5x && !defined(STM32F4)
 # include <sam/drivers/hsmci/hsmci.h>
 #endif
 

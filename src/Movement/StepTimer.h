@@ -65,6 +65,9 @@ public:
 	static constexpr uint32_t StepClockRate = (120000000/2)/64;					// just under 1MHz
 #elif defined(__LPC17xx__)
 	static constexpr uint32_t StepClockRate = 1000000;                          // 1MHz
+#elif defined(STM32F4)
+// FIXME need actual rate
+	static constexpr uint32_t StepClockRate = 1000000;                          // 1MHz
 #else
 	static constexpr uint32_t StepClockRate = VARIANT_MCK/128;					// just under 1MHz
 #endif
@@ -96,6 +99,9 @@ inline __attribute__((always_inline)) StepTimer::Ticks StepTimer::GetTimerTicks(
 	return StepTc->COUNT.reg;
 # elif defined(__LPC17xx__)
 	return STEP_TC->TC;
+# elif defined(STM32F4)
+	// FIXME! Need to read TIM2 here
+	return 0;
 # else
 	return STEP_TC->TC_CHANNEL[STEP_TC_CHAN].TC_CV;
 # endif
@@ -109,6 +115,9 @@ inline __attribute__((always_inline)) uint16_t StepTimer::GetTimerTicks16() noex
 	return (uint16_t)GetTimerTicks();
 #elif defined(__LPC17xx__)
 	return (uint16_t)STEP_TC->TC;
+#elif defined(STM32F4)
+	// FIXME need to return TIM2 count here
+	return 0;
 #else
 	return (uint16_t)STEP_TC->TC_CHANNEL[STEP_TC_CHAN].TC_CV;
 #endif

@@ -17,6 +17,8 @@
 #include <General/NamedEnum.h>
 #if defined(__LPC17xx__) && (HAS_WIFI_NETWORKING == 0) && (HAS_RTOSPLUSTCP_NETWORKING == 0)
 # include "LPC/NoNetwork/Network.h"
+#elif (defined(STM32F4)) && (HAS_WIFI_NETWORKING == 0) && (HAS_RTOSPLUSTCP_NETWORKING == 0)
+# include "STM32/NoNetwork/Network.h"
 #else
 #if defined(DUET3_V03)
 const size_t NumNetworkInterfaces = 2;

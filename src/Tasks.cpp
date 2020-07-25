@@ -98,7 +98,7 @@ extern "C" [[noreturn]] void AppMain() noexcept
 {
 	pinMode(DiagPin, (DiagOnPolarity) ? OUTPUT_LOW : OUTPUT_HIGH);	// set up diag LED for debugging and turn it off
 
-#if !defined(DEBUG) && !defined(__LPC17xx__)	// don't check the CRC of a debug build because debugger breakpoints mess up the CRC
+#if !defined(DEBUG) && !defined(__LPC17xx__) && !defined(STM32F4)	// don't check the CRC of a debug build because debugger breakpoints mess up the CRC
 	// Check the integrity of the firmware by checking the firmware CRC
 	{
 #if defined(IFLASH_ADDR)
@@ -163,7 +163,7 @@ extern "C" [[noreturn]] void AppMain() noexcept
 	// We could also trap unaligned memory access, if we change the gcc options to not generate code that uses unaligned memory access.
 	SCB->CCR |= SCB_CCR_DIV_0_TRP_Msk;
 
-#if !defined(__LPC17xx__) && !SAME5x
+#if !defined(__LPC17xx__) && !SAME5x && !defined(STM32F4)
 	// When doing a software reset, we disable the NRST input (User reset) to prevent the negative-going pulse that gets generated on it being held
 	// in the capacitor and changing the reset reason from Software to User. So enable it again here. We hope that the reset signal will have gone away by now.
 # ifndef RSTC_MR_KEY_PASSWD
@@ -248,6 +248,8 @@ void Tasks::Diagnostics(MessageType mtype) noexcept
 			(char *) 0x20070000;
 #elif defined(__LPC17xx__)
 			(char *) 0x10000000;
+#elif defined(STM32F4)
+			(char *)  0x20000000;
 #else
 # error Unsupported processor
 #endif
@@ -308,7 +310,10 @@ extern "C"
 	// This intercepts the 1ms system tick
 	void vApplicationTickHook() noexcept
 	{
+#if !defined(STM32F4)
+		// On STM32F4 the core is calling us
 		CoreSysTick();
+#endif
 		reprap.Tick();
 	}
 
