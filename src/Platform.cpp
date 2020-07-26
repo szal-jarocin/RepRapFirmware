@@ -492,7 +492,7 @@ void Platform::Init() noexcept
 	MassStorage::Init();
 #endif
 
-#ifdef __LPC17xx__
+#if defined(__LPC17xx__) || defined(STM32F4)
 	// Load HW pin assignments from sdcard
 	BoardConfig::Init();
 	pinMode(ATX_POWER_PIN,(ATX_POWER_INVERTED==false)?OUTPUT_LOW:OUTPUT_HIGH);

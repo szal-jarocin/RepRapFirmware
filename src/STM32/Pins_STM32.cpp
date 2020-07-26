@@ -11,7 +11,7 @@
 
 Pin TEMP_SENSE_PINS[NumThermistorInputs] = {NoPin, NoPin, NoPin, NoPin};
 Pin SpiTempSensorCsPins[MaxSpiTempSensors] = { NoPin, NoPin };
-SSPChannel TempSensorSSPChannel = SSP0;   //default SPI Temp sensor on SSP0
+SSPChannel TempSensorSSPChannel = SSP1;   //default SPI Temp sensor on SSP1
 
 Pin ATX_POWER_PIN = NoPin;
 bool ATX_POWER_INVERTED = false;
@@ -23,7 +23,7 @@ uint32_t ExternalSDCardFrequency = 4000000;             //default to 4MHz
 #if HAS_LINUX_INTERFACE || HAS_WIFI_NETWORKING
     SSPChannel ExternalSDCardSSPChannel = SSPNONE;          // SSP0 used for network
 #else
-    SSPChannel ExternalSDCardSSPChannel = SSP0;             //default to SSP0
+    SSPChannel ExternalSDCardSSPChannel = SSP2;             //default to SSP2
 #endif
 uint32_t InternalSDCardFrequency = 25000000;            //default to 25MHz
 
@@ -35,7 +35,7 @@ Pin EncoderPinA = NoPin;
 Pin EncoderPinB = NoPin;
 Pin EncoderPinSw = NoPin;           //click
 Pin PanelButtonPin = NoPin;         //Extra button on Viki and RRD Panels (reset/back etc)
-SSPChannel LcdSpiChannel = SSP0;
+SSPChannel LcdSpiChannel = SWSPI0;
 
 Pin DiagPin = PA_7;
 

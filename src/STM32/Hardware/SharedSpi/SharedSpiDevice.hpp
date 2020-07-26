@@ -67,11 +67,11 @@ bool SharedSpiDevice::TransceivePacket(const uint8_t* tx_data, uint8_t* rx_data,
 
 // Static members
 
-SharedSpiDevice *SharedSpiDevice::Devices[3];
+SharedSpiDevice *SharedSpiDevice::Devices[4];
 
 void SharedSpiDevice::Init() noexcept
 {
-    for(int i = 0; i < 3; i++)
+    for(int i = 0; i < 4; i++)
         Devices[i] = new SharedSpiDevice((SSPChannel)i);
 }
 

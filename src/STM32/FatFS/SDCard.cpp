@@ -58,7 +58,6 @@ constexpr uint32_t SCLK_INIT =  400000;     /* SCLK frequency under initializati
 
 
 
-
 #define SD_COMMAND_TIMEOUT 5000
 
 SDCard::SDCard(SSPChannel SSPSlot, Pin cs) {
@@ -103,7 +102,6 @@ void SDCard::ReInit(Pin cs, uint32_t freq)
             frequency = SCLK_SD12;
         }
     }
-    
     if(frequency > maxFrequency) frequency = maxFrequency; //dont set higher than the max speed user set in config.
 
     if (spi != nullptr)
@@ -236,7 +234,7 @@ int SDCard::rcvr_datablock (uint8_t *buff, uint32_t btr)/* 1:OK, 0:Error */
         
     } while ((token == 0xFF) && (millis() - now) < 200 );
     if(token != 0xFE) return 0;        /* Function fails if invalid DataStart token or timeout */
-    
+    memset(buff, 0xff, btr);
     rcvr_spi_multi(buff, btr);        /* Store trailing data to the buffer */
     xchg_spi(0xFF); xchg_spi(0xFF);    /* Discard CRC */
     
@@ -396,7 +394,6 @@ uint8_t SDCard::disk_initialize ()
             }
             deselect();
         }
-        
         if(frequency > maxFrequency) frequency = maxFrequency; //dont set higher than the max speed user set in config.
 
         spi->SetClockFrequency(frequency);
@@ -450,7 +447,6 @@ CARD_TYPE SDCard::card_type()
 DRESULT SDCard::disk_read (uint8_t *buff, uint32_t sector, uint32_t count)
 {
     uint8_t cmd;
-    
     if (!count) return RES_PARERR;        /* Check parameter */
     if (status & STA_NOINIT) return RES_NOTRDY;    /* Check if drive is ready */
     if (!(cardtype & CT_BLOCK)) sector *= 512;    /* LBA ot BA conversion (byte addressing cards) */
@@ -464,7 +460,6 @@ DRESULT SDCard::disk_read (uint8_t *buff, uint32_t sector, uint32_t count)
         if (cmd == CMD18) send_cmd(CMD12, 0);    /* STOP_TRANSMISSION */
     }
     deselect();
-    
     return count ? RES_ERROR : RES_OK;    /* Return result */
 }
 
@@ -529,7 +524,6 @@ DRESULT SDCard::disk_ioctl (uint8_t cmd, void *buff)
     DRESULT res;
     uint8_t n, csd[16];
     uint32_t csize;
-
     if (status & STA_NOINIT) return RES_NOTRDY;    /* Check if drive is ready */
     
     res = RES_ERROR;

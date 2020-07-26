@@ -75,7 +75,7 @@ static const boardConfigEntry_t boardConfigs[]=
 #endif
     
     {"softwareSPI.pins", SoftwareSPIPins, &NumSoftwareSPIPins, cvPinType}, //SCK, MISO, MOSI
-    {"SSP0.pins", SSP0Pins, &NumSSP0Pins, cvPinType}, // SCK, MISO, MOSI, CS
+    //{"SSP0.pins", SSP0Pins, &NumSSP0Pins, cvPinType}, // SCK, MISO, MOSI, CS
     
 #if HAS_WIFI_NETWORKING
     {"8266wifi.espDataReadyPin", &EspDataReadyPin, nullptr, cvPinType},
@@ -152,6 +152,7 @@ void BoardConfig::Init() noexcept
     //NVIC_SetPriority(DMA_IRQn, NvicPriorityDMA);
     //NVIC_SetPriority(SSP0_IRQn, NvicPrioritySpi);
     //NVIC_SetPriority(SSP1_IRQn, NvicPrioritySpi);
+    delay(10000);
 #if !HAS_MASS_STORAGE
     sd_mmc_init(SdWriteProtectPins, SdSpiCSPins);
 #endif
@@ -226,7 +227,7 @@ void BoardConfig::Init() noexcept
         //Setup the Software SPI Pins
         SPI::getSSPDevice(SWSPI0)->initPins(SoftwareSPIPins[0], SoftwareSPIPins[1], SoftwareSPIPins[2]);
         //Setup the pins for SSP0
-        SPI::getSSPDevice(SSP0)->initPins(SSP0Pins[0], SSP0Pins[1], SSP0Pins[2], SSP0Pins[3]);
+        //SPI::getSSPDevice(SSP1)->initPins(SSP0Pins[0], SSP0Pins[1], SSP0Pins[2], SSP0Pins[3]);
 
 
         //Internal SDCard SPI Frequency
@@ -237,7 +238,7 @@ void BoardConfig::Init() noexcept
         {
             setPullup(SdCardDetectPins[1], true);
             //set the SSP Channel for External SDCard
-            if(ExternalSDCardSSPChannel == SSP0 || ExternalSDCardSSPChannel == SSP1 || ExternalSDCardSSPChannel == SWSPI0)
+            if(ExternalSDCardSSPChannel == SSP1 || ExternalSDCardSSPChannel == SSP2 || ExternalSDCardSSPChannel == SWSPI0)
             {
                 sd_mmc_setSSPChannel(1, ExternalSDCardSSPChannel); //must be called before reinit
             }
