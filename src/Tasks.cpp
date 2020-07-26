@@ -96,6 +96,7 @@ extern "C" void __malloc_unlock (struct _reent *_r) noexcept
 // Application entry point
 extern "C" [[noreturn]] void AppMain() noexcept
 {
+	irqflags_t flags = cpu_irq_save();
 	pinMode(DiagPin, (DiagOnPolarity) ? OUTPUT_LOW : OUTPUT_HIGH);	// set up diag LED for debugging and turn it off
 
 #if !defined(DEBUG) && !defined(__LPC17xx__) && !defined(STM32F4)	// don't check the CRC of a debug build because debugger breakpoints mess up the CRC
@@ -190,6 +191,7 @@ extern "C" [[noreturn]] void AppMain() noexcept
 
 	// Create the startup task
 	mainTask.Create(MainTask, "MAIN", nullptr, TaskPriority::SpinPriority);
+	cpu_irq_restore(flags);
 	vTaskStartScheduler();			// doesn't return
 	for (;;) { }					// keep gcc happy
 }

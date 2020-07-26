@@ -37,7 +37,7 @@ Pin EncoderPinSw = NoPin;           //click
 Pin PanelButtonPin = NoPin;         //Extra button on Viki and RRD Panels (reset/back etc)
 SSPChannel LcdSpiChannel = SSP0;
 
-Pin DiagPin = NoPin;
+Pin DiagPin = PA_7;
 
 //Stepper settings
 Pin ENABLE_PINS[NumDirectDrivers] =     {NoPin, NoPin, NoPin, NoPin, NoPin};
