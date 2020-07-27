@@ -150,8 +150,8 @@ void BoardConfig::Init() noexcept
     // We need to setup DMA and SPI devices before we can use File I/O
     //FIXME need to sort out int priorities
     //NVIC_SetPriority(DMA_IRQn, NvicPriorityDMA);
-    //NVIC_SetPriority(SSP0_IRQn, NvicPrioritySpi);
-    //NVIC_SetPriority(SSP1_IRQn, NvicPrioritySpi);
+    NVIC_SetPriority(DMA2_Stream2_IRQn, NvicPrioritySpi);
+    NVIC_SetPriority(DMA2_Stream3_IRQn, NvicPrioritySpi);
     delay(10000);
 #if !HAS_MASS_STORAGE
     sd_mmc_init(SdWriteProtectPins, SdSpiCSPins);
