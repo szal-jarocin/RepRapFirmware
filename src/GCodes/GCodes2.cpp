@@ -53,7 +53,7 @@
 # include <CAN/ExpansionManager.h>
 #endif
 
-#ifdef __LPC17xx__
+#if defined(__LPC17xx__) || defined(STM32F4)
 #include "BoardConfig.h"
 #endif
 
@@ -1735,7 +1735,7 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeEx
 				{
 					reprap.Diagnostics(mt);
 				}
-#ifdef __LPC17xx__
+#if defined(__LPC17xx__) || defined(STM32F4)
 				else if (type == (unsigned int)DiagnosticTestType::PrintBoardConfiguration)
 					BoardConfig::Diagnostics(mt);
 #endif

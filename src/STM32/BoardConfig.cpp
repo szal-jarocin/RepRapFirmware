@@ -148,6 +148,7 @@ void BoardConfig::Init() noexcept
     FRESULT rslt;
 
     // We need to setup DMA and SPI devices before we can use File I/O
+    SPI::getSSPDevice(SSP1)->initPins(PA_5, PA_6, PB_5, PA_4, DMA2_Stream2, DMA_CHANNEL_3, DMA2_Stream2_IRQn, DMA2_Stream3, DMA_CHANNEL_3, DMA2_Stream3_IRQn);
     //FIXME need to sort out int priorities
     //NVIC_SetPriority(DMA_IRQn, NvicPriorityDMA);
     NVIC_SetPriority(DMA2_Stream2_IRQn, NvicPrioritySpi);
@@ -226,8 +227,8 @@ void BoardConfig::Init() noexcept
         
         //Setup the Software SPI Pins
         SPI::getSSPDevice(SWSPI0)->initPins(SoftwareSPIPins[0], SoftwareSPIPins[1], SoftwareSPIPins[2]);
-        //Setup the pins for SSP0
-        //SPI::getSSPDevice(SSP1)->initPins(SSP0Pins[0], SSP0Pins[1], SSP0Pins[2], SSP0Pins[3]);
+        //Setup the pins for SPI
+        SPI::getSSPDevice(SSP2)->initPins(PB_13, PB_14, PB_15, PB_12, DMA1_Stream3, DMA_CHANNEL_0, DMA1_Stream3_IRQn, DMA1_Stream4, DMA_CHANNEL_0, DMA1_Stream4_IRQn);
 
 
         //Internal SDCard SPI Frequency
@@ -307,29 +308,30 @@ void BoardConfig::Init() noexcept
 
 
 //Convert a pin string into a RRF Pin
-//Handle formats such as 1.23, 1_23, P1_23 or P1.23
+//Handle formats such as A.23, A_23, PA_23 or PA.23
 Pin BoardConfig::StringToPin(const char *strvalue) noexcept
 {
     if(strvalue == nullptr) return NoPin;
     
     if(tolower(*strvalue) == 'p') strvalue++; //skip P
-    
+ debugPrintf("StoP lookup %s\n", strvalue);   
     //check size.. should be 3chars or 4 chars i.e. 0.1, 2.25, 1_23. 2nd char should be . or _
     uint8_t len = strlen(strvalue);
     if((len == 3 || len == 4) && (*(strvalue+1) == '.' || *(strvalue+1) == '_') )
     {
         const char *ptr = nullptr;
-        
-        uint8_t port = StrToI32(strvalue, &ptr);
-        if(ptr > strvalue && port <= 4)
+        const char ch = toupper(*strvalue);
+        uint8_t port = ch - 'A';
+debugPrintf("port %d\n", port);
+        if(port <= 8)
         {
             strvalue+=2;
             uint8_t pin = StrToI32(strvalue, &ptr);
-            
-            if(ptr > strvalue && pin < 32)
+debugPrintf("Pin %d\n", pin);            
+            if(ptr > strvalue && pin < 16)
             {
                 //Convert the Port and Pin to match the arrays in CoreLPC
-                Pin lpcpin = (Pin) ( (port << 5) | pin);
+                Pin lpcpin = (Pin) ( (port << 4) | pin);
                 return lpcpin;
             }
         }
@@ -371,7 +373,7 @@ void BoardConfig::PrintValue(MessageType mtype, configValueType configType, void
                 }
                 else
                 {
-                    reprap.GetPlatform().MessageF(mtype, "%d.%d ", (pin >> 5), (pin & 0x1F) );
+                    reprap.GetPlatform().MessageF(mtype, "%c.%d ", 'A' + (pin >> 4), (pin & 0x1F) );
                 }
             }
             break;
@@ -602,6 +604,7 @@ bool BoardConfig::GetConfigKeys(FIL *configFile, const boardConfigEntry_t *board
     int readLen = ReadLine(configFile, line, maxLineLength);
     while(readLen >= 0)
     {
+    debugPrintf("Process %s\n", line);
         size_t len = (size_t) readLen;
         size_t pos = 0;
         while(pos < len && isSpaceOrTab(line[pos] && line[pos] != 0) == true) pos++; //eat leading whitespace
@@ -624,12 +627,12 @@ bool BoardConfig::GetConfigKeys(FIL *configFile, const boardConfigEntry_t *board
                 //eat whitespace and = if needed
                 while(pos < maxLineLength && line[pos] != 0 && (isSpaceOrTab(line[pos]) == true || line[pos] == '=') ) pos++; //skip spaces and =
 
-                //debugPrintf("Key: %s", key);
+                debugPrintf("Key: %s", key);
 
                 if(pos < len && line[pos] == '{')
                 {
                     // { indicates the start of an array
-                    
+                    debugPrintf(" { ");
                     pos++; //skip the {
 
                     //Array of Values:
@@ -718,7 +721,7 @@ bool BoardConfig::GetConfigKeys(FIL *configFile, const boardConfigEntry_t *board
 
                                         line[pos] = 0; // null terminate the string
 
-                                        //debugPrintf("%s ", valuePtr);
+                                        debugPrintf("%s ", valuePtr);
 
                                         //Put into the Temp Array
                                         if(arrIdx >= 0 && arrIdx<maxArraySize)
@@ -733,6 +736,7 @@ bool BoardConfig::GetConfigKeys(FIL *configFile, const boardConfigEntry_t *board
 
                                     if(closedSuccessfully == true)
                                     {
+                                        debugPrintf("}\n");
                                         //Array Closed - Finished Searching
                                         if(arrIdx >= 0 && arrIdx < maxArraySize) //arrIndx will be -1 if closed before reading any values
                                         {
@@ -778,7 +782,7 @@ bool BoardConfig::GetConfigKeys(FIL *configFile, const boardConfigEntry_t *board
 
                         //overrite the end condition with null....
                         line[pos] = 0; // null terminate the string (the "value")
-                        //debugPrintf(" value is %s\n", valuePtr);
+                        debugPrintf(" value is %s\n", valuePtr);
                         //Find the entry in boardConfigEntryArray using the key
                         //const size_t numConfigs = ARRAY_SIZE(boardConfigs);
                         for(size_t i=0; i<numConfigs; i++)
@@ -787,6 +791,7 @@ bool BoardConfig::GetConfigKeys(FIL *configFile, const boardConfigEntry_t *board
                             //Single Value config entries have nullptr for maxArrayEntries
                             if(next.maxArrayEntries == nullptr && StringEqualsIgnoreCase(key, next.key))
                             {
+                                debugPrintf("Setting value\n");
                                 //match
                                 BoardConfig::SetValueFromString(next.type, next.variable, valuePtr);
                             }

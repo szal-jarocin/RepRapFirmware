@@ -169,7 +169,7 @@ enum class DiagnosticTestType : unsigned int
 	PrintObjectSizes = 105,			// print the sizes of various objects
 	PrintObjectAddresses = 106,		// print the addresses and sizes of various objects
 
-#ifdef __LPC17xx__
+#if defined(__LPC17xx__) || defined(STM32F4)
 	PrintBoardConfiguration = 200,	// Prints out all pin/values loaded from SDCard to configure board
 #endif
 

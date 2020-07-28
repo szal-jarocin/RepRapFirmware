@@ -53,7 +53,7 @@ constexpr Pin APIN_ESP_SPI_MISO = EspMisoPin;
 constexpr Pin APIN_ESP_SPI_SCK = EspSclkPin;
 constexpr IRQn ESP_SPI_IRQn = WiFiSpiSercomIRQn;
 
-#elif defined(__LPC17xx__)
+#elif defined(__LPC17xx__) || defined(STM32F4)
 
 # define USE_PDC            0		// use SAM4 peripheral DMA controller
 # define USE_DMAC           0		// use SAM4 general DMA controller
@@ -61,9 +61,9 @@ constexpr IRQn ESP_SPI_IRQn = WiFiSpiSercomIRQn;
 # define USE_XDMAC          0		// use SAME7 XDMA controller
 
 // Compatibility with existing RRF Code
-constexpr Pin APIN_ESP_SPI_MISO = SPI0_MOSI;
-constexpr Pin APIN_ESP_SPI_SCK = SPI0_SCK;
-constexpr SSPChannel ESP_SPI = SSP0;
+//constexpr Pin APIN_ESP_SPI_MISO = SPI0_MOSI;
+//constexpr Pin APIN_ESP_SPI_SCK = SPI0_SCK;
+//constexpr SSPChannel ESP_SPI = SSP0;
 
 #else
 # error Unknown board
@@ -82,7 +82,7 @@ constexpr SSPChannel ESP_SPI = SSP0;
 #endif
 
 #if SAME5x
-#elif !defined(__LPC17xx__)
+#elif !defined(__LPC17xx__) && !defined(STM32F4)
 # include "matrix/matrix.h"
 #endif
 
@@ -93,7 +93,7 @@ const uint32_t WiFiStableMillis = 100;
 
 const unsigned int MaxHttpConnections = 4;
 
-#ifndef __LPC17xx__
+#if !defined(__LPC17xx__) && !defined(STM32F4)
 // Forward declarations of static functions
 static inline void DisableSpi() noexcept
 {
@@ -206,7 +206,7 @@ static void debugPrintBuffer(const char *msg, void *buf, size_t dataLength) noex
 }
 #endif
 
-#ifdef __LPC17xx__
+#if defined(__LPC17xx__) || defined(STM32F4)
 # include "WiFiInterface_LPC.hpp"
 #endif
 
@@ -572,8 +572,9 @@ void WiFiInterface::Stop() noexcept
 		digitalWrite(SamTfrReadyPin, false);		// tell the ESP we can't receive
 		digitalWrite(EspResetPin, false);			// put the ESP back into reset
 		DisableEspInterrupt();						// ignore IRQs from the transfer request pin
-
-		NVIC_DisableIRQ(ESP_SPI_IRQn);
+#if !defined(STM32F4)
+		NVIC_DisableIRQ(ESP_SPI_IRQn); // Shouldn't DisableSpi do this?
+#endif
 		DisableSpi();
 #if !SAME5x
 		spi_dma_check_rx_complete();
@@ -1300,7 +1301,7 @@ void WiFiInterface::TerminateDataPort() noexcept
 	}
 }
 
-#ifndef __LPC17xx__
+#if !defined(__LPC17xx__) && !defined(STM32F4)
 
 #if USE_PDC
 static Pdc *spi_pdc;
@@ -1735,7 +1736,7 @@ int32_t WiFiInterface::SendCommand(NetworkCommand cmd, SocketNumber socketNum, u
 	WiFiSpiSercom->SPI.INTFLAG.reg = 0xFF;		// clear any pending interrupts
 	WiFiSpiSercom->SPI.INTENSET.reg = SERCOM_SPI_INTENSET_SSL;	// enable the start of transfer (SS low) interrupt
 	EnableSpi();
-#elif defined(__LPC17xx__)
+#elif defined(__LPC17xx__) || defined(STM32F4)
     spi_slave_dma_setup(dataOutLength, dataInLength);
 #else
     // DMA may have transferred an extra word to the SPI transmit data register. We need to clear this.
@@ -1888,7 +1889,7 @@ void WiFiInterface::GetNewStatus() noexcept
 	}
 }
 
-#if !defined(__LPC17xx__)
+#if !defined(__LPC17xx__) && !defined(STM32F4)
 
 # ifndef ESP_SPI_HANDLER
 #  error ESP_SPI_HANDLER not defined
@@ -1963,7 +1964,7 @@ void WiFiInterface::StartWiFi() noexcept
 	{
 		SetPinFunction(p, WiFiUartSercomPinsMode);
 	}
-#elif !defined(__LPC17xx__)
+#elif !defined(__LPC17xx__) && !defined(STM32F4)
 	ConfigurePin(g_APinDescription[APINS_Serial1]);				// connect the pins to UART1
 #endif
 #endif
@@ -2051,7 +2052,7 @@ void WiFiInterface::ResetWiFiForUpload(bool external) noexcept
 		{
 			SetPinFunction(p, WiFiUartSercomPinsMode);
 		}
-#elif defined(__LPC17xx__)
+#elif defined(__LPC17xx__) || defined(STM32F4)
         SERIAL_WIFI_DEVICE.Configure(WifiSerialRxTxPins[0], WifiSerialRxTxPins[1]);
 #else
 		ConfigurePin(g_APinDescription[APINS_Serial1]);				// connect the pins to the UART

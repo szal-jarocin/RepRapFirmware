@@ -268,14 +268,17 @@ extern Pin AuxSerialRxTxPins[NumberSerialPins];
     extern Pin EspDataReadyPin;
     extern Pin SamTfrReadyPin;
     extern Pin EspResetPin;
-    constexpr Pin SamCsPin = P0_16; //CS for SSP0
-    constexpr LPC175X_6X_IRQn_Type ESP_SPI_IRQn = SSP0_IRQn;
+    constexpr Pin SamCsPin = PB_12; //CS for SSP0
+    //constexpr LPC175X_6X_IRQn_Type ESP_SPI_IRQn = SSP0_IRQn;
 
     extern Pin APIN_Serial1_TXD;
     extern Pin APIN_Serial1_RXD;
     extern Pin WifiSerialRxTxPins[NumberSerialPins];
 
-
+    // Compatibility with existing RRF Code
+    constexpr Pin APIN_ESP_SPI_MISO = PB_15;
+    constexpr Pin APIN_ESP_SPI_SCK = PB_13;
+    constexpr SSPChannel ESP_SPI = SSP2;
 #endif
 
 
