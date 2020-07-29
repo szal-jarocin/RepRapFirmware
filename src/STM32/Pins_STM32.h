@@ -65,8 +65,8 @@
     #define HAS_MASS_STORAGE             1
     #define SUPPORT_TELNET               0
 
-    #define BOARD_NAME          "LPC176x Ethernet"
-    #define BOARD_SHORT_NAME    "LPCEth"
+    #define BOARD_NAME          "STM32F4 Ethernet"
+    #define BOARD_SHORT_NAME    "STMEth"
 
 #elif defined(ESP8266WIFI)
     #define HAS_RTOSPLUSTCP_NETWORKING   0
@@ -75,8 +75,8 @@
     #define HAS_MASS_STORAGE             1
     #define SUPPORT_TELNET               0
 
-    #define BOARD_NAME          "LPC176x WiFi"
-    #define BOARD_SHORT_NAME    "LPCWiFi"
+    #define BOARD_NAME          "STM32F4 WiFi"
+    #define BOARD_SHORT_NAME    "STMWiFi"
 
 #elif defined(LPC_SBC)
     #define HAS_RTOSPLUSTCP_NETWORKING   0
@@ -86,8 +86,8 @@
     #define HAS_LINUX_INTERFACE          1
     #define SUPPORT_TELNET               1
 
-    #define BOARD_NAME          "LPC176x SBC"
-    #define BOARD_SHORT_NAME    "LPCSBC"
+    #define BOARD_NAME          "STM32F4 SBC"
+    #define BOARD_SHORT_NAME    "STMSBC"
 
 #else
     #define HAS_RTOSPLUSTCP_NETWORKING   0

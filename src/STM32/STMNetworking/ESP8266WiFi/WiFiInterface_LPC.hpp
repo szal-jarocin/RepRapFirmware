@@ -24,6 +24,7 @@ static inline void spi_dma_disable() noexcept
 static bool spi_dma_check_rx_complete() noexcept
 {
     //DMA Interrupt will notifiy when transfer is complete, just return true here
+    spiDevice->checkComplete();
     return true;
 }
 
@@ -39,7 +40,7 @@ static void spi_slave_dma_setup(uint32_t dataOutSize, uint32_t dataInSize) noexc
     //Find the largest transfer size
     const uint32_t dsize = MAX(dataOutSize, dataInSize) + sizeof(MessageHeaderSamToEsp);
     // clear any previous transaction
-    spiDevice->disable();
+    spiDevice->flushRx();
     spiDevice->startTransfer((const uint8_t *)&bufferOut, (uint8_t *)&bufferIn, dsize, ESP_SPI_HANDLER);
 }
 
@@ -59,6 +60,6 @@ void WiFiInterface::SetupSpi() noexcept
     //In Slave mode, the SSP clock rate provided by the master must not exceed 1/12 of the
     //SSP peripheral clock (which is set to PCLK/1 above), therefore to cater for LPC1768
     //(100MHz) max Master SCK is limited to 8.33MHz
-    spiDevice->configureDevice(SPI_MODE_SLAVE, 8, (uint8_t)SPI_MODE_1, SystemCoreClock/2, true);
+    spiDevice->configureDevice(SPI_MODE_SLAVE, 8, (uint8_t)SPI_MODE_1, 100000000, true);
 }
     

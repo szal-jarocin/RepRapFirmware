@@ -153,6 +153,8 @@ void BoardConfig::Init() noexcept
     //NVIC_SetPriority(DMA_IRQn, NvicPriorityDMA);
     NVIC_SetPriority(DMA2_Stream2_IRQn, NvicPrioritySpi);
     NVIC_SetPriority(DMA2_Stream3_IRQn, NvicPrioritySpi);
+    NVIC_SetPriority(DMA1_Stream3_IRQn, NvicPrioritySpi);
+    NVIC_SetPriority(DMA1_Stream4_IRQn, NvicPrioritySpi);
     delay(10000);
 #if !HAS_MASS_STORAGE
     sd_mmc_init(SdWriteProtectPins, SdSpiCSPins);
@@ -259,7 +261,7 @@ void BoardConfig::Init() noexcept
                 
                 if(!SERIAL_WIFI_DEVICE.Configure(WifiSerialRxTxPins[0], WifiSerialRxTxPins[1]))
                 {
-                    reprap.GetPlatform().MessageF(UsbMessage, "Failed to set WIFI Serial with pins %d.%d and %d.%d.\n", (WifiSerialRxTxPins[0] >> 5), (WifiSerialRxTxPins[0] & 0x1F), (WifiSerialRxTxPins[1] >> 5), (WifiSerialRxTxPins[1] & 0x1F) );
+                    reprap.GetPlatform().MessageF(UsbMessage, "Failed to set WIFI Serial with pins %c.%d and %c.%d.\n", 'A'+(WifiSerialRxTxPins[0] >> 4), (WifiSerialRxTxPins[0] & 0xF), 'A'+(WifiSerialRxTxPins[1] >> 4), (WifiSerialRxTxPins[1] & 0xF) );
                 }
             }
         #endif
@@ -270,7 +272,7 @@ void BoardConfig::Init() noexcept
             {
                 if(!SERIAL_AUX_DEVICE.Configure(AuxSerialRxTxPins[0], AuxSerialRxTxPins[1]))
                 {
-                    reprap.GetPlatform().MessageF(UsbMessage, "Failed to set AUX Serial with pins %d.%d and %d.%d.\n", (AuxSerialRxTxPins[0] >> 5), (AuxSerialRxTxPins[0] & 0x1F), (AuxSerialRxTxPins[1] >> 5), (AuxSerialRxTxPins[1] & 0x1F) );
+                    reprap.GetPlatform().MessageF(UsbMessage, "Failed to set AUX Serial with pins %c.%d and %c.%d.\n", 'A'+(AuxSerialRxTxPins[0] >> 4), (AuxSerialRxTxPins[0] & 0xF), 'A'+(AuxSerialRxTxPins[1] >> 4), (AuxSerialRxTxPins[1] & 0xF) );
                 }
 
             }
@@ -314,7 +316,6 @@ Pin BoardConfig::StringToPin(const char *strvalue) noexcept
     if(strvalue == nullptr) return NoPin;
     
     if(tolower(*strvalue) == 'p') strvalue++; //skip P
- debugPrintf("StoP lookup %s\n", strvalue);   
     //check size.. should be 3chars or 4 chars i.e. 0.1, 2.25, 1_23. 2nd char should be . or _
     uint8_t len = strlen(strvalue);
     if((len == 3 || len == 4) && (*(strvalue+1) == '.' || *(strvalue+1) == '_') )
@@ -322,12 +323,10 @@ Pin BoardConfig::StringToPin(const char *strvalue) noexcept
         const char *ptr = nullptr;
         const char ch = toupper(*strvalue);
         uint8_t port = ch - 'A';
-debugPrintf("port %d\n", port);
         if(port <= 8)
         {
             strvalue+=2;
-            uint8_t pin = StrToI32(strvalue, &ptr);
-debugPrintf("Pin %d\n", pin);            
+            uint8_t pin = StrToI32(strvalue, &ptr);          
             if(ptr > strvalue && pin < 16)
             {
                 //Convert the Port and Pin to match the arrays in CoreLPC
@@ -373,7 +372,7 @@ void BoardConfig::PrintValue(MessageType mtype, configValueType configType, void
                 }
                 else
                 {
-                    reprap.GetPlatform().MessageF(mtype, "%c.%d ", 'A' + (pin >> 4), (pin & 0x1F) );
+                    reprap.GetPlatform().MessageF(mtype, "%c.%d ", 'A' + (pin >> 4), (pin & 0xF) );
                 }
             }
             break;
@@ -604,7 +603,6 @@ bool BoardConfig::GetConfigKeys(FIL *configFile, const boardConfigEntry_t *board
     int readLen = ReadLine(configFile, line, maxLineLength);
     while(readLen >= 0)
     {
-    debugPrintf("Process %s\n", line);
         size_t len = (size_t) readLen;
         size_t pos = 0;
         while(pos < len && isSpaceOrTab(line[pos] && line[pos] != 0) == true) pos++; //eat leading whitespace
@@ -627,12 +625,12 @@ bool BoardConfig::GetConfigKeys(FIL *configFile, const boardConfigEntry_t *board
                 //eat whitespace and = if needed
                 while(pos < maxLineLength && line[pos] != 0 && (isSpaceOrTab(line[pos]) == true || line[pos] == '=') ) pos++; //skip spaces and =
 
-                debugPrintf("Key: %s", key);
+                //debugPrintf("Key: %s", key);
 
                 if(pos < len && line[pos] == '{')
                 {
                     // { indicates the start of an array
-                    debugPrintf(" { ");
+                    //debugPrintf(" { ");
                     pos++; //skip the {
 
                     //Array of Values:
@@ -721,7 +719,7 @@ bool BoardConfig::GetConfigKeys(FIL *configFile, const boardConfigEntry_t *board
 
                                         line[pos] = 0; // null terminate the string
 
-                                        debugPrintf("%s ", valuePtr);
+                                        //debugPrintf("%s ", valuePtr);
 
                                         //Put into the Temp Array
                                         if(arrIdx >= 0 && arrIdx<maxArraySize)
@@ -736,7 +734,7 @@ bool BoardConfig::GetConfigKeys(FIL *configFile, const boardConfigEntry_t *board
 
                                     if(closedSuccessfully == true)
                                     {
-                                        debugPrintf("}\n");
+                                        //debugPrintf("}\n");
                                         //Array Closed - Finished Searching
                                         if(arrIdx >= 0 && arrIdx < maxArraySize) //arrIndx will be -1 if closed before reading any values
                                         {
@@ -782,7 +780,7 @@ bool BoardConfig::GetConfigKeys(FIL *configFile, const boardConfigEntry_t *board
 
                         //overrite the end condition with null....
                         line[pos] = 0; // null terminate the string (the "value")
-                        debugPrintf(" value is %s\n", valuePtr);
+                        //debugPrintf(" value is %s\n", valuePtr);
                         //Find the entry in boardConfigEntryArray using the key
                         //const size_t numConfigs = ARRAY_SIZE(boardConfigs);
                         for(size_t i=0; i<numConfigs; i++)
@@ -791,7 +789,7 @@ bool BoardConfig::GetConfigKeys(FIL *configFile, const boardConfigEntry_t *board
                             //Single Value config entries have nullptr for maxArrayEntries
                             if(next.maxArrayEntries == nullptr && StringEqualsIgnoreCase(key, next.key))
                             {
-                                debugPrintf("Setting value\n");
+                                //debugPrintf("Setting value\n");
                                 //match
                                 BoardConfig::SetValueFromString(next.type, next.variable, valuePtr);
                             }

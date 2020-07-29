@@ -28,7 +28,7 @@ const size_t NumNetworkInterfaces = 1;
 # error Wrong Network.h file included
 #endif
 
-#if defined(__LPC17xx__)
+#if defined(__LPC17xx__) || defined(STM32F4)
 // Only 2 http responders as we are tight on memory.
 const size_t NumHttpResponders = 2;		// the number of concurrent HTTP requests we can process
 const size_t NumFtpResponders = 0;		// the number of concurrent FTP sessions we support
