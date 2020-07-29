@@ -31,9 +31,9 @@ constexpr PinEntry PinTable_BIQU_SKR_v1_1[] =
     {P2_3,  PinCapability::wpwm, "fan0,fan" },
 
     //Exp1
-    {P0_15, PinCapability::rwpwm, "0.15"}, //SSP0 SCK
+    {P0_15, PinCapability::rwpwm, "P0.15"}, //SSP0 SCK
     {P0_16, PinCapability::rwpwm, "P0.16"},
-    {P0_18, PinCapability::rwpwmrw, "0.18"}, //SSP0 MOSI
+    {P0_18, PinCapability::rwpwmrw, "P0.18"}, //SSP0 MOSI
     {P2_11, PinCapability::rwpwm, "P2.11"},
     {P1_30, PinCapability::rwpwm, "P1.30"},
 
@@ -43,7 +43,7 @@ constexpr PinEntry PinTable_BIQU_SKR_v1_1[] =
     {P3_25, PinCapability::rwpwm, "P3.25"},
     {P1_23, PinCapability::rwpwm, "P1.23"},
     {P3_26, PinCapability::rwpwm, "P3.26"},
-    {P0_17, PinCapability::rwpwm, "0.17"}, //SSP0 MISO
+    {P0_17, PinCapability::rwpwm, "P0.17"}, //SSP0 MISO
 
     //LCD/SD/SPI header (most overlap with exp1/2)
     //0.15
