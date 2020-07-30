@@ -301,7 +301,8 @@ void BoardConfig::Init() noexcept
 
         //Init Diagnostcs Pin
         pinMode(DiagPin, OUTPUT_LOW);
-        
+        // Set ADC output resolution
+        analogReadResolution(12);
         //Configure ADC pre filter
         //FIXME will we have one of these
         //ConfigureADCPreFilter(ADCEnablePreFilter);

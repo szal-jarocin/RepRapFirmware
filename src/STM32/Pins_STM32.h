@@ -38,7 +38,7 @@
 
 // Features definition
 #define SUPPORT_OBJECT_MODEL             1
-#define HAS_CPU_TEMP_SENSOR		         0	// enabling the CPU temperature sensor disables Due pin 13 due to bug in SAM3X
+#define HAS_CPU_TEMP_SENSOR		         1	// enabling the CPU temperature sensor disables Due pin 13 due to bug in SAM3X
 #define HAS_HIGH_SPEED_SD		         0
 #define HAS_VOLTAGE_MONITOR		         0
 #define ACTIVE_LOW_HEAT_ON		         0
