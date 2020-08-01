@@ -155,6 +155,7 @@ void BoardConfig::Init() noexcept
     NVIC_SetPriority(DMA2_Stream3_IRQn, NvicPrioritySpi);
     NVIC_SetPriority(DMA1_Stream3_IRQn, NvicPrioritySpi);
     NVIC_SetPriority(DMA1_Stream4_IRQn, NvicPrioritySpi);
+    NVIC_SetPriority(DMA2_Stream0_IRQn, 4);
     delay(10000);
 #if !HAS_MASS_STORAGE
     sd_mmc_init(SdWriteProtectPins, SdSpiCSPins);
@@ -303,6 +304,7 @@ void BoardConfig::Init() noexcept
         pinMode(DiagPin, OUTPUT_LOW);
         // Set ADC output resolution
         analogReadResolution(12);
+        AnalogInInit();
         //Configure ADC pre filter
         //FIXME will we have one of these
         //ConfigureADCPreFilter(ADCEnablePreFilter);
@@ -810,6 +812,10 @@ bool BoardConfig::GetConfigKeys(FIL *configFile, const boardConfigEntry_t *board
     return false;
 }
 
+void assert_failed(uint8_t *file, uint32_t line)
+{
+    debugPrintf("Assert failed file %s line %d\n", file, line);
+}
 #if HAS_LINUX_INTERFACE
 
 // Routines to support firmware update from the Linux SBC.
