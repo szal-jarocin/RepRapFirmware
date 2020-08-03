@@ -27,9 +27,10 @@ constexpr PinEntry PinTable_BIQU_SKR_PRO_v1_1[] =
 	{PA_2, PinCapability::rwpwm, "probe"},
 	
     //Heaters and Fans (Big and Small Mosfets}
-    {PB_0,  PinCapability::wpwm, "bed,hbed" },
+    {PD_12,  PinCapability::wpwm, "bed,hbed" },
     {PB_1,  PinCapability::wpwm, "e0heat,he0" },
     {PD_14,  PinCapability::wpwm, "e1heat,he1" },
+    {PB_0,  PinCapability::wpwm, "e2heat,he2" },
     {PC_8,  PinCapability::wpwm, "fan0,fan" },
     {PE_5,  PinCapability::wpwm, "fan1" },
     {PE_6,  PinCapability::wpwm, "fan2" },

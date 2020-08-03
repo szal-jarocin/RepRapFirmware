@@ -284,8 +284,8 @@ extern Pin AuxSerialRxTxPins[NumberSerialPins];
 
 //Timer 0 is used for Step Generation
 #define STEP_TC             (TIM2)
-#define STEP_TC_IRQN        TIMER0_IRQn
-#define STEP_TC_HANDLER     TIMER0_IRQHandler
+#define STEP_TC_IRQN        TIM2_IRQn
+#define STEP_TC_HANDLER     STEP_TC_IRQHandler
 
 extern volatile uint32_t BrownoutEvents;
 

@@ -14,7 +14,9 @@
 int lateTimers = 0;
 # endif
 #elif defined(STM32F4)
-// nothing to do at the moment
+HardwareTimer STimer(STEP_TC);
+TIM_HandleTypeDef *STHandle;
+extern "C" void STEP_TC_HANDLER(HardwareTimer *) noexcept __attribute__ ((hot));
 #elif SAME5x
 # include <CoreIO.h>
 #else
@@ -74,6 +76,19 @@ void StepTimer::Init() noexcept
 	STEP_TC->TCR = (1 <<SBIT_CNTEN);							    // Start Timer
 #elif defined(STM32F4)
 	//FIXME need to setup the timer (probably TIM2 as that is 32 bit)
+	uint32_t preScale = STimer.getTimerClkFreq()/StepClockRate;
+	debugPrintf("ST base freq %d setting presacle %d\n", static_cast<int>(STimer.getTimerClkFreq()), static_cast<int>(preScale));
+	STimer.setPrescaleFactor(preScale);
+	STimer.setOverflow(0, TICK_FORMAT);
+	STimer.attachInterrupt(1, STEP_TC_HANDLER);
+	STimer.setMode(1, TIMER_OUTPUT_COMPARE);
+	STHandle = &(HardwareTimer_Handle[get_timer_index(TIM2)]->handle);
+	STimer.setCaptureCompare(1, 1000, TICK_COMPARE_FORMAT);
+	NVIC_SetPriority(STEP_TC_IRQN, NvicPriorityStep);			    // Set the priority for this IRQ
+	STimer.resume();
+	__HAL_TIM_DISABLE_IT(STHandle, TIM_IT_CC1);STimer.setCaptureCompare(1, 1000, TICK_COMPARE_FORMAT);
+	//NVIC_SetPriority(TIM2_IRQn, NvicPriorityStep);			    // Set the priority for this IRQ
+	
 #else
 	pmc_set_writeprotect(false);
 	pmc_enable_periph_clk(STEP_TC_ID);
@@ -178,7 +193,8 @@ bool StepTimer::ScheduleTimerInterrupt(uint32_t tim) noexcept
 		lateTimers++;
 # endif
 #elif defined(STM32F4)
-	//FIXME 
+	__HAL_TIM_SET_COMPARE(STHandle, TIM_CHANNEL_1, tim);
+	__HAL_TIM_ENABLE_IT(STHandle, TIM_IT_CC1);
 #else
 	STEP_TC->TC_CHANNEL[STEP_TC_CHAN].TC_RB = tim;					// set up the compare register
 	(void)STEP_TC->TC_CHANNEL[STEP_TC_CHAN].TC_SR;					// read the status register, which clears the status bits and any pending interrupt
@@ -195,7 +211,7 @@ void StepTimer::DisableTimerInterrupt() noexcept
 #elif defined(__LPC17xx__)
 	STEP_TC->MCR &= ~(1u<<SBIT_MR0I);								 // disable Int on MR1
 #elif defined(STM32F4)
-	//FIXME
+	__HAL_TIM_DISABLE_IT(STHandle, TIM_IT_CC1);STimer.setCaptureCompare(1, 1000, TICK_COMPARE_FORMAT);
 #else
 	STEP_TC->TC_CHANNEL[STEP_TC_CHAN].TC_IDR = TC_IER_CPBS;
 #endif
@@ -230,9 +246,14 @@ void StepTimer::DisableTimerInterrupt() noexcept
 }
 
 // Step pulse timer interrupt
+#if defined(STM32F4)
+extern "C" void STEP_TC_HANDLER(HardwareTimer *) noexcept __attribute__ ((hot));
+void STEP_TC_HANDLER(HardwareTimer * notused) noexcept
+#else
 extern "C" void STEP_TC_HANDLER() noexcept __attribute__ ((hot));
 
 void STEP_TC_HANDLER() noexcept
+#endif
 {
 #if SAME5x
 	uint8_t tcsr = StepTc->INTFLAG.reg;								// read the status register, which clears the status bits
@@ -249,7 +270,7 @@ void STEP_TC_HANDLER() noexcept
 		STEP_TC->IR |= (1u<<SBIT_MRI0_IFM);							// clear interrupt
 		STEP_TC->MCR  &= ~(1u<<SBIT_MR0I);							// Disable Int on MR0
 #elif defined(STM32F4)
-	//FIXME
+	__HAL_TIM_DISABLE_IT(STHandle, TIM_IT_CC1);STimer.setCaptureCompare(1, 1000, TICK_COMPARE_FORMAT);
 	{
 #else
 	// ATSAM processor code
