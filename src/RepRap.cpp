@@ -839,12 +839,17 @@ void RepRap::EmergencyStop() noexcept
 	platform->StopLogging();
 }
 
+void showStack(uint32_t s1, uint32_t s2, uint32_t s3, uint32_t s4)
+{
+	debugPrintf("Stack is %x %x %x %x\n", s1, s2, s3, s4);
+}
+
 // Perform a software reset. 'stk' points to the program counter on the stack if the cause is an exception, otherwise it is nullptr.
 void RepRap::SoftwareReset(uint16_t reason, const uint32_t *stk) noexcept
 {
 	cpu_irq_disable();							// disable interrupts before we call any flash functions. We don't enable them again.
 	watchdogReset();							// kick the watchdog
-
+showStack(stk[0], stk[1], stk[2], stk[3]);
 #if SAM4E || SAME70
 	rswdt_restart(RSWDT);						// kick the secondary watchdog
 #endif

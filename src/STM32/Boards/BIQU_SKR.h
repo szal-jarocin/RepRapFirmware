@@ -70,7 +70,7 @@ constexpr BoardDefaults biquskr_pro_1_1_Defaults = {
     {PF_2, PD_7,  PC_0, PC_3,  PA_3, PF_0},    //enablePins
     {PE_9, PE_11, PE_13, PE_14,  PD_15, PD_13},    //stepPins
     {PF_1, PE_8, PC_2, PA_0,  PE_7, PG_9},    //dirPins
-#if LPC_TMC_SOFT_UART
+#if TMC_SOFT_UART
     {PC_13, PE_3, PE_1, PD_4, PD_1, PD_6},        //uartPins
     6,                                      // Smart drivers
 #endif

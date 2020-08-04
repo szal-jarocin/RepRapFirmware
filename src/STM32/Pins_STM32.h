@@ -105,9 +105,9 @@
 // The physical capabilities of the machine
 constexpr size_t NumDirectDrivers = 6;               // The maximum number of drives supported by the electronics
 #if defined(SUPPORT_TMC22xx)
-    constexpr size_t MaxSmartDrivers = 5;            // The maximum number of smart drivers
+    constexpr size_t MaxSmartDrivers = NumDirectDrivers;            // The maximum number of smart drivers
     constexpr size_t NumTmcDriversSenseChannels = 1;
-    #define LPC_TMC_SOFT_UART 1
+    #define TMC_SOFT_UART 1
     #define TMC22xx_HAS_ENABLE_PINS			1
     #define TMC22xx_VARIABLE_NUM_DRIVERS	0
     #define TMC22xx_USE_SLAVEADDR 0
@@ -115,7 +115,7 @@ constexpr size_t NumDirectDrivers = 6;               // The maximum number of dr
 
 #else
     constexpr size_t MaxSmartDrivers = 0;            // The maximum number of smart drivers
-    #define LPC_TMC_SOFT_UART 0
+    #define TMC_SOFT_UART 0
 #endif
 
 constexpr size_t MaxSensors = 32;
@@ -159,7 +159,7 @@ extern Pin DIRECTION_PINS[NumDirectDrivers];
 #if SUPPORT_TMC22xx
 extern Pin DIAG_PINS[NumDirectDrivers];
 #endif
-#if LPC_TMC_SOFT_UART
+#if TMC_SOFT_UART
     extern Pin TMC_UART_PINS[NumDirectDrivers];
     constexpr Pin GlobalTmc22xxEnablePin = NoPin;			// The pin that drives ENN of all drivers
     constexpr uint32_t DriversBaudRate = 50000;
@@ -353,7 +353,7 @@ struct BoardDefaults
     const Pin enablePins[NumDirectDrivers];
     const Pin stepPins[NumDirectDrivers];
     const Pin dirPins[NumDirectDrivers];
-#if LPC_TMC_SOFT_UART
+#if TMC_SOFT_UART
     const Pin uartPins[NumDirectDrivers];
     const uint32_t numSmartDrivers;
 #endif

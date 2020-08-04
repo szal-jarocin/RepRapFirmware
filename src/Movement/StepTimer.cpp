@@ -75,18 +75,17 @@ void StepTimer::Init() noexcept
 	NVIC_EnableIRQ(STEP_TC_IRQN);
 	STEP_TC->TCR = (1 <<SBIT_CNTEN);							    // Start Timer
 #elif defined(STM32F4)
-	//FIXME need to setup the timer (probably TIM2 as that is 32 bit)
 	uint32_t preScale = STimer.getTimerClkFreq()/StepClockRate;
 	debugPrintf("ST base freq %d setting presacle %d\n", static_cast<int>(STimer.getTimerClkFreq()), static_cast<int>(preScale));
 	STimer.setPrescaleFactor(preScale);
 	STimer.setOverflow(0, TICK_FORMAT);
 	STimer.attachInterrupt(1, STEP_TC_HANDLER);
 	STimer.setMode(1, TIMER_OUTPUT_COMPARE);
-	STHandle = &(HardwareTimer_Handle[get_timer_index(TIM2)]->handle);
+	STHandle = &(HardwareTimer_Handle[get_timer_index(STEP_TC)]->handle);
 	STimer.setCaptureCompare(1, 1000, TICK_COMPARE_FORMAT);
 	NVIC_SetPriority(STEP_TC_IRQN, NvicPriorityStep);			    // Set the priority for this IRQ
 	STimer.resume();
-	__HAL_TIM_DISABLE_IT(STHandle, TIM_IT_CC1);STimer.setCaptureCompare(1, 1000, TICK_COMPARE_FORMAT);
+	__HAL_TIM_DISABLE_IT(STHandle, TIM_IT_CC1);
 	//NVIC_SetPriority(TIM2_IRQn, NvicPriorityStep);			    // Set the priority for this IRQ
 	
 #else

@@ -546,7 +546,7 @@ const uint32_t NvicPriorityPanelDueUart = 3;	// UART is next we have a 16 byte F
 constexpr uint32_t NvicPriorityADC = 4;
 constexpr uint32_t NvicPriorityTimerServo = 5;
 // decide what priority to run DMA operations at
-# if LPC_TMC_SOFT_UART
+# if TMC_SOFT_UART
    const uint32_t NvicPriorityDMA = NvicPriorityDriversSerialTMC;
 # else
    const uint32_t NvicPriorityDMA = NvicPriorityADC;

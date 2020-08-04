@@ -5,7 +5,7 @@
  *      Author: David
  */
 // On the LPC17xx platform we have a replacement for this
-#ifndef __LPC17xx__
+#if !defined(__LPC17xx__) && !defined(STM32F4)
 #include "RepRapFirmware.h"
 
 #if SUPPORT_TMC22xx

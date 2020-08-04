@@ -539,7 +539,7 @@ void Platform::Init() noexcept
 	numSmartDrivers = MaxSmartDrivers;
 # elif defined(DUET3)
 	numSmartDrivers = MaxSmartDrivers;
-# elif defined(__LPC17xx__)
+# elif defined(__LPC17xx__) || defined(STM32F4)
 	numSmartDrivers = lpcSmartDrivers;
 # elif defined(DUET_5LC)
 	numSmartDrivers = MaxSmartDrivers;							// support the expansion board, but don't mind if it's missing
@@ -1675,7 +1675,7 @@ void Platform::InitialiseInterrupts() noexcept
 // WiFi UART interrupt priority is now set in module WiFiInterface
 
 #if SUPPORT_TMC22xx && !SAME5x											// SAME5x uses a DMA interrupt instead of the UART interrupt
-# if LPC_TMC_SOFT_UART
+# if TMC_SOFT_UART
 	// Nothing to do
 # elif TMC22xx_HAS_MUX
 	NVIC_SetPriority(TMC22xx_UART_IRQn, NvicPriorityDriversSerialTMC);	// set priority for TMC2660 SPI interrupt
@@ -4306,7 +4306,7 @@ float Platform::GetTmcDriversTemperature(unsigned int board) const noexcept
 	const DriversBitmap mask = DriversBitmap::MakeLowestNBits(5);						// all drivers (0-4) are on the DueX, no further expansion supported
 #elif defined(PCCB_08)
 	const DriversBitmap mask = DriversBitmap::MakeLowestNBits(2);						// drivers 0, 1 are on-board, no expansion supported
-#elif defined(__LPC17xx__)
+#elif defined(__LPC17xx__) || defined(STM32F4)
 	const DriversBitmap mask = DriversBitmap::MakeLowestNBits(MaxSmartDrivers);			// All drivers
 #else
 # error Undefined board

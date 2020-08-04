@@ -28,7 +28,7 @@
 
 
 // Soft UART implementation
-#if LPC_TMC_SOFT_UART
+#if TMC_SOFT_UART
 
 #define SU_READ_OVERSAMPLE 4
 #define SU_WRITE_OVERSAMPLE 4
@@ -315,14 +315,14 @@ static void DmaStart()
 }
 
 
-void LPCSoftUARTAbort() noexcept
+void TMCSoftUARTAbort() noexcept
 {
 	SUState = SUStates::idle;
 	if (SUPin != NoPin)
     	pinMode(SUPin, OUTPUT_HIGH);
 }
 
-void LPCSoftUARTStartTransfer(uint8_t driver, volatile uint8_t *WritePtr, uint32_t WriteCnt, volatile uint8_t *ReadPtr, uint32_t ReadCnt) noexcept
+void TMCSoftUARTStartTransfer(uint8_t driver, volatile uint8_t *WritePtr, uint32_t WriteCnt, volatile uint8_t *ReadPtr, uint32_t ReadCnt) noexcept
 {
 	SUPin = TMC_UART_PINS[driver];
 	if (SUPin != NoPin)
@@ -344,7 +344,7 @@ void LPCSoftUARTStartTransfer(uint8_t driver, volatile uint8_t *WritePtr, uint32
 	}
 }
 
-bool LPCSoftUARTCheckComplete() noexcept
+bool TMCSoftUARTCheckComplete() noexcept
 {
 	if (SUState == SUStates::complete)
 	{
@@ -360,7 +360,7 @@ bool LPCSoftUARTCheckComplete() noexcept
     return false;
 }
 
-void LPCSoftUARTInit() noexcept
+void TMCSoftUARTInit() noexcept
 {
 	InitialiseDMA();
     AttachDMAChannelInterruptHandler(DmaInterrupt, DMA_TIMER_MAT3_0);
@@ -379,9 +379,9 @@ void LPCSoftUARTInit() noexcept
 	SUState = SUStates::idle;
 }
 
-void LPCSoftUARTShutdown() noexcept
+void TMCSoftUARTShutdown() noexcept
 {
-	LPCSoftUARTAbort();
+	TMCSoftUARTAbort();
 }
 
 #endif

@@ -39,7 +39,7 @@ static const boardConfigEntry_t boardConfigs[]=
     {"stepper.stepPins", STEP_PINS, &MaxTotalDrivers, cvPinType},
     {"stepper.directionPins", DIRECTION_PINS, &MaxTotalDrivers, cvPinType},
     {"stepper.digipotFactor", &digipotFactor, nullptr, cvFloatType},
-#if LPC_TMC_SOFT_UART
+#if TMC_SOFT_UART
     {"stepper.TmcUartPins", TMC_UART_PINS, &MaxTotalDrivers, cvPinType},
     {"stepper.numSmartDrivers", &lpcSmartDrivers, nullptr, cvUint32Type},
 #endif
