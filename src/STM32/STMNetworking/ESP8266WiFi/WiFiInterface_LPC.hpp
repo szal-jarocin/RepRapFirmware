@@ -57,9 +57,6 @@ void WiFiInterface::SpiInterrupt() noexcept
 void WiFiInterface::SetupSpi() noexcept
 {
     spiDevice = &HardwareSPI::SSP2;
-    //In Slave mode, the SSP clock rate provided by the master must not exceed 1/12 of the
-    //SSP peripheral clock (which is set to PCLK/1 above), therefore to cater for LPC1768
-    //(100MHz) max Master SCK is limited to 8.33MHz
     spiDevice->configureDevice(SPI_MODE_SLAVE, 8, (uint8_t)SPI_MODE_1, 100000000, true);
 }
     

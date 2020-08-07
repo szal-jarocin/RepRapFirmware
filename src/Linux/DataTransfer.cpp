@@ -31,9 +31,9 @@
 # define USE_DMAC_MANAGER	1		// use SAME5x DmacManager module
 constexpr IRQn SBC_SPI_IRQn = SbcSpiSercomIRQn;
 
-#elif defined(__LPC17xx__)
+#elif defined(__LPC17xx__) || defined(STM32F4)
 # define USE_DMAC           0
-#define  USE_XDMAC          0
+# define  USE_XDMAC          0
 #else
 # error Unknown board
 #endif
@@ -63,7 +63,7 @@ constexpr IRQn SBC_SPI_IRQn = SbcSpiSercomIRQn;
 
 #include <General/IP4String.h>
 
-#ifndef __LPC17xx__
+#if !defined(__LPC17xx__) && !defined(STM32F4)
 #if USE_DMAC
 
 // Hardware IDs of the SPI transmit and receive DMA interfaces. See atsam datasheet.
@@ -365,7 +365,11 @@ extern "C" void SBC_SPI_HANDLER() noexcept
 }
 
 #else
+#if defined(__LPC17xx__)
 # include "LPC/Linux/DataTransfer_LPC.hpp"
+#elif defined(STM32F4)
+# include "STM32/Linux/DataTransfer_LPC.hpp"
+#endif
 #endif
 /*-----------------------------------------------------------------------------------*/
 
@@ -397,7 +401,7 @@ void DataTransfer::Init() noexcept
 	// Initialise transfer ready pin
 	pinMode(SbcTfrReadyPin, OUTPUT_LOW);
 	// Initialize SPI pins
-#if defined(__LPC17xx__)
+#if defined(__LPC17xx__) || defined(STM32F4)
     InitSpi();
 #elif SAME5x
 	for (Pin p : SbcSpiSercomPins)
@@ -681,7 +685,7 @@ bool DataTransfer::IsReady() noexcept
 {
 	if (dataReceived)
 	{
-#ifndef __LPC17xx__
+#if !defined(__LPC17xx__) && !defined(STM32F4)
 #if SAME5x
 		if (!digitalRead(SbcSSPin))			// transfer is complete if SS is high
 		{
@@ -1374,7 +1378,7 @@ uint16_t DataTransfer::CRC16(const char *buffer, size_t length) const noexcept
 }
 
 
-#ifdef __LPC17xx__
+#if defined(__LPC17xx__) || defined(STM32F4)
 
 // Additional methods to emulate the Duet3 IAP. This allows us to
 // use the standard firmware update routines from the DSF for updating

@@ -19,7 +19,7 @@
 #include "RepRap.h"
 #include "RepRapFirmware.h"
 #include <Hardware/Cache.h>
-#ifdef __LPC17xx__
+#if defined(__LPC17xx__) || defined(STM32F4)
 #include "LPC/BoardConfig.h"
 #endif
 
@@ -256,7 +256,7 @@ void LinuxInterface::Spin()
 					break;
 				}
 
-#ifdef __LPC17xx__
+#if defined(__LPC17xx__) || defined(STM32F4)
 				// On the LPC we repurpose the IAP code to download the firmware update data.
 				// on the Duet this is a two stage process (IAP followed by firmware), but we
 				// do not need the IAP and can instead use the error checked IAP download for
@@ -429,7 +429,7 @@ void LinuxInterface::Spin()
 				{
 					const GCodeChannel channel(i);
 					GCodeBuffer * const gb = reprap.GetGCodes().GetGCodeBuffer(channel);
-#ifdef __LPC17xx__
+#if defined(__LPC17xx__) || defined(STM32F4)
 					if (gb == nullptr)
 					{
 						//reprap.GetPlatform().MessageF(DebugMessage, "Unable to get requested channel buffer %d\n", i);

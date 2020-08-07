@@ -820,6 +820,8 @@ void assert_failed(uint8_t *file, uint32_t line)
 {
     debugPrintf("Assert failed file %s line %d\n", file, line);
 }
+
+
 #if HAS_LINUX_INTERFACE
 
 // Routines to support firmware update from the Linux SBC.
