@@ -378,6 +378,10 @@ extern "C"
     void WDT_IRQHandler() noexcept
     {
     	LPC_WWDT->MOD &=~((uint32_t)(1<<2)); //SD::clear timout flag before resetting to prevent the Smoothie bootloader going into DFU mode
+#elif defined(STM32F4)
+	[[noreturn]] void WWDG_IRQHandler() noexcept __attribute__((naked));
+	void WWDG_IRQHandler() noexcept
+	{
 #else
     [[noreturn]] void WDT_Handler() noexcept __attribute__((naked));
 	void WDT_Handler() noexcept

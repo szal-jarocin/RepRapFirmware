@@ -138,6 +138,17 @@ BoardConfig::BoardConfig() noexcept
     
 }
 
+static void FatalError(const char* fmt, ...)
+{
+    for(;;)
+    {
+        va_list vargs;
+        va_start(vargs, fmt);
+        reprap.GetPlatform().MessageF(DebugMessage, fmt, vargs);
+        va_end(vargs);
+        delay(2000);
+    }
+}
 
 void BoardConfig::Init() noexcept
 {
@@ -171,17 +182,15 @@ void BoardConfig::Init() noexcept
         rslt = f_open (&configFile, boardConfigPath, FA_READ);
         if (rslt != FR_OK)
         {
-            delay(3000);        // Wait a few seconds so users have a chance to see this
-            reprap.GetPlatform().MessageF(UsbMessage, "Unable to read board configuration: %s...\n",boardConfigPath );
             f_unmount ("0:");
+            FatalError("Unable to read board configuration: %s...\n",boardConfigPath );
             return;
         }
     }
     else
     {
         // failed to mount card
-        delay(3000);        // Wait a few seconds so users have a chance to see this
-        reprap.GetPlatform().MessageF(UsbMessage, "Failed to mount sd card\n");
+        FatalError("Failed to mount sd card\n");
         return;
     }
     if(rslt == FR_OK)
@@ -195,7 +204,7 @@ void BoardConfig::Init() noexcept
         if(!SetBoard(lpcBoardName)) // load the Correct PinTable for the defined Board (RRF3)
         {
             //Failed to find string in known boards array
-            reprap.GetPlatform().MessageF(UsbMessage, "Unknown board: %s\n", lpcBoardName );
+            FatalError("Unknown board: %s\n", lpcBoardName );
             SafeStrncpy(lpcBoardName, "generic", 8); //replace the string in lpcBoardName to "generic"
         }
 

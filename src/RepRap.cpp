@@ -839,21 +839,18 @@ void RepRap::EmergencyStop() noexcept
 	platform->StopLogging();
 }
 
-void showStack(uint32_t s1, uint32_t s2, uint32_t s3, uint32_t s4)
-{
-	debugPrintf("Stack is %x %x %x %x\n", s1, s2, s3, s4);
-}
 
 // Perform a software reset. 'stk' points to the program counter on the stack if the cause is an exception, otherwise it is nullptr.
 void RepRap::SoftwareReset(uint16_t reason, const uint32_t *stk) noexcept
 {
 	cpu_irq_disable();							// disable interrupts before we call any flash functions. We don't enable them again.
 	watchdogReset();							// kick the watchdog
-showStack(stk[0], stk[1], stk[2], stk[3]);
 #if SAM4E || SAME70
 	rswdt_restart(RSWDT);						// kick the secondary watchdog
 #endif
-
+#if defined(STM32F4)
+	watchdogDisable();
+#endif
 	Cache::Disable();
 
 #if USE_MPU
@@ -917,8 +914,8 @@ showStack(stk[0], stk[1], stk[2], stk[3]);
 # error
 #endif
 		{
-#if defined(__LPC17xx__)
-            while (slot != 0 && LPC_IsSoftwareResetDataSlotVacant(slot - 1))
+#if defined(__LPC17xx__) || defined(STM32F4)
+            while (slot != 0 && IsSoftwareResetDataSlotVacant(slot - 1))
 #else
             while (slot != 0 && srdBuf[slot - 1].isVacant())
 #endif
@@ -932,8 +929,8 @@ showStack(stk[0], stk[1], stk[2], stk[3]);
 			// No free slots, so erase the area
 #if SAM4E || SAM4S || SAME70
 			flash_erase_user_signature();
-#elif defined(__LPC17xx__)
-			LPC_EraseSoftwareResetDataSlots(); // erase the last flash sector
+#elif defined(__LPC17xx__) || defined(STM32F4)
+			EraseSoftwareResetDataSlots(); // erase the last flash sector
 #endif
 			memset(srdBuf, 0xFF, sizeof(srdBuf));
 			slot = 0;
@@ -950,10 +947,8 @@ showStack(stk[0], stk[1], stk[2], stk[3]);
         // TODO write to EEPROM
 #elif SAM4E || SAM4S || SAME70
 		flash_write_user_signature(srdBuf, sizeof(srdBuf)/sizeof(uint32_t));
-#elif defined(__LPC17xx__)
-		LPC_WriteSoftwareResetData(slot, srdBuf, sizeof(srdBuf));
-#elif defined(STM32F4)
-// FIXME write reset data to flash
+#elif defined(__LPC17xx__) || defined(STM32F4)
+		WriteSoftwareResetData(slot, srdBuf, sizeof(srdBuf));
 #else
 		DueFlashStorage::write(SoftwareResetData::nvAddress, srdBuf, sizeof(srdBuf));
 #endif

@@ -159,6 +159,9 @@ int debugLine = 0;
 // Therefore, be very careful what you do here!
 extern "C" void UrgentInit()
 {
+#if defined(STM32F4)
+	InitResetCause();
+#endif
 #if defined(DUET_NG)
 	// When the reset button is pressed on pre-production Duet WiFi boards, if the TMC2660 drivers were previously enabled then we get
 	// uncommanded motor movements if the STEP lines pick up any noise. Try to reduce that by initialising the pins that control the drivers early here.
@@ -1831,17 +1834,22 @@ void Platform::Diagnostics(MessageType mtype) noexcept
 		Message(mtype, "Last software reset details not available\n");
 #else
 	{
-#if defined(__LPC17xx__)
+#if defined(__LPC17xx__) || defined(STM32F4)
 		// Reset Reason
 		MessageF(mtype, "Last reset %02d:%02d:%02d ago, cause: ",
 				 (unsigned int)(now/3600), (unsigned int)((now % 3600)/60), (unsigned int)(now % 60));
 
+# if defined(__LPC17xx__)
 		if (LPC_SYSCTL->RSID & RSID_POR) { MessageF(mtype, "[power up]"); }
 		if (LPC_SYSCTL->RSID & RSID_EXTR) { MessageF(mtype, "[reset button]"); }
 		if (LPC_SYSCTL->RSID & RSID_WDTR) { MessageF(mtype, "[watchdog]"); }
 		if (LPC_SYSCTL->RSID & RSID_BODR) { MessageF(mtype, "[brownout]"); }
 		if (LPC_SYSCTL->RSID & RSID_SYSRESET) { MessageF(mtype, "[software]"); }
 		if (LPC_SYSCTL->RSID & RSID_LOCKUP) { MessageF(mtype, "[lockup]"); }
+# else
+		const char* resetReasons[] = {"unknown", "low power", "window watchdog", "ind. watchdog", "software", "power on/off", "pin", "brownout"};
+		MessageF(mtype, "[%s]", resetReasons[GetResetCause()]);
+# endif
 
         MessageF(mtype, "\n");
 		SoftwareResetData srdBuf[1];
@@ -1849,21 +1857,17 @@ void Platform::Diagnostics(MessageType mtype) noexcept
 
 		for (int s = SoftwareResetData::numberOfSlots - 1; s >= 0; s--)
 		{
-			SoftwareResetData *sptr = reinterpret_cast<SoftwareResetData *>(LPC_GetSoftwareResetDataSlotPtr(s));
-			if (sptr->magic != 0xFFFF)
+			SoftwareResetData *sptr = reinterpret_cast<SoftwareResetData *>(GetSoftwareResetDataSlotPtr(s));
+			if (sptr->magic == SoftwareResetData::magicValue)
 			{
 				//slot = s;
 				MessageF(mtype, "LPC Flash Slot[%d]: \n", s);
 				slot = 0;	// we only have 1 slot in the array, set this to zero to be compatible with existing code below
 				//copy the data into srdBuff
-				LPC_ReadSoftwareResetDataSlot(s, &srdBuf[0], sizeof(srdBuf[0]));
+				ReadSoftwareResetDataSlot(s, &srdBuf[0], sizeof(srdBuf[0]));
 				break;
 			}
 		}
-#elif defined(STM32F4)
-//FIXME add STM stuff here
-		SoftwareResetData srdBuf[1];
-		int slot = -1;
 #else
 		SoftwareResetData srdBuf[SoftwareResetData::numberOfSlots];
 		memset(srdBuf, 0, sizeof(srdBuf));

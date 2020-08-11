@@ -1,45 +1,84 @@
 
 //GA
-
+#include "SoftwareReset.h"
 #include "SoftwareResetData.h"
 #include "RepRapFirmware.h"
 
-
+__attribute__((__section__(".reset_data"), used)) uint32_t ResetData[FLASH_DATA_LENGTH/sizeof(uint32_t)];
 /*
  
- On LPC17xx we will save SoftwareReset Data to the final sector. The last sector is 32K in size.
- Data must be written in 256 or 512 or 1024 or 4096 bytes.
+On STM32F4 we store reset data in flash. We have allocated a 16Kb sector for this purpose and the above
+array maps to it.
 
- The LPC1768/9 doesn't have the page erase IAP command, so we have to use the whole sector
- with a min write of 256bytes = 128 slots...
+*/
 
- */
+constexpr uint32_t SlotSize = FLASH_DATA_LENGTH/sizeof(uint32_t)/SoftwareResetData::numberOfSlots; // in 32 bit words
+constexpr uint32_t ResetDataSectorNo = 3;
 
-
-/* Last sector address */
-#define START_ADDR_LAST_SECTOR  0x00078000
-
-constexpr uint32_t IAP_PAGE_SIZE  = 256;
-
-/* LAST SECTOR */
-#define IAP_LAST_SECTOR         29
+static ResetCause_t ResetCause = RESET_CAUSE_UNKNOWN;
 
 
-uint32_t *STM_GetSoftwareResetDataSlotPtr(uint8_t slot)
+void InitResetCause()
 {
-    return (uint32_t *) (START_ADDR_LAST_SECTOR + (slot*IAP_PAGE_SIZE));
+
+    if (__HAL_RCC_GET_FLAG(RCC_FLAG_LPWRRST))
+    {
+        ResetCause = RESET_CAUSE_LOW_POWER_RESET;
+    }
+    else if (__HAL_RCC_GET_FLAG(RCC_FLAG_WWDGRST))
+    {
+        ResetCause = RESET_CAUSE_WINDOW_WATCHDOG_RESET;
+    }
+    else if (__HAL_RCC_GET_FLAG(RCC_FLAG_IWDGRST))
+    {
+        ResetCause = RESET_CAUSE_INDEPENDENT_WATCHDOG_RESET;
+    }
+    else if (__HAL_RCC_GET_FLAG(RCC_FLAG_SFTRST))
+    {
+        ResetCause = RESET_CAUSE_SOFTWARE_RESET; // This reset is induced by calling the ARM CMSIS `NVIC_SystemReset()` function!
+    }
+    else if (__HAL_RCC_GET_FLAG(RCC_FLAG_PORRST))
+    {
+        ResetCause = RESET_CAUSE_POWER_ON_POWER_DOWN_RESET;
+    }
+    else if (__HAL_RCC_GET_FLAG(RCC_FLAG_PINRST))
+    {
+        ResetCause = RESET_CAUSE_EXTERNAL_RESET_PIN_RESET;
+    }
+    // Needs to come *after* checking the `RCC_FLAG_PORRST` flag in order to ensure first that the reset cause is 
+    // NOT a POR/PDR reset. See note below. 
+    else if (__HAL_RCC_GET_FLAG(RCC_FLAG_BORRST))
+    {
+        ResetCause = RESET_CAUSE_BROWNOUT_RESET;
+    }
+    else
+    {
+        ResetCause = RESET_CAUSE_UNKNOWN;
+    }
+
+    // Clear all the reset flags or else they will remain set during future resets until system power is fully removed.
+    __HAL_RCC_CLEAR_RESET_FLAGS();
+}
+
+ResetCause_t GetResetCause()
+{
+    return ResetCause;
+}
+
+uint32_t *GetSoftwareResetDataSlotPtr(uint8_t slot)
+{
+    return (uint32_t *) ResetData + (slot*SlotSize);
 }
 
 
 //When the Sector is erased, all the bits will be high
 //This checks if the first 4 bytes are all high for the designated software reset slot
 //the first 2 bytes of a used reset slot will have the magic number in it.
-bool STM_IsSoftwareResetDataSlotVacant(uint8_t slot)
+bool IsSoftwareResetDataSlotVacant(uint8_t slot)
 {
-#if 0
-    const uint32_t *p = (uint32_t *) (START_ADDR_LAST_SECTOR + (slot*IAP_PAGE_SIZE));
+    const uint32_t *p = GetSoftwareResetDataSlotPtr(slot);
     
-    for (size_t i = 0; i < IAP_PAGE_SIZE/sizeof(uint32_t); ++i)
+    for (size_t i = 0; i < SlotSize; ++i)
     {
         if (*p != 0xFFFFFFFF)
         {
@@ -47,112 +86,64 @@ bool STM_IsSoftwareResetDataSlotVacant(uint8_t slot)
         }
         ++p;
     }
-#endif
     return true;
  }
 
-void STM_ReadSoftwareResetDataSlot(uint8_t slot, void *data, uint32_t dataLength)
+void ReadSoftwareResetDataSlot(uint8_t slot, void *data, uint32_t dataLength)
 {
-#if 0
-    uint32_t *slotStartAddress = (uint32_t *) (START_ADDR_LAST_SECTOR + (slot*IAP_PAGE_SIZE));
+    uint32_t *slotStartAddress = GetSoftwareResetDataSlotPtr(slot);
     memcpy(data, slotStartAddress, dataLength);
-#endif
 }
 
 
 //erases a page in flash for the SoftwareResetData slot
-bool STM_EraseSoftwareResetDataSlots()
+bool EraseSoftwareResetDataSlots()
 {
     // interrupts will be disabled before these are called.
     //__disable_irq(); //disable Interrupts
-#if 0
-    uint8_t iap_ret_code;
-    bool ret = false;
-
-    
-    /* Prepare to write/erase the last sector */
-    iap_ret_code = Chip_IAP_PreSectorForReadWrite(IAP_LAST_SECTOR, IAP_LAST_SECTOR);
-    
-    /* Error checking */
-    if (iap_ret_code != IAP_CMD_SUCCESS) {
-        debugPrintf("Chip_IAP_PreSectorForReadWrite() failed to execute, return code is: %x\r\n", iap_ret_code);
+    FLASH_EraseInitTypeDef eraseInfo;
+    uint32_t SectorError;
+    bool ret = true;
+    eraseInfo.TypeErase = FLASH_TYPEERASE_SECTORS;
+    eraseInfo.Sector = ResetDataSectorNo;
+    eraseInfo.NbSectors = 1;
+    eraseInfo.VoltageRange = FLASH_VOLTAGE_RANGE_3;
+    HAL_FLASH_Unlock();
+    if (HAL_FLASHEx_Erase(&eraseInfo, &SectorError) != HAL_OK)
+    {
+        debugPrintf("Flash erase failed sector %d\n", static_cast<int>(SectorError));
         ret = false;
     }
-    else
-    {
-
-        /* Erase the last Sector */
-        iap_ret_code = Chip_IAP_EraseSector(IAP_LAST_SECTOR,IAP_LAST_SECTOR);
-        
-        /* Error checking */
-        if (iap_ret_code != IAP_CMD_SUCCESS) {
-            debugPrintf("Chip_IAP_ErasePage() failed to execute, return code is: %x\r\n", iap_ret_code);
-            ret =  false;
-        }
-        else
-        {
-            ret = true;
-        }
-    
-    
-    }
+    HAL_FLASH_Lock();
     //__enable_irq();
     
     return ret;
-#else
-    return false;
-#endif
-    
 }
 
-bool STM_WriteSoftwareResetData(uint8_t slot, const void *data, uint32_t dataLength)
+bool WriteSoftwareResetData(uint8_t slot, const void *data, uint32_t dataLength)
 {
-#if 0
-    
-    uint8_t iap_data_array[IAP_PAGE_SIZE];
-    uint8_t iap_ret_code;
-    bool ret = false;
-    
-    memset(iap_data_array, 0xFF, sizeof(iap_data_array)); //fill with FF
-    //copy the data into our array (we must write 256 bytes)
-    memcpy(iap_data_array, data, dataLength);
-    //
-    
-    uint32_t slotStartAddress = (START_ADDR_LAST_SECTOR + (slot*IAP_PAGE_SIZE));
-    
-    //__disable_irq(); //disable Interrupts
-    
-    /* Prepare to write/erase the last sector */
-    iap_ret_code = Chip_IAP_PreSectorForReadWrite(IAP_LAST_SECTOR, IAP_LAST_SECTOR);
-    
-    /* Error checking */
-    if (iap_ret_code != IAP_CMD_SUCCESS) {
-        debugPrintf("Chip_IAP_PreSectorForReadWrite() failed to execute, return code is: %x\r\n", iap_ret_code);
-        ret = false;
-    }
-    else
+    uint32_t *dst = GetSoftwareResetDataSlotPtr(slot);
+    uint32_t *src = (uint32_t *) data;
+    uint32_t cnt = dataLength/sizeof(uint32_t);
+    if (cnt*sizeof(uint32_t) != dataLength)
     {
-        //debugPrintf("About to write %d bytes to address %x", IAP_PAGE_SIZE, slotStartAddress);
-        /* Write to the last sector */
-        iap_ret_code = Chip_IAP_CopyRamToFlash(slotStartAddress, (uint32_t *)iap_data_array, IAP_PAGE_SIZE);
-
-        /* Error checking */
-        if (iap_ret_code != IAP_CMD_SUCCESS) {
-            debugPrintf("Chip_IAP_CopyRamToFlash() failed to execute, return code is: %x\r\n", iap_ret_code);
-            ret =  false;
-        }
-        else
-        {
-            ret = true;
-        }
+        debugPrintf("Warning flash data not 32 bit aligned len %d\n", static_cast<int>(dataLength));
+        cnt += 1;
     }
-    /* Re-enable interrupt mode */
-    //__enable_irq();
-    
+    bool ret = true;
+    HAL_FLASH_Unlock();
+    for(uint32_t i = 0; i < cnt; i++)
+    {
+        if (HAL_FLASH_Program(FLASH_TYPEPROGRAM_WORD, (uint32_t) dst, (uint64_t) *src) != HAL_OK)
+        {
+            debugPrintf("Flash write failed cnt %d\n", static_cast<int>(i));
+            ret = false;
+            break;
+        }
+        dst++;
+        src++;
+    }
+    HAL_FLASH_Lock();   
     return ret;
-#else
-    return false;
-#endif
-    
 }
 

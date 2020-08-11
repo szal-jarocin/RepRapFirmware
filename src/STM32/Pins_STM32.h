@@ -27,7 +27,7 @@
 #define IAP_UPDATE_FILE_SBC     "firmware.bin"
 #define IAP_IMAGE_START         0
 
-#define FLASH_DATA_LENGTH (32*1024) //size of the Software Reset Data in Flash (Last Sector = 32K)
+#define FLASH_DATA_LENGTH (16*1024) //size of the Software Reset Data in Flash
 
 
 #if defined(ESP8266WIFI)
