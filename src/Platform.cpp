@@ -1661,6 +1661,8 @@ void Platform::InitialiseInterrupts() noexcept
 {
 #if SAM4E || SAME70 || SAME5x || defined(__LPC17xx__)
 	NVIC_SetPriority(WDT_IRQn, NvicPriorityWatchdog);			// set priority for watchdog interrupts
+#elif defined(STM32F4)
+	NVIC_SetPriority(WWDG_IRQn, NvicPriorityWatchdog);			// set priority for watchdog interrupts
 #endif
 
 #if HAS_HIGH_SPEED_SD
@@ -1711,7 +1713,8 @@ void Platform::InitialiseInterrupts() noexcept
 	// Interrupt for GPIO pins. Only port 0 and 2 support interrupts and both share EINT3
 	NVIC_SetPriority(EINT3_IRQn, NvicPriorityPins);
 #elif defined(STM32F4)
-	// FIXME need to add int priorities
+	NVIC_SetPriority(DMA2_Stream5_IRQn, NvicPriorityDriversSerialTMC);
+	
 #elif !SAME5x
 	NVIC_SetPriority(PIOA_IRQn, NvicPriorityPins);
 	NVIC_SetPriority(PIOB_IRQn, NvicPriorityPins);

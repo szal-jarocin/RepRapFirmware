@@ -204,6 +204,9 @@ void TMCSoftUARTStartTransfer(uint8_t driver, volatile uint8_t *WritePtr, uint32
         {
             WriteByte(*WritePtr++);
         }
+        // Add extra padding
+        for(int j = 0; j < SU_OVERSAMPLE; j++)
+            SUDmaBits[SUWriteCnt++] = SUSetBit;
         SUReadPtr = (uint8_t *)ReadPtr;
         SUReadCnt = ReadCnt;
 		pinMode(SUPin, OUTPUT_HIGH);

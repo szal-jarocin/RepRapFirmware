@@ -282,9 +282,9 @@ extern Pin AuxSerialRxTxPins[NumberSerialPins];
 #endif
 
 
-//Timer 2 is used for Step Generation
-#define STEP_TC             (TIM2)
-#define STEP_TC_IRQN        TIM2_IRQn
+//Timer 5 is used for Step Generation
+#define STEP_TC             (TIM5)
+#define STEP_TC_IRQN        TIM5_IRQn
 #define STEP_TC_HANDLER     STEP_TC_IRQHandler
 
 extern volatile uint32_t BrownoutEvents;
