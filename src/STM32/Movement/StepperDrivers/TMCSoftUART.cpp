@@ -7,7 +7,9 @@
  * However this version differs considerably to avoid problems with the original implementation
  * and in particular to allow it to run without disabling interrupts during operation.
  * 
- *  Created on: 29 Jan 2020
+ * This version re-worked for STM32 DMA controllers.
+ * 
+ *  Created on: 1 Aug 2020
  *      Author: gloomyandy
  */
 
@@ -27,9 +29,10 @@
 #define SU_OVERSAMPLE 4
 
 static constexpr uint32_t SU_BAUD_RATE = DriversBaudRate;
-static constexpr uint32_t SU_MAX_BYTES = 12;
+static constexpr uint32_t SU_MAX_BYTES = 8;
 static constexpr uint32_t SU_GAP_BYTES = 1;
 static constexpr uint32_t SU_FRAME_LENGTH = 10;
+static constexpr uint32_t SU_MAX_RETRY = 0;
 
 enum class SUStates
 {
@@ -48,9 +51,13 @@ static uint32_t SUPinBit;
 static uint32_t SUSetBit;
 static uint32_t SUClrBit;
 static uint32_t SUWriteCnt;
+static uint8_t* SUWritePtr;
 static uint32_t SUReadCnt;
 static uint8_t* SUReadPtr;
+static uint32_t SUBitCnt;
 DMA_HandleTypeDef SUDma;
+static uint32_t SUPeriod;
+static uint32_t SURetryCnt;
 
 uint32_t SUDmaBits[((SU_MAX_BYTES+SU_GAP_BYTES)*SU_FRAME_LENGTH)*SU_OVERSAMPLE];
 
@@ -69,23 +76,18 @@ static void WriteByte(uint8_t val)
 {
     // place one bye of data into the DMA buffer
     // Start bit
-    for(int j = 0; j < SU_OVERSAMPLE; j++)
-        SUDmaBits[SUWriteCnt++] = SUClrBit;
+    SUDmaBits[SUBitCnt++] = SUClrBit;
     // data bits
     for(int i = 0; i < 8; i++)
     {
-        for(int j = 0; j < SU_OVERSAMPLE; j++)
-        {
-            if (val & 1)
-                SUDmaBits[SUWriteCnt++] = SUSetBit;
-            else
-                SUDmaBits[SUWriteCnt++] = SUClrBit;
-        }
+        if (val & 1)
+            SUDmaBits[SUBitCnt++] = SUSetBit;
+        else
+            SUDmaBits[SUBitCnt++] = SUClrBit;
         val >>= 1;
     }
     // stop bit
-    for(int j = 0; j < SU_OVERSAMPLE; j++)
-        SUDmaBits[SUWriteCnt++] = SUSetBit;
+    SUDmaBits[SUBitCnt++] = SUSetBit;
 }
 
 static uint32_t DecodeBytes(uint8_t *outp, uint32_t outlen)
@@ -159,6 +161,7 @@ static void DmaInterrupt(DMA_HandleTypeDef *_hdma)
         pinMode(SUPin, INPUT_PULLUP);
         SUDma.Init.Direction = DMA_PERIPH_TO_MEMORY;
         HAL_DMA_Start_IT(&SUDma, (uint32_t)SUPinReadPtr, (uint32_t)SUDmaBits, sizeof(SUDmaBits)/sizeof(uint32_t));
+    	SUTimer.setOverflow(SUPeriod - 1, TICK_FORMAT);
         SUTimer.setCount(0, TICK_FORMAT);
 	    SUState = SUStates::reading;
         SUTimer.resume();
@@ -177,8 +180,21 @@ static void DmaInterrupt(DMA_HandleTypeDef *_hdma)
 
 static void DmaStart()
 {
+    uint8_t *p = SUWritePtr;
+    SUBitCnt = 0;
+    // Pre buffer the write data
+    for(uint32_t i = 0; i < SUWriteCnt; i++)
+    {
+        WriteByte(*p++);
+    }
+    // The TMC driver will wait for 8 bits of time before sending the reply. We pad the output
+    // data by half of this time.
+    for(uint32_t i = 0; i < 4; i++)
+        SUDmaBits[SUBitCnt++] = SUSetBit;
+    pinMode(SUPin, OUTPUT_HIGH);
     SUDma.Init.Direction = DMA_MEMORY_TO_PERIPH;
-    HAL_DMA_Start_IT(&SUDma, (uint32_t)SUDmaBits, (uint32_t)SUPinSetClrPtr, SUWriteCnt);
+    HAL_DMA_Start_IT(&SUDma, (uint32_t)SUDmaBits, (uint32_t)SUPinSetClrPtr, SUBitCnt);
+	SUTimer.setOverflow(SUPeriod*SU_OVERSAMPLE - 1, TICK_FORMAT);
     SUTimer.setCount(0, TICK_FORMAT);
 	SUState = SUStates::writing;
     SUTimer.resume();
@@ -197,19 +213,12 @@ void TMCSoftUARTStartTransfer(uint8_t driver, volatile uint8_t *WritePtr, uint32
 	SUPin = TMC_UART_PINS[driver];
 	if (SUPin != NoPin)
 	{
+        SURetryCnt = 0;
         SetupPins();
-        SUWriteCnt = 0;
-        // Pre buffer the write data
-        for(uint32_t i = 0; i < WriteCnt; i++)
-        {
-            WriteByte(*WritePtr++);
-        }
-        // Add extra padding
-        for(int j = 0; j < SU_OVERSAMPLE; j++)
-            SUDmaBits[SUWriteCnt++] = SUSetBit;
+        SUWritePtr = (uint8_t *)WritePtr;
+        SUWriteCnt = WriteCnt;
         SUReadPtr = (uint8_t *)ReadPtr;
         SUReadCnt = ReadCnt;
-		pinMode(SUPin, OUTPUT_HIGH);
         DmaStart();
 	}
 }
@@ -220,10 +229,15 @@ bool TMCSoftUARTCheckComplete() noexcept
 	{
         pinMode(SUPin, OUTPUT_HIGH);
 		SUState = SUStates::idle;
-        int cnt = DecodeBytes(SUReadPtr, SUReadCnt);
-        if (cnt <= 0)
+        uint32_t cnt = DecodeBytes(SUReadPtr, SUReadCnt);
+        if (cnt <= 0 || cnt != SUReadCnt)
+        {
+            //debugPrintf("SU read error expected %d got %d retry %d\n", SUReadCnt, cnt, SURetryCnt);
+            if (SURetryCnt++ < SU_MAX_RETRY)
+                DmaStart();
             // data error
             return false;
+        }
 		// I/O complete
         return true;
 	}
@@ -234,8 +248,8 @@ void TMCSoftUARTInit() noexcept
 {
     uint32_t period = SUTimer.getTimerClkFreq()/(SU_BAUD_RATE*SU_OVERSAMPLE);
 	debugPrintf("SU base freq %d setting period %d\n", static_cast<int>(SUTimer.getTimerClkFreq()), static_cast<int>(period));
-	//STimer.setPrescaleFactor(preScale);
-	SUTimer.setOverflow(period, TICK_FORMAT);
+    SUPeriod = period;
+	SUTimer.setOverflow(period*SU_OVERSAMPLE, TICK_FORMAT);
     SUTimer.setCount(0, TICK_FORMAT);
     __HAL_TIM_ENABLE_DMA(&(HardwareTimer_Handle[get_timer_index(TIM1)]->handle), TIM_DMA_UPDATE);
     __HAL_RCC_DMA2_CLK_ENABLE();    
