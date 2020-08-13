@@ -378,6 +378,7 @@ struct BoardEntry
 constexpr BoardEntry LPC_Boards[] =
 {
     {"biquskrpro_1.1",      PinTable_BIQU_SKR_PRO_v1_1,    ARRAY_SIZE(PinTable_BIQU_SKR_PRO_v1_1),    biquskr_pro_1_1_Defaults},
+    {"biqugtr_1.0",      PinTable_BIQU_GTR_v1_0,    ARRAY_SIZE(PinTable_BIQU_GTR_v1_0),    biqu_gtr_1_0_Defaults},
 };
 
 

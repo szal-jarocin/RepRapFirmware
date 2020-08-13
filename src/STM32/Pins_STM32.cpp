@@ -105,7 +105,7 @@ void BOD_IRQHandler()
 //Default to the Generic PinTable
 PinEntry *PinTable = (PinEntry *) PinTable_BIQU_SKR_PRO_v1_1;
 size_t NumNamedLPCPins = ARRAY_SIZE(PinTable_BIQU_SKR_PRO_v1_1);
-char lpcBoardName[MaxBoardNameLength] = "generic";
+char lpcBoardName[MaxBoardNameLength] = "biquskrpro_1.1";
 
 bool IsEmptyPinArray(Pin *arr, size_t len) noexcept
 {
