@@ -31,6 +31,7 @@
 static constexpr uint32_t SU_BAUD_RATE = DriversBaudRate;
 static constexpr uint32_t SU_MAX_BYTES = 8;
 static constexpr uint32_t SU_GAP_BYTES = 1;
+static constexpr uint32_t SU_GAP_BITS = 4;
 static constexpr uint32_t SU_FRAME_LENGTH = 10;
 static constexpr uint32_t SU_MAX_RETRY = 0;
 
@@ -57,7 +58,6 @@ static uint8_t* SUReadPtr;
 static uint32_t SUBitCnt;
 DMA_HandleTypeDef SUDma;
 static uint32_t SUPeriod;
-static uint32_t SURetryCnt;
 
 uint32_t SUDmaBits[((SU_MAX_BYTES+SU_GAP_BYTES)*SU_FRAME_LENGTH)*SU_OVERSAMPLE];
 
@@ -182,6 +182,11 @@ static void DmaStart()
 {
     uint8_t *p = SUWritePtr;
     SUBitCnt = 0;
+    // The timing of the first stop bit is critical as it sets the timing of the remaining bits
+    // to ensure this is as accurate as possible we insert a number of dummy high bits before
+    // the first start bit.
+    for(uint32_t i = 0; i < SU_GAP_BITS; i++)
+        SUDmaBits[SUBitCnt++] = SUSetBit;
     // Pre buffer the write data
     for(uint32_t i = 0; i < SUWriteCnt; i++)
     {
@@ -189,7 +194,7 @@ static void DmaStart()
     }
     // The TMC driver will wait for 8 bits of time before sending the reply. We pad the output
     // data by half of this time.
-    for(uint32_t i = 0; i < 4; i++)
+    for(uint32_t i = 0; i < SU_GAP_BITS; i++)
         SUDmaBits[SUBitCnt++] = SUSetBit;
     pinMode(SUPin, OUTPUT_HIGH);
     SUDma.Init.Direction = DMA_MEMORY_TO_PERIPH;
@@ -213,7 +218,6 @@ void TMCSoftUARTStartTransfer(uint8_t driver, volatile uint8_t *WritePtr, uint32
 	SUPin = TMC_UART_PINS[driver];
 	if (SUPin != NoPin)
 	{
-        SURetryCnt = 0;
         SetupPins();
         SUWritePtr = (uint8_t *)WritePtr;
         SUWriteCnt = WriteCnt;
@@ -233,8 +237,6 @@ bool TMCSoftUARTCheckComplete() noexcept
         if (cnt <= 0 || cnt != SUReadCnt)
         {
             //debugPrintf("SU read error expected %d got %d retry %d\n", SUReadCnt, cnt, SURetryCnt);
-            if (SURetryCnt++ < SU_MAX_RETRY)
-                DmaStart();
             // data error
             return false;
         }
