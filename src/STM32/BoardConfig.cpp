@@ -20,7 +20,7 @@
 #include "HardwareSPI.h"
 #include "Platform.h"
 
-//#include "SoftwarePWM.h"
+#include "HybridPWM.h"
 #include "ff.h"
 
 //Single entry for Board name
@@ -477,28 +477,13 @@ void BoardConfig::Diagnostics(MessageType mtype) noexcept
     
     
 
-    reprap.GetPlatform().MessageF(mtype, "\n== Software PWM ==\n");
-#if 0
-    //FIXME if/when we have software PWM
-    for(uint8_t i=0; i<MaxNumberSoftwarePWMPins; i++)
+    reprap.GetPlatform().MessageF(mtype, "\n== PWM ==\n");
+    for(uint8_t i=0; i<MaxPWMChannels; i++)
     {
-        SoftwarePWM *next = softwarePWMEntries[i];
-        if(next != nullptr)
-        {
-            const Pin pin = next->GetPin();
-
-            reprap.GetPlatform().MessageF(mtype, "Pin %d.%d @ %dHz (%s)\n", (pin >> 5), (pin & 0x1f), next->GetFrequency(), next->IsRunning()?"Enabled":"Disabled" );
-
-        }
-    }
-#endif
-#if 0
-    //FIXME when we have H/W PWM
-    reprap.GetPlatform().MessageF(mtype, "\n== Hardware PWM ==\n");
-    reprap.GetPlatform().MessageF(mtype, "Hardware PWM = %dHz ", HardwarePWMFrequency );
-    PrintPinArray(mtype, UsedHardwarePWMChannel, NumPwmChannels);
-#endif
-
+		String<StringLength256> status;
+		PWMPins[i].appendStatus(status.GetRef());
+		reprap.GetPlatform().MessageF(mtype, "%u: %s\n", i, status.c_str());
+	}
 }
 
 void BoardConfig::PrintPinArray(MessageType mtype, Pin arr[], uint16_t numEntries) noexcept

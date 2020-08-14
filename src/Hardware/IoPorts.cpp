@@ -144,12 +144,17 @@ void IoPort::Release() noexcept
 {
 	if (IsValid() && !isSharedInput)
 	{
-#ifdef __LPC17xx__
+#if defined(__LPC17xx__)
 		// Release PWM/Servo from pin if needed
 		if (logicalPinModes[logicalPin] == OUTPUT_SERVO_HIGH || logicalPinModes[logicalPin] == OUTPUT_SERVO_LOW)
 		{
 			ReleaseServoPin(GetPinNoCheck());
 		}
+		if (logicalPinModes[logicalPin] == OUTPUT_PWM_HIGH || logicalPinModes[logicalPin] == OUTPUT_PWM_LOW)
+		{
+			ReleasePWMPin(GetPinNoCheck());
+		}
+#elif defined(STM32F4)
 		if (logicalPinModes[logicalPin] == OUTPUT_PWM_HIGH || logicalPinModes[logicalPin] == OUTPUT_PWM_LOW)
 		{
 			ReleasePWMPin(GetPinNoCheck());
