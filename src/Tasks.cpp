@@ -312,10 +312,7 @@ extern "C"
 	// This intercepts the 1ms system tick
 	void vApplicationTickHook() noexcept
 	{
-#if !defined(STM32F4)
-		// On STM32F4 the core is calling us
 		CoreSysTick();
-#endif
 		reprap.Tick();
 	}
 

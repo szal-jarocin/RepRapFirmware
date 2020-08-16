@@ -1681,7 +1681,9 @@ void Platform::InitialiseInterrupts() noexcept
 
 #if SUPPORT_TMC22xx && !SAME5x											// SAME5x uses a DMA interrupt instead of the UART interrupt
 # if TMC_SOFT_UART
-	// Nothing to do
+# if defined(STM32F4)
+	NVIC_SetPriority(DMA2_Stream5_IRQn, NvicPriorityDriversSerialTMC); // Software serial
+# endif
 # elif TMC22xx_HAS_MUX
 	NVIC_SetPriority(TMC22xx_UART_IRQn, NvicPriorityDriversSerialTMC);	// set priority for TMC2660 SPI interrupt
 # else
@@ -1713,8 +1715,14 @@ void Platform::InitialiseInterrupts() noexcept
 	// Interrupt for GPIO pins. Only port 0 and 2 support interrupts and both share EINT3
 	NVIC_SetPriority(EINT3_IRQn, NvicPriorityPins);
 #elif defined(STM32F4)
-	NVIC_SetPriority(DMA2_Stream5_IRQn, NvicPriorityDriversSerialTMC);
-	
+    NVIC_SetPriority(EXTI0_IRQn, NvicPriorityPins);
+    NVIC_SetPriority(EXTI1_IRQn, NvicPriorityPins);
+    NVIC_SetPriority(EXTI2_IRQn, NvicPriorityPins);
+    NVIC_SetPriority(EXTI3_IRQn, NvicPriorityPins);
+    NVIC_SetPriority(EXTI4_IRQn, NvicPriorityPins);
+    NVIC_SetPriority(EXTI9_5_IRQn, NvicPriorityPins);
+    NVIC_SetPriority(EXTI15_10_IRQn, NvicPriorityPins);
+    NVIC_SetPriority(TIM7_IRQn, NvicPriorityTimerPWM);  	//Timer 7 runs Software PWM	
 #elif !SAME5x
 	NVIC_SetPriority(PIOA_IRQn, NvicPriorityPins);
 	NVIC_SetPriority(PIOB_IRQn, NvicPriorityPins);
@@ -1741,8 +1749,7 @@ void Platform::InitialiseInterrupts() noexcept
 #elif defined(__LPC17xx__)
 	NVIC_SetPriority(USB_IRQn, NvicPriorityUSB);
 #elif defined(STM32F4)
-// FIXME
-// do nothing USB priority defined in core for now
+	NVIC_SetPriority(OTG_FS_IRQn, NvicPriorityUSB);
 #else
 # error Unsupported processor
 #endif
@@ -1779,7 +1786,7 @@ void Platform::InitialiseInterrupts() noexcept
 // Debugging variables
 //extern "C" uint32_t longestWriteWaitTime, shortestWriteWaitTime, longestReadWaitTime, shortestReadWaitTime;
 //extern uint32_t maxRead, maxWrite;
-
+extern void SPWMDiagnostics();
 // Return diagnostic information
 void Platform::Diagnostics(MessageType mtype) noexcept
 {
@@ -2028,6 +2035,7 @@ void Platform::Diagnostics(MessageType mtype) noexcept
 	MessageF(mtype, "Vssa %" PRIu32 " Vref %" PRIu32 " Temp0 %" PRIu32 " Temp1 %" PRIu32 "\n",
 			adcFilters[VssaFilterIndex].GetSum()/div, adcFilters[VrefFilterIndex].GetSum()/div, adcFilters[0].GetSum()/div, adcFilters[1].GetSum()/div);
 #endif
+	SPWMDiagnostics();
 #ifdef LPC_DEBUG
     softwarePWMTimer.Diagnostics(mtype);
 #endif
