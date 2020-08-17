@@ -204,7 +204,7 @@ void BoardConfig::Init() noexcept
     if(rslt == FR_OK)
     {
             
-        reprap.GetPlatform().MessageF(UsbMessage, "Loading LPC config from %s...\n", boardConfigPath );
+        reprap.GetPlatform().MessageF(UsbMessage, "Loading config from %s...\n", boardConfigPath );
 
         
         //First find the board entry to load the correct PinTable for looking up Pin by name
@@ -341,18 +341,22 @@ Pin BoardConfig::StringToPin(const char *strvalue) noexcept
     if(tolower(*strvalue) == 'p') strvalue++; //skip P
     //check size.. should be 3chars or 4 chars i.e. 0.1, 2.25, 1_23. 2nd char should be . or _
     uint8_t len = strlen(strvalue);
-    if((len == 3 || len == 4) && (*(strvalue+1) == '.' || *(strvalue+1) == '_') )
+    if(((len == 3 || len == 4) && (*(strvalue+1) == '.' || *(strvalue+1) == '_')) || (len == 2 || len == 3))
     {
         const char *ptr = nullptr;
         const char ch = toupper(*strvalue);
         uint8_t port = ch - 'A';
         if(port <= 8)
         {
-            strvalue+=2;
+            // skip "." or "_"
+            if ((*(strvalue+1) == '.' || *(strvalue+1) == '_'))
+                strvalue += 2;
+            else
+                strvalue += 1;
             uint8_t pin = StrToI32(strvalue, &ptr);          
             if(ptr > strvalue && pin < 16)
             {
-                //Convert the Port and Pin to match the arrays in CoreLPC
+                //Convert the Port and Pin to match the arrays in CoreSTM
                 Pin lpcpin = (Pin) ( (port << 4) | pin);
                 return lpcpin;
             }
@@ -820,7 +824,7 @@ bool BoardConfig::GetConfigKeys(FIL *configFile, const boardConfigEntry_t *board
 
 void assert_failed(uint8_t *file, uint32_t line)
 {
-    debugPrintf("Assert failed file %s line %d\n", file, line);
+    debugPrintf("Assert failed file %s line %d\n", file, (int)line);
 }
 
 

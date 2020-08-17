@@ -1645,7 +1645,7 @@ float Platform::AdcReadingToCpuTemperature(uint32_t adcVal) const noexcept
 #elif SAME70
 	return (voltage - 0.72) * (1000.0/2.33) + 25.0 + mcuTemperatureAdjust;			// accuracy at 25C is +/-34C
 #elif defined(STM32F4)
-	//return (voltage - 0.76) * (1000.0/2.5) + 25.0 + mcuTemperatureAdjust;			// accuracy at 25C is +/-46C
+	// Magic numbers are the location of STM32 calibration constants
 	return ((110.0f - 30.0f)/(((float)(*(uint16_t *)0x1FFF7A2E)) - ((float)(*(uint16_t *)0x1FFF7A2C)))) * (((float)adcVal/ThermistorAverageReadings) - ((float)(*(uint16_t *)0x1FFF7A2C))) + 30.0f; 
 #else
 # error undefined CPU temp conversion
@@ -2035,7 +2035,7 @@ void Platform::Diagnostics(MessageType mtype) noexcept
 	MessageF(mtype, "Vssa %" PRIu32 " Vref %" PRIu32 " Temp0 %" PRIu32 " Temp1 %" PRIu32 "\n",
 			adcFilters[VssaFilterIndex].GetSum()/div, adcFilters[VrefFilterIndex].GetSum()/div, adcFilters[0].GetSum()/div, adcFilters[1].GetSum()/div);
 #endif
-	SPWMDiagnostics();
+
 #ifdef LPC_DEBUG
     softwarePWMTimer.Diagnostics(mtype);
 #endif

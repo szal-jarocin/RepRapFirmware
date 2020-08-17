@@ -234,6 +234,7 @@ int SDCard::rcvr_datablock (uint8_t *buff, uint32_t btr)/* 1:OK, 0:Error */
         
     } while ((token == 0xFF) && (millis() - now) < 200 );
     if(token != 0xFE) return 0;        /* Function fails if invalid DataStart token or timeout */
+    // FIXME SPI should really provide dummy data
     memset(buff, 0xff, btr);
     rcvr_spi_multi(buff, btr);        /* Store trailing data to the buffer */
     xchg_spi(0xFF); xchg_spi(0xFF);    /* Discard CRC */
