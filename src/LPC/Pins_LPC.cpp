@@ -40,14 +40,14 @@ SSPChannel LcdSpiChannel = SSP0;
 Pin DiagPin = NoPin;
 
 //Stepper settings
-Pin ENABLE_PINS[NumDirectDrivers] =     {NoPin, NoPin, NoPin, NoPin, NoPin};
-Pin STEP_PINS[NumDirectDrivers] =       {NoPin, NoPin, NoPin, NoPin, NoPin};
-Pin DIRECTION_PINS[NumDirectDrivers] =  {NoPin, NoPin, NoPin, NoPin, NoPin};
+Pin ENABLE_PINS[NumDirectDrivers] =     {NoPin, NoPin, NoPin, NoPin, NoPin, NoPin, NoPin};
+Pin STEP_PINS[NumDirectDrivers] =       {NoPin, NoPin, NoPin, NoPin, NoPin, NoPin, NoPin};
+Pin DIRECTION_PINS[NumDirectDrivers] =  {NoPin, NoPin, NoPin, NoPin, NoPin, NoPin, NoPin};
 #if HAS_STALL_DETECT
-    Pin DIAG_PINS[NumDirectDrivers] =     {NoPin, NoPin, NoPin, NoPin, NoPin};
+    Pin DIAG_PINS[NumDirectDrivers] =     {NoPin, NoPin, NoPin, NoPin, NoPin, NoPin, NoPin};
 #endif
 #if LPC_TMC_SOFT_UART
-    Pin TMC_UART_PINS[NumDirectDrivers] = {NoPin, NoPin, NoPin, NoPin, NoPin};
+    Pin TMC_UART_PINS[NumDirectDrivers] = {NoPin, NoPin, NoPin, NoPin, NoPin, NoPin, NoPin};
     size_t lpcSmartDrivers;
 #endif
 uint32_t STEP_DRIVER_MASK = 0;                          //SD: mask of the step pins on Port 2 used for writing to step pins in parallel

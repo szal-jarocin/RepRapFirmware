@@ -152,11 +152,11 @@ constexpr PinEntry PinTable_MKSSGenL2_0[] =
 };
 
 constexpr BoardDefaults mkssgenl2_0_Defaults = {
-    {P2_1,  P2_8, P0_21, P2_12,  P0_10},   //enablePins
-    {P2_2,  P0_19,  P0_22,  P2_13,   P1_9},    //stepPins
-    {P2_3,  P0_20, P2_11, P0_11,  P1_14},   //dirPins
+    {P2_1,  P2_8, P0_21, P2_12,  P0_10, NoPin, NoPin},   //enablePins
+    {P2_2,  P0_19,  P0_22,  P2_13,   P1_9, NoPin, NoPin},    //stepPins
+    {P2_3,  P0_20, P2_11, P0_11,  P1_14, NoPin, NoPin},   //dirPins
 #if LPC_TMC_SOFT_UART
-    {P1_1, P1_8, P1_10, P1_15, P1_17},    //uartPins
+    {P1_1, P1_8, P1_10, P1_15, P1_17, NoPin, NoPin},    //uartPins
     5,                                      // Smart drivers
 #endif
     0,                                 //digiPot Factor

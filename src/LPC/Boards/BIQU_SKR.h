@@ -63,11 +63,11 @@ constexpr PinEntry PinTable_BIQU_SKR_v1_1[] =
 };
 
 constexpr BoardDefaults biquskr_1_1_Defaults = {
-    {P4_28, P2_0, P0_19, P2_12, P0_10},     //enablePins
-    {P0_4,  P2_1, P0_20, P0_11, P0_1},      //stepPins
-    {P0_5,  P2_2, P0_21, P2_13, P0_0},      //dirPins
+    {P4_28, P2_0, P0_19, P2_12, P0_10, NoPin, NoPin},     //enablePins
+    {P0_4,  P2_1, P0_20, P0_11, P0_1, NoPin, NoPin},      //stepPins
+    {P0_5,  P2_2, P0_21, P2_13, P0_0, NoPin, NoPin},      //dirPins
 #if LPC_TMC_SOFT_UART
-    {NoPin, NoPin, NoPin, NoPin, NoPin},    //uartPins
+    {NoPin, NoPin, NoPin, NoPin, NoPin, NoPin, NoPin},    //uartPins
     0,                                      // Smart drivers
 #endif
     0,                                      //digiPot Factor
@@ -151,11 +151,11 @@ constexpr PinEntry PinTable_BIQU_SKR_v1_3[] =
 };
 
 constexpr BoardDefaults biquskr_1_3_Defaults = {
-    {P2_1, P2_8,  P0_21, P2_12,  P0_10},    //enablePins
-    {P2_2, P0_19, P0_22, P2_13,  P0_1},     //stepPins
-    {P2_6, P0_20, P2_11, P0_11,  P0_0},     //dirPins
+    {P2_1, P2_8,  P0_21, P2_12,  P0_10, NoPin, NoPin},    //enablePins
+    {P2_2, P0_19, P0_22, P2_13,  P0_1, NoPin, NoPin},     //stepPins
+    {P2_6, P0_20, P2_11, P0_11,  P0_0, NoPin, NoPin},     //dirPins
 #if LPC_TMC_SOFT_UART
-    {P1_17, P1_15, P1_10, P1_8, P1_1},      //uartPins
+    {P1_17, P1_15, P1_10, P1_8, P1_1, NoPin, NoPin},      //uartPins
     5,                                      // Smart drivers
 #endif
     0                                       //digiPot Factor
@@ -252,11 +252,11 @@ constexpr PinEntry PinTable_BIQU_SKR_v1_4[] =
 };
 
 constexpr BoardDefaults biquskr_1_4_Defaults = {
-    {P2_1, P2_8,  P0_21, P2_12,  P1_16},    //enablePins
-    {P2_2, P0_19, P0_22, P2_13,  P1_15},    //stepPins
-    {P2_6, P0_20, P2_11, P0_11,  P1_14},    //dirPins
+    {P2_1, P2_8,  P0_21, P2_12,  P1_16, NoPin, NoPin},    //enablePins
+    {P2_2, P0_19, P0_22, P2_13,  P1_15, NoPin, NoPin},    //stepPins
+    {P2_6, P0_20, P2_11, P0_11,  P1_14, NoPin, NoPin},    //dirPins
 #if LPC_TMC_SOFT_UART
-    {P1_10, P1_9, P1_8, P1_4, P1_1},        //uartPins
+    {P1_10, P1_9, P1_8, P1_4, P1_1, NoPin, NoPin},        //uartPins
     5,                                      // Smart drivers
 #endif
     0                                       //digiPot Factor

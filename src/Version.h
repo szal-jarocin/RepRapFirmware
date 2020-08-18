@@ -19,7 +19,11 @@
 #endif
 
 #ifndef DATE
+<<<<<<< HEAD
 # define DATE "2020-06-27b1"
+=======
+# define DATE "2020-9-8b15"
+>>>>>>> v3.01-dev-lpc
 #endif
 
 #define AUTHORS "reprappro, dc42, chrishamm, t3p3, dnewman, printm3d"
