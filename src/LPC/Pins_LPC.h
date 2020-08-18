@@ -104,9 +104,9 @@
 
 
 // The physical capabilities of the machine
-constexpr size_t NumDirectDrivers = 5;               // The maximum number of drives supported by the electronics
+constexpr size_t NumDirectDrivers = 7;               // The maximum number of drives supported by the electronics
 #if defined(SUPPORT_TMC22xx)
-    constexpr size_t MaxSmartDrivers = 5;            // The maximum number of smart drivers
+    constexpr size_t MaxSmartDrivers = NumDirectDrivers;            // The maximum number of smart drivers
     constexpr size_t NumTmcDriversSenseChannels = 1;
     #define LPC_TMC_SOFT_UART 1
 #else

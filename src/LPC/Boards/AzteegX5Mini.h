@@ -141,11 +141,11 @@ constexpr PinEntry PinTable_AzteegX5MiniV2[] =
 };
 
 constexpr BoardDefaults azteegX5Mini2Defaults = {
-    {P0_10, P0_19, P0_21, P0_4, NoPin},   //enablePins
-    {P2_1,  P2_2,  P2_3,  P2_0, NoPin},   //stepPins
-    {P0_11, P0_20, P0_22, P0_5, NoPin},   //dirPins
+    {P0_10, P0_19, P0_21, P0_4, NoPin, NoPin, NoPin},   //enablePins
+    {P2_1,  P2_2,  P2_3,  P2_0, NoPin, NoPin, NoPin},   //stepPins
+    {P0_11, P0_20, P0_22, P0_5, NoPin, NoPin, NoPin},   //dirPins
 #if LPC_TMC_SOFT_UART
-    {NoPin, NoPin, NoPin, NoPin, NoPin},  //uartPins
+    {NoPin, NoPin, NoPin, NoPin, NoPin, NoPin, NoPin},  //uartPins
     0,                                      // Smart drivers
 #endif
     106.0,                         //digiPot Factor
@@ -210,11 +210,11 @@ constexpr PinEntry PinTable_AzteegX5MiniV3[] =
 };
 
 constexpr BoardDefaults azteegX5Mini3Defaults = {
-    {P0_10, P0_19, P0_21, P0_4, NoPin},   //enablePins
-    {P2_1,  P2_2,  P2_3,  P2_0, NoPin},   //stepPins
-    {P0_11, P0_20, P0_22, P0_5, NoPin},   //dirPins
+    {P0_10, P0_19, P0_21, P0_4, NoPin, NoPin, NoPin},   //enablePins
+    {P2_1,  P2_2,  P2_3,  P2_0, NoPin, NoPin, NoPin},   //stepPins
+    {P0_11, P0_20, P0_22, P0_5, NoPin, NoPin, NoPin},   //dirPins
 #if LPC_TMC_SOFT_UART
-    {NoPin, NoPin, NoPin, NoPin, NoPin},  //uartPins
+    {NoPin, NoPin, NoPin, NoPin, NoPin, NoPin, NoPin},  //uartPins
     0,                                      // Smart drivers
 #endif
     113.5,                         //digiPot Factor
