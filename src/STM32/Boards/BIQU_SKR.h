@@ -53,11 +53,32 @@ constexpr PinEntry PinTable_BIQU_SKR_PRO_v1_1[] =
     {PB_13, PinCapability::rwpwm, "PB13"},
     {PG_10, PinCapability::rwpwm, "PG10"},
     {PB_12, PinCapability::rwpwm, "PB12"},
-    {PG_11, PinCapability::rwpwm, "PG11"},
+    {PF_11, PinCapability::rwpwm, "PF11"},
     {PB_15, PinCapability::rwpwm, "PB15"},
     {PF_12, PinCapability::rwpwm, "PF12"},
     {PF_13, PinCapability::rwpwm, "PF13"},
 
+	//Extension 1
+	{PC_9, PinCapability::rwpwm, "PC9"},
+	{PF_9, PinCapability::rwpwm, "PF9"},
+	{PC_4, PinCapability::rwpwm, "PC4"},
+	{PG_11, PinCapability::rwpwm, "PG11"},
+	{PG_14, PinCapability::rwpwm, "PG14"},
+	{PC_1, PinCapability::rwpwm, "PC1"},
+	{PF_8, PinCapability::rwpwm, "PF8"},
+	{PF_10, PinCapability::rwpwm, "PF10"},
+	{PC_5, PinCapability::rwpwm, "PC5"},
+	{PG_13, PinCapability::rwpwm, "PG13"},
+	{PD_3, PinCapability::rwpwm, "PD3"},
+	{PF_7, PinCapability::rwpwm, "PF7"},
+
+	//Extension 2
+	{PD_0, PinCapability::rwpwm, "PD0"},
+	{PD_2, PinCapability::rwpwm, "PD2"},
+	{PD_0, PinCapability::rwpwm, "PD5"},
+	{PE_0, PinCapability::rwpwm, "PE0"},
+	{PE_2, PinCapability::rwpwm, "PE2"},
+	{PE_4, PinCapability::rwpwm, "PE4"},
 
 	//Wifi
 	{PG_0, PinCapability::rwpwm, "wifi1,PG0"},
@@ -66,6 +87,25 @@ constexpr PinEntry PinTable_BIQU_SKR_PRO_v1_1[] =
 	{PC_6, PinCapability::rwpwm, "wifi4,PC6"},
 	{PF_14, PinCapability::rwpwm, "wifi5,PF14"},
 	{PF_15, PinCapability::rwpwm, "wifi6,PF15"},
+	
+	//SPI
+	{PC_10, PinCapability::rwpwm, "PC10"},
+	{PC_11, PinCapability::rwpwm, "PC11"},
+	{PA_15, PinCapability::rwpwm, "X-CS,PA15"},
+	{PC_12, PinCapability::rwpwm, "PC12"},
+	{PB_9, PinCapability::rwpwm, "Z-CS,PB9"},
+	{PB_8, PinCapability::rwpwm, "Y-CS,PB8"},
+	{PB_3, PinCapability::rwpwm, "E0-CS,PB3"},
+	{PG_15, PinCapability::rwpwm, "E1-CS,PG15"},
+	{PG_12, PinCapability::rwpwm, "E2-CS,PG12"},
+	
+	//I2C
+	{PB_7, PinCapability::rwpwm, "PB7"},
+	{PB_6, PinCapability::rwpwm, "PB6"},
+	
+	//UART
+	{PD_9, PinCapability::rwpwm, "PD9"},
+	{PD_8, PinCapability::rwpwm, "PD8"},
 
 };
 
@@ -87,7 +127,12 @@ constexpr PinEntry PinTable_BIQU_GTR_v1_0[] =
     {PC_1, PinCapability::ainrw, "e0temp,t0"},
     {PC_2, PinCapability::ainrw, "e1temp,t1"},
     {PC_3, PinCapability::ainrw, "e2temp,t2"},
-    {PC_0, PinCapability::ainrw, "bedtemp,t3"},
+    {PC_0, PinCapability::ainrw, "bedtemp,bed"},
+	{PA_3, PinCapability::ainrw, "e3temp,Temp_M1"},
+	{PF_9, PinCapability::ainrw, "e4temp,Temp_M2"},
+	{PF_10, PinCapability::ainrw, "e5temp,Temp_M3"},
+	{PF_7, PinCapability::ainrw, "e6temp,Temp_M4"},
+	{PF_5, PinCapability::ainrw, "e7temp,Temp_M5"},
 
     //Endstops
     {PF_2, PinCapability::rwpwm, "xstop,x-stop"},
@@ -96,16 +141,33 @@ constexpr PinEntry PinTable_BIQU_GTR_v1_0[] =
     {PG_14, PinCapability::rwpwm, "e0stop,e0det"},
     {PG_9, PinCapability::rwpwm, "e1stop,e1det"},
     {PD_3, PinCapability::rwpwm, "e2stop,e2det"},
+	{PI_4, PinCapability::rwpwm, "e3stop,M1_Stop"},
+	{PF_4, PinCapability::rwpwm, "e4stop,M2_Stop"},
+	{PF_6, PinCapability::rwpwm, "e5stop,M3_Stop"},
+	{PI_7, PinCapability::rwpwm, "e6stop,M4_Stop"},
+	{PF_12, PinCapability::rwpwm, "e7stop,M5_Stop"},
 	{PH_11, PinCapability::rwpwm, "probe"},
+	{PI_11, PinCapability::rwpwm, "EI1,PI11"},
+	{PH_6, PinCapability::rwpwm, "EI2,PH6"},
 	
     //Heaters and Fans (Big and Small Mosfets}
     {PA_2,  PinCapability::wpwm, "bed,hbed" },
-    {PB_1,  PinCapability::wpwm, "e0heat,he0" },
-    {PA_1,  PinCapability::wpwm, "e1heat,he1" },
-    {PB_0,  PinCapability::wpwm, "e2heat,he2" },
-    {PE_5,  PinCapability::wpwm, "fan0,fan" },
+    {PB_1,  PinCapability::wpwm, "e0heat,heat0" },
+    {PA_1,  PinCapability::wpwm, "e1heat,heat1" },
+    {PB_0,  PinCapability::wpwm, "e2heat,heat2" },
+	{PD_15,  PinCapability::wpwm, "e3heat,heat_M1" },
+	{PD_13,  PinCapability::wpwm, "e4heat,heat_M2" },
+	{PD_12,  PinCapability::wpwm, "e5heat,heat_M3" },
+	{PE_13,  PinCapability::wpwm, "e6heat,heat_M4" },
+	{PI_6,  PinCapability::wpwm, "e7heat,heat_M5" },
+    {PE_5,  PinCapability::wpwm, "fan0" },
     {PE_6,  PinCapability::wpwm, "fan1" },
     {PC_8,  PinCapability::wpwm, "fan2" },
+	{PI_5,  PinCapability::wpwm, "fan_M1" },
+	{PE_9,  PinCapability::wpwm, "fan_M2" },
+	{PE_11,  PinCapability::wpwm, "fan_M3" },
+	{PC_9,  PinCapability::wpwm, "fan_M4" },
+	{PE_14,  PinCapability::wpwm, "fan_M5" },
 
     //Servos
     {PB_11,  PinCapability::rwpwm, "servo0" },
@@ -128,21 +190,61 @@ constexpr PinEntry PinTable_BIQU_GTR_v1_0[] =
     {PH_10, PinCapability::rwpwm, "PH10"},
     {PB_15, PinCapability::rwpwm, "PB15"},
     {PB_10, PinCapability::rwpwm, "PB10"},
+	
+	//Extension-0
+	{PH_13, PinCapability::rwpwm, "PH13"},
+	{PI_9, PinCapability::rwpwm, "PI9"},
+	
+	//Extension-1
+	{PI_10, PinCapability::rwpwm, "PI10"},
+	{PI_8, PinCapability::rwpwm, "PI8"},
+	
+	//Extension-2
+	{PH_8, PinCapability::rwpwm, "PH8"},
+	{PH_7, PinCapability::rwpwm, "PH7"},
+	
+	//Neopixel
+	{PF_13, PinCapability::rwpwm, "Neopixel,PF13"},
 
 	//Wifi
 	{PF_11, PinCapability::rwpwm, "wifi1,PF11"},
 	{PC_7, PinCapability::rwpwm, "wifi3,PC7"},
 	{PC_6, PinCapability::rwpwm, "wifi4,PC6"},
 	{PC_5, PinCapability::rwpwm, "wifi5,PC5"},
+	
+	//Raspberry Pi
+	{PA_10, PinCapability::rwpwm, "PA10"},
+	{PA_9, PinCapability::rwpwm, "PA9"},
+	
+	//SPI
+	{PC_14, PinCapability::rwpwm, "X-CS,PC10"},
+	{PE_1, PinCapability::rwpwm, "Y-CS,PE1"},
+	{PB_5, PinCapability::rwpwm, "Z-CS,PB5"},
+	{PG_10, PinCapability::rwpwm, "E0-CS,PG10"},
+	{PD_4, PinCapability::rwpwm, "E1-CS,PD4"},
+	{PC_12, PinCapability::rwpwm, "E2-CS,PC12"},
+	{PB_6, PinCapability::rwpwm, "MISO,PB6"},
+	{PG_15, PinCapability::rwpwm, "MOSI,PG15"},
+	{PB_3, PinCapability::rwpwm, "SCK,PB3"},
+	
+	//Extra M5
+	{PI_2, PinCapability::rwpwm, "KMOSI,PI2"},
+	{PI_1, PinCapability::rwpwm, "KSCK,PI1"},
+	{PH_2, PinCapability::rwpwm, "KCS,PH2"},
+	{PF_13, PinCapability::rwpwm, "RGB_LED,PF13"},
 };
 
 constexpr BoardDefaults biqu_gtr_1_0_Defaults = {
     {PF_1, PE_4,  PB_9, PG_13,  PD_7, PD_2},    //enablePins
+	//{PF_1, PE_4,  PB_9, PG_13,  PD_7, PD_2,PF_8,PG_2,PF1_4,PE_8,PI_0},    //enablePins including M5
     {PC_15, PE_3, PB_8, PG_12,  PD_6, PD_1},    //stepPins
-    {PF_0, PE_2, PC_7, PG_11,  PD_5, PD_0},    //dirPins
+	//{PC_15, PE_3, PB_8, PG_12,  PD_6, PD_1,PF_3,PD_14,PE_12,PG_0,PH_12},    //stepPins Including M5
+    {PF_0, PE_2, PB_7, PG_11,  PD_5, PD_0},    //dirPins
+	//{PF_0, PE_2, PB_7, PG_11,  PD_5, PD_0,PG_3,PD_11,PE_10,PG_1,PH_15}, //dirPins Including M5
 #if TMC_SOFT_UART
     {PC_14, PE_1, PB_5, PG_10, PD_4, PC_12},        //uartPins
-    6,                                      // Smart drivers
+	//{PC_14, PE_1, PB_5, PG_10, PD_4, PC_12,PG_4,PE_15,PE_7,PF_15,PH_14},  //uartpins including M5
+    6,                                      // Smart drivers or 11 with M5
 #endif
     0                                       //digiPot Factor
 };
