@@ -1389,8 +1389,8 @@ bool DataTransfer::IapDataExchange(size_t len)
 	dataReceived = false;
 	setup_spi(rxBuffer(), txBuffer(), len);
 	while (!dataReceived && millis() - lastTransferTime < SpiTransferTimeout) {}
-	//if (!dataReceived)
-	//	debugPrintf("Timeout with length %d\n", (int)len);
+	if (!dataReceived)
+		debugPrintf("Timeout with length %d\n", (int)len);
 	return dataReceived;
 }
 
@@ -1400,7 +1400,7 @@ void DataTransfer::EmulateIap()
 	//debugPrintf("Emulate IAP\n");
 	transferReadyHigh = false;
 	digitalWrite(SbcTfrReadyPin, false);
-	disable_spi();
+	//disable_spi();
 	delay(3000);
 	// Discard the firmware data transfer. This is terminated
 	// by a deliberate timeout on the exchange.
@@ -1410,8 +1410,9 @@ void DataTransfer::EmulateIap()
 		offset += 2048;
 		//debugPrintf("Data packet offset %d\n", (int)offset);
 	}
-
+	// re-init the spi to clear errors after timeout
 	disable_spi();
+	InitSpi();
 	// read the CRC packet
 	if (!IapDataExchange(8))
 		debugPrintf("Unexpected timeout on CRC\n");
