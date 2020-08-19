@@ -104,9 +104,9 @@
 
 
 // The physical capabilities of the machine
-constexpr size_t NumDirectDrivers = 5;               // The maximum number of drives supported by the electronics
+constexpr size_t NumDirectDrivers = 7;               // The maximum number of drives supported by the electronics
 #if defined(SUPPORT_TMC22xx)
-    constexpr size_t MaxSmartDrivers = 5;            // The maximum number of smart drivers
+    constexpr size_t MaxSmartDrivers = NumDirectDrivers;            // The maximum number of smart drivers
     constexpr size_t NumTmcDriversSenseChannels = 1;
     #define TMC_SOFT_UART 1
     #define TMC22xx_HAS_ENABLE_PINS			1
@@ -400,6 +400,7 @@ constexpr BoardEntry LPC_Boards[] =
     {"rearm",            PinTable_Rearm,            ARRAY_SIZE(PinTable_Rearm),            rearmDefaults},
     {"mkssbase_1.3",     PinTable_MKSSbase1_3,      ARRAY_SIZE(PinTable_MKSSbase1_3),      mkssbase1_3_Defaults},
 	{"mkssgenl_1.0",     PinTable_MKSSGenL1_0,      ARRAY_SIZE(PinTable_MKSSGenL1_0),      mkssgenl1_0_Defaults},
+	{"mkssgenl_2.0",     PinTable_MKSSGenL2_0,      ARRAY_SIZE(PinTable_MKSSGenL2_0),      mkssgenl2_0_Defaults},
     {"azsmzmini",        PinTable_AZSMZ,            ARRAY_SIZE(PinTable_AZSMZ),            azsmzDefaults},
     {"biquskr_1.1",      PinTable_BIQU_SKR_v1_1,    ARRAY_SIZE(PinTable_BIQU_SKR_v1_1),    biquskr_1_1_Defaults},
     {"biquskr_1.3",      PinTable_BIQU_SKR_v1_3,    ARRAY_SIZE(PinTable_BIQU_SKR_v1_3),    biquskr_1_3_Defaults},

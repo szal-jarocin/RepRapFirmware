@@ -11,9 +11,6 @@
 
 constexpr PinEntry PinTable_BIQU_SKR_v1_1[] =
 {
-
-    //Common Pins for V1.1 and 1.3
-
     //Thermistors
     {P0_23, PinCapability::ainrw, "bedtemp,tb"},
     {P0_24, PinCapability::ainrw, "e0temp,th0"},
@@ -34,9 +31,9 @@ constexpr PinEntry PinTable_BIQU_SKR_v1_1[] =
     {P2_3,  PinCapability::wpwm, "fan0,fan" },
 
     //Exp1
-    //{P0_15, PinCapability::rwpwm, "0.15"}, //SSP0 SCK
+    {P0_15, PinCapability::rwpwm, "P0.15"}, //SSP0 SCK
     {P0_16, PinCapability::rwpwm, "P0.16"},
-    //{P0_18, PinCapability::rwpwmrw, "0.18"}, //SSP0 MOSI
+    {P0_18, PinCapability::rwpwm, "P0.18"}, //SSP0 MOSI
     {P2_11, PinCapability::rwpwm, "P2.11"},
     {P1_30, PinCapability::rwpwm, "P1.30"},
 
@@ -46,27 +43,31 @@ constexpr PinEntry PinTable_BIQU_SKR_v1_1[] =
     {P3_25, PinCapability::rwpwm, "P3.25"},
     {P1_23, PinCapability::rwpwm, "P1.23"},
     {P3_26, PinCapability::rwpwm, "P3.26"},
-    //{P0_17, PinCapability::rwpwm, "0.17"}, //SSP0 MISO
+    {P0_17, PinCapability::rwpwm, "P0.17"}, //SSP0 MISO
 
     //LCD/SD/SPI header (most overlap with exp1/2)
     //0.15
     //0.18
     //0.16
     {P2_6,  PinCapability::rwpwm, "P2.6"},
-    //1.23
+    {P1_23, PinCapability::rwpwm, "P1.23"},
     //0.17
     //2.11
-    //3.25
+    {P3_25, PinCapability::rwpwm, "P3.25"},
     //1.31
-    //3.26
+    {P3_26, PinCapability::rwpwm, "P3.26"},
+	
+	//aux-1
+	{P0_2,  PinCapability::rwpwm, "P0.2"},
+	{P0_3,  PinCapability::rwpwm, "P0.3"},
 };
 
 constexpr BoardDefaults biquskr_1_1_Defaults = {
-    {P4_28, P2_0, P0_19, P2_12, P0_10},     //enablePins
-    {P0_4,  P2_1, P0_20, P0_11, P0_1},      //stepPins
-    {P0_5,  P2_2, P0_21, P2_13, P0_0},      //dirPins
-#if TMC_SOFT_UART
-    {NoPin, NoPin, NoPin, NoPin, NoPin},    //uartPins
+    {P4_28, P2_0, P0_19, P2_12, P0_10, NoPin, NoPin},     //enablePins
+    {P0_4,  P2_1, P0_20, P0_11, P0_1, NoPin, NoPin},      //stepPins
+    {P0_5,  P2_2, P0_21, P2_13, P0_0, NoPin, NoPin},      //dirPins
+#if LPC_TMC_SOFT_UART
+    {NoPin, NoPin, NoPin, NoPin, NoPin, NoPin, NoPin},    //uartPins
     0,                                      // Smart drivers
 #endif
     0,                                      //digiPot Factor
@@ -109,12 +110,12 @@ constexpr PinEntry PinTable_BIQU_SKR_v1_3[] =
     
     //EXP2
     {P1_31, PinCapability::rwpwm, "P1.31"},
-    //{P0_18, PinCapability::rw, "0.18"}, //SSP0 MOSI
+    {P0_18, PinCapability::rw, "0.18"}, //SSP0 MOSI
     {P3_25, PinCapability::rwpwm, "P3.25"},
     {P0_16, PinCapability::rwpwm, "P0.16"},
     {P3_26, PinCapability::rwpwm, "P3.26"},
-    //{P0_15, PinCapability::rw, "0.15"}, //SSP0 SCK
-    //{P0_17, PinCapability::rw, "0.17"}, //SSP0 MISO
+    {P0_15, PinCapability::rw, "0.15"}, //SSP0 SCK
+    {P0_17, PinCapability::rw, "0.17"}, //SSP0 MISO
     
     //MONI-SD
     {P0_27, PinCapability::rwpwm, "data2,P0.27"},
@@ -143,14 +144,18 @@ constexpr PinEntry PinTable_BIQU_SKR_v1_3[] =
     //MISO 0.5
     //MOSI 4.28
     //SCK  0.4
+	
+	//aux-1
+	{P0_2,  PinCapability::rwpwm, "P0.2"},
+	{P0_3,  PinCapability::rwpwm, "P0.3"},
 };
 
 constexpr BoardDefaults biquskr_1_3_Defaults = {
-    {P2_1, P2_8,  P0_21, P2_12,  P0_10},    //enablePins
-    {P2_2, P0_19, P0_22, P2_13,  P0_1},     //stepPins
-    {P2_6, P0_20, P2_11, P0_11,  P0_0},     //dirPins
-#if TMC_SOFT_UART
-    {P1_17, P1_15, P1_10, P1_8, P1_1},      //uartPins
+    {P2_1, P2_8,  P0_21, P2_12,  P0_10, NoPin, NoPin},    //enablePins
+    {P2_2, P0_19, P0_22, P2_13,  P0_1, NoPin, NoPin},     //stepPins
+    {P2_6, P0_20, P2_11, P0_11,  P0_0, NoPin, NoPin},     //dirPins
+#if LPC_TMC_SOFT_UART
+    {P1_17, P1_15, P1_10, P1_8, P1_1, NoPin, NoPin},      //uartPins
     5,                                      // Smart drivers
 #endif
     0                                       //digiPot Factor
@@ -197,20 +202,15 @@ constexpr PinEntry PinTable_BIQU_SKR_v1_4[] =
 
     //EXP2
     {P1_31, PinCapability::rwpwm, "P1.31"},
-    //{P0_18, PinCapability::rw, "0.18"}, //SSP0 MOSI
+    {P0_18, PinCapability::rw, "0.18"}, //SSP0 MOSI
     {P3_25, PinCapability::rwpwm, "P3.25"},
     {P0_16, PinCapability::rwpwm, "P0.16"},
     {P3_26, PinCapability::rwpwm, "P3.26"},
-    //{P0_15, PinCapability::rw, "0.15"}, //SSP0 SCK
-    //{P0_17, PinCapability::rw, "0.17"}, //SSP0 MISO
+    {P0_15, PinCapability::rw, "0.15"}, //SSP0 SCK
+    {P0_17, PinCapability::rw, "0.17"}, //SSP0 MISO
 
     //MONI-SD
     {P0_27, PinCapability::rwpwm, "data2,P0.27"},
-    //following pins are the same as the internal sdcard
-    //{P0_8,  PinCapability::rwpwm, "0.8"}, //SSP1 MISO
-    //{P0_7,  PinCapability::rwpwm, "0.7"}, //SSP1 SCK
-    //{P0_9,  PinCapability::rwpwm, "0.9"}, //SSP1 MOSI
-    //{P0_6,  PinCapability::rwpwm, "0.6"}, //SEL (SD CS)
 
 	//Wifi
 	{P4_28, PinCapability::rwpwm, "wifi1,P4.28"},
@@ -222,6 +222,13 @@ constexpr PinEntry PinTable_BIQU_SKR_v1_4[] =
 	
 	//SPI
 	{P0_26, PinCapability::rwpwm, "SPI1,P0.26"},
+	{P0_7, PinCapability::rwpwm, "P0.7"},
+	{P0_8, PinCapability::rwpwm, "P0.8"},
+	{P0_9, PinCapability::rwpwm, "P0.9"},
+	
+	//tft
+	{P0_2,  PinCapability::rwpwm, "P0.2"},
+	{P0_3,  PinCapability::rwpwm, "P0.3"},
 	
     //Other Headers on v1.4 Boards
     //TMC2208-UART
@@ -245,11 +252,11 @@ constexpr PinEntry PinTable_BIQU_SKR_v1_4[] =
 };
 
 constexpr BoardDefaults biquskr_1_4_Defaults = {
-    {P2_1, P2_8,  P0_21, P2_12,  P1_16},    //enablePins
-    {P2_2, P0_19, P0_22, P2_13,  P1_15},    //stepPins
-    {P2_6, P0_20, P2_11, P0_11,  P1_14},    //dirPins
-#if TMC_SOFT_UART
-    {P1_10, P1_9, P1_8, P1_4, P1_1},        //uartPins
+    {P2_1, P2_8,  P0_21, P2_12,  P1_16, NoPin, NoPin},    //enablePins
+    {P2_2, P0_19, P0_22, P2_13,  P1_15, NoPin, NoPin},    //stepPins
+    {P2_6, P0_20, P2_11, P0_11,  P1_14, NoPin, NoPin},    //dirPins
+#if LPC_TMC_SOFT_UART
+    {P1_10, P1_9, P1_8, P1_4, P1_1, NoPin, NoPin},        //uartPins
     5,                                      // Smart drivers
 #endif
     0                                       //digiPot Factor
