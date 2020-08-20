@@ -127,7 +127,7 @@ constexpr PinEntry PinTable_BIQU_GTR_v1_0[] =
     {PC_1, PinCapability::ainrw, "e0temp,t0"},
     {PC_2, PinCapability::ainrw, "e1temp,t1"},
     {PC_3, PinCapability::ainrw, "e2temp,t2"},
-    {PC_0, PinCapability::ainrw, "bedtemp,bed"},
+    {PC_0, PinCapability::ainrw, "bedtemp,t3"},
 	{PA_3, PinCapability::ainrw, "e3temp,Temp_M1"},
 	{PF_9, PinCapability::ainrw, "e4temp,Temp_M2"},
 	{PF_10, PinCapability::ainrw, "e5temp,Temp_M3"},
