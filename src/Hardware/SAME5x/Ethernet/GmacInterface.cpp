@@ -6,6 +6,7 @@
  */
 
 #include <Core.h>
+#include <Cache.h>
 #include "GmacInterface.h"
 #include "gmac.h"
 
@@ -27,7 +28,12 @@ extern "C" {
 
 extern Mutex lwipMutex;
 
+#if defined(LWIP_DEBUG)
+constexpr size_t EthernetTaskStackWords = 700;
+#else
 constexpr size_t EthernetTaskStackWords = 250;
+#endif
+
 static Task<EthernetTaskStackWords> ethernetTask;
 
 // Error counters
@@ -52,25 +58,18 @@ unsigned int txBufferTooShortCount;
 /* configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY. */
 
 /** The GMAC interrupts to enable */
-#define GMAC_INT_GROUP (GMAC_ISR_RCOMP | GMAC_ISR_ROVR | GMAC_ISR_HRESP | GMAC_ISR_TCOMP | GMAC_ISR_TUR | GMAC_ISR_TFC)
+#define GMAC_INT_GROUP (GMAC_ISR_RCOMP | GMAC_ISR_ROVR)
 
 /** The GMAC TX errors to handle */
-#define GMAC_TX_ERRORS (GMAC_TSR_TFC | GMAC_TSR_HRESP)
+#define GMAC_TX_ERRORS (GMAC_TSR_TFC | GMAC_TSR_HRESP | GMAC_TSR_UND)
 
 /** The GMAC RX errors to handle */
 #define GMAC_RX_ERRORS (GMAC_RSR_RXOVR | GMAC_RSR_HNO)
 
-#if 0
-/** TX descriptor lists */
-alignas(8) static gmac_tx_descriptor_t gs_tx_desc_null;
-/** RX descriptors lists */
-alignas(8) static gmac_rx_descriptor_t gs_rx_desc_null;
-#endif
-
 /**
  * GMAC driver structure.
  */
-struct gmac_device {
+struct alignas(8) gmac_device {
 	/**
 	 * Pointer to allocated TX buffer.
 	 * Section 3.6 of AMBA 2.0 spec states that burst should not cross
@@ -82,24 +81,28 @@ struct gmac_device {
 	volatile gmac_rx_descriptor_t rx_desc[GMAC_RX_BUFFERS];
 	/** Pointer to Tx descriptor list (must be 8-byte aligned). */
 	volatile gmac_tx_descriptor_t tx_desc[GMAC_TX_BUFFERS];
-	/** RX pbuf pointer list. */
-	struct pbuf *rx_pbuf[GMAC_RX_BUFFERS];
-	/** TX buffers. */
-	uint8_t tx_buf[GMAC_TX_BUFFERS][GMAC_TX_UNITSIZE];
 
 	/** RX index for current processing TD. */
 	uint32_t us_rx_idx;
 	/** Circular buffer head pointer by upper layer (buffer to be sent). */
 	uint32_t us_tx_idx;
 
+	bool rxPbufsFullyPopulated = false;
+
 	/** Reference to lwIP netif structure. */
 	struct netif *netif;
+
+	/** RX pbuf pointer list. */
+	struct pbuf *rx_pbuf[GMAC_RX_BUFFERS];
+
+	/** TX buffers. */
+	alignas(8) uint8_t tx_buf[GMAC_TX_BUFFERS][(GMAC_TX_UNITSIZE + 3u) & (~3u)];
 };
 
 /**
  * GMAC driver instance.
  */
-__nocache __aligned(8) static struct gmac_device gs_gmac_dev;
+__nocache static struct gmac_device gs_gmac_dev;
 
 /**
  * MAC address to use.
@@ -114,8 +117,6 @@ static uint8_t gs_uc_mac_address[] =
 	ETHERNET_CONF_ETHADDR5
 };
 
-static bool rxPbufsFullyPopulated = false;
-
 #if LWIP_STATS
 /** Used to compute lwIP bandwidth. */
 uint32_t lwip_tx_count = 0;
@@ -124,9 +125,8 @@ uint32_t lwip_tx_rate = 0;
 uint32_t lwip_rx_rate = 0;
 #endif
 
-/**
- * \brief GMAC interrupt handler.
- */
+// GMAC interrupt handler
+// At present, we only use receive interrupts
 extern "C" void GMAC_Handler() noexcept
 {
 	/* Get interrupt status. */
@@ -162,7 +162,7 @@ static void gmac_rx_populate_queue(struct gmac_device *p_gmac_dev, uint32_t star
 			if (p == nullptr)
 			{
 				LWIP_DEBUGF(NETIF_DEBUG, ("gmac_rx_populate_queue: pbuf allocation failure\n"));
-				rxPbufsFullyPopulated = false;
+				p_gmac_dev->rxPbufsFullyPopulated = false;
 				++rxBuffersNotFullyPopulatedCount;
 				return;
 			}
@@ -189,7 +189,6 @@ static void gmac_rx_populate_queue(struct gmac_device *p_gmac_dev, uint32_t star
 			{
 				p_gmac_dev->rx_desc[ul_index].addr.val = (u32_t) p->payload;
 			}
-
 			LWIP_DEBUGF(NETIF_DEBUG,
 					("gmac_rx_populate_queue: new pbuf allocated: %p [idx=%u]\n",
 					p, (unsigned int)ul_index));
@@ -202,7 +201,7 @@ static void gmac_rx_populate_queue(struct gmac_device *p_gmac_dev, uint32_t star
 		}
 	} while (ul_index != startAt);
 
-	rxPbufsFullyPopulated = true;
+	p_gmac_dev->rxPbufsFullyPopulated = true;
 }
 
 /**
@@ -257,7 +256,7 @@ static void gmac_tx_init(struct gmac_device *ps_gmac_dev) noexcept
 	}
 	ps_gmac_dev->tx_desc[ul_index - 1].status.val |= GMAC_TXD_WRAP;
 
-	/* Set receive buffer queue base address pointer. */
+	/* Set transmit buffer queue base address pointer. */
 	gmac_set_tx_queue(GMAC, (uint32_t) &ps_gmac_dev->tx_desc[0]);
 }
 
@@ -270,10 +269,6 @@ static void gmac_tx_init(struct gmac_device *ps_gmac_dev) noexcept
  */
 static void gmac_low_level_init(struct netif *netif) noexcept
 {
-#if 0			// chrishamm
-	volatile uint32_t ul_delay;
-#endif
-
 	/* Set MAC hardware address length. */
 	netif->hwaddr_len = sizeof(gs_uc_mac_address);
 	/* Set MAC hardware address. */
@@ -288,41 +283,14 @@ static void gmac_low_level_init(struct netif *netif) noexcept
 	netif->mtu = NET_MTU;
 
 	/* Device capabilities. */
-	netif->flags |= NETIF_FLAG_BROADCAST | NETIF_FLAG_ETHARP
-#if LWIP_IGMP	// chrishamm
-			| NETIF_FLAG_IGMP
-#endif
-	;
-
-#if 0			// chrishamm: Just like with the EMAC on the Duet, we initialise the GMAC step-by-step to avoid blocking
-	/* Wait for PHY to be ready (CAT811: Max400ms). */
-	ul_delay = sysclk_get_cpu_hz() / 1000 / 3 * 400;
-	while (ul_delay--) {
-	}
-#endif
+	netif->flags |= NETIF_FLAG_BROADCAST | NETIF_FLAG_ETHARP | NETIF_FLAG_IGMP;
 
 	/* Init MAC PHY driver. */
-	if (ethernet_phy_init(GMAC, BOARD_GMAC_PHY_ADDR, SystemCoreClock) != GMAC_OK) {
+	if (ethernet_phy_init(GMAC, BOARD_GMAC_PHY_ADDR, SystemCoreClockFreq) != GMAC_OK)
+	{
 		LWIP_DEBUGF(NETIF_DEBUG, ("gmac_low_level_init: PHY init ERROR!\n"));
 		return;
 	}
-
-#if 0			// chrishamm: See ethernetif_establish_link()
-	/* Auto Negotiate, work in RMII mode. */
-	if (ethernet_phy_auto_negotiate(GMAC, BOARD_GMAC_PHY_ADDR) != GMAC_OK) {
-		LWIP_DEBUGF(NETIF_DEBUG, ("gmac_low_level_init: auto negotiate ERROR!\n"));
-		return;
-	}
-
-	/* Establish ethernet link. */
-	while (ethernet_phy_set_link(GMAC, BOARD_GMAC_PHY_ADDR, 1) != GMAC_OK) {
-		LWIP_DEBUGF(NETIF_DEBUG, ("gmac_low_level_init: set link ERROR!\n"));
-		return;
-	}
-
-	/* Set link up*/
-	netif->flags |= NETIF_FLAG_LINK_UP;
-#endif
 }
 
 /**
@@ -336,76 +304,87 @@ static void gmac_low_level_init(struct netif *netif) noexcept
  * \return ERR_OK if the packet could be sent.
  * an err_t value if the packet couldn't be sent.
  */
+
+#include <General/Portability.h>
 static err_t gmac_low_level_output(netif *p_netif, struct pbuf *p) noexcept
 {
+#if 0
+	debugPrintf("%u %u %" PRIu32 "\n",
+				LoadBE16((const uint8_t*)p->payload + 0x24),			// destination port
+				LoadBE16((const uint8_t*)p->payload + 0x10),			// length
+				LoadBE32((const uint8_t*)p->payload + 0x26)				// sequence number
+		);
+#endif
 	gmac_device *const ps_gmac_dev = static_cast<gmac_device *>(p_netif->state);
 
-	/* Handle GMAC underrun or AHB errors. */
-	if (gmac_get_tx_status(GMAC) & GMAC_TX_ERRORS)
+	while (true)
 	{
-		++txErrorCount;
-		LWIP_DEBUGF(NETIF_DEBUG, ("gmac_low_level_output: GMAC ERROR, reinit TX...\n"));
-
-		gmac_enable_transmit(GMAC, false);
-
-		LINK_STATS_INC(link.err);
-		LINK_STATS_INC(link.drop);
-
-		/* Reinit TX descriptors. */
-		gmac_tx_init(ps_gmac_dev);
-
-		/* Clear error status. */
-		gmac_clear_tx_status(GMAC, GMAC_TX_ERRORS);
-
-		gmac_enable_transmit(GMAC, true);
-	}
-
-	while ((ps_gmac_dev->tx_desc[ps_gmac_dev->us_tx_idx].status.val & GMAC_TXD_USED) == 0)
-	{
-		++txBufferNotFreeCount;
-		delay(1);
-	}
-
-	// Copy pbuf chain into TX buffer
-	{
-		uint8_t *buffer = reinterpret_cast<uint8_t*>(ps_gmac_dev->tx_desc[ps_gmac_dev->us_tx_idx].addr);
-		size_t totalLength = 0;
-		for (const pbuf *q = p; q != NULL; q = q->next)
+		// Handle GMAC underrun or AHB errors
+		if (gmac_get_tx_status(GMAC) & GMAC_TX_ERRORS)
 		{
-			totalLength += q->len;
-			if (totalLength > GMAC_TX_UNITSIZE)
-			{
-				++txBufferTooShortCount;
-				return ERR_BUF;
-			}
-			memcpy(buffer, q->payload, q->len);
-			buffer += q->len;
+			++txErrorCount;
+			LWIP_DEBUGF(NETIF_DEBUG, ("gmac_low_level_output: GMAC ERROR, reinit TX...\n"));
+
+			gmac_enable_transmit(GMAC, false);
+
+			LINK_STATS_INC(link.err);
+			LINK_STATS_INC(link.drop);
+
+			/* Reinit TX descriptors. */
+			gmac_tx_init(ps_gmac_dev);
+
+			/* Clear error status. */
+			gmac_clear_tx_status(GMAC, GMAC_TX_ERRORS);
+
+			gmac_enable_transmit(GMAC, true);
 		}
-	}
 
-	// Set length and mark the buffer to be sent by GMAC
-	uint32_t txStat = p->tot_len | GMAC_TXD_LAST;
-	if (ps_gmac_dev->us_tx_idx == GMAC_TX_BUFFERS - 1)
-	{
-		txStat |= GMAC_TXD_WRAP;
-	}
-	ps_gmac_dev->tx_desc[ps_gmac_dev->us_tx_idx].status.val = txStat;
+		volatile gmac_tx_descriptor_t& txDescriptor = ps_gmac_dev->tx_desc[ps_gmac_dev->us_tx_idx];
+		Cache::InvalidateAfterDMAReceive(&txDescriptor, sizeof(gmac_tx_descriptor_t));
+		if ((txDescriptor.status.val & GMAC_TXD_USED) != 0)
+		{
+			// Copy pbuf chain into TX buffer
+			uint8_t *buffer = reinterpret_cast<uint8_t*>(txDescriptor.addr);
+			size_t totalLength = 0;
+			for (const pbuf *q = p; q != nullptr; q = q->next)
+			{
+				totalLength += q->len;
+				if (totalLength > GMAC_TX_UNITSIZE)
+				{
+					++txBufferTooShortCount;
+					return ERR_BUF;
+				}
+				memcpy(buffer, q->payload, q->len);
+				buffer += q->len;
+			}
 
-	LWIP_DEBUGF(NETIF_DEBUG,
-			("gmac_low_level_output: DMA buffer sent, size=%d [idx=%u]\n",
-			p->tot_len, (unsigned int)ps_gmac_dev->us_tx_idx));
+			// Set length and mark the buffer to be sent by GMAC
+			uint32_t txStat = totalLength | GMAC_TXD_LAST;
+			if (ps_gmac_dev->us_tx_idx == GMAC_TX_BUFFERS - 1)
+			{
+				txStat |= GMAC_TXD_WRAP;
+			}
+			txDescriptor.status.val = txStat;
+			Cache::FlushBeforeDMASend(&txDescriptor, sizeof(gmac_tx_descriptor_t));
+			LWIP_DEBUGF(NETIF_DEBUG,
+					("gmac_low_level_output: DMA buffer sent, size=%d [idx=%u]\n",
+					p->tot_len, (unsigned int)ps_gmac_dev->us_tx_idx));
+			ps_gmac_dev->us_tx_idx = (ps_gmac_dev->us_tx_idx + 1) % GMAC_TX_BUFFERS;
 
-	ps_gmac_dev->us_tx_idx = (ps_gmac_dev->us_tx_idx + 1) % GMAC_TX_BUFFERS;
-
-	/* Now start to transmission. */
-	gmac_start_transmission(GMAC);
+			/* Now start to transmission. */
+			gmac_start_transmission(GMAC);
 
 #if LWIP_STATS
-	lwip_tx_count += p->tot_len;
+			lwip_tx_count += p->tot_len;
 #endif
-	LINK_STATS_INC(link.xmit);
+			LINK_STATS_INC(link.xmit);
 
-	return ERR_OK;
+			return ERR_OK;
+		}
+
+		++txBufferNotFreeCount;
+		delay(2);	//TODO use an interrupt instead
+	}
 }
 
 /**
@@ -450,6 +429,8 @@ static pbuf *gmac_low_level_input(struct netif *netif) noexcept
 	}
 
 	volatile gmac_rx_descriptor_t * const p_rx = &ps_gmac_dev->rx_desc[ps_gmac_dev->us_rx_idx];
+	Cache::InvalidateAfterDMAReceive(p_rx, sizeof(gmac_rx_descriptor_t));
+
 	pbuf * const p = ((p_rx->addr.val & GMAC_RXD_OWNERSHIP) == GMAC_RXD_OWNERSHIP)
 						? ps_gmac_dev->rx_pbuf[ps_gmac_dev->us_rx_idx]
 							: nullptr;
@@ -465,12 +446,10 @@ static pbuf *gmac_low_level_input(struct netif *netif) noexcept
 
 		/* Remove this pbuf from its descriptor. */
 		ps_gmac_dev->rx_pbuf[ps_gmac_dev->us_rx_idx] = nullptr;
-		rxPbufsFullyPopulated = false;
-
+		ps_gmac_dev->rxPbufsFullyPopulated = false;
 		LWIP_DEBUGF(NETIF_DEBUG,
 				("gmac_low_level_input: DMA buffer %p received, size=%u [idx=%u]\n",
 				p, (unsigned int)length, (unsigned int)ps_gmac_dev->us_rx_idx));
-
 		/* Set pbuf total packet size. */
 		p->tot_len = length;
 		LINK_STATS_INC(link.recv);
@@ -483,7 +462,7 @@ static pbuf *gmac_low_level_input(struct netif *netif) noexcept
 	}
 
 	/* Fill empty descriptors with new pbufs. */
-	if (!rxPbufsFullyPopulated)
+	if (!ps_gmac_dev->rxPbufsFullyPopulated)
 	{
 		gmac_rx_populate_queue(ps_gmac_dev, ps_gmac_dev->us_rx_idx);
 	}
@@ -512,7 +491,7 @@ extern "C" [[noreturn]] void gmac_task(void *pvParameters) noexcept
 		}
 
 		// Wait for the RX notification from the ISR
-		TaskBase::Take((rxPbufsFullyPopulated) ? 1000 : 20);
+		TaskBase::Take((ps_gmac_dev->rxPbufsFullyPopulated) ? 1000 : 20);
 	}
 }
 
@@ -609,10 +588,102 @@ err_t ethernetif_init(struct netif *netif) noexcept
 	gmac_low_level_init(netif);
 
 	ethernetTask.Create(gmac_task, "ETHERNET", &gs_gmac_dev, TaskPriority::EthernetPriority);
+
+	/* Set up the interrupts for transmission and errors. */
+	gmac_enable_interrupt(GMAC, GMAC_INT_GROUP);
+
+	/* Enable NVIC GMAC interrupt. */
+	NVIC_ClearPendingIRQ(GMAC_IRQn);
+	NVIC_EnableIRQ(GMAC_IRQn);
+
 	return ERR_OK;
 }
 
-// Initialise the GMAC and Phy. The GMAC clocks were already enabled and the pin functions set in CoreIO.
+// GMAC configuration
+
+// <o> MDC Clock Division
+// <i> Set according to MCK speed. These three bits determine the number MCK
+// <i> will be divided by to generate Management Data Clock (MDC). For
+// <i> conformance with the 802.3 specification, MDC must not exceed 2.5 MHz
+// <i> (MDC is only active during MDIO read and write operations).
+// <0=> 8
+// <1=> 16
+// <2=> 32
+// <3=> 48
+// <4=> 64
+// <5=> 96
+// <id> gmac_arch_ncfgr_clk
+#define CONF_GMAC_NCFGR_CLK 4
+
+/**
+ * For conformance with the 802.3 specification, MDC must not exceed 2.5 MHz
+ **/
+#define CONF_GMAC_FREQUENCY		120000000
+#ifndef CONF_GMAC_MCK_FREQUENCY
+#if CONF_GMAC_NCFGR_CLK == 0
+#define CONF_GMAC_MCK_FREQUENCY (CONF_GMAC_FREQUENCY / 8)
+#elif CONF_GMAC_NCFGR_CLK == 1
+#define CONF_GMAC_MCK_FREQUENCY (CONF_GMAC_FREQUENCY / 16)
+#elif CONF_GMAC_NCFGR_CLK == 2
+#define CONF_GMAC_MCK_FREQUENCY (CONF_GMAC_FREQUENCY / 32)
+#elif CONF_GMAC_NCFGR_CLK == 3
+#define CONF_GMAC_MCK_FREQUENCY (CONF_GMAC_FREQUENCY / 48)
+#elif CONF_GMAC_NCFGR_CLK == 4
+#define CONF_GMAC_MCK_FREQUENCY (CONF_GMAC_FREQUENCY / 64)
+#elif CONF_GMAC_NCFGR_CLK == 5
+#define CONF_GMAC_MCK_FREQUENCY (CONF_GMAC_FREQUENCY / 96)
+#endif
+#endif
+
+#if CONF_GMAC_MCK_FREQUENCY > 2500000
+#warning For conformance with the 802.3 specification, MDC must not exceed 2.5 MHz
+#endif
+
+// <o> Fixed Burst Length for DMA Data Operations
+// <i> Selects the burst length to attempt to use on the AHB when transferring
+// <i> frame data. Not used for DMA management operations and only used where
+// <i> space and data size allow. Otherwise SINGLE type AHB transfers are used.
+// <1=> Always use SINGLE AHB bursts
+// <4=> Always use INCR4 AHB bursts
+// <8=> Always use INCR8 AHB bursts
+// <16=> Always use INCR16 AHB bursts
+// <id> gmac_arch_dcfgr_fbldo
+#define CONF_GMAC_DCFGR_FBLDO 4
+
+// <o> Receiver Packet Buffer Memory Size Select
+// <i> Select the receive packet buffer size
+// <0=> 0.5 Kbytes
+// <1=> 1 Kbytes
+// <2=> 2 Kbytes
+// <3=> 4 Kbytes
+// <id> gmac_arch_dcfgr_rxbms
+#define CONF_GMAC_DCFGR_RXBMS 3
+
+// <o> DMA Receive Buffer Size <1-255>
+// <i> DMA receive buffer size in AHB system memory. The value defined by these
+// <i> bits determines the size of buffer to use in main AHB system memory when
+// <i> writing received data. The value is defined in multiples of 64 bytes,
+// <i> thus a value of 0x01 corresponds to buffers of 64 bytes, 0x02
+// <i> corresponds to 128 bytes etc.
+// <id> gmac_arch_dcfgr_drbs
+#define CONF_GMAC_DCFGR_DRBS 0x18
+
+// <o> IPG Stretch Multiple <0-15>
+// <i> This value will multiplied with the previously transmitted frame length
+// <i> (including preamble)
+// <id> gmac_arch_ipgs_fl_mul
+#define CONF_GMAC_IPGS_FL_MUL 1
+
+// <o> IPG Stretch Divide <1-16>
+// <i> Divide the frame length. If the resulting number is greater than 96 and
+// <i> IP Stretch Enabled then the resulting number is used for the transmit
+// <i> inter-packet-gap
+// <id> gmac_arch_ipgs_fl_div
+#define CONF_GMAC_IPGS_FL_DIV 1
+
+// <<< end of configuration section >>>
+
+// Initialise the GMAC and Phy
 void ethernetif_hardware_init() noexcept
 {
 	// Set up Ethernet clock
@@ -626,31 +697,24 @@ void ethernetif_hardware_init() noexcept
 		SetPinFunction(p, EthernetMacPinsPinFunction);
 	}
 
+	hri_gmac_write_NCR_reg(GMAC, GMAC_NCR_MPE);
+	hri_gmac_write_NCFGR_reg(GMAC, GMAC_NCFGR_SPD | GMAC_NCFGR_FD | GMAC_NCFGR_MAXFS | GMAC_NCFGR_CLK(CONF_GMAC_NCFGR_CLK));
+	hri_gmac_write_UR_reg(GMAC, 0);
+	hri_gmac_write_DCFGR_reg(GMAC, GMAC_DCFGR_FBLDO(CONF_GMAC_DCFGR_FBLDO) | GMAC_DCFGR_RXBMS(CONF_GMAC_DCFGR_RXBMS) | GMAC_DCFGR_TXPBMS | GMAC_DCFGR_DRBS(CONF_GMAC_DCFGR_DRBS));
+	hri_gmac_write_WOL_reg(GMAC, 0);
+	hri_gmac_write_IPGS_reg(GMAC, GMAC_IPGS_FL((CONF_GMAC_IPGS_FL_MUL << 8) | CONF_GMAC_IPGS_FL_DIV));
+
 	/* Disable TX & RX and more. */
-	gmac_network_control(GMAC, 0);
 	gmac_disable_interrupt(GMAC, ~0u);
 
-	gmac_clear_statistics(GMAC);
-
 	/* Clear all status bits in the receive status register. */
-	gmac_clear_rx_status(GMAC, GMAC_RSR_BNA | GMAC_RSR_REC | GMAC_RSR_RXOVR
-			| GMAC_RSR_HNO);
+	gmac_clear_rx_status(GMAC, GMAC_RSR_BNA | GMAC_RSR_REC | GMAC_RSR_RXOVR | GMAC_RSR_HNO);
 
 	/* Clear all status bits in the transmit status register. */
-	gmac_clear_tx_status(GMAC, GMAC_TSR_UBR | GMAC_TSR_COL | GMAC_TSR_RLE
-			| GMAC_TSR_TXGO | GMAC_TSR_TFC | GMAC_TSR_TXCOMP
-			| GMAC_TSR_HRESP);
+	gmac_clear_tx_status(GMAC, GMAC_TSR_UBR | GMAC_TSR_COL | GMAC_TSR_RLE | GMAC_TSR_TXGO | GMAC_TSR_TFC | GMAC_TSR_TXCOMP | GMAC_TSR_HRESP);
 
 	/* Clear interrupts. */
 	gmac_get_interrupt_status(GMAC);
-
-	/* Enable the copy of data into the buffers
-	   ignore broadcasts, and not copy FCS. */
-	gmac_enable_copy_all(GMAC, false);
-	gmac_disable_broadcast(GMAC, false);
-
-	/* Set RX buffer size to 1536. */
-	gmac_set_rx_bufsize(GMAC, 0x18);
 
 	gmac_rx_init(&gs_gmac_dev);
 	gmac_tx_init(&gs_gmac_dev);
@@ -658,26 +722,17 @@ void ethernetif_hardware_init() noexcept
 	/* Enable Rx, Tx and the statistics register. */
 	gmac_enable_transmit(GMAC, true);
 	gmac_enable_receive(GMAC, true);
-	gmac_enable_statistics_write(GMAC, true);
-
-	/* Set up the interrupts for transmission and errors. */
-	gmac_enable_interrupt(GMAC, GMAC_INT_GROUP);
 
 	/* Set GMAC address. */
 	gmac_set_address(GMAC, 0, gs_uc_mac_address);
-
-	/* Enable NVIC GMAC interrupt. */
-#if 0		// chrishamm: NVIC priorities are assigned by RepRapFirmware
-	NVIC_SetPriority(GMAC_IRQn, INT_PRIORITY_GMAC);
-#endif
-	NVIC_EnableIRQ(GMAC_IRQn);
 }
 
 bool ethernetif_establish_link() noexcept
 {
 	/* Auto Negotiate, work in RMII mode. */
 	uint8_t result = ethernet_phy_auto_negotiate(GMAC, BOARD_GMAC_PHY_ADDR);
-	if (result != GMAC_OK) {
+	if (result != GMAC_OK)
+	{
 		if (result != GMAC_TIMEOUT)
 		{
 			// chrishamm: It is expected that the function above will return ERR_TIMEOUT a few times
@@ -687,7 +742,8 @@ bool ethernetif_establish_link() noexcept
 	}
 
 	/* Establish ethernet link. */
-	if (ethernet_phy_set_link(GMAC, BOARD_GMAC_PHY_ADDR, 1) != GMAC_OK) {
+	if (ethernet_phy_set_link(GMAC, BOARD_GMAC_PHY_ADDR, 1) != GMAC_OK)
+	{
 		LWIP_DEBUGF(NETIF_DEBUG, ("gmac_low_level_init: set link ERROR!\n"));
 		return false;
 	}
@@ -701,12 +757,14 @@ bool ethernetif_link_established() noexcept
 	gmac_enable_management(GMAC, true);
 
 	uint32_t ul_stat1;
-	if (gmac_phy_read(GMAC, BOARD_GMAC_PHY_ADDR, GMII_BMSR, &ul_stat1) != GMAC_OK) {
+	if (gmac_phy_read(GMAC, BOARD_GMAC_PHY_ADDR, GMII_BMSR, &ul_stat1) != GMAC_OK)
+	{
 		gmac_enable_management(GMAC, false);
 		return false;
 	}
 
-	if ((ul_stat1 & GMII_LINK_STATUS) == 0) {
+	if ((ul_stat1 & GMII_LINK_STATUS) == 0)
+	{
 		gmac_enable_management(GMAC, false);
 		return false;
 	}

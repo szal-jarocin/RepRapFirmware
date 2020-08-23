@@ -32,7 +32,7 @@
 #include "RepRap.h"
 #include "Movement/Move.h"
 #include "Movement/StepTimer.h"
-#include "Hardware/Cache.h"
+#include "Cache.h"
 #if HAS_STALL_DETECT
 #include "Endstops/Endstop.h"
 #endif

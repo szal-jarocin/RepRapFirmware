@@ -461,7 +461,7 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeEx
 	// Pass file- and system-related commands to DSF if they came from somewhere else. They will be passed back to us via a binary buffer or separate SPI message if necessary.
 	if (   reprap.UsingLinuxInterface() && reprap.GetLinuxInterface().IsConnected() && !gb.IsBinary()
 		&& (   code == 0 || code == 1
-			|| code == 20 || code == 21 || code == 22 || code == 23 || code == 24 || code == 26
+			|| code == 20 || code == 21 || code == 22 || code == 23 || code == 24 || code == 26 || code == 27
 			|| code == 30 || code == 32 || code == 36 || code == 37 || code == 38 || code == 39
 			|| code == 112
 			|| code == 374 || code == 375
@@ -977,12 +977,14 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeEx
 			{
 				// Pronterface keeps sending M27 commands if "Monitor status" is checked, and it specifically expects the following response syntax
 				FileData& fileBeingPrinted = fileGCode->OriginalMachineState().fileState;
-				reply.printf("SD printing byte %lu/%lu", GetFilePosition(), fileBeingPrinted.Length());
+				// In case there are short periods of time when PrintMonitor says a file is printing but the file is not open, or DSF passes M27 to us, check that we have a file
+				if (fileBeingPrinted.IsLive())
+				{
+					reply.printf("SD printing byte %lu/%lu", GetFilePosition(), fileBeingPrinted.Length());
+					break;
+				}
 			}
-			else
-			{
-				reply.copy("Not SD printing.");
-			}
+			reply.copy("Not SD printing.");
 			break;
 
 		case 28: // Write to file
@@ -1468,7 +1470,8 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeEx
 			}
 			break;
 
-		case 110: // Set line numbers - line numbers are dealt with in the GCodeBuffer class
+		case 110: // Set line numbers
+			//TODO
 			break;
 
 		case 111: // Debug level
@@ -2078,12 +2081,12 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeEx
 				}
 				else
 				{
-					tool->SetFirmwareRetraction(gb, reply);
+					result = tool->SetFirmwareRetraction(gb, reply, outBuf);
 				}
 			}
 			else
 			{
-				reprap.SetAllToolsFirmwareRetraction(gb, reply);
+				result = reprap.SetAllToolsFirmwareRetraction(gb, reply, outBuf);
 			}
 			break;
 
@@ -2660,7 +2663,7 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeEx
 			break;
 
 #if SUPPORT_OBJECT_MODEL
-		case 409: // Get status in JSON format
+		case 409: // Get object model values in JSON format
 			{
 				String<StringLength100> key;
 				String<StringLength20> flags;
@@ -2671,6 +2674,16 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeEx
 				if (outBuf == nullptr)
 				{
 					result = GCodeResult::notFinished;			// we ran out of buffers, so try again later
+				}
+				else
+				{
+					outBuf->cat('\n');
+					if (outBuf->HadOverflow())
+					{
+						OutputBuffer::ReleaseAll(outBuf);
+						// We don't delay and retry here, in case the user asked for too much of the object model in one go for the output buffers to contain it
+						reply.copy("{\"err\":-1}\n");
+					}
 				}
 			}
 			break;
@@ -2710,7 +2723,7 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeEx
 					result = GCodeResult::error;
 				}
 			}
-			if (gb.Seen('F'))
+			if (gb.Seen('F') || gb.Seen('Q'))
 			{
 				platform.SetLaserPwmFrequency(gb.GetPwmFrequency());
 			}
@@ -2918,7 +2931,7 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeEx
 #endif
 
 		case 540: // Set/report MAC address
-			if (!gb.MachineState().runningM502)			// when running M502 we don't execute network-related commands
+			if (CheckNetworkCommandAllowed(gb, reply, result))
 			{
 				const unsigned int interface = (gb.Seen('I') ? gb.GetUIValue() : 0);
 				if (gb.Seen('P'))
@@ -2971,7 +2984,7 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeEx
 			break;
 
 		case 552: // Enable/Disable network and/or Set/Get IP address
-			if (!gb.MachineState().runningM502)			// when running M502 we don't execute network-related commands
+			if (CheckNetworkCommandAllowed(gb, reply, result))
 			{
 				bool seen = false;
 				const unsigned int interface = (gb.Seen('I')) ? gb.GetUIValue() : 0;
@@ -3017,7 +3030,7 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeEx
 			break;
 
 		case 553: // Set/Get netmask
-			if (!gb.MachineState().runningM502)			// when running M502 we don't execute network-related commands
+			if (CheckNetworkCommandAllowed(gb, reply, result))
 			{
 				if (gb.Seen('P'))
 				{
@@ -3034,7 +3047,7 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeEx
 			break;
 
 		case 554: // Set/Get gateway
-			if (!gb.MachineState().runningM502)			// when running M502 we don't execute network-related commands
+			if (CheckNetworkCommandAllowed(gb, reply, result))
 			{
 				if (gb.Seen('P'))
 				{
@@ -3485,6 +3498,7 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeEx
 			break;
 
 		case 586: // Configure network protocols
+			if (CheckNetworkCommandAllowed(gb, reply, result))
 			{
 				const unsigned int interface = (gb.Seen('I') ? gb.GetUIValue() : 0);
 
@@ -3518,7 +3532,7 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeEx
 		case 587:	// Add WiFi network or list remembered networks
 		case 588:	// Forget WiFi network
 		case 589:	// Configure access point
-			if (!gb.MachineState().runningM502)			// when running M502 we don't execute network-related commands
+			if (CheckNetworkCommandAllowed(gb, reply, result))
 			{
 				result = reprap.GetNetwork().HandleWiFiCode(code, gb, reply, outBuf);
 			}
@@ -4315,11 +4329,11 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeEx
 #endif
 
 #if SUPPORT_CAN_EXPANSION
-		case 952:	// set CAN-FD data rate
+		case 952:	// change expansion board CAN address
 			result = CanInterface::ChangeAddressAndNormalTiming(gb, reply);
 			break;
 
-		case 953:	// change expansion board CAN address
+		case 953:	// set CAN-FD data rate
 			result = CanInterface::ChangeFastTiming(gb, reply);
 			break;
 #endif

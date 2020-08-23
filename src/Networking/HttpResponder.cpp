@@ -735,15 +735,23 @@ bool HttpResponder::RemoveAuthentication() noexcept
 				return false;
 			}
 
-			for (size_t k = i + 1; k < numSessions; ++k)
-			{
-				sessions[k - 1] = sessions[k];
-			}
-			numSessions--;
+			RemoveSession(i);
 			return true;
 		}
 	}
 	return false;
+}
+
+/*static*/ void HttpResponder::RemoveSession(size_t sessionToRemove) noexcept
+{
+	if (sessionToRemove < numSessions)
+	{
+		--numSessions;
+		for (size_t k = sessionToRemove; k < numSessions; ++k)
+		{
+			sessions[k] = sessions[k + 1];
+		}
+	}
 }
 
 void HttpResponder::SendFile(const char* nameOfFileToSend, bool isWebFile) noexcept
@@ -1182,8 +1190,7 @@ void HttpResponder::ProcessRequest() noexcept
 					}
 
 					// Start a new file upload
-					FileStore * const file = StartUpload(FS_PREFIX, filename, (postFileGotCrc) ? OpenMode::writeWithCrc : OpenMode::write, postFileLength);
-					if (file == nullptr)
+					if (!StartUpload(FS_PREFIX, filename, (postFileGotCrc) ? OpenMode::writeWithCrc : OpenMode::write, postFileLength))
 					{
 						RejectMessage("could not create file");
 						return;
@@ -1287,13 +1294,16 @@ void HttpResponder::DoUpload() noexcept
 		(void)CheckAuthenticated();							// uploading may take a long time, so make sure the requester IP is not timed out
 		timer = millis();									// reset the timer
 
-		if (!fileBeingUploaded.Write(buffer, len))
+		if (!dummyUpload)
 		{
-			uploadError = true;
-			GetPlatform().Message(ErrorMessage, "HTTP: could not write upload data\n");
-			CancelUpload();
-			SendJsonResponse("upload");
-			return;
+			if (!fileBeingUploaded.Write(buffer, len))
+			{
+				uploadError = true;
+				GetPlatform().Message(ErrorMessage, "HTTP: could not write upload data\n");
+				CancelUpload();
+				SendJsonResponse("upload");
+				return;
+			}
 		}
 	}
 	else if (!skt->CanRead() || millis() - timer >= HttpSessionTimeout)
@@ -1441,13 +1451,9 @@ void HttpResponder::Diagnostics(MessageType mt) const noexcept
 	for (size_t i = numSessions; i != 0; )
 	{
 		--i;
-		if ((now - sessions[i].lastQueryTime) > HttpSessionTimeout)
+		if (now - sessions[i].lastQueryTime > HttpSessionTimeout)
 		{
-			for (size_t k = i + 1; k < numSessions; k++)
-			{
-				sessions[k - 1] = sessions[k];
-			}
-			numSessions--;
+			RemoveSession(i);
 			clientsTimedOut++;
 		}
 	}

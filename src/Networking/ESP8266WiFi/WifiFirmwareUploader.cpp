@@ -607,9 +607,6 @@ void WifiFirmwareUploader::Spin() noexcept
 				MessageF("Trying to connect at %u baud: ", baud);
 			}
 			uploadPort.begin(baud);
-#ifndef __LPC17XX__
-			uploadPort.setInterruptPriority(NvicPriorityWiFiUart);				// we are going to move data at seriously high speeds
-#endif
 			interface.ResetWiFiForUpload(false);
 			lastAttemptTime = lastResetTime = millis();
 			state = UploadState::connecting;

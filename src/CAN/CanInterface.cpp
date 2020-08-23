@@ -20,13 +20,17 @@
 #include <TaskPriorities.h>
 #include <GCodes/GCodeException.h>
 #include <GCodes/GCodeBuffer/GCodeBuffer.h>
-#include <Hardware/CanDriver.h>
+
+#define SUPPORT_CAN		1			// needed by the SAME5x version of CanDriver.h
+#include <CanDriver.h>
 
 #if HAS_LINUX_INTERFACE
 # include "Linux/LinuxInterface.h"
 #endif
 
 #include <memory>
+
+static constexpr uint8_t dlc2len[] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 12, 16, 20, 24, 32, 48, 64};
 
 const unsigned int NumCanBuffers = 2 * MaxCanBoards + 10;
 
@@ -51,18 +55,36 @@ constexpr float DefaultJumpWidth = 0.25;
 
 //#define CAN_DEBUG
 
-#ifdef USE_CAN0
+#if SAME70
+# ifdef USE_CAN0
 
 Mcan* const MCAN_MODULE = MCAN0;
 constexpr IRQn MCanIRQn = MCAN0_INT0_IRQn;
 #define MCAN_INT0_Handler	MCAN0_INT0_Handler
 
-#else
+# else
 
 Mcan* const MCAN_MODULE = MCAN1;
 constexpr IRQn MCanIRQn = MCAN1_INT0_IRQn;
 #define MCAN_INT0_Handler	MCAN1_INT0_Handler
 
+# endif
+#elif SAME5x
+# ifdef USE_CAN0
+
+Can* const MCAN_MODULE = CAN0;
+constexpr IRQn MCanIRQn = CAN0_INT0_IRQn;
+#define MCAN_INT0_Handler	CAN0_INT0_Handler
+
+# else
+
+Can* const MCAN_MODULE = CAN1;
+constexpr IRQn MCanIRQn = CAN1_INT0_IRQn;
+#define MCAN_INT0_Handler	CAN1_INT0_Handler
+
+# endif
+#else
+# error Unsupported MCU
 #endif
 
 static mcan_module mcan_instance;
@@ -124,6 +146,7 @@ static TaskHandle taskWaitingOnFifo0 = nullptr;
 static TaskHandle taskWaitingOnFifo1 = nullptr;
 
 static uint32_t messagesSent = 0;
+static uint32_t numTxTimeouts = 0;
 static uint32_t longestWaitTime = 0;
 static uint16_t longestWaitMessageType = 0;
 
@@ -224,14 +247,21 @@ void CanInterface::Init() noexcept
 	CanMessageBuffer::Init(NumCanBuffers);
 	pendingBuffers = nullptr;
 
-#ifdef USE_CAN0
+#if SAME70
+# ifdef USE_CAN0
 	ConfigurePin(APIN_CAN0_TX);
 	ConfigurePin(APIN_CAN0_RX);
-#else
+# else
 	ConfigurePin(APIN_CAN1_TX);
 	ConfigurePin(APIN_CAN1_RX);
-#endif
+# endif
 	pmc_enable_upll_clock();			// configure_mcan sets up PCLK5 to be the UPLL divided by something, so make sure the UPLL is running
+#elif SAME5x
+	qq;
+#else
+# erorr Unsupported MCU
+#endif
+
 	configure_mcan();
 
 	CanMotion::Init();
@@ -290,6 +320,7 @@ static void WaitForTxBufferFree(uint32_t whichTxBuffer, uint32_t maxWait) noexce
 		} while (millis() - startTime < maxWait);
 
 		// The last message still hasn't been sent, so cancel it
+		++numTxTimeouts;
 		mcan_instance.hw->MCAN_TXBCR = trigMask;
 		while ((mcan_instance.hw->MCAN_TXBRP & trigMask) != 0)
 		{
@@ -298,7 +329,7 @@ static void WaitForTxBufferFree(uint32_t whichTxBuffer, uint32_t maxWait) noexce
 	}
 }
 
-// Send extended CAN message in fd mode. The Tx buffer must alrrady be free.
+// Send extended CAN message in fd mode. The Tx buffer must already be free.
 static status_code mcan_fd_send_ext_message_no_wait(uint32_t id_value, const uint8_t *data, size_t dataLength, uint32_t whichTxBuffer) noexcept
 {
 	const uint32_t dlc = (dataLength <= 8) ? dataLength
@@ -315,6 +346,10 @@ static status_code mcan_fd_send_ext_message_no_wait(uint32_t id_value, const uin
 
 	memcpy(tx_element.data, data, dataLength);
 
+	// Set any extra data we will be sending to zero
+	const size_t roundedUpLength = dlc2len[dlc];
+	memset(tx_element.data + dataLength, 0, roundedUpLength - dataLength);
+
 	status_code rc = mcan_set_tx_buffer_element(&mcan_instance, &tx_element, whichTxBuffer);
 	if (rc == STATUS_OK)
 	{
@@ -323,7 +358,7 @@ static status_code mcan_fd_send_ext_message_no_wait(uint32_t id_value, const uin
 	return rc;
 }
 
-// Send extended CAN message in fd mode
+// Send extended CAN message in FD mode
 static status_code mcan_fd_send_ext_message(uint32_t id_value, const uint8_t *data, size_t dataLength, uint32_t whichTxBuffer, uint32_t maxWait) noexcept
 {
 	WaitForTxBufferFree(whichTxBuffer, maxWait);
@@ -433,8 +468,7 @@ extern "C" [[noreturn]] void CanSenderLoop(void *) noexcept
 				buf->msg.move.DebugPrint();
 #endif
 				// Send the message
-				mcan_fd_send_ext_message(buf->id.GetWholeId(), reinterpret_cast<uint8_t*>(&(buf->msg)), buf->dataLength,
-											TxBufferIndexMotion, MaxMotionSendWait);
+				mcan_fd_send_ext_message(buf->id.GetWholeId(), reinterpret_cast<uint8_t*>(&(buf->msg)), buf->dataLength, TxBufferIndexMotion, MaxMotionSendWait);
 
 #ifdef CAN_DEBUG
 				// Display a debug message too
@@ -644,17 +678,20 @@ static bool SetRemoteDriverStates(const CanDriversList& drivers, const StringRef
 void CanInterface::SendMotion(CanMessageBuffer *buf) noexcept
 {
 	buf->next = nullptr;
-	TaskCriticalSectionLocker lock;
+	{
+		TaskCriticalSectionLocker lock;
 
-	if (pendingBuffers == nullptr)
-	{
-		pendingBuffers = buf;
+		if (pendingBuffers == nullptr)
+		{
+			pendingBuffers = buf;
+		}
+		else
+		{
+			lastBuffer->next = buf;
+		}
+		lastBuffer = buf;
 	}
-	else
-	{
-		lastBuffer->next = buf;
-	}
-	lastBuffer = buf;
+
 	canSenderTask.Give();
 }
 
@@ -785,7 +822,6 @@ extern "C" [[noreturn]] void CanReceiverLoop(void *) noexcept
 				{
 					// Copy the message and accompanying data to a buffer
 					buf->id.SetReceivedId(elem.R0.bit.ID);
-					static constexpr uint8_t dlc2len[] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 12, 16, 20, 24, 32, 48, 64};
 					buf->dataLength = dlc2len[elem.R1.bit.DLC];
 					memcpy(buf->msg.raw, elem.data, buf->dataLength);
 
@@ -1049,9 +1085,9 @@ GCodeResult CanInterface::ChangeHandleResponseTime(CanAddress boardAddress, Remo
 
 void CanInterface::Diagnostics(MessageType mtype) noexcept
 {
-	reprap.GetPlatform().MessageF(mtype, "=== CAN ===\nMessages sent %" PRIu32 ", longest wait %" PRIu32 "ms for type %u\n",
-									messagesSent, longestWaitTime, longestWaitMessageType);
-	messagesSent = 0;
+	reprap.GetPlatform().MessageF(mtype, "=== CAN ===\nMessages sent %" PRIu32 ", send timeouts %" PRIu32 ", longest wait %" PRIu32 "ms for type %u, free CAN buffers %u\n",
+									messagesSent, numTxTimeouts, longestWaitTime, longestWaitMessageType, CanMessageBuffer::FreeBuffers());
+	messagesSent = numTxTimeouts = 0;
 	longestWaitTime = 0;
 	longestWaitMessageType = 0;
 }

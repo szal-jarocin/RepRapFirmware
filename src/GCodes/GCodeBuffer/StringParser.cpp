@@ -40,7 +40,7 @@ void StringParser::Init() noexcept
 	gcodeLineEnd = 0;
 	commandLength = 0;
 	readPointer = -1;
-	hadLineNumber = hadChecksum = overflowed = false;
+	hadLineNumber = hadChecksum = overflowed = seenExpression = false;
 	computedChecksum = 0;
 	gb.bufferState = GCodeBufferState::parseNotStarted;
 	commandIndent = 0;
@@ -206,6 +206,7 @@ bool StringParser::Put(char c) noexcept
 
 			case '{':
 				++braceCount;
+				seenExpression = true;
 				StoreAndAddToChecksum(c);
 				break;
 
@@ -1604,21 +1605,7 @@ uint32_t StringParser::ReadUIValue() THROWS(GCodeException)
 
 	// Allow "0xNNNN" or "xNNNN" where NNNN are hex digits. We could stop supporting this because we already support {0xNNNN}.
 	const char *endptr;
-	uint32_t rslt;
-	if (gb.buffer[readPointer] == '"')
-	{
-		rslt = StrOptHexToU32(gb.buffer + readPointer + 1, &endptr);
-		if (*endptr != '"')
-		{
-			throw ConstructParseException("expected '\"'");
-		}
-		++endptr;
-	}
-	else
-	{
-		rslt = StrToU32(gb.buffer + readPointer, &endptr);
-	}
-
+	const uint32_t rslt = StrToU32(gb.buffer + readPointer, &endptr);
 	readPointer = endptr - gb.buffer;
 	return rslt;
 }
@@ -1657,7 +1644,20 @@ DriverId StringParser::ReadDriverIdValue() THROWS(GCodeException)
 		result.boardAddress = 0;
 	}
 #else
-	result.localDriver = v1;
+	// We now allow driver names of the form "0.x" on boards without CAN expansion
+	if (gb.buffer[readPointer] == '.')
+	{
+		if (v1 != 0)
+		{
+			throw ConstructParseException("Board address of driver must be 0");
+		}
+		++readPointer;
+		result.localDriver = ReadUIValue();
+	}
+	else
+	{
+		result.localDriver = v1;
+	}
 #endif
 	return result;
 }

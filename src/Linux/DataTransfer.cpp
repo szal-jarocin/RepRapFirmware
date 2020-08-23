@@ -30,10 +30,11 @@
 # define USE_XDMAC			0		// use XDMA controller
 # define USE_DMAC_MANAGER	1		// use SAME5x DmacManager module
 constexpr IRQn SBC_SPI_IRQn = SbcSpiSercomIRQn;
+#define USE_32BIT_TRANSFERS		1
 
 #elif defined(__LPC17xx__)
 # define USE_DMAC           0
-#define  USE_XDMAC          0
+# define  USE_XDMAC         0
 #else
 # error Unknown board
 #endif
@@ -47,8 +48,8 @@ constexpr IRQn SBC_SPI_IRQn = SbcSpiSercomIRQn;
 # include "xdmac/xdmac.h"
 #endif
 
-#if USE_DMAC_MANAGER
-# include <Hardware/DmacManager.h>
+#if USE_DMAC_MANAGER || SAME70
+# include <DmacManager.h>
 #endif
 
 #include "RepRapFirmware.h"
@@ -58,8 +59,8 @@ constexpr IRQn SBC_SPI_IRQn = SbcSpiSercomIRQn;
 #include "ObjectModel/ObjectModel.h"
 #include "OutputMemory.h"
 #include "RepRap.h"
+#include <Cache.h>
 #include "RTOSIface/RTOSIface.h"
-#include "Hardware/DmacManager.h"
 
 #include <General/IP4String.h>
 
@@ -128,6 +129,7 @@ static bool spi_dma_check_rx_complete() noexcept
 
 #endif
 
+// Set up the transmit DMA but don't enable it
 static void spi_tx_dma_setup(const void *outBuffer, size_t bytesToTransfer) noexcept
 {
 #if USE_DMAC
@@ -169,19 +171,24 @@ static void spi_tx_dma_setup(const void *outBuffer, size_t bytesToTransfer) noex
 	xdmac_configure_transfer(XDMAC, DmacChanSbcTx, &xdmac_tx_cfg);
 
 	xdmac_channel_set_descriptor_control(XDMAC, DmacChanSbcTx, 0);
-	xdmac_channel_enable(XDMAC, DmacChanSbcTx);
 	xdmac_disable_interrupt(XDMAC, DmacChanSbcTx);
 #endif
 
 #if USE_DMAC_MANAGER
 	DmacManager::SetSourceAddress(DmacChanSbcTx, outBuffer);
 	DmacManager::SetDestinationAddress(DmacChanSbcTx, &(SbcSpiSercom->SPI.DATA.reg));
+# if USE_32BIT_TRANSFERS
 	DmacManager::SetBtctrl(DmacChanSbcTx, DMAC_BTCTRL_STEPSIZE_X1 | DMAC_BTCTRL_STEPSEL_SRC | DMAC_BTCTRL_SRCINC | DMAC_BTCTRL_BEATSIZE_WORD | DMAC_BTCTRL_BLOCKACT_NOACT);
 	DmacManager::SetDataLength(DmacChanSbcTx, (bytesToTransfer + 3) >> 2);			// must do this one last
+# else
+	DmacManager::SetBtctrl(DmacChanSbcTx, DMAC_BTCTRL_STEPSIZE_X1 | DMAC_BTCTRL_STEPSEL_SRC | DMAC_BTCTRL_SRCINC | DMAC_BTCTRL_BEATSIZE_BYTE | DMAC_BTCTRL_BLOCKACT_NOACT);
+	DmacManager::SetDataLength(DmacChanSbcTx, bytesToTransfer);						// must do this one last
+# endif
 	DmacManager::SetTriggerSourceSercomTx(DmacChanSbcTx, SbcSpiSercomNumber);
 #endif
 }
 
+// Set up the receive DMA but don't enable it
 static void spi_rx_dma_setup(void *inBuffer, size_t bytesToTransfer) noexcept
 {
 #if USE_DMAC
@@ -223,15 +230,19 @@ static void spi_rx_dma_setup(void *inBuffer, size_t bytesToTransfer) noexcept
 	xdmac_configure_transfer(XDMAC, DmacChanSbcRx, &xdmac_rx_cfg);
 
 	xdmac_channel_set_descriptor_control(XDMAC, DmacChanSbcRx, 0);
-	xdmac_channel_enable(XDMAC, DmacChanSbcRx);
 	xdmac_disable_interrupt(XDMAC, DmacChanSbcRx);
 #endif
 
 #if USE_DMAC_MANAGER
 	DmacManager::SetSourceAddress(DmacChanSbcRx, &(SbcSpiSercom->SPI.DATA.reg));
 	DmacManager::SetDestinationAddress(DmacChanSbcRx, inBuffer);
+# if USE_32BIT_TRANSFERS
 	DmacManager::SetBtctrl(DmacChanSbcRx, DMAC_BTCTRL_STEPSIZE_X1 | DMAC_BTCTRL_STEPSEL_DST | DMAC_BTCTRL_DSTINC | DMAC_BTCTRL_BEATSIZE_WORD | DMAC_BTCTRL_BLOCKACT_INT);
 	DmacManager::SetDataLength(DmacChanSbcRx, (bytesToTransfer + 3) >> 2);			// must do this one last
+# else
+	DmacManager::SetBtctrl(DmacChanSbcRx, DMAC_BTCTRL_STEPSIZE_X1 | DMAC_BTCTRL_STEPSEL_DST | DMAC_BTCTRL_DSTINC | DMAC_BTCTRL_BEATSIZE_BYTE | DMAC_BTCTRL_BLOCKACT_INT);
+	DmacManager::SetDataLength(DmacChanSbcRx, bytesToTransfer);						// must do this one last
+# endif
 	DmacManager::SetTriggerSourceSercomRx(DmacChanSbcRx, SbcSpiSercomNumber);
 #endif
 }
@@ -256,8 +267,8 @@ static void spi_slave_dma_setup(void *inBuffer, const void *outBuffer, size_t by
 #endif
 
 #if USE_DMAC_MANAGER
-	DmacManager::EnableChannel(DmacChanSbcRx, SbcDmaPriority);
-	DmacManager::EnableChannel(DmacChanSbcTx, SbcDmaPriority);
+	DmacManager::EnableChannel(DmacChanSbcRx, DmacPrioSbc);
+	DmacManager::EnableChannel(DmacChanSbcTx, DmacPrioSbc);
 #endif
 }
 
@@ -370,18 +381,25 @@ extern "C" void SBC_SPI_HANDLER() noexcept
 /*-----------------------------------------------------------------------------------*/
 
 // Static data. Note, the startup code we use doesn't make any provision for initialising non-cached memory, other than to zero. So don't specify initial value here
+
+#if SAME70
 __nocache TransferHeader DataTransfer::rxHeader;
 __nocache TransferHeader DataTransfer::txHeader;
 __nocache uint32_t DataTransfer::rxResponse;
 __nocache uint32_t DataTransfer::txResponse;
-__nocache uint32_t DataTransfer::rxBuffer32[LinuxTransferBufferSize / 4];
-__nocache uint32_t DataTransfer::txBuffer32[LinuxTransferBufferSize / 4];
+alignas(4) __nocache char DataTransfer::rxBuffer[LinuxTransferBufferSize];
+alignas(4) __nocache char DataTransfer::txBuffer[LinuxTransferBufferSize];
+#endif
 
 DataTransfer::DataTransfer() noexcept : state(SpiState::ExchangingData), lastTransferTime(0), lastTransferNumber(0), failedTransfers(0),
+#if SAME5x
+	rxBuffer(nullptr), txBuffer(nullptr),
+#endif
 	rxPointer(0), txPointer(0), packetId(0)
 {
 	rxResponse = TransferResponse::Success;
 	txResponse = TransferResponse::Success;
+
 	// Prepare RX header
 	rxHeader.sequenceNumber = 0;
 
@@ -398,8 +416,17 @@ void DataTransfer::Init() noexcept
 	pinMode(SbcTfrReadyPin, OUTPUT_LOW);
 	// Initialize SPI pins
 #if defined(__LPC17xx__)
+	// Allocate buffers
+	rxBuffer = (char *)new uint32_t[(LinuxTransferBufferSize + 3)/4];
+	txBuffer = (char *)new uint32_t[(LinuxTransferBufferSize + 3)/4];
+
     InitSpi();
 #elif SAME5x
+	// Allocate buffers
+	rxBuffer = (char *)new uint32_t[(LinuxTransferBufferSize + 3)/4];
+	txBuffer = (char *)new uint32_t[(LinuxTransferBufferSize + 3)/4];
+
+	// Initialize SPI
 	for (Pin p : SbcSpiSercomPins)
 	{
 		SetPinFunction(p, SbcSpiSercomPinsMode);
@@ -409,10 +436,15 @@ void DataTransfer::Init() noexcept
 	spi_dma_disable();
 
 	hri_sercomspi_set_CTRLA_SWRST_bit(SbcSpiSercom);
-	SbcSpiSercom->SPI.CTRLA.reg = SERCOM_SPI_CTRLA_CPHA | SERCOM_SPI_CTRLA_DIPO(3) | SERCOM_SPI_CTRLA_DOPO(0) | SERCOM_SPI_CTRLA_MODE(2);
+	SbcSpiSercom->SPI.CTRLA.reg = SERCOM_SPI_CTRLA_DIPO(3) | SERCOM_SPI_CTRLA_DOPO(0) | SERCOM_SPI_CTRLA_MODE(2);
 	hri_sercomspi_write_CTRLB_reg(SbcSpiSercom, SERCOM_SPI_CTRLB_RXEN | SERCOM_SPI_CTRLB_SSDE | SERCOM_SPI_CTRLB_PLOADEN);
+# if USE_32BIT_TRANSFERS
 	hri_sercomspi_write_CTRLC_reg(SbcSpiSercom, SERCOM_SPI_CTRLC_DATA32B);
+# else
+	hri_sercomspi_write_CTRLC_reg(SbcSpiSercom, 0);
+# endif
 #else
+	// Initialize SPI
 	ConfigurePin(APIN_SBC_SPI_MOSI);
 	ConfigurePin(APIN_SBC_SPI_MISO);
 	ConfigurePin(APIN_SBC_SPI_SCK);
@@ -424,7 +456,7 @@ void DataTransfer::Init() noexcept
     
 	dataReceived = false;
 
-#if false
+#if false // if SAME70
 	// This does not seem to change anything...
 	// The XDMAC is master 4+5 and the SRAM is slave 0+1. Give the XDMAC the highest priority.
 	matrix_set_slave_default_master_type(0, MATRIX_DEFMSTR_LAST_DEFAULT_MASTER);
@@ -467,21 +499,21 @@ const PacketHeader *DataTransfer::ReadPacket() noexcept
 		return nullptr;
 	}
 
-	const PacketHeader *header = reinterpret_cast<const PacketHeader*>(rxBuffer() + rxPointer);
+	const PacketHeader *header = reinterpret_cast<const PacketHeader*>(rxBuffer + rxPointer);
 	rxPointer += sizeof(PacketHeader);
 	return header;
 }
 
 const char *DataTransfer::ReadData(size_t dataLength) noexcept
 {
-	const char *data = rxBuffer() + rxPointer;
+	const char *data = rxBuffer + rxPointer;
 	rxPointer += AddPadding(dataLength);
 	return data;
 }
 
 template<typename T> const T *DataTransfer::ReadDataHeader() noexcept
 {
-	const T *header = reinterpret_cast<const T*>(rxBuffer() + rxPointer);
+	const T *header = reinterpret_cast<const T*>(rxBuffer + rxPointer);
 	rxPointer += sizeof(T);
 	return header;
 }
@@ -652,7 +684,7 @@ void DataTransfer::ExchangeData() noexcept
 {
 	size_t bytesToExchange = max<size_t>(rxHeader.dataLength, txHeader.dataLength);
 	state = SpiState::ExchangingData;
-	setup_spi(rxBuffer(), txBuffer(), bytesToExchange);
+	setup_spi(rxBuffer, txBuffer, bytesToExchange);
 }
 
 void DataTransfer::ResetTransfer(bool ownRequest) noexcept
@@ -711,6 +743,9 @@ bool DataTransfer::IsReady() noexcept
 		{
 		case SpiState::ExchangingHeader:
 		{
+#if SAME5x
+			Cache::InvalidateAfterDMAReceive(&rxHeader, sizeof(rxHeader));
+#endif
 			// (1) Exchanged transfer headers
 			const uint32_t headerResponse = *reinterpret_cast<const uint32_t*>(&rxHeader);
 			if (headerResponse == TransferResponse::BadResponse)
@@ -753,6 +788,9 @@ bool DataTransfer::IsReady() noexcept
 
 		case SpiState::ExchangingHeaderResponse:
 			// (2) Exchanged response to transfer header
+#if SAME5x
+			Cache::InvalidateAfterDMAReceive(&rxResponse, sizeof(rxResponse));
+#endif
 			if (rxResponse == TransferResponse::Success && txResponse == TransferResponse::Success)
 			{
 				if (rxHeader.dataLength != 0 || txHeader.dataLength != 0)
@@ -788,8 +826,11 @@ bool DataTransfer::IsReady() noexcept
 
 		case SpiState::ExchangingData:
 		{
+#if SAME5x
+			Cache::InvalidateAfterDMAReceive(rxBuffer, LinuxTransferBufferSize);
+#endif
 			// (3) Exchanged data
-			if (rxBuffer32[0] == TransferResponse::BadResponse)
+			if (*reinterpret_cast<uint32_t*>(rxBuffer) == TransferResponse::BadResponse)
 			{
 				if (reprap.Debug(moduleLinuxInterface))
 				{
@@ -799,7 +840,7 @@ bool DataTransfer::IsReady() noexcept
 				break;
 			}
 
-			const uint16_t checksum = CRC16(rxBuffer(), rxHeader.dataLength);
+			const uint16_t checksum = CRC16(rxBuffer, rxHeader.dataLength);
 			if (rxHeader.checksumData != checksum)
 			{
 				if (reprap.Debug(moduleLinuxInterface))
@@ -816,6 +857,9 @@ bool DataTransfer::IsReady() noexcept
 
 		case SpiState::ExchangingDataResponse:
 			// (4) Exchanged response to data transfer
+#if SAME5x
+			Cache::InvalidateAfterDMAReceive(&rxResponse, sizeof(rxResponse));
+#endif
 			if (rxResponse == TransferResponse::Success && txResponse == TransferResponse::Success)
 			{
 				// Everything OK
@@ -892,7 +936,7 @@ void DataTransfer::StartNextTransfer() noexcept
 	txHeader.numPackets = packetId;
 	txHeader.sequenceNumber++;
 	txHeader.dataLength = txPointer;
-	txHeader.checksumData = CRC16(txBuffer(), txPointer);
+	txHeader.checksumData = CRC16(txBuffer, txPointer);
 	txHeader.checksumHeader = CRC16(reinterpret_cast<const char *>(&txHeader), sizeof(TransferHeader) - sizeof(uint16_t));
 
 	// Begin SPI transfer
@@ -1084,7 +1128,7 @@ bool DataTransfer::WriteHeightMap() noexcept
 	// Write Z points
 	if (numPoints != 0)
 	{
-		float *zPoints = reinterpret_cast<float*>(txBuffer() + txPointer);
+		float *zPoints = reinterpret_cast<float*>(txBuffer + txPointer);
 		reprap.GetMove().SaveHeightMapToArray(zPoints);
 		txPointer += numPoints * sizeof(float);
 	}
@@ -1302,7 +1346,7 @@ PacketHeader *DataTransfer::WritePacketHeader(FirmwareRequest request, size_t da
 	txPointer = AddPadding(txPointer);
 
 	// Write the next packet data
-	PacketHeader *header = reinterpret_cast<PacketHeader*>(txBuffer() + txPointer);
+	PacketHeader *header = reinterpret_cast<PacketHeader*>(txBuffer + txPointer);
 	header->request = static_cast<uint16_t>(request);
 	header->id = packetId++;
 	header->length = dataLength;
@@ -1314,13 +1358,13 @@ PacketHeader *DataTransfer::WritePacketHeader(FirmwareRequest request, size_t da
 void DataTransfer::WriteData(const char *data, size_t length) noexcept
 {
 	// Strings can be concatenated here, don't add any padding yet
-	memcpy(txBuffer() + txPointer, data, length);
+	memcpy(txBuffer + txPointer, data, length);
 	txPointer += length;
 }
 
 template<typename T> T *DataTransfer::WriteDataHeader() noexcept
 {
-	T *header = reinterpret_cast<T*>(txBuffer() + txPointer);
+	T *header = reinterpret_cast<T*>(txBuffer + txPointer);
 	txPointer += sizeof(T);
 	return header;
 }
@@ -1383,7 +1427,7 @@ bool DataTransfer::IapDataExchange(size_t len)
 {
 	lastTransferTime = millis();
 	dataReceived = false;
-	setup_spi(rxBuffer(), txBuffer(), len);
+	setup_spi(rxBuffer, txBuffer, len);
 	while (!dataReceived && millis() - lastTransferTime < SpiTransferTimeout) {}
 	//if (!dataReceived)
 	//	debugPrintf("Timeout with length %d\n", (int)len);
@@ -1413,7 +1457,7 @@ void DataTransfer::EmulateIap()
 		debugPrintf("Unexpected timeout on CRC\n");
 	//debugPrintf("Got CRC len %d\n", *reinterpret_cast<int*>(rxBuffer()));
 	// Send Ok response
-	*reinterpret_cast<char*>(txBuffer()) = 0xC;
+	*reinterpret_cast<char*>(txBuffer) = 0xC;
 	if (!IapDataExchange(1))
 		debugPrintf("Unexpected timeout on CRC Ack\n");
 	//debugPrintf("Iap complete\n");

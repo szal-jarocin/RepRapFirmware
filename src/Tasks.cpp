@@ -8,11 +8,11 @@
 #include "Tasks.h"
 #include "RepRap.h"
 #include "Platform.h"
-#include "Hardware/Cache.h"
+#include <Cache.h>
 #include <TaskPriorities.h>
 
 #if SAME5x
-# include <Hardware/DmacManager.h>
+# include <DmacManager.h>
 # include <hpl_user_area.h>
 #endif
 
@@ -34,7 +34,7 @@ extern uint32_t _firmware_crc;			// defined in linker script
 // The main task currently runs GCodes, so it needs to be large enough to hold the matrices used for delta auto calibration.
 // The worst case stack usage is after running delta auto calibration with Move debugging enabled.
 // The timer and idle tasks currently never do I/O, so they can be much smaller.
-#if SAME70 || SAME5x
+#if SAME70
 constexpr unsigned int MainTaskStackWords = 1800;			// on the SAME70 we use matrices of doubles
 #elif defined(__LPC17xx__)
 constexpr unsigned int MainTaskStackWords = 1110-(16*9);	// LPC builds only support 16 calibration points, so less space needed
@@ -94,22 +94,18 @@ extern "C" void __malloc_unlock (struct _reent *_r) noexcept
 }
 
 // Application entry point
+#if SAME5x		// if using CoreN2G
+[[noreturn]] void AppMain() noexcept
+#else			// using CoreNG
 extern "C" [[noreturn]] void AppMain() noexcept
+#endif
 {
 	pinMode(DiagPin, (DiagOnPolarity) ? OUTPUT_LOW : OUTPUT_HIGH);	// set up diag LED for debugging and turn it off
 
 #if !defined(DEBUG) && !defined(__LPC17xx__)	// don't check the CRC of a debug build because debugger breakpoints mess up the CRC
 	// Check the integrity of the firmware by checking the firmware CRC
 	{
-#if defined(IFLASH_ADDR)
-		const char *firmwareStart = reinterpret_cast<const char *>(IFLASH_ADDR);
-#elif defined(FLASH_ADDR)
-		const char *firmwareStart = reinterpret_cast<const char *>(FLASH_ADDR);
-#elif defined(IFLASH0_ADDR)
-		const char *firmwareStart = reinterpret_cast<const char *>(IFLASH0_ADDR);
-#else
-# error Unsupported processor
-#endif
+		const char *firmwareStart = reinterpret_cast<const char*>(SCB->VTOR & 0xFFFFFF80);
 		CRC32 crc;
 		crc.Update(firmwareStart, (const char*)&_firmware_crc - firmwareStart);
 		if (crc.Get() != _firmware_crc)
@@ -137,26 +133,30 @@ extern "C" [[noreturn]] void AppMain() noexcept
 	}
 
 #if SAME5x
-# if 0		// disable the bootloader protection code until we have a bootloader
-//# ifndef DEBUG
-	// Check that the bootloader is protected and EEPROM is configured
-	uint64_t nvmUserRow0 = *reinterpret_cast<const uint64_t*>(NVMCTRL_USER);						// we only need values in the first 64 bits of the user area
-	constexpr uint64_t mask =     ((uint64_t)0x0F << 32) | ((uint64_t)0x07 << 36) | (0x0F << 26);	// we just want NVM_BOOT (bits 26-29), SEE.SBLK (bits 32-35) and SEE.PSZ (bits 36:38)
-	constexpr uint64_t reqValue = ((uint64_t)0x01 << 32) | ((uint64_t)0x03 << 36) | (0x07 << 26);	// 4K SMART EEPROM and 64K bootloader (SBLK=1 PSZ=3)
-
-	if ((nvmUserRow0 & mask) != reqValue)
 	{
-		nvmUserRow0 = (nvmUserRow0 & ~mask) | reqValue;												// set up the required value
-		_user_area_write(reinterpret_cast<void*>(NVMCTRL_USER), 0, reinterpret_cast<const uint8_t*>(&nvmUserRow0), sizeof(nvmUserRow0));
+		const uint32_t bootloaderSize = SCB->VTOR & 0xFFFFFF80;
+		if (bootloaderSize == 0x4000)
+		{
+			// Looks like this is release firmware that was loaded by a bootloader in the first 16Kb of flash
+			// Check that the bootloader is protected and EEPROM is configured
+			uint64_t nvmUserRow0 = *reinterpret_cast<const uint64_t*>(NVMCTRL_USER);						// we only need values in the first 64 bits of the user area
+			constexpr uint64_t mask =     ((uint64_t)0x0F << 32) | ((uint64_t)0x07 << 36) | (0x0F << 26);	// we just want NVM_BOOT (bits 26-29), SEE.SBLK (bits 32-35) and SEE.PSZ (bits 36:38)
+			constexpr uint64_t reqValue = ((uint64_t)0x01 << 32) | ((uint64_t)0x03 << 36) | (13 << 26);		// 4K SMART EEPROM and 16K bootloader (SBLK=1 PSZ=3 BOOTPROT=13)
 
-		// If we reset immediately then the user area write doesn't complete and the bits get set to all 1s.
-		delayMicroseconds(10000);
-		Reset();
+			if ((nvmUserRow0 & mask) != reqValue)
+			{
+				nvmUserRow0 = (nvmUserRow0 & ~mask) | reqValue;												// set up the required value
+				_user_area_write(reinterpret_cast<void*>(NVMCTRL_USER), 0, reinterpret_cast<const uint8_t*>(&nvmUserRow0), sizeof(nvmUserRow0));
+
+				// If we reset immediately then the user area write doesn't complete and the bits get set to all 1s.
+				delayMicroseconds(10000);
+				Reset();
+			}
+		}
 	}
-# endif
 
 	CoreInit();
-
+	DeviceInit();
 #endif
 
 	// Trap integer divide-by-zero.
@@ -321,7 +321,7 @@ extern "C"
 	}
 
 	// The fault handler implementation calls a function called hardFaultDispatcher()
-    void HardFault_Handler() noexcept __attribute__((naked, noreturn));
+    [[noreturn]] void HardFault_Handler() noexcept __attribute__((naked));
 	void HardFault_Handler() noexcept
 	{
 	    __asm volatile

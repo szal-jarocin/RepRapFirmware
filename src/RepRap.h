@@ -98,7 +98,7 @@ public:
 	bool IsHeaterAssignedToTool(int8_t heater) const noexcept;
 	unsigned int GetNumberOfContiguousTools() const noexcept;
 	void ReportAllToolTemperatures(const StringRef& reply) const noexcept;
-	void SetAllToolsFirmwareRetraction(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeException);
+	GCodeResult SetAllToolsFirmwareRetraction(GCodeBuffer& gb, const StringRef& reply, OutputBuffer*& outBuf) THROWS(GCodeException);
 
 	unsigned int GetProhibitedExtruderMovements(unsigned int extrusions, unsigned int retractions) noexcept;
 	void PrintTool(int toolNumber, const StringRef& reply) const noexcept;
@@ -177,6 +177,7 @@ public:
 	[[noreturn]] void SoftwareReset(uint16_t reason, const uint32_t *stk = nullptr) noexcept;
 
 	static uint32_t DoDivide(uint32_t a, uint32_t b) noexcept;			// helper function for diagnostic tests
+	static void GenerateBusFault() noexcept;							// helper function for diagnostic tests
 	static float SinfCosf(float angle) noexcept;						// helper function for diagnostic tests
 
 	void KickHeatTaskWatchdog() noexcept { heatTaskIdleTicks = 0; }
