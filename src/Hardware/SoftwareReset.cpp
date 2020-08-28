@@ -38,7 +38,7 @@ const char *const SoftwareResetData::ReasonText[] =
 uint8_t SoftwareResetData::extraDebugInfo;			// extra info for debugging
 
 // Return true if this struct can be written without erasing it first
-bool SoftwareResetData::isVacant() const noexcept
+bool SoftwareResetData::IsVacant() const noexcept
 {
 	const uint32_t *p = reinterpret_cast<const uint32_t*>(this);
 	for (size_t i = 0; i < sizeof(*this)/sizeof(uint32_t); ++i)
@@ -58,6 +58,11 @@ bool SoftwareResetData::isVacant() const noexcept
         volatile StackType_t *CheckSPCurrentTaskStack(const uint32_t *stackPointer); //defined in freertos_tasks_c_additions.h
     }
 #endif
+
+void SoftwareResetData::Clear() noexcept
+{
+	memset(this, 0xFF, sizeof(SoftwareResetData));
+}
 
 // Populate this reset data from the parameters passed and the CPU state
 void SoftwareResetData::Populate(uint16_t reason, uint32_t time, const uint32_t *stk) noexcept

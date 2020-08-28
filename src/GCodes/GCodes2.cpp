@@ -30,6 +30,8 @@
 #include "FilamentMonitors/FilamentMonitor.h"
 #include "General/IP4String.h"
 #include "Movement/StepperDrivers/DriverMode.h"
+#include <Hardware/SoftwareReset.h>
+#include <Hardware/ExceptionHandlers.h>
 #include "Version.h"
 
 #if SUPPORT_IOBITS
@@ -4384,7 +4386,7 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeEx
 						reason = (uint16_t)SoftwareResetReason::erase;
 					}
 				}
-				reprap.SoftwareReset(reason);			// doesn't return
+				SoftwareReset(reason);			// doesn't return
 			}
 			break;
 
