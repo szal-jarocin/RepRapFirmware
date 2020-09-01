@@ -339,11 +339,12 @@ extern PinEntry *PinTable;
 
 bool LookupPinName(const char *pn, LogicalPin& lpin, bool& hardwareInverted) noexcept;
 
+#if ALLOCATE_DEFAULT_PORTS
 constexpr const char *DefaultEndstopPinNames[] = { "nil", "nil", "nil" };
 constexpr const char *DefaultZProbePinNames = "nil";
 constexpr const char *DefaultFanPinNames[] = { "nil", "nil" };
 constexpr PwmFrequency DefaultFanPwmFrequencies[] = { DefaultFanPwmFreq };
-
+#endif
 
 
 //Boards
