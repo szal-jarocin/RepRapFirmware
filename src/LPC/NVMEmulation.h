@@ -7,9 +7,9 @@
 #include "iap.h"
 
 
-void LPC_ReadSoftwareResetData(void *data, uint32_t dataLength);
-bool LPC_EraseSoftwareResetData();
-bool LPC_WriteSoftwareResetData(const void *data, uint32_t dataLength);
+void NVMEmulationRead(void *data, uint32_t dataLength);
+bool NVMEmulationErase();
+bool NVMEmulationWrite(const void *data, uint32_t dataLength);
 
 //Compatibility
 inline void EraseAndReset(){};

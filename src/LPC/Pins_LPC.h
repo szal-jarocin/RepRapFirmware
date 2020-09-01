@@ -5,7 +5,7 @@
 #include "sd_mmc.h"
 #include "RepRapFirmware.h"
 #include "chip.h"
-#include "SoftwareResetData.h"
+#include "NVMEmulation.h"
 
 #ifndef UNUSED
 #define UNUSED(x) (void)(x)

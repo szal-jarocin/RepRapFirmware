@@ -1,13 +1,13 @@
 
 //SD modified by GA for latest RRF
 
-#include "SoftwareResetData.h"
+#include "NVMEmulation.h"
 #include "RepRapFirmware.h"
 
 
 /*
- 
- On LPC17xx we will save SoftwareReset Data to the final sector. The last sector is 32K in size.
+ We emulate a 512 byte NVM area using flash memory.
+ On LPC17xx we will save NVM Data to the final sector. The last sector is 32K in size.
  Data must be written in 256 or 512 or 1024 or 4096 bytes.
 
  The LPC1768/9 doesn't have the page erase IAP command, so we have to use the whole sector
@@ -29,7 +29,7 @@ static uint32_t currentSlot     = MAX_SLOT+1;
 //When the Sector is erased, all the bits will be high
 //This checks if the first 4 bytes are all high for the designated software reset slot
 //the first 2 bytes of a used reset slot will have the magic number in it.
-bool LPC_IsSoftwareResetDataSlotVacant(uint8_t slot)
+static bool IsSoftwareResetDataSlotVacant(uint8_t slot)
 {
     const uint32_t *p = (uint32_t *) (START_ADDR_LAST_SECTOR + (slot*SLOT_SIZE));
     
@@ -44,22 +44,19 @@ bool LPC_IsSoftwareResetDataSlotVacant(uint8_t slot)
     return true;
  }
 
-void LPC_ReadSoftwareResetData(void *data, uint32_t dataLength)
+void NVMEmulationRead(void *data, uint32_t dataLength)
 {
     // find the most recently written data or slot 0 if all free
     currentSlot = MAX_SLOT;
-    while (currentSlot > 0 && LPC_IsSoftwareResetDataSlotVacant(currentSlot))
+    while (currentSlot > 0 && IsSoftwareResetDataSlotVacant(currentSlot))
         currentSlot--;
     uint32_t *slotStartAddress = (uint32_t *) (START_ADDR_LAST_SECTOR + (currentSlot*SLOT_SIZE));
     memcpy(data, slotStartAddress, dataLength);
 }
 
 
-bool LPC_EraseSoftwareResetData()
+bool NVMEmulationErase()
 {
-    // interrupts will be disabled before these are called.
-    //__disable_irq(); //disable Interrupts
-
     uint8_t iap_ret_code;
     bool ret = false;
 
@@ -102,7 +99,7 @@ bool LPC_EraseSoftwareResetData()
     
 }
 
-bool LPC_WriteSoftwareResetData(const void *data, uint32_t dataLength){
+bool NVMEmulationWrite(const void *data, uint32_t dataLength){
     uint8_t iap_ret_code;
     bool ret = false;
     if (dataLength != SLOT_SIZE)

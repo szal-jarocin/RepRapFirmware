@@ -12,7 +12,7 @@
 # include <flash_efc.h>
 #endif
 #if defined(__LPC17xx__)
-# include "SoftwareResetData.h"
+# include "NVMEmulation.h"
 #endif
 
 NonVolatileMemory::NonVolatileMemory() noexcept : state(NvmState::notRead)
@@ -26,7 +26,7 @@ void NonVolatileMemory::EnsureRead() noexcept
 #if SAME5x
 		memcpy(&buffer, reinterpret_cast<const void *>(SEEPROM_ADDR), sizeof(buffer));
 #elif defined(__LPC17xx__)
-		LPC_ReadSoftwareResetData(&buffer, sizeof(buffer));
+		NVMEmulationRead(&buffer, sizeof(buffer));
 #elif SAM4E || SAM4S || SAME70
 		// Work around bug in ASF flash library: flash_read_user_signature calls a RAMFUNC without disabling interrupts first.
 		// This caused a crash (watchdog timeout) sometimes if we run M122 while a print is in progress
@@ -67,7 +67,7 @@ void NonVolatileMemory::EnsureWritten() noexcept
 # if SAM4E || SAM4S || SAME70
 		flash_erase_user_signature();
 # elif defined(__LPC17xx__)
-		LPC_EraseSoftwareResetData();
+		NVMEmulationErase();
 # endif
 		state = NvmState::writeNeeded;
 	}
@@ -77,7 +77,7 @@ void NonVolatileMemory::EnsureWritten() noexcept
 # if SAM4E || SAM4S || SAME70
 		flash_write_user_signature(&buffer, sizeof(buffer)/sizeof(uint32_t));
 # elif defined(__LPC17xx__)
-		LPC_WriteSoftwareResetData(&buffer, sizeof(buffer));
+		NVMEmulationWrite(&buffer, sizeof(buffer));
 # else
 #  error Unsupported processor
 # endif
