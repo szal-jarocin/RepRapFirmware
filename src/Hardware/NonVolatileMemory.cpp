@@ -108,7 +108,7 @@ SoftwareResetData* NonVolatileMemory::AllocateResetDataSlot() noexcept
 	{
 		if (buffer.resetData[i].IsVacant())
 		{
-			state = NvmState::writeNeeded;		// assume the caller will write to the allocated slot
+			if (state == NvmState::clean) state = NvmState::writeNeeded;		// assume the caller will write to the allocated slot
 			return &buffer.resetData[i];
 		}
 	}

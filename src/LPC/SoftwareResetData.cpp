@@ -47,7 +47,7 @@ bool LPC_IsSoftwareResetDataSlotVacant(uint8_t slot)
 void LPC_ReadSoftwareResetData(void *data, uint32_t dataLength)
 {
     // find the most recently written data or slot 0 if all free
-    uint32_t currentSlot = MAX_SLOT;
+    currentSlot = MAX_SLOT;
     while (currentSlot > 0 && LPC_IsSoftwareResetDataSlotVacant(currentSlot))
         currentSlot--;
     uint32_t *slotStartAddress = (uint32_t *) (START_ADDR_LAST_SECTOR + (currentSlot*SLOT_SIZE));
@@ -69,6 +69,7 @@ bool LPC_EraseSoftwareResetData()
         currentSlot++;
         return true;
     }
+    const irqflags_t flags = cpu_irq_save();
     /* Prepare to write/erase the last sector */
     iap_ret_code = Chip_IAP_PreSectorForReadWrite(IAP_LAST_SECTOR, IAP_LAST_SECTOR);
     
@@ -95,7 +96,7 @@ bool LPC_EraseSoftwareResetData()
     
     
     }
-    //__enable_irq();
+    cpu_irq_restore(flags);
     currentSlot = 0;    
     return ret;
     
@@ -111,14 +112,13 @@ bool LPC_WriteSoftwareResetData(const void *data, uint32_t dataLength){
     }
     if (currentSlot > MAX_SLOT)
     {
-        debugPrintf("Write to flash slot that has not been read\n");
+        debugPrintf("Write to flash slot that has not been read slot is %d\n", (int)currentSlot);
         return false;
     }
     //
-    
     uint32_t slotStartAddress = (START_ADDR_LAST_SECTOR + (currentSlot*SLOT_SIZE));
     
-    //__disable_irq(); //disable Interrupts
+    const irqflags_t flags = cpu_irq_save();
     
     /* Prepare to write/erase the last sector */
     iap_ret_code = Chip_IAP_PreSectorForReadWrite(IAP_LAST_SECTOR, IAP_LAST_SECTOR);
@@ -130,7 +130,7 @@ bool LPC_WriteSoftwareResetData(const void *data, uint32_t dataLength){
     }
     else
     {
-        //debugPrintf("About to write %d bytes to address %x", IAP_PAGE_SIZE, slotStartAddress);
+        //debugPrintf("About to write %d bytes to address %x", SLOT_SIZE, slotStartAddress);
         /* Write to the last sector */
         iap_ret_code = Chip_IAP_CopyRamToFlash(slotStartAddress, (uint32_t *)data, SLOT_SIZE);
 
@@ -145,8 +145,7 @@ bool LPC_WriteSoftwareResetData(const void *data, uint32_t dataLength){
         }
     }
     /* Re-enable interrupt mode */
-    //__enable_irq();
-    
+    cpu_irq_restore(flags);
     return ret;
     
 }
