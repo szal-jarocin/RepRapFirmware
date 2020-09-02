@@ -87,9 +87,9 @@ GCodes::GCodes(Platform& p) noexcept :
 
 #if defined(SERIAL_MAIN_DEVICE)
 	StreamGCodeInput * const usbInput = new StreamGCodeInput(SERIAL_MAIN_DEVICE);
-	usbGCode = new GCodeBuffer(GCodeChannel::USBchan, usbInput, fileInput, UsbMessage, Compatibility::Marlin);
+	usbGCode = new GCodeBuffer(GCodeChannel::USB, usbInput, fileInput, UsbMessage, Compatibility::Marlin);
 #elif HAS_LINUX_INTERFACE
-	usbGCode = new GCodeBuffer(GCodeChannel::USBchan, nullptr, fileInput, UsbMessage, Compatbility::marlin);
+	usbGCode = new GCodeBuffer(GCodeChannel::USB, nullptr, fileInput, UsbMessage, Compatbility::marlin);
 #else
 	usbGCode = nullptr;
 #endif
@@ -2324,11 +2324,11 @@ bool GCodes::DoArcMove(GCodeBuffer& gb, bool clockwise, const char *& err)
 	}
 
 	// Compute how many segments to use
-	// For the arc to deviate up to MaxArcDeviation from the ideal, the segment length should be sqrt(8 * arcRadius * MaxArcDeviation + fsquare(MaxArcDeviation))
+	// For the arc to deviate up to MaxArcDeviation from the ideal, the segment length should be sqrtf(8 * arcRadius * MaxArcDeviation + fsquare(MaxArcDeviation))
 	// We leave out the square term because it is very small
 	// In CNC applications even very small deviations can be visible, so we use a smaller segment length at low speeds
 	const float arcSegmentLength = constrain<float>
-									(	min<float>(sqrt(8 * arcRadius * MaxArcDeviation), moveBuffer.feedRate * (1.0/MinArcSegmentsPerSec)),
+									(	min<float>(sqrtf(8 * arcRadius * MaxArcDeviation), moveBuffer.feedRate * (1.0/MinArcSegmentsPerSec)),
 										MinArcSegmentLength,
 										MaxArcSegmentLength
 									);
@@ -4605,6 +4605,29 @@ void GCodes::ActivateHeightmap(bool activate) noexcept
 		}
 #endif
 	}
+}
+
+// Check that we are allowed to perform network-related commands
+// Return true if we are; else return false and set 'reply' and 'result' appropriately
+// On entry, 'reply' is empty and 'result' is GCodeResult::ok
+bool GCodes::CheckNetworkCommandAllowed(GCodeBuffer& gb, const StringRef& reply, GCodeResult& result) noexcept
+{
+	if (gb.MachineState().runningM502)			// when running M502 we don't execute network-related commands
+	{
+		return false;							// just ignore the command but report success
+	}
+
+#if HAS_LINUX_INTERFACE
+	if (reprap.UsingLinuxInterface())
+	{
+		// Networking is disabled when using the SBC interface, to save RAM
+		reply.copy("Network-related commands are not supported when using an attached Single Board Computer");
+		result = GCodeResult::error;
+		return false;
+	}
+#endif
+
+	return true;
 }
 
 #if HAS_MASS_STORAGE

@@ -25,14 +25,14 @@ constexpr uint32_t IAP_IMAGE_START = 0x20450000;		// last 64kb of RAM
 #define SUPPORT_TMC51xx			1
 #define TMC51xx_USES_USART		1
 
-#define SUPPORT_CAN_EXPANSION	1
-#define SUPPORT_DOTSTAR_LED		1
 #define HAS_VOLTAGE_MONITOR		1
 #define ENFORCE_MAX_VIN			0
 #define HAS_12V_MONITOR			1
 #define ENFORCE_MIN_V12			1
 #define HAS_VREF_MONITOR		1
 
+#define SUPPORT_CAN_EXPANSION	1
+#define SUPPORT_DOTSTAR_LED		1
 #define SUPPORT_INKJET			0					// set nonzero to support inkjet control
 #define SUPPORT_ROLAND			0					// set nonzero to support Roland mill
 #define SUPPORT_SCANNER			0					// set zero to disable support for FreeLSS scanners
@@ -82,10 +82,10 @@ constexpr size_t MaxExtrudersPerTool = 8;
 
 constexpr unsigned int MaxTriggers = 32;			// Must be <= 32 because we store a bitmap of pending triggers in a uint32_t
 
-constexpr size_t NUM_SERIAL_CHANNELS = 2;			// The number of serial IO channels not counting the WiFi serial connection (USB and one auxiliary UART)
+constexpr size_t NUM_SERIAL_CHANNELS = 3;			// The number of serial IO channels not counting the WiFi serial connection (USB and one auxiliary UART)
 #define SERIAL_MAIN_DEVICE SerialUSB
 #define SERIAL_AUX_DEVICE Serial
-#define SERIAL_WIFI_DEVICE Serial1
+#define SERIAL_AUX2_DEVICE Serial1
 
 constexpr Pin UsbVBusPin = PortCPin(21);			// Pin used to monitor VBUS on USB port
 

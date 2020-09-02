@@ -38,7 +38,7 @@ void ESP_SPI_HANDLER(HardwareSPI *spiDevice) noexcept
 static void spi_slave_dma_setup(uint32_t dataOutSize, uint32_t dataInSize) noexcept
 {
     //Find the largest transfer size
-    const uint32_t dsize = MAX(dataOutSize, dataInSize) + sizeof(MessageHeaderSamToEsp);
+    const uint32_t dsize = MAX(dataOutSize + sizeof(MessageHeaderSamToEsp), dataInSize + sizeof(MessageHeaderEspToSam));
     // clear any previous transaction
     spiDevice->flushRx();
     spiDevice->startTransfer((const uint8_t *)&bufferOut, (uint8_t *)&bufferIn, dsize, ESP_SPI_HANDLER);

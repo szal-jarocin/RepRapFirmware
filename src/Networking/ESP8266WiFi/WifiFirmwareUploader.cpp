@@ -609,13 +609,10 @@ void WifiFirmwareUploader::Spin() noexcept
 #if defined(__LPC17XX__) || defined(STM32F4)
 			// ResetWiFiForUpload calls uploadPort.end() I'm not sure that it makes sense to call uploadPort.begin before this. On 
 			// LPC and STM32 it does not work very well as the port is in effect closed on the first write attempt. So we reverse the order.
-			//uploadPort.setInterruptPriority(NvicPriorityWiFiUart);				// we are going to move data at seriously high speeds
 			interface.ResetWiFiForUpload(false);
 			uploadPort.begin(baud);
-			//uploadPort.setInterruptPriority(NvicPriorityWiFiUart);				// we are going to move data at seriously high speeds
 #else
 			uploadPort.begin(baud);
-			uploadPort.setInterruptPriority(NvicPriorityWiFiUart);				// we are going to move data at seriously high speeds
 			interface.ResetWiFiForUpload(false);
 #endif
 			lastAttemptTime = lastResetTime = millis();

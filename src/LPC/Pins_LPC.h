@@ -5,7 +5,7 @@
 #include "sd_mmc.h"
 #include "RepRapFirmware.h"
 #include "chip.h"
-#include "SoftwareResetData.h"
+#include "NVMEmulation.h"
 
 #ifndef UNUSED
 #define UNUSED(x) (void)(x)
@@ -339,11 +339,12 @@ extern PinEntry *PinTable;
 
 bool LookupPinName(const char *pn, LogicalPin& lpin, bool& hardwareInverted) noexcept;
 
+#if ALLOCATE_DEFAULT_PORTS
 constexpr const char *DefaultEndstopPinNames[] = { "nil", "nil", "nil" };
 constexpr const char *DefaultZProbePinNames = "nil";
 constexpr const char *DefaultFanPinNames[] = { "nil", "nil" };
 constexpr PwmFrequency DefaultFanPwmFrequencies[] = { DefaultFanPwmFreq };
-
+#endif
 
 
 //Boards
@@ -496,14 +497,6 @@ namespace StepPins
 }
 
 
-// From section 3.12.7 of http://infocenter.arm.com/help/topic/com.arm.doc.dui0553b/DUI0553.pdf:
-// When you write to BASEPRI_MAX, the instruction writes to BASEPRI only if either:
-// - Rn is non-zero and the current BASEPRI value is 0
-// - Rn is non-zero and less than the current BASEPRI value
-__attribute__( ( always_inline ) ) __STATIC_INLINE void __set_BASEPRI_MAX(uint32_t value)
-{
-  __ASM volatile ("MSR basepri_max, %0" : : "r" (value) : "memory");
-}
 
 
 #endif

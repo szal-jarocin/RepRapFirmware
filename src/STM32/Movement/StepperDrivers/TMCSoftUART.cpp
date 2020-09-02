@@ -21,7 +21,7 @@
 #include "RepRap.h"
 #include "Movement/Move.h"
 #include "Movement/StepTimer.h"
-#include "Hardware/Cache.h"
+#include "Cache.h"
 
 // Soft UART implementation
 #if TMC_SOFT_UART

@@ -35,11 +35,11 @@
 #include "Version.h"
 #include "Logger.h"
 #include "Tasks.h"
-#include "Hardware/DmacManager.h"
-#include "Hardware/Cache.h"
+#include <Cache.h>
+#include "Hardware/SharedSpi/SharedSpiDevice.h"
 #include "Math/Isqrt.h"
 #include "Hardware/I2C.h"
-#include "Hardware/SharedSpi/SharedSpiDevice.h"
+#include <Hardware/NonVolatileMemory.h>
 #ifdef __LPC17xx__
 # include "LPC/BoardConfig.h"
 # ifdef LPC_DEBUG
@@ -51,8 +51,12 @@
 # include "STM32/BoardConfig.h"
 # include <sd_mmc.h>
 #else
-#if SAME5x
+#if SAME70
+# include <DmacManager.h>
+static_assert(NumDmaChannelsUsed <= NumDmaChannelsSupported, "Need more DMA channels in CoreNG");
+#elif SAME5x
 # include <AnalogIn.h>
+# include <DmacManager.h>
 using AnalogIn::AdcBits;
 #else
 # include "sam/drivers/tc/tc.h"
@@ -344,13 +348,12 @@ constexpr ObjectModelTableEntry Platform::objectModelTable[] =
 
 constexpr uint8_t Platform::objectModelTableDescriptor[] =
 {
-	//8 + HAS_CPU_TEMP_SENSOR,																		// number of sections
 	9,																		// number of sections
 	12 + HAS_LINUX_INTERFACE + HAS_12V_MONITOR + SUPPORT_CAN_EXPANSION + MCU_HAS_UNIQUE_ID,		// section 0: boards[0]
 #if HAS_CPU_TEMP_SENSOR
-	3,
+	3,																		// section 1: mcuTemp
 #else
-	0,																		// section 1: mcuTemp
+	0,
 #endif
 #if HAS_VOLTAGE_MONITOR
 	3,																		// section 2: vIn
@@ -476,7 +479,7 @@ void Platform::Init() noexcept
 	baudRates[2] = AUX2_BAUD_RATE;
 	commsParams[2] = 0;
 	aux2Mutex.Create("Aux2");
-	SERIAL_AUX2_DEVICE.begin(baudRates[2]);
+	aux2Enabled = aux2Raw = false;
 #endif
 
 	// Initialise the IO port subsystem
@@ -767,7 +770,7 @@ void Platform::Init() noexcept
 	// Enable the pullup resistor, with luck this will make it float high instead.
 #if SAM3XA
 	pinMode(APIN_SHARED_SPI_MISO, INPUT_PULLUP);
-#elif defined(__LPC17xx__) || defined(SAME5x)
+#elif defined(__LPC17xx__) || SAME5x
 	// nothing to do here
 #else
 	pinMode(APIN_USART_SSPI_MISO, INPUT_PULLUP);
@@ -806,7 +809,15 @@ void Platform::Init() noexcept
 #endif
 
 #if HAS_CPU_TEMP_SENSOR
+# if SAME5x
+	tpFilter.Init(0);
+	AnalogIn::EnableTemperatureSensor(0, tpFilter.CallbackFeedIntoFilter, &tpFilter, 1, 0);
+	tcFilter.Init(0);
+	AnalogIn::EnableTemperatureSensor(1, tcFilter.CallbackFeedIntoFilter, &tcFilter, 1, 0);
+	TemperatureCalibrationInit();
+# else
 	filteredAdcChannels[CpuTempFilterIndex] = GetTemperatureAdcChannel();
+# endif
 #endif
 
 	// Initialise all the ADC filters and enable the corresponding ADC channels
@@ -822,8 +833,8 @@ void Platform::Init() noexcept
 
 #if HAS_CPU_TEMP_SENSOR
 	// MCU temperature monitoring
-	highestMcuTemperature = 0;									// the highest output we have seen from the ADC filter
-	lowestMcuTemperature = 4095 * ThermistorAverageReadings;	// the lowest output we have seen from the ADC filter
+	highestMcuTemperature = -273.0;									// the highest temperature we have seen
+	lowestMcuTemperature = 2000.0;									// the lowest temperature we have seen
 	mcuTemperatureAdjust = 0.0;
 #endif
 
@@ -1172,9 +1183,13 @@ void Platform::Spin() noexcept
 
 	// Check the MCU max and min temperatures
 #if HAS_CPU_TEMP_SENSOR
+# if SAME5x
+	if (tcFilter.IsValid() && tpFilter.IsValid())
+# else
 	if (adcFilters[CpuTempFilterIndex].IsValid())
+# endif
 	{
-		const uint32_t currentMcuTemperature = adcFilters[CpuTempFilterIndex].GetSum();
+		const float currentMcuTemperature = GetCpuTemperature();
 		if (currentMcuTemperature > highestMcuTemperature)
 		{
 			highestMcuTemperature= currentMcuTemperature;
@@ -1633,16 +1648,27 @@ bool Platform::GetAutoSaveSettings(float& saveVoltage, float&resumeVoltage) noex
 
 #endif
 
-#if HAS_CPU_TEMP_SENSOR && !SAME5x
+#if HAS_CPU_TEMP_SENSOR
 
-float Platform::AdcReadingToCpuTemperature(uint32_t adcVal) const noexcept
+float Platform::GetCpuTemperature() const noexcept
 {
-	const float voltage = (float)adcVal * (3.3/(float)((1u << AdcBits) * ThermistorAverageReadings));
-#if SAM4E || SAM4S
+#if SAME5x
+	// From the datasheet:
+	// T = (tl * vph * tc - th * vph * tc - tl * tp *vch + th * tp * vcl)/(tp * vcl - tp * vch - tc * vpl * tc * vph)
+	const uint16_t tc_result = tcFilter.GetSum()/(tcFilter.NumAveraged() << (AnalogIn::AdcBits - 12));
+	const uint16_t tp_result = tpFilter.GetSum()/(tpFilter.NumAveraged() << (AnalogIn::AdcBits - 12));
+
+	int32_t result =  (tempCalF1 * tc_result - tempCalF2 * tp_result);
+	const int32_t divisor = (tempCalF3 * tp_result - tempCalF4 * tc_result);
+	result = (divisor == 0) ? 0 : result/divisor;
+	return (float)result/16 + mcuTemperatureAdjust;
+#else
+	const float voltage = (float)adcFilters[CpuTempFilterIndex].GetSum() * (3.3/(float)((1u << AdcBits) * ThermistorAverageReadings));
+# if SAM4E || SAM4S
 	return (voltage - 1.44) * (1000.0/4.7) + 27.0 + mcuTemperatureAdjust;			// accuracy at 27C is +/-13C
-#elif SAM3XA
+# elif SAM3XA
 	return (voltage - 0.8) * (1000.0/2.65) + 27.0 + mcuTemperatureAdjust;			// accuracy at 27C is +/-45C
-#elif SAME70
+# elif SAME70
 	return (voltage - 0.72) * (1000.0/2.33) + 25.0 + mcuTemperatureAdjust;			// accuracy at 25C is +/-34C
 #elif defined(STM32F4)
 	// Magic numbers are the location of STM32 calibration constants
@@ -1671,7 +1697,11 @@ void Platform::InitialiseInterrupts() noexcept
 
 	// Set PanelDue UART interrupt priority
 #ifdef SERIAL_AUX_DEVICE
+# if SAME5x
+	SERIAL_AUX_DEVICE.setInterruptPriority(NvicPriorityPanelDueUartRx, NvicPriorityPanelDueUartTx);
+# else
 	SERIAL_AUX_DEVICE.setInterruptPriority(NvicPriorityPanelDueUart);
+# endif
 #endif
 #ifdef SERIAL_AUX2_DEVICE
 	SERIAL_AUX2_DEVICE.setInterruptPriority(NvicPriorityPanelDueUart);
@@ -1706,7 +1736,11 @@ void Platform::InitialiseInterrupts() noexcept
 #endif
 
 #if SAME5x
-	// DMA IRQ priority is set in DmacManager::Init
+	// SAME5x DMAC has 5 contiguous IRQ numbers
+	for (unsigned int i = 0; i < 5; i++)
+	{
+		NVIC_SetPriority((IRQn)(DMAC_0_IRQn + i), NvicPriorityDMA);
+	}
 #elif SAME70
 	NVIC_SetPriority(XDMAC_IRQn, NvicPriorityDMA);
 #endif
@@ -1818,8 +1852,8 @@ void Platform::Diagnostics(MessageType mtype) noexcept
 		if (resetReason & RSTC_RCAUSE_WDT)		{ resetString.cat(": watchdog"); }
 		if (resetReason & RSTC_RCAUSE_NVM)		{ resetString.cat(": NVM"); }
 		if (resetReason & RSTC_RCAUSE_EXT)		{ resetString.cat(": reset button"); }
-		if (resetReason & RSTC_RCAUSE_SYST)		{ resetString.cat(": system reset request"); }
-		if (resetReason & RSTC_RCAUSE_POR)		{ resetString.cat(": backup/hibernate"); }
+		if (resetReason & RSTC_RCAUSE_SYST)		{ resetString.cat(": software"); }
+		if (resetReason & RSTC_RCAUSE_BACKUP)	{ resetString.cat(": backup/hibernate"); }
 		resetString.cat('\n');
 		Message(mtype, resetString.c_str());
 	}
@@ -1836,84 +1870,42 @@ void Platform::Diagnostics(MessageType mtype) noexcept
 	MessageF(mtype, "Last reset %02d:%02d:%02d ago, cause: %s\n",
 			(unsigned int)(now/3600), (unsigned int)((now % 3600)/60), (unsigned int)(now % 60),
 			resetReasons[(REG_RSTC_SR & RSTC_SR_RSTTYP_Msk) >> RSTC_SR_RSTTYP_Pos]);
-#endif //end ifndef __LPC17xx__
-
-	// Show the reset code stored at the last software reset
-#if SAME5x
-		//TODO
-		Message(mtype, "Last software reset details not available\n");
-#else
-	{
+#endif
 #if defined(__LPC17xx__) || defined(STM32F4)
 		// Reset Reason
-		MessageF(mtype, "Last reset %02d:%02d:%02d ago, cause: ",
+	MessageF(mtype, "Last reset %02d:%02d:%02d ago, cause: ",
 				 (unsigned int)(now/3600), (unsigned int)((now % 3600)/60), (unsigned int)(now % 60));
 
 # if defined(__LPC17xx__)
-		if (LPC_SYSCTL->RSID & RSID_POR) { MessageF(mtype, "[power up]"); }
-		if (LPC_SYSCTL->RSID & RSID_EXTR) { MessageF(mtype, "[reset button]"); }
-		if (LPC_SYSCTL->RSID & RSID_WDTR) { MessageF(mtype, "[watchdog]"); }
-		if (LPC_SYSCTL->RSID & RSID_BODR) { MessageF(mtype, "[brownout]"); }
-		if (LPC_SYSCTL->RSID & RSID_SYSRESET) { MessageF(mtype, "[software]"); }
-		if (LPC_SYSCTL->RSID & RSID_LOCKUP) { MessageF(mtype, "[lockup]"); }
+	if (LPC_SYSCTL->RSID & RSID_POR) { MessageF(mtype, "[power up]"); }
+	if (LPC_SYSCTL->RSID & RSID_EXTR) { MessageF(mtype, "[reset button]"); }
+	if (LPC_SYSCTL->RSID & RSID_WDTR) { MessageF(mtype, "[watchdog]"); }
+	if (LPC_SYSCTL->RSID & RSID_BODR) { MessageF(mtype, "[brownout]"); }
+	if (LPC_SYSCTL->RSID & RSID_SYSRESET) { MessageF(mtype, "[software]"); }
+	if (LPC_SYSCTL->RSID & RSID_LOCKUP) { MessageF(mtype, "[lockup]"); }
 # else
-		const char* resetReasons[] = {"unknown", "low power", "window watchdog", "ind. watchdog", "software", "power on/off", "pin", "brownout"};
-		MessageF(mtype, "[%s]", resetReasons[GetResetCause()]);
+	const char* resetReasons[] = {"unknown", "low power", "window watchdog", "ind. watchdog", "software", "power on/off", "pin", "brownout"};
+	MessageF(mtype, "[%s]", resetReasons[GetResetCause()]);
 # endif
-
-        MessageF(mtype, "\n");
-		SoftwareResetData srdBuf[1];
-		int slot = -1;
-
-		for (int s = SoftwareResetData::numberOfSlots - 1; s >= 0; s--)
-		{
-			SoftwareResetData *sptr = reinterpret_cast<SoftwareResetData *>(GetSoftwareResetDataSlotPtr(s));
-			if (sptr->magic == SoftwareResetData::magicValue)
-			{
-				//slot = s;
-				MessageF(mtype, "LPC Flash Slot[%d]: \n", s);
-				slot = 0;	// we only have 1 slot in the array, set this to zero to be compatible with existing code below
-				//copy the data into srdBuff
-				ReadSoftwareResetDataSlot(s, &srdBuf[0], sizeof(srdBuf[0]));
-				break;
-			}
-		}
-#else
-		SoftwareResetData srdBuf[SoftwareResetData::numberOfSlots];
-		memset(srdBuf, 0, sizeof(srdBuf));
-		int slot = -1;
-
-# if SAM4E || SAM4S || SAME70
-		// Work around bug in ASF flash library: flash_read_user_signature calls a RAMFUNC without disabling interrupts first.
-		// This caused a crash (watchdog timeout) sometimes if we run M122 while a print is in progress
-		const irqflags_t flags = cpu_irq_save();
-		Cache::Disable();
-		const uint32_t rc = flash_read_user_signature(reinterpret_cast<uint32_t*>(srdBuf), sizeof(srdBuf)/sizeof(uint32_t));
-		Cache::Enable();
-		cpu_irq_restore(flags);
-
-		if (rc == FLASH_RC_OK)
-# else
-		DueFlashStorage::read(SoftwareResetData::nvAddress, srdBuf, sizeof(srdBuf));
-# endif
-		{
-			// Find the last slot written
-			slot = SoftwareResetData::numberOfSlots;
-			do
-			{
-				--slot;
-			}
-			while (slot >= 0 && srdBuf[slot].magic == 0xFFFF);
-		}
+	MessageF(mtype, "\n");
 #endif
+	// Show the reset code stored at the last software reset
+	{
 
-		if (slot >= 0 && srdBuf[slot].magic == SoftwareResetData::magicValue)
+		NonVolatileMemory mem;
+		unsigned int slot;
+		const SoftwareResetData * const srd = mem.GetLastWrittenResetData(slot);
+		if (srd == nullptr)
 		{
-			const char* const reasonText = SoftwareResetData::ReasonText[(srdBuf[slot].resetReason >> 5) & 0x0F];
+			Message(mtype, "Last software reset details not available\n");
+		}
+		else
+		{
+			const char* const reasonText = SoftwareResetData::ReasonText[(srd->resetReason >> 5) & 0x0F];
 			String<StringLength100> scratchString;
-			if (srdBuf[slot].when != 0)
+			if (srd->when != 0)
 			{
-				const time_t when = (time_t)srdBuf[slot].when;
+				const time_t when = (time_t)srd->when;
 				tm timeInfo;
 				gmtime_r(&when, &timeInfo);
 				scratchString.printf("at %04u-%02u-%02u %02u:%02u",
@@ -1926,22 +1918,22 @@ void Platform::Diagnostics(MessageType mtype) noexcept
 
 			MessageF(mtype, "Last software reset %s, reason: %s%s, spinning module %s, available RAM %" PRIu32 " bytes (slot %d)\n",
 								scratchString.c_str(),
-								(srdBuf[slot].resetReason & (uint32_t)SoftwareResetReason::deliberate) ? "deliberate " : "",
+								(srd->resetReason & (uint32_t)SoftwareResetReason::deliberate) ? "deliberate " : "",
 								reasonText,
-								GetModuleName(srdBuf[slot].resetReason & 0x1F), srdBuf[slot].neverUsedRam, slot);
+								GetModuleName(srd->resetReason & 0x1F), srd->neverUsedRam, slot);
 			// Our format buffer is only 256 characters long, so the next 2 lines must be written separately
+			// The task name may include nulls at the end, so print it as a string
+			const uint32_t taskName[2] = { srd->taskName, 0 };
 			MessageF(mtype,
-					"Software reset code 0x%04x HFSR 0x%08" PRIx32 " CFSR 0x%08" PRIx32 " ICSR 0x%08" PRIx32 " BFAR 0x%08" PRIx32 " SP 0x%08" PRIx32 " Task %c%c%c%c\n",
-					srdBuf[slot].resetReason, srdBuf[slot].hfsr, srdBuf[slot].cfsr, srdBuf[slot].icsr, srdBuf[slot].bfar, srdBuf[slot].sp,
-					(unsigned int)(srdBuf[slot].taskName & 0xFF), (unsigned int)((srdBuf[slot].taskName >> 8) & 0xFF),
-					(unsigned int)((srdBuf[slot].taskName >> 16) & 0xFF), (unsigned int)((srdBuf[slot].taskName >> 24) & 0xFF)
+					"Software reset code 0x%04x HFSR 0x%08" PRIx32 " CFSR 0x%08" PRIx32 " ICSR 0x%08" PRIx32 " BFAR 0x%08" PRIx32 " SP 0x%08" PRIx32 " Task %s\n",
+					srd->resetReason, srd->hfsr, srd->cfsr, srd->icsr, srd->bfar, srd->sp, (const char *)&taskName
 				);
-			if (srdBuf[slot].sp != 0xFFFFFFFF)
+			if (srd->sp != 0xFFFFFFFF)
 			{
 				// We saved a stack dump, so print it
 				scratchString.Clear();
 				int i = 0;
-				for (uint32_t stval : srdBuf[slot].stack)
+				for (uint32_t stval : srd->stack)
 				{
 					scratchString.catf(" %08" PRIx32, stval);
 					if (++i % 10 == 0)
@@ -1953,21 +1945,16 @@ void Platform::Diagnostics(MessageType mtype) noexcept
 				MessageF(mtype, "Stack:%s\n", scratchString.c_str());
 			}
 		}
-		else
-		{
-			Message(mtype, "Last software reset details not available\n");
-		}
 	}
-#endif	// if SAME5x
 
 	// Show the current error codes
-	MessageF(mtype, "Error status: %" PRIx32 "\n", errorCodeBits);
+	MessageF(mtype, "Error status: 0x%" PRIx32 "\n", errorCodeBits);
 
 #if HAS_CPU_TEMP_SENSOR
 	// Show the MCU temperatures
-	const uint32_t currentMcuTemperature = adcFilters[CpuTempFilterIndex].GetSum();
+	const float currentMcuTemperature = GetCpuTemperature();
 	MessageF(mtype, "MCU temperature: min %.1f, current %.1f, max %.1f\n",
-		(double)AdcReadingToCpuTemperature(lowestMcuTemperature), (double)AdcReadingToCpuTemperature(currentMcuTemperature), (double)AdcReadingToCpuTemperature(highestMcuTemperature));
+		(double)lowestMcuTemperature, (double)currentMcuTemperature, (double)highestMcuTemperature);
 	lowestMcuTemperature = highestMcuTemperature = currentMcuTemperature;
 #endif
 
@@ -1992,15 +1979,21 @@ void Platform::Diagnostics(MessageType mtype) noexcept
 	lowestV12 = highestV12 = currentV12;
 #endif
 
-#if HAS_SMART_DRIVERS
-	// Show the motor stall status
-	for (size_t drive = 0; drive < numSmartDrivers; ++drive)
+	// Show the motor position and stall status
+	for (size_t drive = 0; drive < NumDirectDrivers; ++drive)
 	{
 		String<StringLength256> driverStatus;
-		SmartDrivers::AppendDriverStatus(drive, driverStatus.GetRef());
-		MessageF(mtype, "Driver %u:%s\n", drive, driverStatus.c_str());
-	}
+		driverStatus.printf("Driver %u: position %" PRIi32, drive, reprap.GetMove().GetEndPoint(drive));
+#if HAS_SMART_DRIVERS
+		if (drive < numSmartDrivers)
+		{
+			driverStatus.cat(", ");
+			SmartDrivers::AppendDriverStatus(drive, driverStatus.GetRef());
+		}
 #endif
+		driverStatus.cat('\n');
+		Message(mtype, driverStatus.c_str());
+	}
 
 	// Show current RTC time
 	Message(mtype, "Date/time: ");
@@ -2097,7 +2090,7 @@ GCodeResult Platform::DiagnosticTest(GCodeBuffer& gb, const StringRef& reply, Ou
 				float tempMinMax[2];
 				size_t numTemps = 2;
 				gb.GetFloatArray(tempMinMax, numTemps, false);
-				const float currentMcuTemperature = AdcReadingToCpuTemperature(adcFilters[CpuTempFilterIndex].GetSum());
+				const float currentMcuTemperature = GetCpuTemperature();
 				if (currentMcuTemperature < tempMinMax[0])
 				{
 					buf->lcatf("MCU temperature %.1f is lower than expected", (double)currentMcuTemperature);
@@ -2255,35 +2248,32 @@ GCodeResult Platform::DiagnosticTest(GCodeBuffer& gb, const StringRef& reply, Ou
 		break;
 
 	case (unsigned int)DiagnosticTestType::BusFault:
-		// Read from the "Undefined (Abort)" area
-#if SAME5x
-		deliberateError = true;
-		(void)*(reinterpret_cast<const volatile char*>(0x30000000));		//TODO test whether this works
-#elif SAME70
-# if USE_MPU
-		deliberateError = true;
-		(void)*(reinterpret_cast<const volatile char*>(0x30000000));
-# else
+#if SAME70 && !USE_MPU
 		Message(WarningMessage, "There is no abort area on the SAME70 with MPU disabled");
-# endif
-#elif SAM4E || SAM4S
-		deliberateError = true;
-		(void)*(reinterpret_cast<const volatile char*>(0x20800000));
-#elif SAM3XA
-		deliberateError = true;
-		(void)*(reinterpret_cast<const volatile char*>(0x20200000));
-#elif defined(__LPC17xx__)
-		deliberateError = true;
-		// The LPC176x/5x generates Bus Fault exception when accessing a reserved memory address
-		(void)*(reinterpret_cast<const volatile char*>(0x00080000));
-#elif defined(STM32F4)
-		deliberateError = true;
-		// FIXME need to test this probably not the correct address
-		(void)*(reinterpret_cast<const volatile char*>(0x00080000));
-
 #else
-# error Unsupported processor
+		deliberateError = true;
+		RepRap::GenerateBusFault();
 #endif
+		break;
+
+	case (unsigned int)DiagnosticTestType::AccessMemory:
+		{
+			gb.MustSee('A');
+			const uint32_t address = gb.GetUIValue();
+			uint32_t val;
+			bool dummy;
+			deliberateError = true;								// in case the memory access causes a fault
+			if (gb.TryGetUIValue('V', val, dummy))
+			{
+				*reinterpret_cast<uint32_t*>(address) = val;
+				__DSB();										// allow the write to complete in case it raises a fault
+			}
+			else
+			{
+				reply.printf("Address %08" PRIx32 " value %08" PRIx32, address, *reinterpret_cast<const uint32_t*>(address));
+			}
+			deliberateError = false;
+		}
 		break;
 
 	case (unsigned int)DiagnosticTestType::PrintMoves:
@@ -2391,7 +2381,8 @@ GCodeResult Platform::DiagnosticTest(GCodeBuffer& gb, const StringRef& reply, Ou
 					"\nHeat %08" PRIx32 "-%08" PRIx32
 					, reinterpret_cast<uint32_t>(this), reinterpret_cast<uint32_t>(this) + sizeof(Platform) - 1
 #if HAS_LINUX_INTERFACE
-					, reinterpret_cast<uint32_t>(&reprap.GetLinuxInterface()), reinterpret_cast<uint32_t>(&reprap.GetLinuxInterface()) + sizeof(LinuxInterface) - 1
+					, reinterpret_cast<uint32_t>(&reprap.GetLinuxInterface())
+					, (reinterpret_cast<uint32_t>(&reprap.GetLinuxInterface()) == 0) ? 0 : reinterpret_cast<uint32_t>(&reprap.GetLinuxInterface()) + sizeof(LinuxInterface)
 #endif
 					, reinterpret_cast<uint32_t>(&reprap.GetNetwork()), reinterpret_cast<uint32_t>(&reprap.GetNetwork()) + sizeof(Network) - 1
 					, reinterpret_cast<uint32_t>(&reprap.GetGCodes()), reinterpret_cast<uint32_t>(&reprap.GetGCodes()) + sizeof(GCodes) - 1
@@ -2485,7 +2476,8 @@ void Platform::DriverCoolingFansOnOff(DriverChannelsBitmap driverChannelsMonitor
 
 #endif
 
-// Get the index of the averaging filter for an analog port
+// Get the index of the averaging filter for an analog port.
+// Note, the Thermistor code assumes that this is also the thermistor input number
 int Platform::GetAveragingFilterIndex(const IoPort& port) const noexcept
 {
 	for (size_t i = 0; i < NumAdcFilters; ++i)
@@ -3329,7 +3321,7 @@ void Platform::RawMessage(MessageType type, const char *message) noexcept
 		reprap.GetNetwork().HandleTelnetGCodeReply(message);
 	}
 
-	if ((type & AuxMessage) != 0)
+	if ((type & Aux2Message) != 0)
 	{
 #ifdef SERIAL_AUX2_DEVICE
 		MutexLocker lock(aux2Mutex);
@@ -3341,7 +3333,7 @@ void Platform::RawMessage(MessageType type, const char *message) noexcept
 		}
 		else
 		{
-			// Send short strings immediately through the aux channel. There is no flow control on this port, so it can't block for long
+			// Send short strings immediately through the aux2 channel. There is no flow control on this port, so it can't block for long
 			SERIAL_AUX2_DEVICE.write(message);
 			SERIAL_AUX2_DEVICE.flush();
 		}
@@ -3423,7 +3415,7 @@ void Platform::Message(const MessageType type, OutputBuffer *buffer) noexcept
 		++numDestinations;
 	}
 #if HAS_LINUX_INTERFACE
-	if ((type & GenericMessage) == GenericMessage || (type & BinaryCodeReplyFlag) != 0)
+	if (reprap.UsingLinuxInterface() && ((type & GenericMessage) == GenericMessage || (type & BinaryCodeReplyFlag) != 0))
 	{
 		++numDestinations;
 	}
@@ -3473,7 +3465,7 @@ void Platform::Message(const MessageType type, OutputBuffer *buffer) noexcept
 		}
 
 #if HAS_LINUX_INTERFACE
-		if ((type & GenericMessage) == GenericMessage || (type & BinaryCodeReplyFlag) != 0)
+		if (reprap.UsingLinuxInterface() && ((type & GenericMessage) == GenericMessage || (type & BinaryCodeReplyFlag) != 0))
 		{
 			reprap.GetLinuxInterface().HandleGCodeReply(type, buffer);
 		}
@@ -3485,7 +3477,7 @@ void Platform::MessageF(MessageType type, const char *fmt, va_list vargs) noexce
 {
 	String<FormatStringLength> formatString;
 #if HAS_LINUX_INTERFACE
-	if ((type & GenericMessage) == GenericMessage || (type & BinaryCodeReplyFlag) != 0)
+	if (reprap.UsingLinuxInterface() && ((type & GenericMessage) == GenericMessage || (type & BinaryCodeReplyFlag) != 0))
 	{
 		formatString.vprintf(fmt, vargs);
 		reprap.GetLinuxInterface().HandleGCodeReply(type, formatString.c_str());
@@ -3525,7 +3517,7 @@ void Platform::MessageF(MessageType type, const char *fmt, ...) noexcept
 void Platform::Message(MessageType type, const char *message) noexcept
 {
 #if HAS_LINUX_INTERFACE
-	if ((type & GenericMessage) == GenericMessage || (type & BinaryCodeReplyFlag) != 0)
+	if (reprap.UsingLinuxInterface() && ((type & GenericMessage) == GenericMessage || (type & BinaryCodeReplyFlag) != 0))
 	{
 		reprap.GetLinuxInterface().HandleGCodeReply(type, message);
 		if ((type & BinaryCodeReplyFlag) != 0)
@@ -4256,9 +4248,9 @@ bool Platform::Inkjet(int bitPattern) noexcept
 MinMaxCurrent Platform::GetMcuTemperatures() const noexcept
 {
 	MinMaxCurrent result;
-	result.min = AdcReadingToCpuTemperature(lowestMcuTemperature);
-	result.current = AdcReadingToCpuTemperature(adcFilters[CpuTempFilterIndex].GetSum());
-	result.max = AdcReadingToCpuTemperature(highestMcuTemperature);
+	result.min = lowestMcuTemperature;
+	result.current = GetCpuTemperature();
+	result.max = highestMcuTemperature;
 	return result;
 }
 
@@ -4375,7 +4367,7 @@ GCodeResult Platform::ConfigureStallDetection(GCodeBuffer& gb, const StringRef& 
 		if (gb.Seen(reprap.GetGCodes().GetAxisLetters()[axis]))
 		{
 			IterateDrivers(axis,
-							[&drivers](uint8_t driver){ drivers.SetBit(driver); }
+							[&drivers](uint8_t localDriver){ drivers.SetBit(localDriver); }
 #if SUPPORT_CAN_EXPANSION
 						  , [&canDrivers](DriverId driver){ canDrivers.AddEntry(driver); }
 #endif
@@ -4431,7 +4423,7 @@ GCodeResult Platform::ConfigureStallDetection(GCodeBuffer& gb, const StringRef& 
 	if (gb.Seen('T'))
 	{
 		seen = true;
-		const uint16_t coolStepConfig = (uint16_t)gb.GetUIValue();
+		const uint32_t coolStepConfig = gb.GetUIValue();
 		drivers.Iterate([coolStepConfig](unsigned int drive, unsigned int) noexcept { SmartDrivers::SetRegister(drive, SmartDriverRegister::coolStep, coolStepConfig); } );
 	}
 	if (gb.Seen('R'))
@@ -4502,7 +4494,7 @@ GCodeResult Platform::ConfigureStallDetection(GCodeBuffer& gb, const StringRef& 
 				reply.Clear();										// we use 'reply' as a temporary buffer
 				SmartDrivers::AppendStallConfig(drive, reply);
 				buf->cat(reply.c_str());
-				buf->catf(", action: %s",
+				buf->catf(", action on stall: %s",
 							(rehomeOnStallDrivers.IsBitSet(drive)) ? "rehome"
 								: (pauseOnStallDrivers.IsBitSet(drive)) ? "pause"
 									: (logOnStallDrivers.IsBitSet(drive)) ? "log"
@@ -4631,6 +4623,57 @@ uint32_t Platform::Random() noexcept
 {
 	const uint32_t clocks = StepTimer::GetTimerTicks();
 	return clocks ^ uniqueId[0] ^ uniqueId[1] ^ uniqueId[2] ^ uniqueId[3];
+}
+
+#endif
+
+#if HAS_CPU_TEMP_SENSOR && SAME5x
+
+void Platform::TemperatureCalibrationInit() noexcept
+{
+	// Temperature sense stuff
+	constexpr uint32_t NVM_TEMP_CAL_TLI_POS = 0;
+	constexpr uint32_t NVM_TEMP_CAL_TLI_SIZE = 8;
+	constexpr uint32_t NVM_TEMP_CAL_TLD_POS = 8;
+	constexpr uint32_t NVM_TEMP_CAL_TLD_SIZE = 4;
+	constexpr uint32_t NVM_TEMP_CAL_THI_POS = 12;
+	constexpr uint32_t NVM_TEMP_CAL_THI_SIZE = 8;
+	constexpr uint32_t NVM_TEMP_CAL_THD_POS = 20;
+	constexpr uint32_t NVM_TEMP_CAL_THD_SIZE = 4;
+	constexpr uint32_t NVM_TEMP_CAL_VPL_POS = 40;
+	constexpr uint32_t NVM_TEMP_CAL_VPL_SIZE = 12;
+	constexpr uint32_t NVM_TEMP_CAL_VPH_POS = 52;
+	constexpr uint32_t NVM_TEMP_CAL_VPH_SIZE = 12;
+	constexpr uint32_t NVM_TEMP_CAL_VCL_POS = 64;
+	constexpr uint32_t NVM_TEMP_CAL_VCL_SIZE = 12;
+	constexpr uint32_t NVM_TEMP_CAL_VCH_POS = 76;
+	constexpr uint32_t NVM_TEMP_CAL_VCH_SIZE = 12;
+
+	const uint16_t temp_cal_vpl = (*((uint32_t *)(NVMCTRL_TEMP_LOG) + (NVM_TEMP_CAL_VPL_POS / 32)) >> (NVM_TEMP_CAL_VPL_POS % 32))
+	               & ((1u << NVM_TEMP_CAL_VPL_SIZE) - 1);
+	const uint16_t temp_cal_vph = (*((uint32_t *)(NVMCTRL_TEMP_LOG) + (NVM_TEMP_CAL_VPH_POS / 32)) >> (NVM_TEMP_CAL_VPH_POS % 32))
+	               & ((1u << NVM_TEMP_CAL_VPH_SIZE) - 1);
+	const uint16_t temp_cal_vcl = (*((uint32_t *)(NVMCTRL_TEMP_LOG) + (NVM_TEMP_CAL_VCL_POS / 32)) >> (NVM_TEMP_CAL_VCL_POS % 32))
+	               & ((1u << NVM_TEMP_CAL_VCL_SIZE) - 1);
+	const uint16_t temp_cal_vch = (*((uint32_t *)(NVMCTRL_TEMP_LOG) + (NVM_TEMP_CAL_VCH_POS / 32)) >> (NVM_TEMP_CAL_VCH_POS % 32))
+	               & ((1u << NVM_TEMP_CAL_VCH_SIZE) - 1);
+
+	const uint8_t temp_cal_tli = (*((uint32_t *)(NVMCTRL_TEMP_LOG) + (NVM_TEMP_CAL_TLI_POS / 32)) >> (NVM_TEMP_CAL_TLI_POS % 32))
+	               & ((1u << NVM_TEMP_CAL_TLI_SIZE) - 1);
+	const uint8_t temp_cal_tld = (*((uint32_t *)(NVMCTRL_TEMP_LOG) + (NVM_TEMP_CAL_TLD_POS / 32)) >> (NVM_TEMP_CAL_TLD_POS % 32))
+	               & ((1u << NVM_TEMP_CAL_TLD_SIZE) - 1);
+	const uint16_t temp_cal_tl = ((uint16_t)temp_cal_tli) << 4 | ((uint16_t)temp_cal_tld);
+
+	const uint8_t temp_cal_thi = (*((uint32_t *)(NVMCTRL_TEMP_LOG) + (NVM_TEMP_CAL_THI_POS / 32)) >> (NVM_TEMP_CAL_THI_POS % 32))
+	               & ((1u << NVM_TEMP_CAL_THI_SIZE) - 1);
+	const uint8_t temp_cal_thd = (*((uint32_t *)(NVMCTRL_TEMP_LOG) + (NVM_TEMP_CAL_THD_POS / 32)) >> (NVM_TEMP_CAL_THD_POS % 32))
+	               & ((1u << NVM_TEMP_CAL_THD_SIZE) - 1);
+	const uint16_t temp_cal_th = ((uint16_t)temp_cal_thi) << 4 | ((uint16_t)temp_cal_thd);
+
+	tempCalF1 = (int32_t)temp_cal_tl * (int32_t)temp_cal_vph - (int32_t)temp_cal_th * (int32_t)temp_cal_vpl;
+	tempCalF2 = (int32_t)temp_cal_tl * (int32_t)temp_cal_vch - (int32_t)temp_cal_th * (int32_t)temp_cal_vcl;
+	tempCalF3 = (int32_t)temp_cal_vcl - (int32_t)temp_cal_vch;
+	tempCalF4 = (int32_t)temp_cal_vpl - (int32_t)temp_cal_vph;
 }
 
 #endif

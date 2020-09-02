@@ -40,7 +40,7 @@ void StringParser::Init() noexcept
 	gcodeLineEnd = 0;
 	commandLength = 0;
 	readPointer = -1;
-	hadLineNumber = hadChecksum = overflowed = false;
+	hadLineNumber = hadChecksum = overflowed = seenExpression = false;
 	computedChecksum = 0;
 	gb.bufferState = GCodeBufferState::parseNotStarted;
 	commandIndent = 0;
@@ -206,6 +206,7 @@ bool StringParser::Put(char c) noexcept
 
 			case '{':
 				++braceCount;
+				seenExpression = true;
 				StoreAndAddToChecksum(c);
 				break;
 
@@ -706,36 +707,46 @@ void StringParser::DecodeCommand() noexcept
 		commandLetter = cl;
 		hasCommandNumber = false;
 		commandNumber = -1;
-		parameterStart = commandStart + 1;
-		const bool negative = (gb.buffer[parameterStart] == '-');
-		if (negative)
+		if (cl == 'T' && gb.buffer[commandStart + 1] == '{')
 		{
-			++parameterStart;
+			// It's a T command with an expression for the tool number. This will be treated as if it's "T T{...}.
+			commandLetter = cl;
+			hasCommandNumber = false;
+			parameterStart = commandStart; 			// so that 'Seen('T')' will return true
 		}
-		if (isdigit(gb.buffer[parameterStart]))
+		else
 		{
-			hasCommandNumber = true;
-			// Read the number after the command letter
-			commandNumber = 0;
-			do
-			{
-				commandNumber = (10 * commandNumber) + (gb.buffer[parameterStart] - '0');
-				++parameterStart;
-			}
-			while (isdigit(gb.buffer[parameterStart]));
+			parameterStart = commandStart + 1;
+			const bool negative = (gb.buffer[parameterStart] == '-');
 			if (negative)
 			{
-				commandNumber = -commandNumber;
-			}
-
-			// Read the fractional digit, if any
-			if (gb.buffer[parameterStart] == '.')
-			{
 				++parameterStart;
-				if (isdigit(gb.buffer[parameterStart]))
+			}
+			if (isdigit(gb.buffer[parameterStart]))
+			{
+				hasCommandNumber = true;
+				// Read the number after the command letter
+				commandNumber = 0;
+				do
 				{
-					commandFraction = gb.buffer[parameterStart] - '0';
+					commandNumber = (10 * commandNumber) + (gb.buffer[parameterStart] - '0');
 					++parameterStart;
+				}
+				while (isdigit(gb.buffer[parameterStart]));
+				if (negative)
+				{
+					commandNumber = -commandNumber;
+				}
+
+				// Read the fractional digit, if any
+				if (gb.buffer[parameterStart] == '.')
+				{
+					++parameterStart;
+					if (isdigit(gb.buffer[parameterStart]))
+					{
+						commandFraction = gb.buffer[parameterStart] - '0';
+						++parameterStart;
+					}
 				}
 			}
 		}
@@ -1604,21 +1615,7 @@ uint32_t StringParser::ReadUIValue() THROWS(GCodeException)
 
 	// Allow "0xNNNN" or "xNNNN" where NNNN are hex digits. We could stop supporting this because we already support {0xNNNN}.
 	const char *endptr;
-	uint32_t rslt;
-	if (gb.buffer[readPointer] == '"')
-	{
-		rslt = StrOptHexToU32(gb.buffer + readPointer + 1, &endptr);
-		if (*endptr != '"')
-		{
-			throw ConstructParseException("expected '\"'");
-		}
-		++endptr;
-	}
-	else
-	{
-		rslt = StrToU32(gb.buffer + readPointer, &endptr);
-	}
-
+	const uint32_t rslt = StrToU32(gb.buffer + readPointer, &endptr);
 	readPointer = endptr - gb.buffer;
 	return rslt;
 }
@@ -1657,7 +1654,20 @@ DriverId StringParser::ReadDriverIdValue() THROWS(GCodeException)
 		result.boardAddress = 0;
 	}
 #else
-	result.localDriver = v1;
+	// We now allow driver names of the form "0.x" on boards without CAN expansion
+	if (gb.buffer[readPointer] == '.')
+	{
+		if (v1 != 0)
+		{
+			throw ConstructParseException("Board address of driver must be 0");
+		}
+		++readPointer;
+		result.localDriver = ReadUIValue();
+	}
+	else
+	{
+		result.localDriver = v1;
+	}
 #endif
 	return result;
 }

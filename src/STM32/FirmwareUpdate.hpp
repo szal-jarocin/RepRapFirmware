@@ -51,7 +51,7 @@ void RepRap::UpdateFirmware() noexcept
         return;
     }
     
-    reprap.SoftwareReset((uint16_t)SoftwareResetReason::user); // Reboot
+    SoftwareReset((uint16_t)SoftwareResetReason::user); // Reboot
 #endif
     
 }

@@ -8,11 +8,12 @@
 #include "Tasks.h"
 #include "RepRap.h"
 #include "Platform.h"
-#include "Hardware/Cache.h"
+#include <Cache.h>
 #include <TaskPriorities.h>
+#include <Hardware/SoftwareReset.h>
 
 #if SAME5x
-# include <Hardware/DmacManager.h>
+# include <DmacManager.h>
 # include <hpl_user_area.h>
 #endif
 
@@ -34,7 +35,7 @@ extern uint32_t _firmware_crc;			// defined in linker script
 // The main task currently runs GCodes, so it needs to be large enough to hold the matrices used for delta auto calibration.
 // The worst case stack usage is after running delta auto calibration with Move debugging enabled.
 // The timer and idle tasks currently never do I/O, so they can be much smaller.
-#if SAME70 || SAME5x
+#if SAME70
 constexpr unsigned int MainTaskStackWords = 1800;			// on the SAME70 we use matrices of doubles
 #elif defined(__LPC17xx__)
 constexpr unsigned int MainTaskStackWords = 1110-(16*9);	// LPC builds only support 16 calibration points, so less space needed
@@ -94,7 +95,11 @@ extern "C" void __malloc_unlock (struct _reent *_r) noexcept
 }
 
 // Application entry point
+#if SAME5x		// if using CoreN2G
+[[noreturn]] void AppMain() noexcept
+#else			// using CoreNG
 extern "C" [[noreturn]] void AppMain() noexcept
+#endif
 {
 	irqflags_t flags = cpu_irq_save();
 	pinMode(DiagPin, (DiagOnPolarity) ? OUTPUT_LOW : OUTPUT_HIGH);	// set up diag LED for debugging and turn it off
@@ -102,15 +107,7 @@ extern "C" [[noreturn]] void AppMain() noexcept
 #if !defined(DEBUG) && !defined(__LPC17xx__) && !defined(STM32F4)	// don't check the CRC of a debug build because debugger breakpoints mess up the CRC
 	// Check the integrity of the firmware by checking the firmware CRC
 	{
-#if defined(IFLASH_ADDR)
-		const char *firmwareStart = reinterpret_cast<const char *>(IFLASH_ADDR);
-#elif defined(FLASH_ADDR)
-		const char *firmwareStart = reinterpret_cast<const char *>(FLASH_ADDR);
-#elif defined(IFLASH0_ADDR)
-		const char *firmwareStart = reinterpret_cast<const char *>(IFLASH0_ADDR);
-#else
-# error Unsupported processor
-#endif
+		const char *firmwareStart = reinterpret_cast<const char*>(SCB->VTOR & 0xFFFFFF80);
 		CRC32 crc;
 		crc.Update(firmwareStart, (const char*)&_firmware_crc - firmwareStart);
 		if (crc.Get() != _firmware_crc)
@@ -138,26 +135,30 @@ extern "C" [[noreturn]] void AppMain() noexcept
 	}
 
 #if SAME5x
-# if 0		// disable the bootloader protection code until we have a bootloader
-//# ifndef DEBUG
-	// Check that the bootloader is protected and EEPROM is configured
-	uint64_t nvmUserRow0 = *reinterpret_cast<const uint64_t*>(NVMCTRL_USER);						// we only need values in the first 64 bits of the user area
-	constexpr uint64_t mask =     ((uint64_t)0x0F << 32) | ((uint64_t)0x07 << 36) | (0x0F << 26);	// we just want NVM_BOOT (bits 26-29), SEE.SBLK (bits 32-35) and SEE.PSZ (bits 36:38)
-	constexpr uint64_t reqValue = ((uint64_t)0x01 << 32) | ((uint64_t)0x03 << 36) | (0x07 << 26);	// 4K SMART EEPROM and 64K bootloader (SBLK=1 PSZ=3)
-
-	if ((nvmUserRow0 & mask) != reqValue)
 	{
-		nvmUserRow0 = (nvmUserRow0 & ~mask) | reqValue;												// set up the required value
-		_user_area_write(reinterpret_cast<void*>(NVMCTRL_USER), 0, reinterpret_cast<const uint8_t*>(&nvmUserRow0), sizeof(nvmUserRow0));
+		const uint32_t bootloaderSize = SCB->VTOR & 0xFFFFFF80;
+		if (bootloaderSize == 0x4000)
+		{
+			// Looks like this is release firmware that was loaded by a bootloader in the first 16Kb of flash
+			// Check that the bootloader is protected and EEPROM is configured
+			uint64_t nvmUserRow0 = *reinterpret_cast<const uint64_t*>(NVMCTRL_USER);						// we only need values in the first 64 bits of the user area
+			constexpr uint64_t mask =     ((uint64_t)0x0F << 32) | ((uint64_t)0x07 << 36) | (0x0F << 26);	// we just want NVM_BOOT (bits 26-29), SEE.SBLK (bits 32-35) and SEE.PSZ (bits 36:38)
+			constexpr uint64_t reqValue = ((uint64_t)0x01 << 32) | ((uint64_t)0x03 << 36) | (13 << 26);		// 4K SMART EEPROM and 16K bootloader (SBLK=1 PSZ=3 BOOTPROT=13)
 
-		// If we reset immediately then the user area write doesn't complete and the bits get set to all 1s.
-		delayMicroseconds(10000);
-		Reset();
+			if ((nvmUserRow0 & mask) != reqValue)
+			{
+				nvmUserRow0 = (nvmUserRow0 & ~mask) | reqValue;												// set up the required value
+				_user_area_write(reinterpret_cast<void*>(NVMCTRL_USER), 0, reinterpret_cast<const uint8_t*>(&nvmUserRow0), sizeof(nvmUserRow0));
+
+				// If we reset immediately then the user area write doesn't complete and the bits get set to all 1s.
+				delayMicroseconds(10000);
+				Reset();
+			}
+		}
 	}
-# endif
 
 	CoreInit();
-
+	DeviceInit();
 #endif
 
 	// Trap integer divide-by-zero.
@@ -306,217 +307,11 @@ const Mutex *Tasks::GetSysDirMutex() noexcept
 	return &sysDirMutex;
 }
 
-// Exception handlers
-extern "C"
+// This intercepts the 1ms system tick
+extern "C" void vApplicationTickHook() noexcept
 {
-	// This intercepts the 1ms system tick
-	void vApplicationTickHook() noexcept
-	{
-		CoreSysTick();
-		reprap.Tick();
-	}
-
-	// Exception handlers
-	// By default the Usage Fault, Bus Fault and Memory Management fault handlers are not enabled,
-	// so they escalate to a Hard Fault and we don't need to provide separate exception handlers for them.
-	[[noreturn]] void hardFaultDispatcher(const uint32_t *pulFaultStackAddress) noexcept
-	{
-	    reprap.SoftwareReset((uint16_t)SoftwareResetReason::hardFault, pulFaultStackAddress + 5);
-	}
-
-	// The fault handler implementation calls a function called hardFaultDispatcher()
-    void HardFault_Handler() noexcept __attribute__((naked, noreturn));
-	void HardFault_Handler() noexcept
-	{
-	    __asm volatile
-	    (
-	        " tst lr, #4                                                \n"		/* test bit 2 of the EXC_RETURN in LR to determine which stack was in use */
-	        " ite eq                                                    \n"		/* load the appropriate stack pointer into R0 */
-	        " mrseq r0, msp                                             \n"
-	        " mrsne r0, psp                                             \n"
-	        " ldr r2, handler_hf_address_const                          \n"
-	        " bx r2                                                     \n"
-	        " handler_hf_address_const: .word hardFaultDispatcher       \n"
-	    );
-	}
-
-#if USE_MPU
-
-	[[noreturn]] void memManageDispatcher(const uint32_t *pulFaultStackAddress) noexcept
-	{
-	    reprap.SoftwareReset((uint16_t)SoftwareResetReason::memFault, pulFaultStackAddress + 5);
-	}
-
-	// The fault handler implementation calls a function called memManageDispatcher()
-	[[noreturn]] void MemManage_Handler() noexcept __attribute__((naked));
-	void MemManage_Handler() noexcept
-	{
-	    __asm volatile
-	    (
-	        " tst lr, #4                                                \n"		/* test bit 2 of the EXC_RETURN in LR to determine which stack was in use */
-	        " ite eq                                                    \n"		/* load the appropriate stack pointer into R0 */
-	        " mrseq r0, msp                                             \n"
-	        " mrsne r0, psp                                             \n"
-	        " ldr r2, handler_mf_address_const                          \n"
-	        " bx r2                                                     \n"
-	        " handler_mf_address_const: .word memManageDispatcher       \n"
-	    );
-	}
-
-#endif
-
-	[[noreturn]] void wdtFaultDispatcher(const uint32_t *pulFaultStackAddress) noexcept
-	{
-	    reprap.SoftwareReset((uint16_t)SoftwareResetReason::wdtFault, pulFaultStackAddress + 5);
-	}
-
-#ifdef __LPC17xx__
-	[[noreturn]] void WDT_IRQHandler() noexcept __attribute__((naked));
-    void WDT_IRQHandler() noexcept
-    {
-    	LPC_WWDT->MOD &=~((uint32_t)(1<<2)); //SD::clear timout flag before resetting to prevent the Smoothie bootloader going into DFU mode
-#elif defined(STM32F4)
-	[[noreturn]] void WWDG_IRQHandler() noexcept __attribute__((naked));
-	void WWDG_IRQHandler() noexcept
-	{
-#else
-    [[noreturn]] void WDT_Handler() noexcept __attribute__((naked));
-	void WDT_Handler() noexcept
-	{
-#endif
-	    __asm volatile
-	    (
-	        " tst lr, #4                                                \n"		/* test bit 2 of the EXC_RETURN in LR to determine which stack was in use */
-	        " ite eq                                                    \n"		/* load the appropriate stack pointer into R0 */
-	        " mrseq r0, msp                                             \n"
-	        " mrsne r0, psp                                             \n"
-	        " ldr r2, handler_wdt_address_const                         \n"
-	        " bx r2                                                     \n"
-	        " handler_wdt_address_const: .word wdtFaultDispatcher       \n"
-	    );
-	}
-
-	[[noreturn]] void otherFaultDispatcher(const uint32_t *pulFaultStackAddress) noexcept
-	{
-	    reprap.SoftwareReset((uint16_t)SoftwareResetReason::otherFault, pulFaultStackAddress + 5);
-	}
-
-	// 2017-05-25: A user is getting 'otherFault' reports, so now we do a stack dump for those too.
-	// The fault handler implementation calls a function called otherFaultDispatcher()
-	[[noreturn]] void OtherFault_Handler() noexcept __attribute__((naked));
-	void OtherFault_Handler() noexcept
-	{
-	    __asm volatile
-	    (
-	        " tst lr, #4                                                \n"		/* test bit 2 of the EXC_RETURN in LR to determine which stack was in use */
-	        " ite eq                                                    \n"		/* load the appropriate stack pointer into R0 */
-	        " mrseq r0, msp                                             \n"
-	        " mrsne r0, psp                                             \n"
-	        " ldr r2, handler_oflt_address_const                        \n"
-	        " bx r2                                                     \n"
-	        " handler_oflt_address_const: .word otherFaultDispatcher    \n"
-	    );
-	}
-
-	// We could set up the following fault handlers to retrieve the program counter in the same way as for a Hard Fault,
-	// however these exceptions are unlikely to occur, so for now we just report the exception type.
-	[[noreturn]] void NMI_Handler        () noexcept { reprap.SoftwareReset((uint16_t)SoftwareResetReason::NMI); }
-	[[noreturn]] void UsageFault_Handler () noexcept { reprap.SoftwareReset((uint16_t)SoftwareResetReason::usageFault); }
-
-	[[noreturn]] void DebugMon_Handler   () noexcept __attribute__ ((alias("OtherFault_Handler")));
-
-	// FreeRTOS hooks that we need to provide
-	[[noreturn]] void stackOverflowDispatcher(const uint32_t *pulFaultStackAddress, char* pcTaskName) noexcept
-	{
-		reprap.SoftwareReset((uint16_t)SoftwareResetReason::stackOverflow, pulFaultStackAddress);
-	}
-
-	[[noreturn]] void vApplicationStackOverflowHook(TaskHandle_t pxTask, char *pcTaskName) noexcept __attribute((naked));
-	void vApplicationStackOverflowHook(TaskHandle_t pxTask, char *pcTaskName) noexcept
-	{
-		// r0 = pxTask, r1 = pxTaskName
-		__asm volatile
-		(
-			" push {r0, r1, lr}											\n"		/* save parameters and call address on the stack */
-			" mov r0, sp												\n"
-			" ldr r2, handler_sovf_address_const                        \n"
-			" bx r2                                                     \n"
-			" handler_sovf_address_const: .word stackOverflowDispatcher \n"
-		);
-	}
-
-	[[noreturn]] void assertCalledDispatcher(const uint32_t *pulFaultStackAddress) noexcept
-	{
-	    reprap.SoftwareReset((uint16_t)SoftwareResetReason::assertCalled, pulFaultStackAddress);
-	}
-
-	[[noreturn]] void vAssertCalled(uint32_t line, const char *file) noexcept __attribute((naked));
-	void vAssertCalled(uint32_t line, const char *file) noexcept
-	{
-#if false
-		debugPrintf("ASSERTION FAILED IN %s on LINE %d\n", file, line);
-		SERIAL_MAIN_DEVICE.flush();
-#endif
-	    __asm volatile
-	    (
-	    	" push {r0, r1, lr}											\n"		/* save parameters and call address */
-	    	" mov r0, sp												\n"
-	        " ldr r2, handler_asrt_address_const                        \n"
-	        " bx r2                                                     \n"
-	        " handler_asrt_address_const: .word assertCalledDispatcher  \n"
-	    );
-	}
-
-#ifdef __LPC17xx__
-	[[noreturn]] void applicationMallocFailedCalledDispatcher(const uint32_t *pulFaultStackAddress) noexcept
-	{
-		reprap.SoftwareReset((uint16_t)SoftwareResetReason::assertCalled, pulFaultStackAddress);
-	}
-
-	[[noreturn]] void vApplicationMallocFailedHook() noexcept __attribute((naked));
-	void vApplicationMallocFailedHook() noexcept
-	{
-		 __asm volatile
-		(
-			" push {r0, r1, lr}											\n"        /* save parameters and call address */
-			" mov r0, sp												\n"
-			" ldr r2, handler_amf_address_const							\n"
-			" bx r2														\n"
-			" handler_amf_address_const: .word applicationMallocFailedCalledDispatcher  \n"
-		 );
-	}
-#endif
-
-}	// end extern "C"
-
-namespace std
-{
-	// We need to define this function in order to use lambda functions with captures
-	[[noreturn]] void __throw_bad_function_call() noexcept { vAssertCalled(__LINE__, __FILE__); }
-}
-
-// The default terminate handler pulls in sprintf and lots of other functions, which makes the binary too large. So we replace it.
-[[noreturn]] void Terminate() noexcept
-{
-	register const uint32_t * stack_ptr asm ("sp");
-	reprap.SoftwareReset((uint16_t)SoftwareResetReason::terminateCalled, stack_ptr);
-}
-
-namespace __cxxabiv1
-{
-	std::terminate_handler __terminate_handler = Terminate;
-}
-
-extern "C" [[noreturn]] void __cxa_pure_virtual() noexcept
-{
-	register const uint32_t * stack_ptr asm ("sp");
-	reprap.SoftwareReset((uint16_t)SoftwareResetReason::pureVirtual, stack_ptr);
-}
-
-extern "C" [[noreturn]] void __cxa_deleted_virtual() noexcept
-{
-	register const uint32_t * stack_ptr asm ("sp");
-	reprap.SoftwareReset((uint16_t)SoftwareResetReason::deletedVirtual, stack_ptr);
+	CoreSysTick();
+	reprap.Tick();
 }
 
 // We don't need the time zone functionality. Declaring these saves 8Kb.
