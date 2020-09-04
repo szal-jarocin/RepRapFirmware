@@ -50,6 +50,7 @@
 #elif defined(STM32F4)
 # include "STM32/BoardConfig.h"
 # include <sd_mmc.h>
+# include "ResetCause.h"
 #else
 #if SAME70
 # include <DmacManager.h>
@@ -770,7 +771,7 @@ void Platform::Init() noexcept
 	// Enable the pullup resistor, with luck this will make it float high instead.
 #if SAM3XA
 	pinMode(APIN_SHARED_SPI_MISO, INPUT_PULLUP);
-#elif defined(__LPC17xx__) || SAME5x
+#elif defined(__LPC17xx__) || SAME5x || defined(STM32F4)
 	// nothing to do here
 #else
 	pinMode(APIN_USART_SSPI_MISO, INPUT_PULLUP);
@@ -1670,11 +1671,12 @@ float Platform::GetCpuTemperature() const noexcept
 	return (voltage - 0.8) * (1000.0/2.65) + 27.0 + mcuTemperatureAdjust;			// accuracy at 27C is +/-45C
 # elif SAME70
 	return (voltage - 0.72) * (1000.0/2.33) + 25.0 + mcuTemperatureAdjust;			// accuracy at 25C is +/-34C
-#elif defined(STM32F4)
+# elif defined(STM32F4)
 	// Magic numbers are the location of STM32 calibration constants
-	return ((110.0f - 30.0f)/(((float)(*(uint16_t *)0x1FFF7A2E)) - ((float)(*(uint16_t *)0x1FFF7A2C)))) * (((float)adcVal/ThermistorAverageReadings) - ((float)(*(uint16_t *)0x1FFF7A2C))) + 30.0f; 
-#else
-# error undefined CPU temp conversion
+	return ((110.0f - 30.0f)/(((float)(*(uint16_t *)0x1FFF7A2E)) - ((float)(*(uint16_t *)0x1FFF7A2C)))) * ((voltage*((float)(1u << AdcBits))/3.3f) - ((float)(*(uint16_t *)0x1FFF7A2C))) + 30.0f; 
+# else
+#  error undefined CPU temp conversion
+# endif
 #endif
 }
 

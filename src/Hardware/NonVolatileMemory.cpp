@@ -25,7 +25,7 @@ void NonVolatileMemory::EnsureRead() noexcept
 	{
 #if SAME5x
 		memcpy(&buffer, reinterpret_cast<const void *>(SEEPROM_ADDR), sizeof(buffer));
-#elif defined(__LPC17xx__)
+#elif defined(__LPC17xx__) || defined(STM32F4)
 		NVMEmulationRead(&buffer, sizeof(buffer));
 #elif SAM4E || SAM4S || SAME70
 		// Work around bug in ASF flash library: flash_read_user_signature calls a RAMFUNC without disabling interrupts first.
@@ -66,7 +66,7 @@ void NonVolatileMemory::EnsureWritten() noexcept
 		// Erase the page
 # if SAM4E || SAM4S || SAME70
 		flash_erase_user_signature();
-# elif defined(__LPC17xx__)
+# elif defined(__LPC17xx__)  || defined(STM32F4)
 		NVMEmulationErase();
 # endif
 		state = NvmState::writeNeeded;
@@ -76,7 +76,7 @@ void NonVolatileMemory::EnsureWritten() noexcept
 	{
 # if SAM4E || SAM4S || SAME70
 		flash_write_user_signature(&buffer, sizeof(buffer)/sizeof(uint32_t));
-# elif defined(__LPC17xx__)
+# elif defined(__LPC17xx__)  || defined(STM32F4)
 		NVMEmulationWrite(&buffer, sizeof(buffer));
 # else
 #  error Unsupported processor

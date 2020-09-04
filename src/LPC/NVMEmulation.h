@@ -1,7 +1,7 @@
 //SD
 
-#ifndef SOFTWARERESETDATA_H_
-#define SOFTWARERESETDATA_H_
+#ifndef NVMEMULATION_H_
+#define NVMEMULATION_H_
 
 #include "Core.h"
 #include "iap.h"

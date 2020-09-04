@@ -4,7 +4,7 @@
 #include "Microstepping.h"
 #include "sd_mmc.h"
 #include "RepRapFirmware.h"
-#include "SoftwareResetData.h"
+#include "NVMEmulation.h"
 
 #ifndef UNUSED
 #define UNUSED(x) (void)(x)

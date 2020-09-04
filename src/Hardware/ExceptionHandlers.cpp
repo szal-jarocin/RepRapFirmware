@@ -73,6 +73,8 @@ void SoftwareReset(uint16_t reason, const uint32_t *stk) noexcept
 
 #if defined(__LPC17xx__)
     LPC_SYSCTL->RSID = 0x3F;					// Clear bits in reset reasons stored in RSID
+#elif defined(STM32F4)
+	// FIXME add any STM specific code here
 #elif !SAME5x
 	RSTC->RSTC_MR = RSTC_MR_KEY_PASSWD;			// ignore any signal on the NRST pin for now so that the reset reason will show as Software
 #endif
@@ -136,18 +138,18 @@ extern "C" [[noreturn]] void wdtFaultDispatcher(const uint32_t *pulFaultStackAdd
 
 
 #ifdef __LPC17xx__
-	[[noreturn]] void WDT_IRQHandler() noexcept __attribute__((naked));
-    void WDT_IRQHandler() noexcept
-    {
-    	LPC_WWDT->MOD &=~((uint32_t)(1<<2)); //SD::clear timout flag before resetting to prevent the Smoothie bootloader going into DFU mode
+extern "C" [[noreturn]] void WDT_IRQHandler() noexcept __attribute__((naked));
+void WDT_IRQHandler() noexcept
+{
+	LPC_WWDT->MOD &=~((uint32_t)(1<<2)); //SD::clear timout flag before resetting to prevent the Smoothie bootloader going into DFU mode
 #elif defined(STM32F4)
-	[[noreturn]] void WWDG_IRQHandler() noexcept __attribute__((naked));
-	void WWDG_IRQHandler() noexcept
-	{
+extern "C" [[noreturn]] void WWDG_IRQHandler() noexcept __attribute__((naked));
+void WWDG_IRQHandler() noexcept
+{
 #else
-    [[noreturn]] void WDT_Handler() noexcept __attribute__((naked));
-	void WDT_Handler() noexcept
-	{
+extern "C" [[noreturn]] void WDT_Handler() noexcept __attribute__((naked));
+void WDT_Handler() noexcept
+{
 #endif
 	__asm volatile
 	(
