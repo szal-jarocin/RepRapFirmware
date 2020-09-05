@@ -61,11 +61,6 @@ constexpr IRQn ESP_SPI_IRQn = WiFiSpiSercomIRQn;
 # define USE_DMAC_MANAGER	0		// use SAMD/SAME DMA controller via DmacManager module
 # define USE_XDMAC          0		// use SAME7 XDMA controller
 
-// Compatibility with existing RRF Code
-//constexpr Pin APIN_ESP_SPI_MISO = SPI0_MOSI;
-//constexpr Pin APIN_ESP_SPI_SCK = SPI0_SCK;
-//constexpr SSPChannel ESP_SPI = SSP0;
-
 #else
 # error Unknown board
 #endif

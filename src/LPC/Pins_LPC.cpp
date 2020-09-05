@@ -46,7 +46,7 @@ Pin DIRECTION_PINS[NumDirectDrivers] =  {NoPin, NoPin, NoPin, NoPin, NoPin, NoPi
 #if HAS_STALL_DETECT
     Pin DIAG_PINS[NumDirectDrivers] =     {NoPin, NoPin, NoPin, NoPin, NoPin, NoPin, NoPin};
 #endif
-#if LPC_TMC_SOFT_UART
+#if TMC_SOFT_UART
     Pin TMC_UART_PINS[NumDirectDrivers] = {NoPin, NoPin, NoPin, NoPin, NoPin, NoPin, NoPin};
     size_t lpcSmartDrivers;
 #endif

@@ -269,8 +269,6 @@ extern Pin AuxSerialRxTxPins[NumberSerialPins];
     extern Pin SamTfrReadyPin;
     extern Pin EspResetPin;
     constexpr Pin SamCsPin = PB_12; //CS for SSP0
-    //constexpr LPC175X_6X_IRQn_Type ESP_SPI_IRQn = SSP0_IRQn;
-
     extern Pin APIN_Serial1_TXD;
     extern Pin APIN_Serial1_RXD;
     extern Pin WifiSerialRxTxPins[NumberSerialPins];

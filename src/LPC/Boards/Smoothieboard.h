@@ -57,7 +57,7 @@ constexpr BoardDefaults smoothieBoardDefaults = {
     {P0_4,  P0_10, P0_19, P0_21,  P4_29, NoPin, NoPin},   //enablePins
     {P2_0,  P2_1,  P2_2,  P2_3,   P2_8, NoPin, NoPin},    //stepPins
     {P0_5,  P0_11, P0_20, P0_22,  P2_13, NoPin, NoPin},   //dirPins
-#if LPC_TMC_SOFT_UART
+#if TMC_SOFT_UART
     {NoPin, NoPin, NoPin, NoPin, NoPin, NoPin, NoPin},    //uartPins
     0,                                      // Smart drivers
 #endif

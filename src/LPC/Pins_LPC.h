@@ -284,6 +284,10 @@ extern Pin AuxSerialRxTxPins[NumberSerialPins];
     extern Pin APIN_Serial1_RXD;
     extern Pin WifiSerialRxTxPins[NumberSerialPins];
 
+    // Compatibility with existing RRF Code
+    constexpr Pin APIN_ESP_SPI_MISO = SPI0_MISO;
+    constexpr Pin APIN_ESP_SPI_SCK = SPI0_SCK;
+    constexpr SSPChannel ESP_SPI = SSP0;
 
 #endif
 
