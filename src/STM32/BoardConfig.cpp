@@ -22,6 +22,8 @@
 
 #include "HybridPWM.h"
 #include "ff.h"
+#include "SoftwareReset.h"
+#include "ExceptionHandlers.h"
 
 //Single entry for Board name
 static const boardConfigEntry_t boardEntryConfig[]=
@@ -893,7 +895,7 @@ void BoardConfig::EndFirmwareUpdate()
     }
     //debugPrintf("Doing software reset\n");
     reprap.EmergencyStop();			// turn off heaters etc.
-    reprap.SoftwareReset((uint16_t)SoftwareResetReason::user); // Reboot
+    SoftwareReset((uint16_t)SoftwareResetReason::user); // Reboot
     //debugPrintf("OH dear we should not see this!\n");
 }
 #endif
