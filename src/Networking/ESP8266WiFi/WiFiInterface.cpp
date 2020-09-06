@@ -184,7 +184,7 @@ static void debugPrintBuffer(const char *msg, void *buf, size_t dataLength) noex
 #endif
 
 #if defined(__LPC17xx__) || defined(STM32F4)
-# include "WiFiInterface_LPC.hpp"
+# include "WiFiInterface.hpp"
 #endif
 
 static void EspTransferRequestIsr(CallbackParameter) noexcept
