@@ -463,24 +463,20 @@ void Platform::Init() noexcept
     SERIAL_MAIN_DEVICE.Start(UsbVBusPin);
 #endif
 
-    
-#ifdef SERIAL_AUX_DEVICE
+#if HAS_AUX_DEVICES
+    auxDevices[0].Init(&SERIAL_AUX_DEVICE);
 	baudRates[1] = AUX_BAUD_RATE;
 	commsParams[1] = 1;							// by default we require a checksum on data from the aux port, to guard against overrun errors
-	auxMutex.Create("Aux");
-	auxEnabled = auxRaw = false;
-	auxSeq = 0;
 #endif
 
 #ifdef DUET_5LC
-	EnableAux();			//TODO temporary!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	EnableAux(0);			//TODO temporary!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 #endif
 
 #ifdef SERIAL_AUX2_DEVICE
+    auxDevices[1].Init(&SERIAL_AUX2_DEVICE);
 	baudRates[2] = AUX2_BAUD_RATE;
 	commsParams[2] = 0;
-	aux2Mutex.Create("Aux2");
-	aux2Enabled = aux2Raw = false;
 #endif
 
 	// Initialise the IO port subsystem
@@ -880,12 +876,12 @@ void Platform::ReadUniqueId()
 	}
 # else
 	memset(uniqueId, 0, sizeof(uniqueId));
-
-	Cache::Disable();
-	cpu_irq_disable();
+	const bool cacheWasEnabled = Cache::Disable();
 	const uint32_t rc = flash_read_unique_id(uniqueId, 4);
-	cpu_irq_enable();
-	Cache::Enable();
+	if (cacheWasEnabled)
+	{
+		Cache::Enable();
+	}
 
 	if (rc == 0)
 	{
@@ -967,27 +963,16 @@ void Platform::ReadUniqueId()
 #endif
 
 // Send the beep command to the aux channel. There is no flow control on this port, so it can't block for long.
-void Platform::Beep(int freq, int ms) noexcept
+void Platform::PanelDueBeep(int freq, int ms) noexcept
 {
 	MessageF(AuxMessage, "{\"beep_freq\":%d,\"beep_length\":%d}\n", freq, ms);
 }
 
 // Send a short message to the aux channel. There is no flow control on this port, so it can't block for long.
-void Platform::SendAuxMessage(const char* msg) noexcept
+void Platform::SendPanelDueMessage(size_t auxNumber, const char* msg) noexcept
 {
-#ifdef SERIAL_AUX_DEVICE
-	if (auxEnabled)
-	{
-		OutputBuffer *buf;
-		if (OutputBuffer::Allocate(buf))
-		{
-			buf->copy("{\"message\":");
-			buf->EncodeString(msg, false);
-			buf->cat("}\n");
-			auxOutput.Push(buf);
-			FlushAuxMessages();
-		}
-	}
+#if HAS_AUX_DEVICES
+	auxDevices[auxNumber].SendPanelDueMessage(msg);
 #endif
 }
 
@@ -1008,19 +993,12 @@ void Platform::Exit() noexcept
 	SERIAL_MAIN_DEVICE.end();
 	usbOutput.ReleaseAll();
 
-#ifdef SERIAL_AUX_DEVICE
-	if (auxEnabled)
+#if HAS_AUX_DEVICES
+	for (AuxDevice& dev : auxDevices)
 	{
-		SERIAL_AUX_DEVICE.end();
+		dev.Disable();
 	}
-	auxOutput.ReleaseAll();
 #endif
-
-#ifdef SERIAL_AUX2_DEVICE
-	SERIAL_AUX2_DEVICE.end();
-	aux2Output.ReleaseAll();
-#endif
-
 }
 
 void Platform::SetIPAddress(IPAddress ip) noexcept
@@ -1042,39 +1020,10 @@ void Platform::SetNetMask(IPAddress nm) noexcept
 }
 
 // Flush messages to aux, returning true if there is more to send
-bool Platform::FlushAuxMessages() noexcept
+bool Platform::FlushAuxMessages(size_t auxNumber) noexcept
 {
-#ifdef SERIAL_AUX_DEVICE
-	bool hasMore = !auxOutput.IsEmpty();
-	if (hasMore)
-	{
-		MutexLocker lock(auxMutex);
-		OutputBuffer *auxOutputBuffer = auxOutput.GetFirstItem();
-		if (auxOutputBuffer == nullptr)
-		{
-			(void)auxOutput.Pop();
-		}
-		else if (!auxEnabled)
-		{
-			OutputBuffer::ReleaseAll(auxOutputBuffer);
-			(void)auxOutput.Pop();
-		}
-		else
-		{
-			const size_t bytesToWrite = min<size_t>(SERIAL_AUX_DEVICE.canWrite(), auxOutputBuffer->BytesLeft());
-			if (bytesToWrite > 0)
-			{
-				SERIAL_AUX_DEVICE.write(auxOutputBuffer->Read(bytesToWrite), bytesToWrite);
-			}
-
-			if (auxOutputBuffer->BytesLeft() == 0)
-			{
-				auxOutput.ReleaseFirstItem();
-			}
-		}
-		hasMore = !auxOutput.IsEmpty();
-	}
-	return hasMore;
+#if HAS_AUX_DEVICES
+	return auxDevices[auxNumber].Flush();
 #else
 	return false;
 #endif
@@ -1083,38 +1032,14 @@ bool Platform::FlushAuxMessages() noexcept
 // Flush messages to USB and aux, returning true if there is more to send
 bool Platform::FlushMessages() noexcept
 {
-	const bool auxHasMore = FlushAuxMessages();
-
-#ifdef SERIAL_AUX2_DEVICE
-	// Write non-blocking data to the second AUX line
-	//TODO use common code with FlushAuxMessages()
-	bool aux2HasMore;
+	bool auxHasMore = false;
+#if HAS_AUX_DEVICES
+	for (AuxDevice& dev : auxDevices)
 	{
-		MutexLocker lock(aux2Mutex);
-		OutputBuffer *aux2OutputBuffer = aux2Output.GetFirstItem();
-		if (aux2OutputBuffer == nullptr)
+		if (dev.Flush())
 		{
-			(void)aux2Output.Pop();
+			auxHasMore = true;
 		}
-		else if (!aux2Enabled)
-		{
-			OutputBuffer::ReleaseAll(aux2OutputBuffer);
-			(void)aux2Output.Pop();
-		}
-		else
-		{
-			const size_t bytesToWrite = min<size_t>(SERIAL_AUX2_DEVICE.canWrite(), aux2OutputBuffer->BytesLeft());
-			if (bytesToWrite > 0)
-			{
-				SERIAL_AUX2_DEVICE.write(aux2OutputBuffer->Read(bytesToWrite), bytesToWrite);
-			}
-
-			if (aux2OutputBuffer->BytesLeft() == 0)
-			{
-				aux2Output.ReleaseFirstItem();
-			}
-		}
-		aux2HasMore = (aux2Output.GetFirstItem() != nullptr);
 	}
 #endif
 
@@ -1155,11 +1080,7 @@ bool Platform::FlushMessages() noexcept
 		usbHasMore = !usbOutput.IsEmpty();
 	}
 
-	return auxHasMore
-#ifdef SERIAL_AUX2_DEVICE
-		|| aux2HasMore
-#endif
-		|| usbHasMore;
+	return auxHasMore || usbHasMore;
 }
 
 void Platform::Spin() noexcept
@@ -1697,19 +1618,8 @@ void Platform::InitialiseInterrupts() noexcept
 	NVIC_SetPriority(SdhcIRQn, NvicPriorityHSMCI);				// set priority for SD interface interrupts
 #endif
 
-	// Set PanelDue UART interrupt priority
-#ifdef SERIAL_AUX_DEVICE
-# if SAME5x
-	SERIAL_AUX_DEVICE.setInterruptPriority(NvicPriorityPanelDueUartRx, NvicPriorityPanelDueUartTx);
-# else
-	SERIAL_AUX_DEVICE.setInterruptPriority(NvicPriorityPanelDueUart);
-# endif
-#endif
-#ifdef SERIAL_AUX2_DEVICE
-	SERIAL_AUX2_DEVICE.setInterruptPriority(NvicPriorityPanelDueUart);
-#endif
-
-// WiFi UART interrupt priority is now set in module WiFiInterface
+	// Set PanelDue UART interrupt priority is set in AuxDevioce::Init
+	// WiFi UART interrupt priority is now set in module WiFiInterface
 
 #if SUPPORT_TMC22xx && !SAME5x											// SAME5x uses a DMA interrupt instead of the UART interrupt
 # if TMC_SOFT_UART
@@ -1903,54 +1813,12 @@ void Platform::Diagnostics(MessageType mtype) noexcept
 		}
 		else
 		{
-			const char* const reasonText = SoftwareResetData::ReasonText[(srd->resetReason >> 5) & 0x0F];
-			String<StringLength100> scratchString;
-			if (srd->when != 0)
-			{
-				const time_t when = (time_t)srd->when;
-				tm timeInfo;
-				gmtime_r(&when, &timeInfo);
-				scratchString.printf("at %04u-%02u-%02u %02u:%02u",
-								timeInfo.tm_year + 1900, timeInfo.tm_mon + 1, timeInfo.tm_mday, timeInfo.tm_hour, timeInfo.tm_min);
-			}
-			else
-			{
-				scratchString.copy("time unknown");
-			}
-
-			MessageF(mtype, "Last software reset %s, reason: %s%s, spinning module %s, available RAM %" PRIu32 " bytes (slot %d)\n",
-								scratchString.c_str(),
-								(srd->resetReason & (uint32_t)SoftwareResetReason::deliberate) ? "deliberate " : "",
-								reasonText,
-								GetModuleName(srd->resetReason & 0x1F), srd->neverUsedRam, slot);
-			// Our format buffer is only 256 characters long, so the next 2 lines must be written separately
-			// The task name may include nulls at the end, so print it as a string
-			const uint32_t taskName[2] = { srd->taskName, 0 };
-			MessageF(mtype,
-					"Software reset code 0x%04x HFSR 0x%08" PRIx32 " CFSR 0x%08" PRIx32 " ICSR 0x%08" PRIx32 " BFAR 0x%08" PRIx32 " SP 0x%08" PRIx32 " Task %s\n",
-					srd->resetReason, srd->hfsr, srd->cfsr, srd->icsr, srd->bfar, srd->sp, (const char *)&taskName
-				);
-			if (srd->sp != 0xFFFFFFFF)
-			{
-				// We saved a stack dump, so print it
-				scratchString.Clear();
-				int i = 0;
-				for (uint32_t stval : srd->stack)
-				{
-					scratchString.catf(" %08" PRIx32, stval);
-					if (++i % 10 == 0)
-					{
-						MessageF(mtype, "Stack:%s\n", scratchString.c_str());
-						scratchString.Clear();						
-					}
-				}
-				MessageF(mtype, "Stack:%s\n", scratchString.c_str());
-			}
+			srd->Print(mtype, slot);
 		}
 	}
 
 	// Show the current error codes
-	MessageF(mtype, "Error status: 0x%" PRIx32 "\n", errorCodeBits);
+	MessageF(mtype, "Error status: 0x02%" PRIx32 "\n", errorCodeBits);		// we only use the bottom 5 bits at present, so print just 2 bytes
 
 #if HAS_CPU_TEMP_SENSOR
 	// Show the MCU temperatures
@@ -2222,26 +2090,46 @@ GCodeResult Platform::DiagnosticTest(GCodeBuffer& gb, const StringRef& reply, Ou
 #endif
 
 	case (unsigned int)DiagnosticTestType::TestWatchdog:
+		if (!gb.DoDwellTime(1000))								// wait a second to allow the response to be sent back to the web server, otherwise it may retry
+		{
+			return GCodeResult::notFinished;
+		}
 		deliberateError = true;
 		SysTick->CTRL &= ~(SysTick_CTRL_TICKINT_Msk);			// disable the system tick interrupt so that we get a watchdog timeout reset
 		break;
 
 	case (unsigned int)DiagnosticTestType::TestSpinLockup:
+		if (!gb.DoDwellTime(1000))								// wait a second to allow the response to be sent back to the web server, otherwise it may retry
+		{
+			return GCodeResult::notFinished;
+		}
 		deliberateError = true;
 		debugCode = d;											// tell the Spin function to loop
 		break;
 
 	case (unsigned int)DiagnosticTestType::TestSerialBlock:		// write an arbitrary message via debugPrintf()
+		if (!gb.DoDwellTime(1000))								// wait a second to allow the response to be sent back to the web server, otherwise it may retry
+		{
+			return GCodeResult::notFinished;
+		}
 		deliberateError = true;
 		debugPrintf("Diagnostic Test\n");
 		break;
 
 	case (unsigned int)DiagnosticTestType::DivideByZero:		// do an integer divide by zero to test exception handling
+		if (!gb.DoDwellTime(1000))								// wait a second to allow the response to be sent back to the web server, otherwise it may retry
+		{
+			return GCodeResult::notFinished;
+		}
 		deliberateError = true;
 		(void)RepRap::DoDivide(1, 0);							// call function in another module so it can't be optimised away
 		break;
 
 	case (unsigned int)DiagnosticTestType::UnalignedMemoryAccess: // do an unaligned memory access to test exception handling
+		if (!gb.DoDwellTime(1000))								// wait a second to allow the response to be sent back to the web server, otherwise it may retry
+		{
+			return GCodeResult::notFinished;
+		}
 		deliberateError = true;
 		SCB->CCR |= SCB_CCR_UNALIGN_TRP_Msk;					// by default, unaligned memory accesses are allowed, so change that
 		__DSB();												// make sure that instruction completes
@@ -2253,6 +2141,10 @@ GCodeResult Platform::DiagnosticTest(GCodeBuffer& gb, const StringRef& reply, Ou
 #if SAME70 && !USE_MPU
 		Message(WarningMessage, "There is no abort area on the SAME70 with MPU disabled");
 #else
+		if (!gb.DoDwellTime(1000))								// wait a second to allow the response to be sent back to the web server, otherwise it may retry
+		{
+			return GCodeResult::notFinished;
+		}
 		deliberateError = true;
 		RepRap::GenerateBusFault();
 #endif
@@ -3217,79 +3109,66 @@ void Platform::AppendUsbReply(OutputBuffer *buffer) noexcept
 
 // Aux port functions
 
-void Platform::EnableAux() noexcept
+bool Platform::IsAuxEnabled(size_t auxNumber) const noexcept
 {
-#ifdef SERIAL_AUX_DEVICE
-	if (!auxEnabled)
+#if HAS_AUX_DEVICES
+	return auxNumber < ARRAY_SIZE(auxDevices) && auxDevices[auxNumber].IsEnabled();
+#else
+	return false;
+#endif
+}
+
+void Platform::EnableAux(size_t auxNumber) noexcept
+{
+#if HAS_AUX_DEVICES
+	if (auxNumber < ARRAY_SIZE(auxDevices) && !auxDevices[auxNumber].IsEnabled())
 	{
-		SERIAL_AUX_DEVICE.begin(baudRates[1]);
-		auxEnabled = true;
+		auxDevices[auxNumber].Enable(baudRates[auxNumber + 1]);
 	}
 #endif
 }
 
-void Platform::AppendAuxReply(const char *msg, bool rawMessage) noexcept
+bool Platform::IsAuxRaw(size_t auxNumber) const noexcept
 {
-#ifdef SERIAL_AUX_DEVICE
-	// Discard this response if either no aux device is attached or if the response is empty
-	if (msg[0] != 0 && IsAuxEnabled())
+#if HAS_AUX_DEVICES
+	return auxNumber >= ARRAY_SIZE(auxDevices) || auxDevices[auxNumber].IsRaw();
+#else
+	return true;
+#endif
+}
+
+void Platform::SetAuxRaw(size_t auxNumber, bool raw) noexcept
+{
+#if HAS_AUX_DEVICES
+	if (auxNumber < ARRAY_SIZE(auxDevices))
 	{
-		MutexLocker lock(auxMutex);
-		OutputBuffer *buf;
-		if (OutputBuffer::Allocate(buf))
-		{
-			if (rawMessage || auxRaw)
-			{
-				buf->copy(msg);
-			}
-			else
-			{
-				auxSeq++;
-				buf->printf("{\"seq\":%" PRIu32 ",\"resp\":", auxSeq);
-				buf->EncodeString(msg, true, false);
-				buf->cat("}\n");
-			}
-			auxOutput.Push(buf);
-		}
+		auxDevices[auxNumber].SetRaw(raw);
 	}
 #endif
 }
 
-void Platform::AppendAuxReply(OutputBuffer *reply, bool rawMessage) noexcept
+void Platform::AppendAuxReply(size_t auxNumber, const char *msg, bool rawMessage) noexcept
 {
-#ifdef SERIAL_AUX_DEVICE
-	// Discard this response if either no aux device is attached or if the response is empty
-	if (reply == nullptr || reply->Length() == 0 || !IsAuxEnabled())
+#if HAS_AUX_DEVICES
+	if (auxNumber < ARRAY_SIZE(auxDevices))
+	{
+		auxDevices[auxNumber].AppendAuxReply(msg, rawMessage);
+	}
+#endif
+}
+
+void Platform::AppendAuxReply(size_t auxNumber, OutputBuffer *reply, bool rawMessage) noexcept
+{
+#if HAS_AUX_DEVICES
+	if (auxNumber < ARRAY_SIZE(auxDevices))
+	{
+		auxDevices[auxNumber].AppendAuxReply(reply, rawMessage);
+	}
+	else
+#endif
 	{
 		OutputBuffer::ReleaseAll(reply);
 	}
-	else
-	{
-		MutexLocker lock(auxMutex);
-		if (rawMessage || auxRaw)
-		{
-			auxOutput.Push(reply);
-		}
-		else
-		{
-			OutputBuffer *buf;
-			if (OutputBuffer::Allocate(buf))
-			{
-				auxSeq++;
-				buf->printf("{\"seq\":%" PRIu32 ",\"resp\":", auxSeq);
-				buf->EncodeReply(reply);
-				buf->cat("}\n");
-				auxOutput.Push(buf);
-			}
-			else
-			{
-				OutputBuffer::ReleaseAll(reply);
-			}
-		}
-	}
-#else
-	OutputBuffer::ReleaseAll(reply);
-#endif
 }
 
 // Send the specified message to the specified destinations. The Error and Warning flags have already been handled.
@@ -3306,11 +3185,11 @@ void Platform::RawMessage(MessageType type, const char *message) noexcept
 	// Send the message to the destinations
 	if ((type & ImmediateAuxMessage) != 0)
 	{
-		SendAuxMessage(message);
+		SendPanelDueMessage(0, message);
 	}
 	else if ((type & AuxMessage) != 0)
 	{
-		AppendAuxReply(message, message[0] == '{' || (type & RawMessageFlag) != 0);
+		AppendAuxReply(0, message, message[0] == '{' || (type & RawMessageFlag) != 0);
 	}
 
 	if ((type & HttpMessage) != 0)
@@ -3325,21 +3204,7 @@ void Platform::RawMessage(MessageType type, const char *message) noexcept
 
 	if ((type & Aux2Message) != 0)
 	{
-#ifdef SERIAL_AUX2_DEVICE
-		MutexLocker lock(aux2Mutex);
-		// Message that is to be sent to the second auxiliary device (blocking)
-		if (!aux2Output.IsEmpty())
-		{
-			// If we're still busy sending a response to the USART device, append this message to the output buffer
-			aux2Output.GetLastItem()->cat(message);
-		}
-		else
-		{
-			// Send short strings immediately through the aux2 channel. There is no flow control on this port, so it can't block for long
-			SERIAL_AUX2_DEVICE.write(message);
-			SERIAL_AUX2_DEVICE.flush();
-		}
-#endif
+		AppendAuxReply(1, message, message[0] == '{' || (type & RawMessageFlag) != 0);
 	}
 
 	if ((type & BlockingUsbMessage) != 0)
@@ -3439,7 +3304,7 @@ void Platform::Message(const MessageType type, OutputBuffer *buffer) noexcept
 
 		if ((type & (AuxMessage | ImmediateAuxMessage)) != 0)
 		{
-			AppendAuxReply(buffer, ((*buffer)[0] == '{') || (type & RawMessageFlag) != 0);
+			AppendAuxReply(0, buffer, ((*buffer)[0] == '{') || (type & RawMessageFlag) != 0);
 		}
 
 		if ((type & HttpMessage) != 0)
@@ -3452,14 +3317,10 @@ void Platform::Message(const MessageType type, OutputBuffer *buffer) noexcept
 			reprap.GetNetwork().HandleTelnetGCodeReply(buffer);
 		}
 
-#ifdef SERIAL_AUX2_DEVICE
 		if ((type & Aux2Message) != 0)
 		{
-			// Send this message to the second UART device
-			MutexLocker lock(aux2Mutex);
-			aux2Output.Push(buffer);
+			AppendAuxReply(1, buffer, ((*buffer)[0] == '{') || (type & RawMessageFlag) != 0);
 		}
-#endif
 
 		if ((type & (UsbMessage | BlockingUsbMessage)) != 0)
 		{
@@ -3770,7 +3631,7 @@ void Platform::SetNonlinearExtrusion(size_t extruder, float a, float b, float li
 
 void Platform::SetBaudRate(size_t chan, uint32_t br) noexcept
 {
-	if (chan < NUM_SERIAL_CHANNELS)
+	if (chan < NumSerialChannels)
 	{
 		baudRates[chan] = br;
 	}
@@ -3778,12 +3639,12 @@ void Platform::SetBaudRate(size_t chan, uint32_t br) noexcept
 
 uint32_t Platform::GetBaudRate(size_t chan) const noexcept
 {
-	return (chan < NUM_SERIAL_CHANNELS) ? baudRates[chan] : 0;
+	return (chan < NumSerialChannels) ? baudRates[chan] : 0;
 }
 
 void Platform::SetCommsProperties(size_t chan, uint32_t cp) noexcept
 {
-	if (chan < NUM_SERIAL_CHANNELS)
+	if (chan < NumSerialChannels)
 	{
 		commsParams[chan] = cp;
 	}
@@ -3791,15 +3652,14 @@ void Platform::SetCommsProperties(size_t chan, uint32_t cp) noexcept
 
 uint32_t Platform::GetCommsProperties(size_t chan) const noexcept
 {
-	return (chan < NUM_SERIAL_CHANNELS) ? commsParams[chan] : 0;
+	return (chan < NumSerialChannels) ? commsParams[chan] : 0;
 }
 
 // Re-initialise a serial channel.
 void Platform::ResetChannel(size_t chan) noexcept
 {
-	switch(chan)
+	if (chan == 0)
 	{
-	case 0:
 		SERIAL_MAIN_DEVICE.end();
 #if SAME5x
         SERIAL_MAIN_DEVICE.Start();
@@ -3808,28 +3668,14 @@ void Platform::ResetChannel(size_t chan) noexcept
 #else
         SERIAL_MAIN_DEVICE.Start(UsbVBusPin);
 #endif
-		break;
-
-#ifdef SERIAL_AUX_DEVICE
-	case 1:
-		if (auxEnabled)
-		{
-			SERIAL_AUX_DEVICE.end();
-			SERIAL_AUX_DEVICE.begin(baudRates[1]);
-		}
-		break;
-#endif
-
-#ifdef SERIAL_AUX2_DEVICE
-	case 2:
-		SERIAL_AUX2_DEVICE.end();
-		SERIAL_AUX2_DEVICE.begin(baudRates[2]);
-		break;
-#endif
-
-	default:
-		break;
 	}
+#if HAS_AUX_DEVICES
+	else if (chan < NumSerialChannels)
+	{
+		auxDevices[chan - 1].Disable();
+		auxDevices[chan - 1].Enable(baudRates[chan]);
+	}
+#endif
 }
 
 void Platform::SetBoardType(BoardType bt) noexcept

@@ -256,8 +256,8 @@ extern Pin SSP0Pins[];         //GPIO pins for SSP0 (used with SharedSPI)
 #define SERIAL_WIFI_DEVICE  UART_Slot1
 //#define SERIAL_AUX2_DEVICE  UART_Slot2
 
-constexpr size_t NUM_SERIAL_CHANNELS = 2; // USB + AUX
-
+//constexpr size_t NUM_SERIAL_CHANNELS = 2; // USB + AUX
+constexpr size_t NumSerialChannels = 2;				// The number of serial IO channels (USB + AUX)
 constexpr size_t NumberSerialPins = 2;
 extern Pin AuxSerialRxTxPins[NumberSerialPins];
 
