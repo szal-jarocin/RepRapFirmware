@@ -41,6 +41,12 @@ LinuxInterface::~LinuxInterface()
 void LinuxInterface::Init() noexcept
 {
 	gcodeReplyMutex.Create("LinuxReply");
+
+#if defined(DUET_NG)
+	// Make sure that the Wifi module if present is disabled. The ESP Reset pin is already forced low in Platform::Init();
+	pinMode(EspEnablePin, OUTPUT_LOW);
+#endif
+
 	transfer.Init();
 	transfer.StartNextTransfer();
 }
@@ -202,7 +208,7 @@ void LinuxInterface::Spin() noexcept
 					if (channel.IsValid())
 					{
 						GCodeBuffer * const gb = reprap.GetGCodes().GetGCodeBuffer(channel);
-						gb->MachineState().SetFileFinished(error);
+						gb->SetFileFinished(error);
 
 						if (reprap.Debug(moduleLinuxInterface))
 						{

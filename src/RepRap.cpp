@@ -1490,7 +1490,7 @@ OutputBuffer *RepRap::GetStatusResponse(uint8_t type, ResponseSource source) con
 				}
 
 				const Spindle& spindle = platform->AccessSpindle(i);
-				response->catf("{\"current\":%.1f,\"active\":%.1f", (double)spindle.GetCurrentRpm(), (double)spindle.GetRpm());
+				response->catf("{\"current\":%" PRIi32 ",\"active\":%" PRIi32, spindle.GetCurrentRpm(), spindle.GetRpm());
 				if (type == 2)
 				{
 					response->catf(",\"tool\":%d}", spindle.GetToolNumber());
@@ -1579,7 +1579,7 @@ OutputBuffer *RepRap::GetStatusResponse(uint8_t type, ResponseSource source) con
 		// Machine mode,
 		const char *machineMode = gCodes->GetMachineModeString();
 		response->cat(",\"mode\":");
-		response->EncodeString(machineMode, strlen(machineMode), false);
+		response->EncodeString(machineMode, false);
 
 		// Machine name
 		response->cat(",\"name\":");
@@ -2714,6 +2714,8 @@ void RepRap::PrepareToLoadIap() noexcept
 	EmergencyStop();						// this also stops Platform::Tick being called, which is necessary because it access Z probe object in RAM used by IAP
 	network->Exit();						// kill the network task to stop it overwriting RAM that we use to hold the IAP
 	SmartDrivers::Exit();					// stop the drivers being polled via SPI or UART because it may use data in the last 64Kb of RAM
+	FilamentMonitor::Exit();				// stop the filament monitors generating interrupts, we may be about to overwrite them
+	fansManager->Exit();					// stop the fan tachos generating interrupts, we may be about to overwrite them
 
 #ifdef DUET_NG
 	DuetExpansion::Exit();					// stop the DueX polling task

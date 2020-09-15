@@ -447,7 +447,6 @@ void Platform::Init() noexcept
 	ReadUniqueId();
 #endif
 
-
 	// Real-time clock
 	realTime = 0;
 
@@ -467,10 +466,6 @@ void Platform::Init() noexcept
     auxDevices[0].Init(&SERIAL_AUX_DEVICE);
 	baudRates[1] = AUX_BAUD_RATE;
 	commsParams[1] = 1;							// by default we require a checksum on data from the aux port, to guard against overrun errors
-#endif
-
-#ifdef DUET_5LC
-	EnableAux(0);			//TODO temporary!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 #endif
 
 #ifdef SERIAL_AUX2_DEVICE
@@ -1017,16 +1012,6 @@ void Platform::SetNetMask(IPAddress nm) noexcept
 {
 	netMask = nm;
 	reprap.GetNetwork().SetEthernetIPAddress(ipAddress, gateWay, netMask);
-}
-
-// Flush messages to aux, returning true if there is more to send
-bool Platform::FlushAuxMessages(size_t auxNumber) noexcept
-{
-#if HAS_AUX_DEVICES
-	return auxDevices[auxNumber].Flush();
-#else
-	return false;
-#endif
 }
 
 // Flush messages to USB and aux, returning true if there is more to send
