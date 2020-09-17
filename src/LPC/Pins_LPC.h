@@ -142,7 +142,7 @@ constexpr size_t MaxDriversPerAxis = 2;              // The maximum number of st
 constexpr size_t MaxExtruders = 2;                   // The maximum number of extruders
 constexpr size_t NumDefaultExtruders = 1;            // The number of drivers that we configure as extruders by default
 
-constexpr size_t MaxAxesPlusExtruders = 5;
+constexpr size_t MaxAxesPlusExtruders = 7;
 
 constexpr size_t MaxHeatersPerTool = 2;
 constexpr size_t MaxExtrudersPerTool = 2;
