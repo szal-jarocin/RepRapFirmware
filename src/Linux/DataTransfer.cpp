@@ -377,9 +377,9 @@ extern "C" void SBC_SPI_HANDLER() noexcept
 
 #else
 #if defined(__LPC17xx__)
-# include "LPC/Linux/DataTransfer_LPC.hpp"
+# include "LPC/Linux/DataTransfer.hpp"
 #elif defined(STM32F4)
-# include "STM32/Linux/DataTransfer_LPC.hpp"
+# include "STM32/Linux/DataTransfer.hpp"
 #endif
 #endif
 /*-----------------------------------------------------------------------------------*/
