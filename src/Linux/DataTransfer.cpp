@@ -1427,7 +1427,10 @@ void DataTransfer::EmulateIap()
 	//debugPrintf("Emulate IAP\n");
 	transferReadyHigh = false;
 	digitalWrite(SbcTfrReadyPin, false);
-	//disable_spi();
+	// Setup default response to match IAP
+	for(int i = 0; i < 2048; i++)
+		txBuffer[i] = 0x1a;
+
 	delay(3000);
 	// Discard the firmware data transfer. This is terminated
 	// by a deliberate timeout on the exchange.
@@ -1443,7 +1446,7 @@ void DataTransfer::EmulateIap()
 	// read the CRC packet
 	if (!IapDataExchange(8))
 		debugPrintf("Unexpected timeout on CRC\n");
-	//debugPrintf("Got CRC len %d\n", *reinterpret_cast<int*>(rxBuffer()));
+	//debugPrintf("Got CRC len %d\n", *reinterpret_cast<int*>(rxBuffer));
 	// Send Ok response
 	*reinterpret_cast<char*>(txBuffer) = 0xC;
 	if (!IapDataExchange(1))
