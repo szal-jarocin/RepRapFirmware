@@ -103,7 +103,7 @@
 
 
 // The physical capabilities of the machine
-constexpr size_t NumDirectDrivers = 6;               // The maximum number of drives supported by the electronics
+constexpr size_t NumDirectDrivers = 11;               // The maximum number of drives supported by the electronics
 #if defined(SUPPORT_TMC22xx)
     constexpr size_t MaxSmartDrivers = NumDirectDrivers;            // The maximum number of smart drivers
     constexpr size_t NumTmcDriversSenseChannels = 1;
@@ -120,7 +120,7 @@ constexpr size_t NumDirectDrivers = 6;               // The maximum number of dr
 
 constexpr size_t MaxSensors = 32;
 
-constexpr size_t MaxHeaters = 4;                     // The maximum number of heaters in the machine
+constexpr size_t MaxHeaters = 9;                     // The maximum number of heaters in the machine
 constexpr size_t MaxMonitorsPerHeater = 2;
 
 constexpr size_t MaxBedHeaters = 1;
@@ -128,7 +128,7 @@ constexpr size_t MaxChamberHeaters = 1;
 constexpr int8_t DefaultBedHeater = 0;
 constexpr int8_t DefaultE0Heater = 1;                // Index of the default first extruder heater, used only for the legacy status response
 
-constexpr size_t NumThermistorInputs = 4;
+constexpr size_t NumThermistorInputs = 9;
 
 constexpr size_t MaxZProbes = 1;
 constexpr size_t MaxGpInPorts = 10;
@@ -136,17 +136,17 @@ constexpr size_t MaxGpOutPorts = 10;
 
 constexpr size_t MinAxes = 3;                        // The minimum and default number of axes
 constexpr size_t MaxAxes = 6;                        // The maximum number of movement axes in the machine, usually just X, Y and Z, <= DRIVES
-constexpr size_t MaxDriversPerAxis = 3;              // The maximum number of stepper drivers assigned to one axis
+constexpr size_t MaxDriversPerAxis = 4;              // The maximum number of stepper drivers assigned to one axis
 
-constexpr size_t MaxExtruders = 3;                   // The maximum number of extruders
+constexpr size_t MaxExtruders = 8;                   // The maximum number of extruders
 constexpr size_t NumDefaultExtruders = 1;            // The number of drivers that we configure as extruders by default
 
-constexpr size_t MaxAxesPlusExtruders = 8;
+constexpr size_t MaxAxesPlusExtruders = 14;
 
 constexpr size_t MaxHeatersPerTool = 2;
 constexpr size_t MaxExtrudersPerTool = 2;
 
-constexpr size_t MaxFans = 3;
+constexpr size_t MaxFans = 8;
 
 constexpr unsigned int MaxTriggers = 16;            // Must be <= 32 because we store a bitmap of pending triggers in a uint32_t
 
@@ -342,6 +342,7 @@ constexpr PwmFrequency DefaultFanPwmFrequencies[] = { DefaultFanPwmFreq };
 //Boards
 
 bool SetBoard(const char* bn)  noexcept;
+void ClearPinArrays() noexcept;
 
 constexpr size_t MaxBoardNameLength = 20;
 extern char lpcBoardName[MaxBoardNameLength];
@@ -349,6 +350,7 @@ extern size_t lpcSmartDrivers;
 
 struct BoardDefaults
 {
+    const uint32_t numDrivers;
     const Pin enablePins[NumDirectDrivers];
     const Pin stepPins[NumDirectDrivers];
     const Pin dirPins[NumDirectDrivers];

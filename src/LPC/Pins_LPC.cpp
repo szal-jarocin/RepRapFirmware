@@ -9,7 +9,7 @@
 //All I/Os default to input with pullup after reset (9.2.1 from manual)
 //The Smoothie Bootloader turns off Pins 2.4, 2.5, 2.6 and 2.7 which are used as Heater pins
 
-Pin TEMP_SENSE_PINS[NumThermistorInputs] = {NoPin, NoPin, NoPin, NoPin};
+Pin TEMP_SENSE_PINS[NumThermistorInputs];
 Pin SpiTempSensorCsPins[MaxSpiTempSensors] = { NoPin, NoPin };
 SSPChannel TempSensorSSPChannel = SSP0;   //default SPI Temp sensor on SSP0
 
@@ -40,14 +40,14 @@ SSPChannel LcdSpiChannel = SSP0;
 Pin DiagPin = NoPin;
 
 //Stepper settings
-Pin ENABLE_PINS[NumDirectDrivers] =     {NoPin, NoPin, NoPin, NoPin, NoPin, NoPin, NoPin};
-Pin STEP_PINS[NumDirectDrivers] =       {NoPin, NoPin, NoPin, NoPin, NoPin, NoPin, NoPin};
-Pin DIRECTION_PINS[NumDirectDrivers] =  {NoPin, NoPin, NoPin, NoPin, NoPin, NoPin, NoPin};
+Pin ENABLE_PINS[NumDirectDrivers];
+Pin STEP_PINS[NumDirectDrivers];
+Pin DIRECTION_PINS[NumDirectDrivers];
 #if HAS_STALL_DETECT
-    Pin DIAG_PINS[NumDirectDrivers] =     {NoPin, NoPin, NoPin, NoPin, NoPin, NoPin, NoPin};
+    Pin DIAG_PINS[NumDirectDrivers];
 #endif
 #if TMC_SOFT_UART
-    Pin TMC_UART_PINS[NumDirectDrivers] = {NoPin, NoPin, NoPin, NoPin, NoPin, NoPin, NoPin};
+    Pin TMC_UART_PINS[NumDirectDrivers];
     size_t lpcSmartDrivers;
 #endif
 uint32_t STEP_DRIVER_MASK = 0;                          //SD: mask of the step pins on Port 2 used for writing to step pins in parallel
@@ -131,6 +131,27 @@ void SetDefaultPinArray(const Pin *src, Pin *dst, size_t len) noexcept
     }
 }
 
+static void InitPinArray(Pin *dst, size_t len) noexcept
+{
+    for(size_t i=0; i<len; i++)
+        dst[i] = NoPin;
+}
+
+void ClearPinArrays() noexcept
+{
+    //copy default settings (if not set in board.txt)
+    InitPinArray(ENABLE_PINS, NumDirectDrivers);
+    InitPinArray(STEP_PINS, NumDirectDrivers);
+    InitPinArray(DIRECTION_PINS, NumDirectDrivers);
+#if TMC_SOFT_UART
+    InitPinArray(TMC_UART_PINS, NumDirectDrivers);
+#endif
+#if HAS_STALL_DETECT
+    InitPinArray(DIAG_PINS, NumDirectDrivers);
+#endif
+    InitPinArray(TEMP_SENSE_PINS, NumThermistorInputs);
+}
+
 
 //Find Board settings from string
 bool SetBoard(const char* bn) noexcept
@@ -145,11 +166,11 @@ bool SetBoard(const char* bn) noexcept
             NumNamedLPCPins = LPC_Boards[i].numNamedEntries;
 
             //copy default settings (if not set in board.txt)
-            SetDefaultPinArray(LPC_Boards[i].defaults.enablePins, ENABLE_PINS, MaxTotalDrivers);
-            SetDefaultPinArray(LPC_Boards[i].defaults.stepPins, STEP_PINS, MaxTotalDrivers);
-            SetDefaultPinArray(LPC_Boards[i].defaults.dirPins, DIRECTION_PINS, MaxTotalDrivers);
+            SetDefaultPinArray(LPC_Boards[i].defaults.enablePins, ENABLE_PINS, LPC_Boards[i].defaults.numDrivers);
+            SetDefaultPinArray(LPC_Boards[i].defaults.stepPins, STEP_PINS, LPC_Boards[i].defaults.numDrivers);
+            SetDefaultPinArray(LPC_Boards[i].defaults.dirPins, DIRECTION_PINS, LPC_Boards[i].defaults.numDrivers);
 #if TMC_SOFT_UART
-            SetDefaultPinArray(LPC_Boards[i].defaults.uartPins, TMC_UART_PINS, MaxTotalDrivers);
+            SetDefaultPinArray(LPC_Boards[i].defaults.uartPins, TMC_UART_PINS, LPC_Boards[i].defaults.numDrivers);
             lpcSmartDrivers = LPC_Boards[i].defaults.numSmartDrivers;
 #endif
 

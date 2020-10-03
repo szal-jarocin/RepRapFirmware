@@ -59,11 +59,12 @@ constexpr PinEntry PinTable_Mbed[] =
 
 constexpr BoardDefaults mbedDefaults =
 {
-    {P3_25,  P0_10, P0_19, P0_21,  P4_29, NoPin, NoPin},   //enablePins
-    {P2_11,  P2_12, P2_10, P2_3,   P2_8, NoPin, NoPin},    //stepPins
-    {P3_26,  P4_28, P0_20, P0_22,  P2_13, NoPin, NoPin},   //dirPins
+    5,
+    {P3_25,  P0_10, P0_19, P0_21,  P4_29},   //enablePins
+    {P2_11,  P2_12, P2_10, P2_3,   P2_8},    //stepPins
+    {P3_26,  P4_28, P0_20, P0_22,  P2_13},   //dirPins
 #if TMC_SOFT_UART
-    {NoPin, NoPin, NoPin, NoPin, NoPin, NoPin, NoPin},     //uartPins
+    {NoPin, NoPin, NoPin, NoPin, NoPin},     //uartPins
     0,                                      // Smart drivers
 #endif
     0,                                       //digiPot Factor

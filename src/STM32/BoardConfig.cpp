@@ -173,7 +173,7 @@ void BoardConfig::Init() noexcept
     NVIC_SetPriority(DMA1_Stream3_IRQn, NvicPrioritySpi);
     NVIC_SetPriority(DMA1_Stream4_IRQn, NvicPrioritySpi);
     delay(10000);
-
+    ClearPinArrays();
 #if !HAS_MASS_STORAGE
     sd_mmc_init(SdWriteProtectPins, SdSpiCSPins);
 #endif
@@ -208,7 +208,6 @@ void BoardConfig::Init() noexcept
             
         reprap.GetPlatform().MessageF(UsbMessage, "Loading config from %s...\n", boardConfigPath );
 
-        
         //First find the board entry to load the correct PinTable for looking up Pin by name
         BoardConfig::GetConfigKeys(&configFile, boardEntryConfig, (size_t) 1);
         if(!SetBoard(lpcBoardName)) // load the Correct PinTable for the defined Board (RRF3)

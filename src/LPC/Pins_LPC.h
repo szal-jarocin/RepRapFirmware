@@ -354,6 +354,7 @@ constexpr PwmFrequency DefaultFanPwmFrequencies[] = { DefaultFanPwmFreq };
 //Boards
 
 bool SetBoard(const char* bn)  noexcept;
+void ClearPinArrays() noexcept;
 
 constexpr size_t MaxBoardNameLength = 20;
 extern char lpcBoardName[MaxBoardNameLength];
@@ -361,6 +362,7 @@ extern size_t lpcSmartDrivers;
 
 struct BoardDefaults
 {
+    const uint32_t numDrivers;
     const Pin enablePins[NumDirectDrivers];
     const Pin stepPins[NumDirectDrivers];
     const Pin dirPins[NumDirectDrivers];

@@ -110,14 +110,15 @@ constexpr PinEntry PinTable_BIQU_SKR_PRO_v1_1[] =
 };
 
 constexpr BoardDefaults biquskr_pro_1_1_Defaults = {
-    {PF_2, PD_7,  PC_0, PC_3,  PA_3, PF_0},    //enablePins
-    {PE_9, PE_11, PE_13, PE_14,  PD_15, PD_13},    //stepPins
-    {PF_1, PE_8, PC_2, PA_0,  PE_7, PG_9},    //dirPins
+	6,											// Number of drivers
+    {PF_2, PD_7,  PC_0, PC_3,  PA_3, PF_0},   	//enablePins
+    {PE_9, PE_11, PE_13, PE_14,  PD_15, PD_13},	//stepPins
+    {PF_1, PE_8, PC_2, PA_0,  PE_7, PG_9},    	//dirPins
 #if TMC_SOFT_UART
-    {PC_13, PE_3, PE_1, PD_4, PD_1, PD_6},        //uartPins
-    6,                                      // Smart drivers
+    {PC_13, PE_3, PE_1, PD_4, PD_1, PD_6},      //uartPins
+    6,                                      	// Smart drivers
 #endif
-    0                                       //digiPot Factor
+    0                                       	//digiPot Factor
 };
 
 
@@ -235,15 +236,12 @@ constexpr PinEntry PinTable_BIQU_GTR_v1_0[] =
 };
 
 constexpr BoardDefaults biqu_gtr_1_0_Defaults = {
-    {PF_1, PE_4,  PB_9, PG_13,  PD_7, PD_2},    //enablePins
-	//{PF_1, PE_4,  PB_9, PG_13,  PD_7, PD_2,PF_8,PG_2,PF1_4,PE_8,PI_0},    //enablePins including M5
-    {PC_15, PE_3, PB_8, PG_12,  PD_6, PD_1},    //stepPins
-	//{PC_15, PE_3, PB_8, PG_12,  PD_6, PD_1,PF_3,PD_14,PE_12,PG_0,PH_12},    //stepPins Including M5
-    {PF_0, PE_2, PB_7, PG_11,  PD_5, PD_0},    //dirPins
-	//{PF_0, PE_2, PB_7, PG_11,  PD_5, PD_0,PG_3,PD_11,PE_10,PG_1,PH_15}, //dirPins Including M5
+	6+5,										// Number of drivers GTR + M5
+	{PF_1, PE_4,  PB_9, PG_13,  PD_7, PD_2,PF_8,PG_2,PF_4,PE_8,PI_0},    //enablePins including M5
+	{PC_15, PE_3, PB_8, PG_12,  PD_6, PD_1,PF_3,PD_14,PE_12,PG_0,PH_12},    //stepPins Including M5
+	{PF_0, PE_2, PB_7, PG_11,  PD_5, PD_0,PG_3,PD_11,PE_10,PG_1,PH_15}, //dirPins Including M5
 #if TMC_SOFT_UART
-    {PC_14, PE_1, PB_5, PG_10, PD_4, PC_12},        //uartPins
-	//{PC_14, PE_1, PB_5, PG_10, PD_4, PC_12,PG_4,PE_15,PE_7,PF_15,PH_14},  //uartpins including M5
+	{PC_14, PE_1, PB_5, PG_10, PD_4, PC_12,PG_4,PE_15,PE_7,PF_15,PH_14},  //uartpins including M5
     6,                                      // Smart drivers or 11 with M5
 #endif
     0                                       //digiPot Factor
