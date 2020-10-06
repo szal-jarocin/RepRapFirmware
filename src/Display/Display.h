@@ -32,8 +32,11 @@ public:
 	bool IsPresent() const noexcept { return lcd != nullptr; }
 	void UpdatingFirmware() noexcept;
 
+	constexpr static uint8_t DefaultDisplayContrastRatio = 30;		// this works well for the Fysetc display
+	constexpr static uint8_t DefaultDisplayResistorRatio = 6;		// the recommended Fysetc display uses 6, some other displays use 3
+
 private:
-	void InitDisplay(GCodeBuffer& gb, Lcd *newLcd, bool defaultCsPolarity);
+	void InitDisplay(GCodeBuffer& gb, Lcd *newLcd, Pin csPin, Pin a0Pin, bool defaultCsPolarity);
 
 	Lcd *lcd;
 	Menu *menu;

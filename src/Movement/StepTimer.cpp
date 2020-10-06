@@ -20,7 +20,7 @@ extern "C" void STEP_TC_HANDLER(HardwareTimer *) noexcept __attribute__ ((hot));
 #elif SAME5x
 # include <CoreIO.h>
 #else
-# include <sam/drivers/tc/tc.h>
+# include <hri_tc_e54.h>
 #endif
 
 StepTimer * volatile StepTimer::pendingList = nullptr;
@@ -57,7 +57,7 @@ void StepTimer::Init() noexcept
 
 	hri_tc_set_CTRLA_ENABLE_bit(StepTc);
 
-	NVIC_DisableIRQ(StepTcIRQn);
+	NVIC_SetPriority(StepTcIRQn, NvicPriorityStep);			    // Set the priority for this IRQ
 	NVIC_ClearPendingIRQ(StepTcIRQn);
 	NVIC_EnableIRQ(StepTcIRQn);
 #elif defined(__LPC17xx__)

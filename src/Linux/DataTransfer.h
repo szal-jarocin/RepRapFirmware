@@ -16,6 +16,7 @@
 #include <GCodes/GCodeChannel.h>
 #include "LinuxMessageFormats.h"
 #include <MessageType.h>
+#include <RTOSIface/RTOSIface.h>
 
 class BinaryGCodeBuffer;
 class StringRef;
@@ -30,6 +31,7 @@ class DataTransfer
 public:
 	DataTransfer() noexcept;
 	void Init() noexcept;
+	void SetLinuxTask(TaskHandle handle) noexcept;
 	void Diagnostics(MessageType mtype) noexcept;
 
 	bool IsConnected() const noexcept;														// Check if the connection to DCS is live
@@ -44,7 +46,7 @@ public:
 	void ReadPrintStartedInfo(size_t packetLength, StringRef& filename, GCodeFileInfo &info) noexcept;	// Read info about the started file print
 	PrintStoppedReason ReadPrintStoppedInfo() noexcept;										// Read info about why the print has been stopped
 	GCodeChannel ReadMacroCompleteInfo(bool &error) noexcept;								// Read info about a completed macro file
-	void ReadHeightMap() noexcept;															// Read heightmap parameters
+	bool ReadHeightMap() noexcept;															// Read heightmap parameters
 	GCodeChannel ReadCodeChannel() noexcept;												// Read a code channel
 	void ReadAssignFilament(int& extruder, StringRef& filamentName) noexcept;				// Read a request to assign the given filament to an extruder drive
 	void ReadFileChunk(char *buffer, int32_t& dataLength, uint32_t& fileLength) noexcept;	// Read another chunk of a file
@@ -55,7 +57,7 @@ public:
 	bool WriteObjectModel(OutputBuffer *data) noexcept;
 	bool WriteCodeBufferUpdate(uint16_t bufferSpace) noexcept;
 	bool WriteCodeReply(MessageType type, OutputBuffer *&response) noexcept;
-	bool WriteMacroRequest(GCodeChannel channel, const char *filename, bool reportMissing, bool fromBinaryCode) noexcept;
+	bool WriteMacroRequest(GCodeChannel channel, const char *filename, bool fromCode) noexcept;
 	bool WriteAbortFileRequest(GCodeChannel channel, bool abortAll) noexcept;
 	bool WritePrintPaused(FilePosition position, PrintPausedReason reason) noexcept;
 	bool WriteHeightMap() noexcept;
@@ -68,8 +70,6 @@ public:
 #if defined(__LPC17xx__) || defined(STM32F4)
 	void EmulateIap();
 #endif
-
-	static void SpiInterrupt() noexcept;
 
 private:
 	enum class SpiState

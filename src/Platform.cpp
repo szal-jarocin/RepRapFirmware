@@ -421,23 +421,22 @@ Platform::Platform() noexcept :
 // Initialise the Platform. Note: this is the first module to be initialised, so don't call other modules from here!
 void Platform::Init() noexcept
 {
-#if defined(DUET3) || defined(DUET_5LC)
+#if defined(DUET3) || defined(DUET3MINI)
 	pinMode(EthernetPhyResetPin, OUTPUT_LOW);			// hold the Ethernet Phy chip in reset, hopefully this will prevent it being too noisy if Ethernet is not enabled
 #endif
 
 	// Deal with power first (we assume this doesn't depend on identifying the board type)
 	pinMode(ATX_POWER_PIN, OUTPUT_LOW);
 
-	SetBoardType(BoardType::Auto);
-
+	// Make sure the on-board drivers are disabled
 #if defined(DUET_NG) || defined(PCCB_10) || defined(PCCB_08_X5)
 	pinMode(GlobalTmc2660EnablePin, OUTPUT_HIGH);
-#endif
-
-#if defined(DUET_M) || defined(PCCB_08) || defined(PCCB_08_X5) || defined(DUET_5LC)
-	// Make sure the on-board TMC22xx drivers are disabled
+#elif defined(DUET_M) || defined(PCCB_08) || defined(PCCB_08_X5) || defined(DUET3MINI)
 	pinMode(GlobalTmc22xxEnablePin, OUTPUT_HIGH);
 #endif
+
+	// Sort out which board we are running on (some firmware builds support more than one board variant)
+	SetBoardType(BoardType::Auto);
 
 #if SAME70
 	DmacManager::Init();
@@ -544,7 +543,7 @@ void Platform::Init() noexcept
 	numSmartDrivers = MaxSmartDrivers;
 # elif defined(__LPC17xx__) || defined(STM32F4)
 	numSmartDrivers = lpcSmartDrivers;
-# elif defined(DUET_5LC)
+# elif defined(DUET3MINI)
 	numSmartDrivers = MaxSmartDrivers;							// support the expansion board, but don't mind if it's missing
 # endif
 #endif
@@ -649,7 +648,7 @@ void Platform::Init() noexcept
 		// Set up the control pins
 		pinMode(STEP_PINS[driver], OUTPUT_LOW);
 		pinMode(DIRECTION_PINS[driver], OUTPUT_LOW);
-#if !defined(DUET3) && !defined(DUET_5LC)
+#if !defined(DUET3) && !defined(DUET3MINI)
 		pinMode(ENABLE_PINS[driver], OUTPUT_HIGH);				// this is OK for the TMC2660 CS pins too
 #endif
 	}
@@ -749,7 +748,7 @@ void Platform::Init() noexcept
 	// Initialise the configured heaters to just the default bed heater (there are no default chamber heaters)
 	configuredHeaters.Clear();
 
-#if !defined(DUET3) && !defined(DUET_5LC)
+#if !defined(DUET3) && !defined(DUET3MINI)
 	if (DefaultBedHeater >= 0)
 	{
 		configuredHeaters.SetBit(DefaultBedHeater);
@@ -1080,7 +1079,7 @@ void Platform::Spin() noexcept
 		return;
 	}
 
-#if defined(DUET3) || defined(DUET_5LC) || defined(__LPC17xx__) || defined(STM32F4)
+#if defined(DUET3) || defined(DUET3MINI) || defined(__LPC17xx__) || defined(STM32F4)
 	// Blink the LED at about 2Hz. Duet 3 expansion boards will blink in sync when they have established clock sync with us.
 	//digitalWrite(DiagPin, XNor(DiagOnPolarity, StepTimer::GetTimerTicks() & (1u << 19)) != 0);
 	digitalWrite(DiagPin, XNor(DiagOnPolarity, millis() & (512)) != 0);
@@ -1697,6 +1696,16 @@ void Platform::InitialiseInterrupts() noexcept
 	NVIC_SetPriority(I2C1_IRQn, NvicPriorityTwi);
 #endif
 
+#if SUPPORT_CAN_EXPANSION
+# if SAME5x
+	NVIC_SetPriority(CAN0_IRQn, NvicPriorityCan);
+	NVIC_SetPriority(CAN1_IRQn, NvicPriorityCan);
+# elif SAME70
+	NVIC_SetPriority(MCAN0_INT0_IRQn, NvicPriorityCan);		// we don't use INT1
+	NVIC_SetPriority(MCAN1_INT0_IRQn, NvicPriorityCan);		// we don't use INT1
+# endif
+#endif
+
 #if defined(__LPC17xx__)
 	// set rest of the Timer Interrupt priorities
 	// Timer 0 is used for step generation (set elsewhere)
@@ -1808,7 +1817,7 @@ void Platform::Diagnostics(MessageType mtype) noexcept
 	}
 
 	// Show the current error codes
-	MessageF(mtype, "Error status: 0x02%" PRIx32 "\n", errorCodeBits);		// we only use the bottom 5 bits at present, so print just 2 bytes
+	MessageF(mtype, "Error status: 0x%02" PRIx32 "\n", errorCodeBits);		// we only use the bottom 5 bits at present, so print just 2 bytes
 
 #if HAS_CPU_TEMP_SENSOR
 	// Show the MCU temperatures
@@ -2556,7 +2565,7 @@ void Platform::EnableOneLocalDriver(size_t driver, float requiredCurrent) noexce
 		{
 			SmartDrivers::EnableDrive(driver, true);
 		}
-# if !defined(DUET_5LC)		// no enable pins on 5LC
+# if !defined(DUET3MINI)		// no enable pins on 5LC
 		else
 		{
 			digitalWrite(ENABLE_PINS[driver], enableValues[driver] > 0);
@@ -2582,7 +2591,7 @@ void Platform::DisableOneLocalDriver(size_t driver) noexcept
 		{
 			SmartDrivers::EnableDrive(driver, false);
 		}
-# if !defined(DUET_5LC)		// Duet 5LC has no enable pins
+# if !defined(DUET3MINI)		// Duet 5LC has no enable pins
 		else
 		{
 			digitalWrite(ENABLE_PINS[driver], enableValues[driver] <= 0);
@@ -3668,22 +3677,30 @@ void Platform::ResetChannel(size_t chan) noexcept
 #endif
 }
 
+// Set the board type. This must be called quite early, because for some builds it relies on pins not having been programmed for their intended use yet.
 void Platform::SetBoardType(BoardType bt) noexcept
 {
 	if (bt == BoardType::Auto)
 	{
-#if defined(DUET_5LC)
+#if defined(DUET3MINI_V02)
 		// Test whether this is a WiFi or an Ethernet board. Currently we do this based on the processor type.
 		const uint16_t deviceId = DSU->DID.reg >> 16;
-		board = (deviceId == 0x6184)						// if SAME54P20A
-				? BoardType::Duet5LC_Ethernet
-				: (deviceId == 0x6006)						// SAMD51P20A rev D
-				  ? BoardType::Duet5LC_WiFi
-					: BoardType::Duet5LC_Unknown;
+		board = (deviceId == 0x6184)							// if SAME54P20A
+				? BoardType::Duet3Mini_Ethernet
+				: (deviceId == 0x6006)							// SAMD51P20A rev D
+				  ? BoardType::Duet3Mini_WiFi
+					: BoardType::Duet3Mini_Unknown;
+#elif defined(DUET3MINI_V04)
+		// Test whether this is a WiFi or an Ethernet board by testing for a pulldown resistor on Dir1
+		pinMode(DIRECTION_PINS[1], INPUT_PULLUP);
+		delayMicroseconds(20);									// give the pullup resistor time to work
+		board = (digitalRead(DIRECTION_PINS[1]))				// if SAME54P20A
+					? BoardType::Duet3Mini_WiFi
+						: BoardType::Duet3Mini_Ethernet;
 #elif defined(DUET3)
 		// Driver 0 direction has a pulldown resistor on v0.6 and v1.0 boards, but won't on v1.01 boards
 		pinMode(DIRECTION_PINS[0], INPUT_PULLUP);
-		delayMicroseconds(20);										// give the pullup resistor time to work
+		delayMicroseconds(20);									// give the pullup resistor time to work
 		board = (digitalRead(DIRECTION_PINS[0])) ? BoardType::Duet3_v101 : BoardType::Duet3_v06_100;
 #elif defined(SAME70XPLD)
 		board = BoardType::SAME70XPLD_0;
@@ -3756,10 +3773,10 @@ const char* Platform::GetElectronicsString() const noexcept
 {
 	switch (board)
 	{
-#if defined(DUET_5LC)
-	case BoardType::Duet5LC_Unknown:		return "Duet 3 " BOARD_SHORT_NAME " unknown variant";
-	case BoardType::Duet5LC_WiFi:			return "Duet 3 " BOARD_SHORT_NAME " WiFi";
-	case BoardType::Duet5LC_Ethernet:		return "Duet 3 " BOARD_SHORT_NAME " Ethernet";
+#if defined(DUET3MINI)
+	case BoardType::Duet3Mini_Unknown:		return "Duet 3 " BOARD_SHORT_NAME " unknown variant";
+	case BoardType::Duet3Mini_WiFi:			return "Duet 3 " BOARD_SHORT_NAME " WiFi";
+	case BoardType::Duet3Mini_Ethernet:		return "Duet 3 " BOARD_SHORT_NAME " Ethernet";
 #elif defined(DUET3)
 	case BoardType::Duet3_v06_100:			return "Duet 3 " BOARD_SHORT_NAME " v0.6 or 1.0";
 	case BoardType::Duet3_v101:				return "Duet 3 " BOARD_SHORT_NAME " v1.01 or later";
@@ -3803,10 +3820,10 @@ const char* Platform::GetBoardString() const noexcept
 {
 	switch (board)
 	{
-#if defined(DUET_5LC)
-	case BoardType::Duet5LC_Unknown:		return "duet5lcunknown";
-	case BoardType::Duet5LC_WiFi:			return "duet5lcwifi";
-	case BoardType::Duet5LC_Ethernet:		return "duet5lcethernet";
+#if defined(DUET3MINI)
+	case BoardType::Duet3Mini_Unknown:		return "duet5lcunknown";
+	case BoardType::Duet3Mini_WiFi:			return "duet5lcwifi";
+	case BoardType::Duet3Mini_Ethernet:		return "duet5lcethernet";
 #elif defined(DUET3)
 	case BoardType::Duet3_v06_100:			return "duet3mb6hc100";
 	case BoardType::Duet3_v101:				return "duet3mb6hc101";
@@ -3868,12 +3885,12 @@ const char *Platform::GetBoardShortName() const noexcept
 
 #endif
 
-#ifdef DUET_5LC
+#ifdef DUET3MINI
 
 // Return true if this is a Duet WiFi, false if it is a Duet Ethernet
 bool Platform::IsDuetWiFi() const noexcept
 {
-	return board == BoardType::Duet5LC_WiFi || board == BoardType::Duet5LC_Unknown;
+	return board == BoardType::Duet3Mini_WiFi || board == BoardType::Duet3Mini_Unknown;
 }
 
 #endif
@@ -4129,22 +4146,22 @@ MinMaxCurrent Platform::GetV12Voltages() const noexcept
 #if HAS_SMART_DRIVERS
 
 // TMC driver temperatures
-float Platform::GetTmcDriversTemperature(unsigned int board) const noexcept
+float Platform::GetTmcDriversTemperature(unsigned int boardNumber) const noexcept
 {
-#if defined(DUET_5LC)
-	const DriversBitmap mask = (board == 0)
+#if defined(DUET3MINI)
+	const DriversBitmap mask = (boardNumber == 0)
 							? DriversBitmap::MakeLowestNBits(5)							// drivers 0-4 are on the main board
 								: DriversBitmap::MakeLowestNBits(3).ShiftUp(5);			// drivers 5-7 are on the daughter board
 #elif defined(DUET3)
 	const DriversBitmap mask = DriversBitmap::MakeLowestNBits(6);						// there are 6 drivers, only one board
 #elif defined(DUET_NG)
-	const DriversBitmap mask = DriversBitmap::MakeLowestNBits(5).ShiftUp(5 * board);	// there are 5 drivers on each board
+	const DriversBitmap mask = DriversBitmap::MakeLowestNBits(5).ShiftUp(5 * boardNumber);	// there are 5 drivers on each board
 #elif defined(DUET_M)
-	const DriversBitmap mask = (board == 0)
+	const DriversBitmap mask = (boardNumber == 0)
 							? DriversBitmap::MakeLowestNBits(5)							// drivers 0-4 are on the main board
 								: DriversBitmap::MakeLowestNBits(2).ShiftUp(5);			// drivers 5-6 are on the daughter board
 #elif defined(PCCB_10)
-	const DriversBitmap mask = (board == 0)
+	const DriversBitmap mask = (boardNumber == 0)
 							? DriversBitmap::MakeLowestNBits(2)							// drivers 0,1 are on-board
 								: DriversBitmap::MakeLowestNBits(5).ShiftUp(2);			// drivers 2-7 are on the DueX5
 #elif defined(PCCB_08_X5)
@@ -4437,7 +4454,7 @@ GCodeResult Platform::GetSetAncillaryPwm(GCodeBuffer& gb, const StringRef& reply
 		{
 			return GCodeResult::error;
 		}
-		const PwmFrequency freq = (gb.Seen('F')) ? gb.GetPwmFrequency() : DefaultPinWritePwmFreq;
+		const PwmFrequency freq = (gb.Seen('Q') || gb.Seen('F')) ? gb.GetPwmFrequency() : DefaultPinWritePwmFreq;
 		extrusionAncilliaryPwmPort.SetFrequency(freq);
 	}
 	if (gb.Seen('S'))

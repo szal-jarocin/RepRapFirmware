@@ -15,6 +15,7 @@ void InitSpi() noexcept;
 void SpiInterrupt(HardwareSPI *spi) noexcept
 {
     dataReceived = true;
+    TaskBase::GiveFromISR(linuxTaskHandle);
 }
 
 

@@ -197,6 +197,7 @@ void GCodes::RunStateMachine(GCodeBuffer& gb, const StringRef& reply) noexcept
 				{
 					reply.printf("Homing file %s not found", nextHomingFileName.c_str());
 					stateMachineResult = GCodeResult::error;
+					toBeHomed.Clear();
 					gb.SetState(GCodeState::normal);
 				}
 			}
@@ -211,6 +212,7 @@ void GCodes::RunStateMachine(GCodeBuffer& gb, const StringRef& reply) noexcept
 			{
 				reply.copy("Homing failed");
 				stateMachineResult = GCodeResult::error;
+				toBeHomed.Clear();
 				gb.SetState(GCodeState::normal);
 			}
 			else
@@ -560,6 +562,7 @@ void GCodes::RunStateMachine(GCodeBuffer& gb, const StringRef& reply) noexcept
 				}
 				else if (zp->Stopped() == EndStopHit::atStop)
 				{
+					reprap.GetMove().heightMapLock.ReleaseWriter();
 					reprap.GetHeat().SuspendHeaters(false);
 					gb.MachineState().SetError("Z probe already triggered before probing move started");
 					gb.SetState(GCodeState::checkError);
@@ -572,6 +575,7 @@ void GCodes::RunStateMachine(GCodeBuffer& gb, const StringRef& reply) noexcept
 					SetMoveBufferDefaults();
 					if (!platform.GetEndstops().EnableZProbe(currentZProbeNumber) || !zp->SetProbing(true))
 					{
+						reprap.GetMove().heightMapLock.ReleaseWriter();
 						gb.MachineState().SetError("Failed to enable Z probe");
 						gb.SetState(GCodeState::checkError);
 						RetractZProbe(gb, 29);
@@ -605,6 +609,7 @@ void GCodes::RunStateMachine(GCodeBuffer& gb, const StringRef& reply) noexcept
 				zp->SetProbing(false);
 				if (!zProbeTriggered)
 				{
+					reprap.GetMove().heightMapLock.ReleaseWriter();
 					gb.MachineState().SetError("Z probe was not triggered during probing move");
 					gb.SetState(GCodeState::checkError);
 					RetractZProbe(gb, 29);
@@ -677,6 +682,7 @@ void GCodes::RunStateMachine(GCodeBuffer& gb, const StringRef& reply) noexcept
 			}
 			else
 			{
+				reprap.GetMove().heightMapLock.ReleaseWriter();
 				gb.MachineState().SetError("Z probe readings not consistent");
 				gb.SetState(GCodeState::checkError);
 				RetractZProbe(gb, 29);
@@ -759,6 +765,7 @@ void GCodes::RunStateMachine(GCodeBuffer& gb, const StringRef& reply) noexcept
 			{
 				gb.MachineState().SetError("Too few points probed");
 			}
+			reprap.GetMove().heightMapLock.ReleaseWriter();
 		}
 		if (stateMachineResult == GCodeResult::ok)
 		{
@@ -1023,12 +1030,15 @@ void GCodes::RunStateMachine(GCodeBuffer& gb, const StringRef& reply) noexcept
 				ToolOffsetInverseTransform(moveBuffer.coords, currentUserPosition);
 			}
 			gb.AdvanceState();
-			RetractZProbe(gb, 30);
+			if (zp->GetProbeType() != ZProbeType::blTouch)			// if it's a BLTouch then we have already retracted it
+			{
+				RetractZProbe(gb, 30);
+			}
 		}
 		break;
 
 	case GCodeState::probingAtPoint6:
-		// Here when we have finished probing with a P parameter and have retracted the probe if necessary
+		// Here when we have finished probing and have retracted the probe if necessary
 		if (LockMovementAndWaitForStandstill(gb))		// retracting the Z probe
 		{
 			if (g30SValue == 1)
@@ -1347,13 +1357,11 @@ void GCodes::RunStateMachine(GCodeBuffer& gb, const StringRef& reply) noexcept
 #endif
 
 #if HAS_LINUX_INTERFACE
-	case GCodeState::doingUserMacro:			// finished a macro from M98 which has been cancelled by M99 or M291 P1 (only in SBC mode)
-		gb.SetState(GCodeState::normal);
-		break;
-
 	case GCodeState::waitingForAcknowledgement:	// finished M291 and the SBC expects a response next
-		SendSbcEvent(gb);
-		gb.FinishedBinaryMode();
+		if (!gb.MachineState().lastCodeFromSbc)
+		{
+			SendSbcEvent(gb);
+		}
 		gb.SetState(GCodeState::normal);
 		break;
 #endif

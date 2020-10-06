@@ -270,7 +270,8 @@ bool GCodes::HandleGcode(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeEx
 	case 29: // Grid-based bed probing
 
 #if HAS_LINUX_INTERFACE
-		// Pass file- and system-related commands to DSF if they came from somewhere else. They will be passed back to us via a binary buffer or separate SPI message if necessary.
+		// Pass file- and system-related commands to DSF if they came from somewhere else.
+		// They will be passed back to us via a binary buffer or separate SPI message if necessary.
 		if (reprap.UsingLinuxInterface() && reprap.GetLinuxInterface().IsConnected() && !gb.IsBinary())
 		{
 			gb.SendToSbc();
@@ -429,12 +430,6 @@ bool GCodes::HandleGcode(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeEx
 		// See if there is a file in /sys named Gxx.g
 		if (code >= 0 && code < 10000)
 		{
-#if HAS_LINUX_INTERFACE
-			if (reprap.UsingLinuxInterface())
-			{
-				gb.SetState(GCodeState::doingUnsupportedCode);
-			}
-#endif
 			String<StringLength20> macroName;
 			macroName.printf("G%d.g", code);
 			if (DoFileMacro(gb, macroName.c_str(), false, 98))
@@ -464,12 +459,12 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeEx
 	// Pass file- and system-related commands to DSF if they came from somewhere else. They will be passed back to us via a binary buffer or separate SPI message if necessary.
 	if (   reprap.UsingLinuxInterface() && reprap.GetLinuxInterface().IsConnected() && !gb.IsBinary()
 		&& (   code == 0 || code == 1
-			|| code == 20 || code == 21 || code == 22 || code == 23 || code == 24 || code == 26 || code == 27
+			|| code == 20 || code == 21 || code == 22 || code == 23 || code == 24 || code == 26 || code == 27 || code == 28 || code == 29
 			|| code == 30 || code == 32 || code == 36 || code == 37 || code == 38 || code == 39
-			|| code == 112
+			|| code == 112 /* || code == 122 */
 			|| code == 374 || code == 375
 			|| code == 470 || code == 471
-			|| code == 500 || code == 501 || code == 503 || code == 505 || code == 550
+			|| code == 500 || code == 503 || code == 505 || code == 550
 			|| code == 703
 			|| code == 905 || code == 929 || code == 997 || code == 999
 		   )
@@ -1272,12 +1267,6 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeEx
 				gb.MustSee('P');
 				String<MaxFilenameLength> filename;
 				gb.GetPossiblyQuotedString(filename.GetRef());
-#if HAS_LINUX_INTERFACE
-				if (reprap.UsingLinuxInterface())
-				{
-					gb.SetState(GCodeState::doingUserMacro);
-				}
-#endif
 				DoFileMacro(gb, filename.c_str(), true, code);
 			}
 			break;
@@ -2677,6 +2666,10 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeEx
 				bool dummy;
 				gb.TryGetQuotedString('K', key.GetRef(), dummy);
 				gb.TryGetQuotedString('F', flags.GetRef(), dummy);
+				if (&gb == auxGCode)
+				{
+					lastAuxStatusReportType = ObjectModelAuxStatusReportType;
+				}
 				outBuf = reprap.GetModelResponse(key.c_str(), flags.c_str());
 				if (outBuf == nullptr)
 				{
@@ -4369,12 +4362,6 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeEx
 			// See if there is a file in /sys named Mxx.g
 			if (code >= 0 && code < 10000)
 			{
-#if HAS_LINUX_INTERFACE
-				if (reprap.UsingLinuxInterface())
-				{
-					gb.SetState(GCodeState::doingUnsupportedCode);
-				}
-#endif
 				String<StringLength20> macroName;
 				macroName.printf("M%d.g", code);
 				if (DoFileMacro(gb, macroName.c_str(), false, code))

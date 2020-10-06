@@ -98,7 +98,6 @@ public:
 #if HAS_MASS_STORAGE
 	bool QueueFileToPrint(const char* fileName, const StringRef& reply) noexcept;	// Open a file of G Codes to run
 #endif
-	void StartPrinting(bool fromStart) noexcept;								// Start printing the file already selected
 	void AbortPrint(GCodeBuffer& gb) noexcept;									// Cancel any print in progress
 	void GetCurrentCoordinates(const StringRef& s) const noexcept;				// Write where we are into a string
 	bool DoingFileMacro() const noexcept;										// Is a macro file being processed?
@@ -108,7 +107,7 @@ public:
 	void Diagnostics(MessageType mtype) noexcept;								// Send helpful information out
 
 	bool RunConfigFile(const char* fileName) noexcept;							// Start running the config file
-	bool IsDaemonBusy() const noexcept;											// Return true if the daemon is busy running config.g or a trigger file
+	bool IsTriggerBusy() const noexcept;										// Return true if the trigger G-code buffer is busy running config.g or a trigger file
 
 	bool IsAxisHomed(unsigned int axis) const noexcept							// Has the axis been homed?
 		{ return axesHomed.IsBitSet(axis); }
@@ -145,13 +144,12 @@ public:
 	bool IsDoingToolChange() const noexcept { return doingToolChange; }
 	bool IsHeatingUp() const noexcept;											// Return true if the SD card print is waiting for a heater to reach temperature
 	bool IsRunningConfigFile() const noexcept { return runningConfigFile; }
+	bool SawM501InConfigFile() const noexcept { return m501SeenInConfigFile; }
 
 	uint32_t GetLastDuration() const noexcept { return lastDuration; }			// The most recent print time or simulated time
 	float GetSimulationTime() const noexcept { return simulationTime; }
 
 	bool AllAxesAreHomed() const noexcept;										// Return true if all axes are homed
-
-	void StopPrint(StopPrintReason reason) noexcept;							// Stop the current print
 
 	void MoveStoppedByZProbe() noexcept { zProbeTriggered = true; }				// Called from the step ISR when the Z probe is triggered, causing the move to be aborted
 
@@ -196,7 +194,7 @@ public:
 	bool AtxPowerControlled() const noexcept { return atxPowerControlled; }
 
 	const GridDefinition& GetDefaultGrid() const { return defaultGrid; };		// Get the default grid definition
-	void AssignGrid(float xRange[2], float yRange[2], float radius, float spacing[2]) noexcept;	// Assign the heightmap using the given parameters
+	bool AssignGrid(float xRange[2], float yRange[2], float radius, float spacing[2]) noexcept;	// Assign the heightmap using the given parameters
 	void ActivateHeightmap(bool activate) noexcept;								// (De-)Activate the height map
 
 	int GetNewToolNumber() const noexcept { return newToolNumber; }
@@ -308,7 +306,10 @@ private:
 	void RunStateMachine(GCodeBuffer& gb, const StringRef& reply) noexcept;		// Execute a step of the state machine
 	void DoStraightManualProbe(GCodeBuffer& gb, const StraightProbeSettings& sps);
 
-	void DoFilePrint(GCodeBuffer& gb, const StringRef& reply) noexcept;					// Get G Codes from a file and print them
+	void StartPrinting(bool fromStart) noexcept;								// Start printing the file already selected
+	void StopPrint(StopPrintReason reason) noexcept;							// Stop the current print
+
+	void DoFilePrint(GCodeBuffer& gb, const StringRef& reply) noexcept;			// Get G Codes from a file and print them
 	bool DoFileMacro(GCodeBuffer& gb, const char* fileName, bool reportMissing, int codeRunning = -1) noexcept;
 																						// Run a GCode macro file, optionally report error if not found
 	void FileMacroCyclesReturn(GCodeBuffer& gb) noexcept;								// End a macro
@@ -488,6 +489,7 @@ private:
 
 	size_t nextGcodeSource;												// The one to check next, using round-robin scheduling
 
+	static Mutex resourceMutex;
 	const GCodeBuffer* resourceOwners[NumResources];					// Which gcode buffer owns each resource
 
 	MachineType machineType;					// whether FFF, laser or CNC
@@ -518,6 +520,7 @@ private:
 	RawMove moveBuffer;							// Move details to pass to Move class
 	unsigned int segmentsLeft;					// The number of segments left to do in the current move, or 0 if no move available
 	unsigned int totalSegments;					// The total number of segments left in the complete move
+	bool updateUserPosition;
 
 	unsigned int segmentsLeftToStartAt;
 	float moveFractionToSkip;
@@ -667,6 +670,8 @@ private:
 	char filamentToLoad[FilamentNameLength];	// Name of the filament being loaded
 
 	static constexpr const float MinServoPulseWidth = 544.0, MaxServoPulseWidth = 2400.0;
+
+	static constexpr int8_t ObjectModelAuxStatusReportType = 100;		// A non-negative value distinct from any M408 report type
 };
 
 // Flag that a new move is available for consumption by the Move subsystem

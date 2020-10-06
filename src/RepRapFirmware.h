@@ -249,7 +249,8 @@ enum Module : uint8_t
 	moduleWiFi = 14,
 	moduleDisplay = 15,
 	moduleLinuxInterface = 16,
-	numModules = 17,				// make this one greater than the last real module number
+	moduleCan = 17,
+	numModules = 18,				// make this one greater than the last real module number
 	noModule = numModules
 };
 
@@ -483,12 +484,13 @@ const NvicPriority NvicPriorityPanelDueUartRx = 1;	// UART used to receive data 
 const NvicPriority NvicPriorityPanelDueUartTx = 3;	// the SAME5x driver makes FreeRTOS calls during transmission, so use a lower priority
 const NvicPriority NvicPriorityWiFiUartRx = 2;		// UART used to receive debug data from the WiFi module
 const NvicPriority NvicPriorityWiFiUartTx = 3;		// the SAME5x driver makes FreeRTOS calls during transmission, so use a lower priority
+const NvicPriority NvicPriorityDriverDiag = 4;
 #else
 const NvicPriority NvicPriorityPanelDueUart = 1;	// UART is highest to avoid character loss (it has only a 1-character receive buffer)
 const NvicPriority NvicPriorityWiFiUart = 2;		// UART used to receive debug data from the WiFi module
 #endif
 
-const NvicPriority NvicPriorityMCan = 3;			// CAN interface
+const NvicPriority NvicPriorityCan = 3;				// CAN interface
 const NvicPriority NvicPriorityPins = 3;			// priority for GPIO pin interrupts - filament sensors must be higher than step
 const NvicPriority NvicPriorityDriversSerialTMC = 3; // USART or UART used to control and monitor the smart drivers
 const NvicPriority NvicPriorityStep = 4;			// step interrupt is next highest, it can preempt most other interrupts
