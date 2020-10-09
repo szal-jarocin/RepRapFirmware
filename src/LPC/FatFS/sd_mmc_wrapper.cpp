@@ -16,7 +16,6 @@ void sd_mmc_init(Pin const wpPins[_DRIVES],Pin const spiCsPins[_DRIVES]){
     if(spiCsPins != nullptr)
     {
         _ffs[0] = new SDCard(SSP1, spiCsPins[0]);//RRF Slot0 = internal card on SSP1
-        _ffs[1] = new SDCard(SSPNONE, spiCsPins[1]);//RRF Slot1 = External card actual channel defined later
     }
 }
 

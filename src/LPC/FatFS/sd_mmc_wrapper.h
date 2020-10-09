@@ -5,7 +5,7 @@
 
 
 //#define _DRIVES 2 // Support 2 cards (one on each SSP slot)
-constexpr size_t _DRIVES = 2;
+constexpr size_t _DRIVES = 1;
 
 
 typedef uint8_t sd_mmc_err_t; //!< Type of return error code

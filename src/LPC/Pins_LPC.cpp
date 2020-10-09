@@ -17,8 +17,8 @@ Pin ATX_POWER_PIN = NoPin;
 bool ATX_POWER_INVERTED = false;
 
 //SDCard pins and settings
-Pin SdCardDetectPins[NumSdCards] = { NoPin, NoPin };
-Pin SdSpiCSPins[NumSdCards] =      { P0_6,  NoPin };    // Internal, external. Note:: ("slot" 0 in CORE is configured to be LCP SSP1 to match default RRF behaviour)
+Pin SdCardDetectPins[NumSdCards] = { NoPin };
+Pin SdSpiCSPins[NumSdCards] =      { P0_6 };    // Internal, external. Note:: ("slot" 0 in CORE is configured to be LCP SSP1 to match default RRF behaviour)
 uint32_t ExternalSDCardFrequency = 4000000;             //default to 4MHz
 #if HAS_LINUX_INTERFACE || HAS_WIFI_NETWORKING
     SSPChannel ExternalSDCardSSPChannel = SSPNONE;          // SSP0 used for network

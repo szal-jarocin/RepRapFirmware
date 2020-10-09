@@ -31,7 +31,7 @@ Mutex LinuxInterface::gcodeReplyMutex;
 Mutex LinuxInterface::codesMutex;
 
 #ifdef __LPC17xx__
-constexpr size_t LinuxTaskStackWords = 375;
+constexpr size_t LinuxTaskStackWords = 600;
 #elif defined(DEBUG)
 constexpr size_t LinuxTaskStackWords = 1000;			// needs to be enough to support rr_model
 #else
@@ -164,10 +164,10 @@ void LinuxInterface::Init() noexcept
 					String<StringLength20> flags;
 					StringRef flagsRef = flags.GetRef();
 					transfer.ReadGetObjectModel(packet->length, keyRef, flagsRef);
-
 					try
 					{
 						OutputBuffer *outBuf = reprap.GetModelResponse(key.c_str(), flags.c_str());
+
 						if (outBuf == nullptr || !transfer.WriteObjectModel(outBuf))
 						{
 							// Failed to write the whole object model, try again later

@@ -223,7 +223,7 @@ extern bool ATX_POWER_INVERTED;
 // SD cards
 constexpr size_t NumSdCards = _DRIVES; //_DRIVES is defined in CoreLPC (and used by FatFS) allow one internal and one external
 extern Pin SdCardDetectPins[NumSdCards];
-constexpr Pin SdWriteProtectPins[NumSdCards] = { NoPin, NoPin }; //unused on LPC boards
+constexpr Pin SdWriteProtectPins[NumSdCards] = { NoPin }; //unused on LPC boards
 extern Pin SdSpiCSPins[NumSdCards];
 extern uint32_t InternalSDCardFrequency;
 extern uint32_t ExternalSDCardFrequency;

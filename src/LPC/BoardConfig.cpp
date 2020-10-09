@@ -234,7 +234,7 @@ void BoardConfig::Init() noexcept
 
         //Internal SDCard SPI Frequency
         sd_mmc_reinit_slot(0, SdSpiCSPins[0], InternalSDCardFrequency);
-        
+    #if 0   
         //Configure the External SDCard
         if(SdSpiCSPins[1] != NoPin)
         {
@@ -247,7 +247,7 @@ void BoardConfig::Init() noexcept
             //set the CSPin and the frequency for the External SDCard
             sd_mmc_reinit_slot(1, SdSpiCSPins[1], ExternalSDCardFrequency);
         }
-        
+    #endif    
         #if HAS_WIFI_NETWORKING
             if(SamCsPin != NoPin) pinMode(SamCsPin, OUTPUT_LOW);
             if(EspResetPin != NoPin) pinMode(EspResetPin, OUTPUT_LOW);
@@ -846,10 +846,8 @@ bool BoardConfig::WriteFirmwareData(const char *data, uint16_t length)
 {
     FRESULT rslt;
     UINT written;
-
     if (firmwareFile == nullptr) return false;
     rslt = f_write(firmwareFile, data, length, &written);
-    //debugPrintf("Write firmware data request %d actual %d\n", length, written);
     return rslt == FR_OK && length == written;    
 }
 
@@ -864,10 +862,8 @@ void BoardConfig::EndFirmwareUpdate()
         fs = nullptr;
         firmwareFile = nullptr;
     }
-    //debugPrintf("Doing software reset\n");
     reprap.EmergencyStop();			// turn off heaters etc.
     SoftwareReset((uint16_t)SoftwareResetReason::user); // Reboot
-    //debugPrintf("OH dear we should not see this!\n");
 }
 #endif
 
