@@ -461,7 +461,6 @@ void RepRap::Init() noexcept
 	fansManager->Init();
 	printMonitor->Init();
 	FilamentMonitor::InitStatic();
-
 #if SUPPORT_ROLAND
 	roland->Init();
 #endif

@@ -192,6 +192,7 @@ extern "C" [[noreturn]] void AppMain() noexcept
 
 	// Create the startup task
 	mainTask.Create(MainTask, "MAIN", nullptr, TaskPriority::SpinPriority);
+
 	cpu_irq_restore(flags);
 	vTaskStartScheduler();			// doesn't return
 	for (;;) { }					// keep gcc happy

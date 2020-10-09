@@ -466,7 +466,6 @@ void Platform::Init() noexcept
 	baudRates[1] = AUX_BAUD_RATE;
 	commsParams[1] = 1;							// by default we require a checksum on data from the aux port, to guard against overrun errors
 #endif
-
 #ifdef SERIAL_AUX2_DEVICE
     auxDevices[1].Init(&SERIAL_AUX2_DEVICE);
 	baudRates[2] = AUX2_BAUD_RATE;
@@ -477,7 +476,6 @@ void Platform::Init() noexcept
 	IoPort::Init();
 	// Shared SPI subsystem
 	SharedSpiDevice::Init();
-
 
 	// File management and SD card interfaces
 	for (size_t i = 0; i < NumSdCards; ++i)
