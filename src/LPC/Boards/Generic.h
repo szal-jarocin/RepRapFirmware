@@ -186,11 +186,11 @@ constexpr PinEntry PinTable_Generic[] =
 //NoPin for Generic, Actual pins must be specified in /sys/Board.txt 
 constexpr BoardDefaults genericDefaults = {
     7,
-    {NoPin, NoPin, NoPin, NoPin, NoPin, NoPin, NoPin},    //enablePins
-    {NoPin, NoPin, NoPin, NoPin, NoPin, NoPin, NoPin},    //stepPins
-    {NoPin, NoPin, NoPin, NoPin, NoPin, NoPin, NoPin},    //dirPins
+    {NoPin, NoPin, NoPin, NoPin, NoPin},    //enablePins
+    {NoPin, NoPin, NoPin, NoPin, NoPin},    //stepPins
+    {NoPin, NoPin, NoPin, NoPin, NoPin},    //dirPins
 #if TMC_SOFT_UART
-    {NoPin, NoPin, NoPin, NoPin, NoPin, NoPin, NoPin},    //uartPins
+    {NoPin, NoPin, NoPin, NoPin, NoPin},    //uartPins
     0,                                      // Smart drivers
 #endif
     0,                                      //digiPot Factor    
