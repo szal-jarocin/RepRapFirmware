@@ -150,11 +150,13 @@ void LinuxInterface::Init() noexcept
 						if (rxPointer == txPointer)
 						{
 							rxPointer = 0;
+							// We should never need to do this as the buffer is in effect empty
 							debugPrintf("Incorrectly setting txLength to %d\n", txPointer);
 							delay(1000);
 						}
 						else
 						{
+							// Check to see if we will overwrite existing buffer contents Should never happen... But does with 3.2-beta2
 							if (rxPointer < sizeof(BufferedCodeHeader) + packet->length)
 							{
 #ifdef LI_DEBUG
@@ -172,7 +174,7 @@ void LinuxInterface::Init() noexcept
 						debugPrintf("Adjust len %d txp %d rxp %d txl %d\n", packet->length, txPointer, rxPointer, txLength);
 #endif
 					}
-					// Check to see if we are about to overwrite older packets! Should never happen...
+					// Check to see if we are about to overwrite older packets! Should never happen... But does with 3.2-beta2
 					if (txPointer < rxPointer && txPointer + sizeof(BufferedCodeHeader) + packet->length > rxPointer)
 					{
 #ifdef LI_DEBUG
