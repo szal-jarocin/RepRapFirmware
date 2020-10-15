@@ -81,7 +81,7 @@ GCodes::GCodes(Platform& p) noexcept :
 # else
 	httpGCode = nullptr;
 # endif // SUPPORT_HTTP || HAS_LINUX_INTERFACE
-# if SUPPORT_TELNET || HAS_LINUX_INTERFACE
+# if SUPPORT_TELNET || (HAS_LINUX_INTERFACE && !defined(__LPC17xx__))
 	telnetInput = new NetworkGCodeInput();
 	telnetGCode = new GCodeBuffer(GCodeChannel::Telnet, telnetInput, fileInput, TelnetMessage, Compatibility::Marlin);
 # else
@@ -111,7 +111,8 @@ GCodes::GCodes(Platform& p) noexcept :
 	codeQueue = new GCodeQueue();
 	queuedGCode = new GCodeBuffer(GCodeChannel::Queue, codeQueue, fileInput, GenericMessage);
 
-#if SUPPORT_12864_LCD || HAS_LINUX_INTERFACE
+#if SUPPORT_12864_LCD || (HAS_LINUX_INTERFACE && !defined(__LPC17xx__))
+asassa
 	lcdGCode = new GCodeBuffer(GCodeChannel::LCD, nullptr, fileInput, LcdMessage);
 #else
 	lcdGCode = nullptr;
@@ -126,7 +127,7 @@ GCodes::GCodes(Platform& p) noexcept :
 #if defined(SERIAL_AUX2_DEVICE)
 	StreamGCodeInput * const aux2Input = new StreamGCodeInput(SERIAL_AUX2_DEVICE);
 	aux2GCode = new GCodeBuffer(GCodeChannel::Aux2, aux2Input, fileInput, Aux2Message);
-#elif HAS_LINUX_INTERFACE
+#elif HAS_LINUX_INTERFACE && !defined(__LPC17xx__)
 	aux2GCode = new GCodeBuffer(GCodeChannel::Aux2, nullptr, fileInput, Aux2Message);
 #else
 	aux2GCode = nullptr;

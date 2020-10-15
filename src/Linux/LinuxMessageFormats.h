@@ -44,7 +44,7 @@ constexpr uint32_t SpiConnectionTimeout = 8000;		// maximum time to wait for the
 #ifndef __LPC17xx__
 constexpr uint16_t SpiCodeBufferSize = 4096;		// number of bytes available for G-code caching
 #else
-constexpr uint16_t SpiCodeBufferSize = 1024;        // number of bytes available for G-code caching
+constexpr uint16_t SpiCodeBufferSize = 2048;        // number of bytes available for G-code caching
 #endif
 
 // Shared structures
