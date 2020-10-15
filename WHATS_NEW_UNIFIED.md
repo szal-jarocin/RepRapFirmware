@@ -1,3 +1,13 @@
+Version 3.2-beta2_2
+===================
+* RRF v3.2-beta2 (See the RRF docs for details)
+* STM32 initial support for M2 expansion board.
+* STM32 incresed number of drivers/fans etc.
+* LPC increase number of motors per axis to 3.
+* LPC adjust memory usage to allow for new SBC interface.
+* Fix for SanDisk Sd card compatibility problem.
+
+
 New Unified LPC/STM32F4 version
 ==================================
 As of V3.2-beta1_2 both LPC and STM32F4 based boards are supported via mcu specific core components and a set of common sources. 
