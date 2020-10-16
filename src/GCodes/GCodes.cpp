@@ -112,7 +112,6 @@ GCodes::GCodes(Platform& p) noexcept :
 	queuedGCode = new GCodeBuffer(GCodeChannel::Queue, codeQueue, fileInput, GenericMessage);
 
 #if SUPPORT_12864_LCD || (HAS_LINUX_INTERFACE && !defined(__LPC17xx__))
-asassa
 	lcdGCode = new GCodeBuffer(GCodeChannel::LCD, nullptr, fileInput, LcdMessage);
 #else
 	lcdGCode = nullptr;
