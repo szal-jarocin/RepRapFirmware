@@ -110,12 +110,12 @@ constexpr PinEntry PinTable_BIQU_SKR_PRO_v1_1[] =
 };
 
 constexpr BoardDefaults biquskr_pro_1_1_Defaults = {
-	6,											// Number of drivers
-    {PF_2, PD_7,  PC_0, PC_3,  PA_3, PF_0},   	//enablePins
-    {PE_9, PE_11, PE_13, PE_14,  PD_15, PD_13},	//stepPins
-    {PF_1, PE_8, PC_2, PA_0,  PE_7, PG_9},    	//dirPins
+	8,											// Number of drivers
+    {PF_2, PD_7,  PC_0, PC_3,  PA_3, PF_0, PD_11, PG_7},   	//enablePins
+    {PE_9, PE_11, PE_13, PE_14,  PD_15, PD_13, PG_3, PG_2},	//stepPins
+    {PF_1, PE_8, PC_2, PA_0,  PE_7, PG_9, PD_10, PG_6},    	//dirPins
 #if TMC_SOFT_UART
-    {PC_13, PE_3, PE_1, PD_4, PD_1, PD_6},      //uartPins
+    {PC_13, PE_3, PE_1, PD_4, PD_1, PD_6, PF_11, PG_10},      //uartPins
     6,                                      	// Smart drivers
 #endif
     0                                       	//digiPot Factor

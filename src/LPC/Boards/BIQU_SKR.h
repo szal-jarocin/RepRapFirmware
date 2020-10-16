@@ -152,12 +152,12 @@ constexpr PinEntry PinTable_BIQU_SKR_v1_3[] =
 };
 
 constexpr BoardDefaults biquskr_1_3_Defaults = {
-    5,
-    {P2_1, P2_8,  P0_21, P2_12,  P0_10},    //enablePins
-    {P2_2, P0_19, P0_22, P2_13,  P0_1},     //stepPins
-    {P2_6, P0_20, P2_11, P0_11,  P0_0},     //dirPins
+    7,
+    {P2_1, P2_8,  P0_21, P2_12,  P0_10, P1_18, P1_23},    //enablePins
+    {P2_2, P0_19, P0_22, P2_13,  P0_1, P1_21, P1_20},     //stepPins
+    {P2_6, P0_20, P2_11, P0_11,  P0_0, P1_19, P1_22},     //dirPins
 #if TMC_SOFT_UART
-    {P1_17, P1_15, P1_10, P1_8, P1_1},      //uartPins
+    {P1_17, P1_15, P1_10, P1_8, P1_1, P3_25, P3_26},      //uartPins
     5,                                      // Smart drivers
 #endif
     0                                       //digiPot Factor
@@ -254,12 +254,12 @@ constexpr PinEntry PinTable_BIQU_SKR_v1_4[] =
 };
 
 constexpr BoardDefaults biquskr_1_4_Defaults = {
-    5,
-    {P2_1, P2_8,  P0_21, P2_12,  P1_16},    //enablePins
-    {P2_2, P0_19, P0_22, P2_13,  P1_15},    //stepPins
-    {P2_6, P0_20, P2_11, P0_11,  P1_14},    //dirPins
+    7,
+    {P2_1, P2_8,  P0_21, P2_12,  P1_16, P1_18, P1_23},    //enablePins
+    {P2_2, P0_19, P0_22, P2_13,  P1_15, P1_21, P1_20},    //stepPins
+    {P2_6, P0_20, P2_11, P0_11,  P1_14, P1_19, P1_22},    //dirPins
 #if TMC_SOFT_UART
-    {P1_10, P1_9, P1_8, P1_4, P1_1},        //uartPins
+    {P1_10, P1_9, P1_8, P1_4, P1_1, P3_25, P3_26},        //uartPins
     5,                                      // Smart drivers
 #endif
     0                                       //digiPot Factor

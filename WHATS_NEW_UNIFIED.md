@@ -5,6 +5,7 @@ Version 3.2-beta2_2
 * STM32 incresed number of drivers/fans etc.
 * LPC increase number of motors per axis to 3.
 * LPC adjust memory usage to allow for new SBC interface.
+* Initial support for driver expansion board (SKR 1.3/1.4/Pro)
 * Fix for SanDisk Sd card compatibility problem.
 
 
