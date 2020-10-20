@@ -1,7 +1,7 @@
 Version 3.2-beta2_2
 ===================
 * RRF v3.2-beta2 (See the RRF docs for details)
-* STM32 initial support for M2 expansion board.
+* STM32 initial support for M5 expansion board.
 * STM32 incresed number of drivers/fans etc.
 * LPC increase number of motors per axis to 3.
 * LPC adjust memory usage to allow for new SBC interface.
