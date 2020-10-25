@@ -40,14 +40,14 @@
 #include "Math/Isqrt.h"
 #include "Hardware/I2C.h"
 #include <Hardware/NonVolatileMemory.h>
-#ifdef __LPC17xx__
+#if __LPC17xx__
 # include "LPC/BoardConfig.h"
 # ifdef LPC_DEBUG
 #  include "SoftwarePWMTimer.h"
   extern int lateTimers;
 # endif
 # include <sd_mmc.h>
-#elif defined(STM32F4)
+#elif STM32F4
 # include "STM32/BoardConfig.h"
 # include <sd_mmc.h>
 # include "ResetCause.h"
@@ -164,7 +164,7 @@ int debugLine = 0;
 // Therefore, be very careful what you do here!
 extern "C" void UrgentInit()
 {
-#if defined(STM32F4)
+#if STM32F4
 	InitResetCause();
 #endif
 #if defined(DUET_NG)
@@ -261,7 +261,7 @@ constexpr ObjectModelTableEntry Platform::objectModelTable[] =
 # ifdef DUET_NG
 	{ "name",				OBJECT_MODEL_FUNC(self->GetBoardName()),															ObjectModelEntryFlags::none },
 	{ "shortName",			OBJECT_MODEL_FUNC(self->GetBoardShortName()),														ObjectModelEntryFlags::none },
-#elif defined(__LPC17xx__)
+#elif __LPC17xx__ || STM32F4
     { "name",               OBJECT_MODEL_FUNC_NOSELF(lpcBoardName),                                                             ObjectModelEntryFlags::none },
     { "shortName",          OBJECT_MODEL_FUNC_NOSELF(BOARD_SHORT_NAME),                                                         ObjectModelEntryFlags::none },
 # else
@@ -455,7 +455,7 @@ void Platform::Init() noexcept
 	usbMutex.Create("USB");
 #if SAME5x
     SERIAL_MAIN_DEVICE.Start();
-#elif defined(__LPC17xx__) || defined(STM32F4)
+#elif __LPC17xx__ || STM32F4
 	SERIAL_MAIN_DEVICE.begin(baudRates[0]);
 #else
     SERIAL_MAIN_DEVICE.Start(UsbVBusPin);
@@ -487,7 +487,7 @@ void Platform::Init() noexcept
 	MassStorage::Init();
 #endif
 
-#if defined(__LPC17xx__) || defined(STM32F4)
+#if __LPC17xx__ || STM32F4
 	// Load HW pin assignments from sdcard
 	BoardConfig::Init();
 	pinMode(ATX_POWER_PIN,(ATX_POWER_INVERTED==false)?OUTPUT_LOW:OUTPUT_HIGH);
@@ -539,7 +539,7 @@ void Platform::Init() noexcept
 	numSmartDrivers = MaxSmartDrivers;
 # elif defined(DUET3)
 	numSmartDrivers = MaxSmartDrivers;
-# elif defined(__LPC17xx__) || defined(STM32F4)
+# elif __LPC17xx__ || STM32F4
 	numSmartDrivers = lpcSmartDrivers;
 # elif defined(DUET3MINI)
 	numSmartDrivers = MaxSmartDrivers;							// support the expansion board, but don't mind if it's missing
@@ -580,7 +580,7 @@ void Platform::Init() noexcept
 	pinMode(SpiFLASHcsPin,OUTPUT_HIGH);														// Init Spi FLASH Cs pin, not implemented, default unselected
 #endif
 
-#if defined(__LPC17xx__)
+#if __LPC17xx__
 	if (hasDriverCurrentControl)
 	{
 		mcp4451.begin();
@@ -764,7 +764,7 @@ void Platform::Init() noexcept
 	// Enable the pullup resistor, with luck this will make it float high instead.
 #if SAM3XA
 	pinMode(APIN_SHARED_SPI_MISO, INPUT_PULLUP);
-#elif defined(__LPC17xx__) || SAME5x || defined(STM32F4)
+#elif __LPC17xx__ || SAME5x || STM32F4
 	// nothing to do here
 #else
 	pinMode(APIN_USART_SSPI_MISO, INPUT_PULLUP);
@@ -1579,7 +1579,7 @@ float Platform::GetCpuTemperature() const noexcept
 	return (voltage - 0.8) * (1000.0/2.65) + 27.0 + mcuTemperatureAdjust;			// accuracy at 27C is +/-45C
 # elif SAME70
 	return (voltage - 0.72) * (1000.0/2.33) + 25.0 + mcuTemperatureAdjust;			// accuracy at 25C is +/-34C
-# elif defined(STM32F4)
+# elif STM32F4
 	// Magic numbers are the location of STM32 calibration constants
 	return ((110.0f - 30.0f)/(((float)(*(uint16_t *)0x1FFF7A2E)) - ((float)(*(uint16_t *)0x1FFF7A2C)))) * ((voltage*((float)(1u << AdcBits))/3.3f) - ((float)(*(uint16_t *)0x1FFF7A2C))) + 30.0f; 
 # else
@@ -1595,9 +1595,9 @@ float Platform::GetCpuTemperature() const noexcept
 
 void Platform::InitialiseInterrupts() noexcept
 {
-#if SAM4E || SAME70 || SAME5x || defined(__LPC17xx__)
+#if SAM4E || SAME70 || SAME5x || __LPC17xx__
 	NVIC_SetPriority(WDT_IRQn, NvicPriorityWatchdog);			// set priority for watchdog interrupts
-#elif defined(STM32F4)
+#elif STM32F4
 	NVIC_SetPriority(WWDG_IRQn, NvicPriorityWatchdog);			// set priority for watchdog interrupts
 #endif
 
@@ -1610,7 +1610,7 @@ void Platform::InitialiseInterrupts() noexcept
 
 #if SUPPORT_TMC22xx && !SAME5x											// SAME5x uses a DMA interrupt instead of the UART interrupt
 # if TMC_SOFT_UART
-# if defined(STM32F4)
+# if definedSTM32F4
 	NVIC_SetPriority(DMA2_Stream5_IRQn, NvicPriorityDriversSerialTMC); // Software serial
 # endif
 # elif TMC22xx_HAS_MUX
@@ -1647,7 +1647,7 @@ void Platform::InitialiseInterrupts() noexcept
 #ifdef __LPC17xx__
 	// Interrupt for GPIO pins. Only port 0 and 2 support interrupts and both share EINT3
 	NVIC_SetPriority(EINT3_IRQn, NvicPriorityPins);
-#elif defined(STM32F4)
+#elif STM32F4
     NVIC_SetPriority(EXTI0_IRQn, NvicPriorityPins);
     NVIC_SetPriority(EXTI1_IRQn, NvicPriorityPins);
     NVIC_SetPriority(EXTI2_IRQn, NvicPriorityPins);
@@ -1679,9 +1679,9 @@ void Platform::InitialiseInterrupts() noexcept
 	NVIC_SetPriority(UDP_IRQn, NvicPriorityUSB);
 #elif SAM3XA
 	NVIC_SetPriority(UOTGHS_IRQn, NvicPriorityUSB);
-#elif defined(__LPC17xx__)
+#elif __LPC17xx__
 	NVIC_SetPriority(USB_IRQn, NvicPriorityUSB);
-#elif defined(STM32F4)
+#elif STM32F4
 	NVIC_SetPriority(OTG_FS_IRQn, NvicPriorityUSB);
 #else
 # error Unsupported processor
@@ -1704,16 +1704,16 @@ void Platform::InitialiseInterrupts() noexcept
 # endif
 #endif
 
-#if defined(__LPC17xx__)
+#if __LPC17xx__
 	// set rest of the Timer Interrupt priorities
 	// Timer 0 is used for step generation (set elsewhere)
 	// DMA and SPI priorites are defined in BoardConfig as they are needed for File I/O
 	NVIC_SetPriority(TIMER1_IRQn, 8);                       //Timer 1 is free
-	NVIC_SetPriority(TIMER2_IRQn, NvicPriorityTimerServo);  //Timer 2 runs the PWM for Servos at 50hz
+	NVIC_SetPriority(TIMER2_IRQn, 8);  						//Timer 2 is free
 	NVIC_SetPriority(TIMER3_IRQn, 8);                       //Timer 3 is optionally used for TMC22XX UART emulation. This is DMA based and does not use the timer interrupt.
-	NVIC_SetPriority(RITIMER_IRQn, 8); 						//RIT is free
+	NVIC_SetPriority(RITIMER_IRQn, NvicPriorityTimerPWM);	//RIT runs software PWM
 	NVIC_SetPriority(ADC_IRQn, NvicPriorityADC);            //ADC interrupt priority when using burst with pre-filtering
-    NVIC_SetPriority(PWM1_IRQn, NvicPriorityTimerPWM);  	//HWPWM running in timer mode runs Software PWM
+    NVIC_SetPriority(PWM1_IRQn, NvicPriorityTimerServo);  	//HWPWM provides HW servo if possible, does not use interrupts
 
 #endif
 
@@ -1766,7 +1766,7 @@ void Platform::Diagnostics(MessageType mtype) noexcept
 		resetString.cat('\n');
 		Message(mtype, resetString.c_str());
 	}
-#elif !defined(__LPC17xx__) && !defined(STM32F4)
+#elif !__LPC17xx__ && !STM32F4
 	const char* resetReasons[8] = { "power up", "backup", "watchdog", "software",
 # ifdef DUET_NG
 	// On the SAM4E a watchdog reset may be reported as a user reset because of the capacitor on the NRST pin.
@@ -1780,12 +1780,12 @@ void Platform::Diagnostics(MessageType mtype) noexcept
 			(unsigned int)(now/3600), (unsigned int)((now % 3600)/60), (unsigned int)(now % 60),
 			resetReasons[(REG_RSTC_SR & RSTC_SR_RSTTYP_Msk) >> RSTC_SR_RSTTYP_Pos]);
 #endif
-#if defined(__LPC17xx__) || defined(STM32F4)
+#if __LPC17xx__ || STM32F4
 		// Reset Reason
 	MessageF(mtype, "Last reset %02d:%02d:%02d ago, cause: ",
 				 (unsigned int)(now/3600), (unsigned int)((now % 3600)/60), (unsigned int)(now % 60));
 
-# if defined(__LPC17xx__)
+# if __LPC17xx__
 	if (LPC_SYSCTL->RSID & RSID_POR) { MessageF(mtype, "[power up]"); }
 	if (LPC_SYSCTL->RSID & RSID_EXTR) { MessageF(mtype, "[reset button]"); }
 	if (LPC_SYSCTL->RSID & RSID_WDTR) { MessageF(mtype, "[watchdog]"); }
@@ -2817,7 +2817,7 @@ void Platform::UpdateMotorCurrent(size_t driver, float current) noexcept
 		{
 			dacPiggy.setChannel(7-driver, current * 0.102);
 		}
-#elif defined(__LPC17xx__)
+#elif __LPC17xx__
 		if (hasDriverCurrentControl)
 		{
 			//Has digipots to set current control for drivers
@@ -2920,7 +2920,7 @@ bool Platform::SetDriverMicrostepping(size_t driver, unsigned int microsteps, in
 		}
 #elif defined(__ALLIGATOR__)
 		return Microstepping::Set(driver, microsteps); // no mode in Alligator board
-#elif defined(__LPC17xx__)
+#elif __LPC17xx__
 		return Microstepping::Set(driver, microsteps);
 #else
 		// Assume only x16 microstepping supported
@@ -3660,7 +3660,7 @@ void Platform::ResetChannel(size_t chan) noexcept
 		SERIAL_MAIN_DEVICE.end();
 #if SAME5x
         SERIAL_MAIN_DEVICE.Start();
-#elif defined(__LPC17xx__) || defined(STM32F4)
+#elif __LPC17xx__ || STM32F4
 		SERIAL_MAIN_DEVICE.begin(baudRates[0]);
 #else
         SERIAL_MAIN_DEVICE.Start(UsbVBusPin);
@@ -4615,7 +4615,7 @@ void Platform::Tick() noexcept
 	case 3:
 		{
 #if !SAME70
-#ifdef __LPC17xx__
+#if __LPC17xx__ || STM32F4
 			if(filteredAdcChannels[currentFilterNumber] != NO_ADC)
 			{
 #endif
@@ -4623,7 +4623,7 @@ void Platform::Tick() noexcept
 			// Because we are in the tick ISR and no other ISR reads the averaging filter, we can cast away 'volatile' here.
 			ThermistorAveragingFilter& currentFilter = const_cast<ThermistorAveragingFilter&>(adcFilters[currentFilterNumber]);		// cast away 'volatile'
 			currentFilter.ProcessReading(AnalogInReadChannel(filteredAdcChannels[currentFilterNumber]));
-#ifdef __LPC17xx__
+#if __LPC17xx__ || STM32F4
 			}
 #endif
 			++currentFilterNumber;
