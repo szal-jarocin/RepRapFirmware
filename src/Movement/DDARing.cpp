@@ -362,7 +362,7 @@ void DDARing::Interrupt(Platform& p) noexcept
 			}
 
 			// The next step is due immediately. Check whether we have been in this ISR for too long already and need to take a break
-			const uint32_t now = StepTimer::GetTimerTicks();
+			uint32_t now = StepTimer::GetTimerTicks();
 			const uint16_t clocksTaken = now - isrStartTime;
 			if (clocksTaken >= DDA::MaxStepInterruptTime)
 			{
@@ -386,6 +386,8 @@ void DDARing::Interrupt(Platform& p) noexcept
 #endif
 						return;
 					}
+					// The move was still scheduled too soon, even with the hiccup. Update the current time and try again.
+					now = StepTimer::GetTimerTicks();
 				}
 			}
 		}
