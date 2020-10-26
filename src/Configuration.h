@@ -166,7 +166,7 @@ constexpr size_t MaxCalibrationPoints = 32;				// Should a power of 2 for speed
 #elif __LPC17xx__
 constexpr size_t MaxGridProbePoints = 121;    			// 121 allows us to probe 200x200 at 20mm intervals
 constexpr size_t MaxXGridPoints = 21;         			// Maximum number of grid points in one X row
-constexpr size_t MaxProbePoints = 32;       			// Maximum number of G30 probe points
+constexpr size_t MaxProbePoints = 16;       			// Maximum number of G30 probe points
 constexpr size_t MaxCalibrationPoints = 16; 			// Should a power of 2 for speed
 #else
 # error
