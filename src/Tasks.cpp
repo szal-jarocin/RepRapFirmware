@@ -211,7 +211,7 @@ extern "C" [[noreturn]] void MainTask(void *pvParameters) noexcept
 	}
 }
 
-#ifdef __LPC17xx__
+#if __LPC17xx__
 	extern "C" size_t xPortGetTotalHeapSize( void );
 #endif
 
@@ -259,7 +259,7 @@ void Tasks::Diagnostics(MessageType mtype) noexcept
 #endif
 		p.MessageF(mtype, "Static ram: %d\n", &_end - ramstart);
 
-#ifdef __LPC17xx__
+#if __LPC17xx__
 		p.MessageF(mtype, "Dynamic Memory (RTOS Heap 5): %d free, %d never used\n", xPortGetFreeHeapSize(), xPortGetMinimumEverFreeHeapSize() );
 #else
 		const struct mallinfo mi = mallinfo();

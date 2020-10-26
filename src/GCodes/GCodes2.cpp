@@ -17,7 +17,7 @@
 # include "Linux/LinuxInterface.h"
 #endif
 #include "Movement/Move.h"
-#ifdef __LPC17xx__
+#if __LPC17xx__
 # include "Network.h"
 #else
 # include "Networking/Network.h"

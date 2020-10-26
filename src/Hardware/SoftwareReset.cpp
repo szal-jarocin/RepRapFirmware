@@ -11,11 +11,7 @@
 #include <Platform.h>
 
 extern uint32_t _estack;			// defined in the linker script
-#ifdef __LPC17xx__
-extern uint32_t __data_start__;
-extern uint8_t __AHB0_block_start;
-extern uint8_t __AHB0_end;
-#endif
+
 // The following must be kept in line with enum class SoftwareResetReason
 const char *const SoftwareResetData::ReasonText[] =
 {
