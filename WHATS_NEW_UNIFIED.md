@@ -1,3 +1,18 @@
+Version 3.2-beta2_4
+===================
+* LPC reduce number of probe points (to 16) to avoid firmware reset
+* LPC Increased exception handler stack size (to avoid resets)
+* LPC fix PWM interrupt priority
+* TMC22xx detect and ignore missing drivers
+* TMC22xx fix problem where settings are sometimes lost at startup
+* TMC22xx change default operating mode to stealthchop to match Duet and doc
+* Fix for watchdog timeout when creating a hiccup step
+* Set inital ATX power state with atx.initialPowerOn (default is true).
+* Enable/Disable TMC drivers based on ATX power (via M80/M81)
+
+
+
+
 Version 3.2-beta2_2
 ===================
 * RRF v3.2-beta2 (See the RRF docs for details)
