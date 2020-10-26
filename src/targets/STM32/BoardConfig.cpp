@@ -57,6 +57,7 @@ static const boardConfigEntry_t boardConfigs[]=
     //ATX Power
     {"atx.powerPin", &ATX_POWER_PIN, nullptr, cvPinType},
     {"atx.powerPinInverted", &ATX_POWER_INVERTED, nullptr, cvBoolType},
+    {"atx.initialPowerOn", &ATX_INITIAL_POWER_ON, nullptr, cvBoolType},
 
     //SDCards
     {"sdCard.internal.spiFrequencyHz", &InternalSDCardFrequency, nullptr, cvUint32Type},
@@ -164,7 +165,6 @@ void BoardConfig::Init() noexcept
     // Using DMA2 for both TMC UART and the SD card causes corruption problems (see STM errata) so for now we use
     // polled I/O for the disk.
     SPI::getSSPDevice(SSP1)->initPins(PA_5, PA_6, PB_5, PA_4);
-    //SPI::getSSPDevice(SSP1)->initPins(PA_5, PA_6, PA_7, PA_4);
     //SPI::getSSPDevice(SSP1)->initPins(PA_5, PA_6, PB_5, PA_4, DMA2_Stream2, DMA_CHANNEL_3, DMA2_Stream2_IRQn, DMA2_Stream3, DMA_CHANNEL_3, DMA2_Stream3_IRQn);
     //FIXME need to sort out int priorities
     //NVIC_SetPriority(DMA_IRQn, NvicPriorityDMA);
@@ -172,7 +172,9 @@ void BoardConfig::Init() noexcept
     NVIC_SetPriority(DMA2_Stream3_IRQn, NvicPrioritySpi);
     NVIC_SetPriority(DMA1_Stream3_IRQn, NvicPrioritySpi);
     NVIC_SetPriority(DMA1_Stream4_IRQn, NvicPrioritySpi);
-    delay(10000);
+#if STARTUP_DELAY
+    delay(STARTUP_DELAY);
+#endif
     ClearPinArrays();
 #if !HAS_MASS_STORAGE
     sd_mmc_init(SdWriteProtectPins, SdSpiCSPins);
@@ -326,9 +328,9 @@ void BoardConfig::Init() noexcept
         // Set ADC output resolution
         analogReadResolution(12);
         AnalogInInit();
-        //Configure ADC pre filter
-        //FIXME will we have one of these
-        //ConfigureADCPreFilter(ADCEnablePreFilter);
+        // Configure ATX power control
+        if (ATX_POWER_PIN != NoPin)
+            pinMode(ATX_POWER_PIN, (ATX_INITIAL_POWER_ON ^ ATX_POWER_INVERTED ? OUTPUT_HIGH : OUTPUT_LOW));
     }
 }
 

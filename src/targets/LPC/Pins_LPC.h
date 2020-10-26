@@ -55,6 +55,7 @@
 
 #define SUPPORT_FTP                      0
 
+#define HAS_ATX_POWER_MONITOR            1
 
 #define ALLOCATE_DEFAULT_PORTS           0
 
@@ -202,15 +203,11 @@ extern SSPChannel TempSensorSSPChannel;
     extern Pin SbcTfrReadyPin;
 #endif
 
-//Hardware LPC Timers
-//Timer 0 is used for the Step Generation
-//Timer 1 is unused
-//Timer 2 is fixed at 50Hz for servos
-//Timer 3 is software pwm
-
-
+// Power control
 extern Pin ATX_POWER_PIN;// Digital pin number that controls the ATX power on/off
 extern bool ATX_POWER_INVERTED;
+extern bool ATX_INITIAL_POWER_ON;
+extern bool ATX_POWER_STATE;
 
 //SD: Internal SDCard is on SSP1
 //    MOSI, MISO, SCLK, CS
@@ -256,7 +253,6 @@ extern Pin SSP0Pins[];         //GPIO pins for SSP0 (used with SharedSPI)
 #define SERIAL_WIFI_DEVICE  UART_Slot1
 //#define SERIAL_AUX2_DEVICE  UART_Slot2
 
-//constexpr size_t NUM_SERIAL_CHANNELS = 2; // USB + AUX
 constexpr size_t NumSerialChannels = 2;				// The number of serial IO channels (USB + AUX)
 constexpr size_t NumberSerialPins = 2;
 extern Pin AuxSerialRxTxPins[NumberSerialPins];

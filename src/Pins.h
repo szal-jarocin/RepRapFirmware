@@ -112,6 +112,10 @@
 # define ENFORCE_MIN_V12		0
 #endif
 
+#ifndef HAS_ATX_POWER_MONITOR
+# define HAS_ATX_POWER_MONITOR  0
+#endif
+
 #if !HAS_VOLTAGE_MONITOR
 # define ENFORCE_MAX_VIN		0
 #endif

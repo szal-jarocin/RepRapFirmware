@@ -54,6 +54,7 @@
 
 #define SUPPORT_FTP                      0
 
+#define HAS_ATX_POWER_MONITOR            1
 
 #define ALLOCATE_DEFAULT_PORTS           0
 
@@ -201,19 +202,11 @@ extern SSPChannel TempSensorSSPChannel;
     extern Pin SbcTfrReadyPin;
 #endif
 
-//Hardware Timers
-
-
+// Power control
 extern Pin ATX_POWER_PIN;// Digital pin number that controls the ATX power on/off
 extern bool ATX_POWER_INVERTED;
-
-//SD: Internal SDCard is on SSP1
-//    MOSI, MISO, SCLK, CS
-//    P0_9, P0_8, P0_7, P0_6
-
-//SD:: 2nd SDCard can be connected to SSP0
-//    MOSI, MISO, SCLK
-//    P0_18 P0_17 P0_15
+extern bool ATX_INITIAL_POWER_ON;
+extern bool ATX_POWER_STATE;
 
 // SD cards
 constexpr size_t NumSdCards = _DRIVES; //_DRIVES is defined in CoreLPC (and used by FatFS) allow one internal and one external
@@ -251,7 +244,6 @@ extern Pin SSP0Pins[];         //GPIO pins for SSP0 (used with SharedSPI)
 #define SERIAL_WIFI_DEVICE  UART_Slot1
 //#define SERIAL_AUX2_DEVICE  UART_Slot2
 
-//constexpr size_t NUM_SERIAL_CHANNELS = 2; // USB + AUX
 constexpr size_t NumSerialChannels = 2;				// The number of serial IO channels (USB + AUX)
 constexpr size_t NumberSerialPins = 2;
 extern Pin AuxSerialRxTxPins[NumberSerialPins];

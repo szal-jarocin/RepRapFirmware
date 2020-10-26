@@ -490,10 +490,8 @@ void Platform::Init() noexcept
 #if __LPC17xx__ || STM32F4
 	// Load HW pin assignments from sdcard
 	BoardConfig::Init();
-	pinMode(ATX_POWER_PIN,(ATX_POWER_INVERTED==false)?OUTPUT_LOW:OUTPUT_HIGH);
 #if HAS_NETWORKING
 	// Set default Mac address
-	debugPrintf("Setting Mac address\n");
 	defaultMacAddress.SetDefault();
 #endif
 #else
@@ -852,6 +850,12 @@ void Platform::Init() noexcept
 	numV12UnderVoltageEvents = previousV12UnderVoltageEvents = 0;
 #endif
 
+#if __LPC17xx__ || STM32F4
+	if (ATX_INITIAL_POWER_ON)
+		AtxPowerOn();
+	else
+		AtxPowerOff(false);
+#endif
 	// Kick everything off
 	InitialiseInterrupts();
 
@@ -1150,6 +1154,15 @@ void Platform::Spin() noexcept
 		}
 		else
 #endif
+
+#if HAS_ATX_POWER_MONITOR
+		if (!AtxPower())
+		{
+			driversPowered = false;
+			reprap.GetGCodes().SetAllAxesNotHomed();
+		}
+		else
+#endif
 		{
 #if HAS_SMART_DRIVERS
 			// Check one TMC2660 or TMC2224 for temperature warning or temperature shutdown
@@ -1282,6 +1295,8 @@ void Platform::Spin() noexcept
 			)
 #elif HAS_12V_MONITOR
 	else if (currentV12 >= driverV12OnAdcReading)
+#elif HAS_ATX_POWER_MONITOR
+	else if (AtxPower())
 #else
 	else
 #endif
@@ -1644,7 +1659,7 @@ void Platform::InitialiseInterrupts() noexcept
 	NVIC_SetPriority(XDMAC_IRQn, NvicPriorityDMA);
 #endif
 
-#ifdef __LPC17xx__
+#if __LPC17xx__
 	// Interrupt for GPIO pins. Only port 0 and 2 support interrupts and both share EINT3
 	NVIC_SetPriority(EINT3_IRQn, NvicPriorityPins);
 #elif STM32F4
@@ -3492,21 +3507,21 @@ void Platform::StopLogging() noexcept
 
 bool Platform::AtxPower() const noexcept
 {
-#ifdef __LPC17xx__
-	const bool val = IoPort::ReadPin(ATX_POWER_PIN);
-	return (ATX_POWER_INVERTED) ? !val : val;
+#if __LPC17xx__ || STM32F4
+	return ATX_POWER_STATE;
 #else
-    return IoPort::ReadPin(ATX_POWER_PIN);
+	return IoPort::ReadPin(ATX_POWER_PIN);
 #endif
 }
 
 void Platform::AtxPowerOn() noexcept
 {
 	deferredPowerDown = false;
-#ifdef __LPC17xx__
-    IoPort::WriteDigital(ATX_POWER_PIN, (ATX_POWER_INVERTED==false)?true:false);
+#if __LPC17xx__ || STM32F4
+	IoPort::WriteDigital(ATX_POWER_PIN, !ATX_POWER_INVERTED);
+	ATX_POWER_STATE = true;
 #else
-    IoPort::WriteDigital(ATX_POWER_PIN, true);
+	IoPort::WriteDigital(ATX_POWER_PIN, true);
 #endif
 }
 
@@ -3523,8 +3538,9 @@ void Platform::AtxPowerOff(bool defer) noexcept
 			// We don't call logger->Stop() here because we don't know whether turning off the power will work
 		}
 #endif
-#ifdef __LPC17xx__
+#if __LPC17xx__ || STM32F4
 		IoPort::WriteDigital(ATX_POWER_PIN, ATX_POWER_INVERTED);
+		ATX_POWER_STATE = false;
 #else
 		IoPort::WriteDigital(ATX_POWER_PIN, false);
 #endif

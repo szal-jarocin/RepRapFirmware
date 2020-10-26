@@ -57,6 +57,7 @@ static const boardConfigEntry_t boardConfigs[]=
     //ATX Power
     {"atx.powerPin", &ATX_POWER_PIN, nullptr, cvPinType},
     {"atx.powerPinInverted", &ATX_POWER_INVERTED, nullptr, cvBoolType},
+    {"atx.initialPowerOn", &ATX_INITIAL_POWER_ON, nullptr, cvBoolType},
 
     //SDCards
     {"sdCard.internal.spiFrequencyHz", &InternalSDCardFrequency, nullptr, cvUint32Type},
@@ -153,7 +154,9 @@ void BoardConfig::Init() noexcept
     NVIC_SetPriority(DMA_IRQn, NvicPriorityDMA);
     NVIC_SetPriority(SSP0_IRQn, NvicPrioritySpi);
     NVIC_SetPriority(SSP1_IRQn, NvicPrioritySpi);
-    delay(10000);
+#if STARTUP_DELAY
+    delay(STARTUP_DELAY);
+#endif
     ClearPinArrays();
 #if !HAS_MASS_STORAGE
     sd_mmc_init(SdWriteProtectPins, SdSpiCSPins);
@@ -300,7 +303,11 @@ void BoardConfig::Init() noexcept
 
         //Init Diagnostcs Pin
         pinMode(DiagPin, OUTPUT_LOW);
-        
+
+        // Configure ATX power control
+        if (ATX_POWER_PIN != NoPin)
+            pinMode(ATX_POWER_PIN, (ATX_INITIAL_POWER_ON ^ ATX_POWER_INVERTED ? OUTPUT_HIGH : OUTPUT_LOW));
+    
         //Configure ADC pre filter
         ConfigureADCPreFilter(ADCEnablePreFilter);
     }

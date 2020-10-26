@@ -505,12 +505,15 @@ void RepRap::Init() noexcept
 
 	active = true;										// must do this before we start the network or call Spin(), else the watchdog may time out
 #if (__LPC17xx__ || STM32F4) && HAS_SMART_DRIVERS
-	// ensure smart drivers are up and running
-	platform->MessageF(UsbMessage, "Checking drivers...\n");
-	do
+	if (platform->AtxPower())
 	{
-		Spin();
-	} while (!SmartDrivers::IsReady());
+		// ensure smart drivers are up and running
+		platform->MessageF(UsbMessage, "Checking drivers...\n");
+		do
+		{
+			SmartDrivers::Spin(true);
+		} while (!SmartDrivers::IsReady());
+	}
 #endif
 
 #if HAS_LINUX_INTERFACE && !HAS_MASS_STORAGE

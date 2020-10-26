@@ -12,8 +12,10 @@ Pin TEMP_SENSE_PINS[NumThermistorInputs];
 Pin SpiTempSensorCsPins[MaxSpiTempSensors] = { NoPin, NoPin };
 SSPChannel TempSensorSSPChannel = SSP1;   //default SPI Temp sensor on SSP1
 
-Pin ATX_POWER_PIN = NoPin;
-bool ATX_POWER_INVERTED = false;
+Pin ATX_POWER_PIN = NoPin;                  // Pin to use to control external power
+bool ATX_POWER_INVERTED = false;            // Should the state of this pin be inverted
+bool ATX_INITIAL_POWER_ON = true;           // Should external power be on/off at startup
+bool ATX_POWER_STATE = true;                // We may not have an actual pin so use this to track state
 
 //SDCard pins and settings
 Pin SdCardDetectPins[NumSdCards] = { NoPin, NoPin };
