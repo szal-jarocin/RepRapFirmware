@@ -422,7 +422,6 @@ void Move::Diagnostics(MessageType mtype) noexcept
 						DriveMovement::NumFree(), DriveMovement::MinFree(), longestGcodeWaitInterval);
 	longestGcodeWaitInterval = 0;
 	DriveMovement::ResetMinFree();
-
 #if defined(__ALLIGATOR__)
 	// Motor Fault Diagnostic
 	reprap.GetPlatform().MessageF(mtype, "Motor Fault status: %s\n", digitalRead(MotorFaultDetectPin) ? "none" : "FAULT detected!" );

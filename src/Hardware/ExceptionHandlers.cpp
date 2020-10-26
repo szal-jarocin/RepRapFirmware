@@ -16,7 +16,7 @@ void SoftwareReset(uint16_t reason, const uint32_t *stk) noexcept
 {
 	cpu_irq_disable();							// disable interrupts before we call any flash functions. We don't enable them again.
 	WatchdogReset();							// kick the watchdog
-#if defined(STM32F4)
+#if STM32F4
 	watchdogDisable();
 #endif
 #if SAM4E || SAME70
@@ -66,9 +66,9 @@ void SoftwareReset(uint16_t reason, const uint32_t *stk) noexcept
         mem.EnsureWritten();
 	}
 
-#if defined(__LPC17xx__)
+#if __LPC17xx__
     LPC_SYSCTL->RSID = 0x3F;					// Clear bits in reset reasons stored in RSID
-#elif defined(STM32F4)
+#elif STM32F4
 	// FIXME add any STM specific code here
 #elif !SAME5x
 	RSTC->RSTC_MR = RSTC_MR_KEY_PASSWD;			// ignore any signal on the NRST pin for now so that the reset reason will show as Software
@@ -134,12 +134,12 @@ extern "C" [[noreturn]] void wdtFaultDispatcher(const uint32_t *pulFaultStackAdd
 }
 
 
-#ifdef __LPC17xx__
+#if __LPC17xx__
 extern "C" [[noreturn]] void WDT_IRQHandler() noexcept __attribute__((naked));
 void WDT_IRQHandler() noexcept
 {
 	LPC_WWDT->MOD &=~((uint32_t)(1<<2)); //SD::clear timout flag before resetting to prevent the Smoothie bootloader going into DFU mode
-#elif defined(STM32F4)
+#elif STM32F4
 extern "C" [[noreturn]] void WWDG_IRQHandler() noexcept __attribute__((naked));
 void WWDG_IRQHandler() noexcept
 {
@@ -235,7 +235,7 @@ void vAssertCalled(uint32_t line, const char *file) noexcept
 	);
 }
 
-#ifdef __LPC17xx__
+#if __LPC17xx__
 extern "C" [[noreturn]] void applicationMallocFailedCalledDispatcher(const uint32_t *pulFaultStackAddress) noexcept
 {
 	SoftwareReset((uint16_t)SoftwareResetReason::assertCalled, pulFaultStackAddress);

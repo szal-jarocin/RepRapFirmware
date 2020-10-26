@@ -32,7 +32,7 @@
 constexpr IRQn SBC_SPI_IRQn = SbcSpiSercomIRQn;
 #define USE_32BIT_TRANSFERS		1
 
-#elif defined(__LPC17xx__) || defined(STM32F4)
+#elif __LPC17xx__ || STM32F4
 # define USE_DMAC           0
 # define USE_XDMAC          0
 #else
@@ -65,7 +65,7 @@ constexpr IRQn SBC_SPI_IRQn = SbcSpiSercomIRQn;
 #include <General/IP4String.h>
 static TaskHandle linuxTaskHandle = nullptr;
 
-#if !defined(__LPC17xx__) && !defined(STM32F4)
+#if !__LPC17xx__ && !STM32F4
 
 #if USE_DMAC
 
@@ -385,9 +385,9 @@ extern "C" void SBC_SPI_HANDLER() noexcept
 }
 
 #else
-#if defined(__LPC17xx__)
+#if __LPC17xx__
 # include "LPC/Linux/DataTransfer.hpp"
-#elif defined(STM32F4)
+#elif STM32F4
 # include "STM32/Linux/DataTransfer.hpp"
 #endif
 #endif
@@ -435,7 +435,7 @@ void DataTransfer::Init() noexcept
 	txBuffer = (char *)new uint32_t[(LinuxTransferBufferSize + 3)/4];
 #endif
 
-#if defined(__LPC17xx__) || defined(STM32F4)
+#if __LPC17xx__ || STM32F4
     InitSpi();
 #elif SAME5x
 	// Initialize SPI
@@ -735,7 +735,7 @@ bool DataTransfer::IsReady() noexcept
 {
 	if (dataReceived)
 	{
-#if !defined(__LPC17xx__) && !defined(STM32F4)
+#if !__LPC17xx__ && !STM32F4
 #if SAME5x
 		if (!digitalRead(SbcSSPin))			// transfer is complete if SS is high
 		{
@@ -1424,7 +1424,7 @@ uint16_t DataTransfer::CRC16(const char *buffer, size_t length) const noexcept
 }
 
 
-#if defined(__LPC17xx__) || defined(STM32F4)
+#if __LPC17xx__ || STM32F4
 
 // Additional methods to emulate the Duet3 IAP. This allows us to
 // use the standard firmware update routines from the DSF for updating

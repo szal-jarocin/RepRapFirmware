@@ -806,8 +806,8 @@ bool GCodeBuffer::RequestMacroFile(const char *filename, bool fromCode) noexcept
 		// Don't wait for a macro file if no SBC is connected
 		return false;
 	}
-#if (defined(__LPC17xx__) || defined(STM32F4)) && HAS_LINUX_INTERFACE 
-	// Horrible work around for problems with SBC interface. Basically we wait a short while to allow
+#if (__LPC17xx__ || STM32F4) && HAS_LINUX_INTERFACE 
+	// FIXME Horrible work around for problems with SBC interface. Basically we wait a short while to allow
 	// the SBC to send us any buffered gcode so we can discard it before starting the macro!
 	// don't do this on daemon channel as it goes off all of the time and is usually empty!
 	if (codeChannel.ToBaseType() != GCodeChannel::Daemon)

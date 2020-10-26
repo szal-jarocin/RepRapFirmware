@@ -153,7 +153,7 @@ constexpr unsigned int MaxBlockIndent = 10;				// maximum indentation of GCode. 
 //     Using single-precision maths and up to 9-factor calibration: (9 + 5) * 4 bytes per point
 //     Using double-precision maths and up to 9-factor calibration: (9 + 5) * 8 bytes per point
 //   So 32 points using double precision arithmetic need 3584 bytes of stack space.
-#if SAM4E || SAM4S || SAME70 || SAME5x || defined(STM32F4)
+#if SAM4E || SAM4S || SAME70 || SAME5x || STM32F4
 constexpr size_t MaxGridProbePoints = 441;				// 441 allows us to probe e.g. 400x400 at 20mm intervals
 constexpr size_t MaxXGridPoints = 41;					// Maximum number of grid points in one X row
 constexpr size_t MaxProbePoints = 32;					// Maximum number of G30 probe points
@@ -163,7 +163,7 @@ constexpr size_t MaxGridProbePoints = 121;				// 121 allows us to probe 200x200 
 constexpr size_t MaxXGridPoints = 21;					// Maximum number of grid points in one X row
 constexpr size_t MaxProbePoints = 32;					// Maximum number of G30 probe points
 constexpr size_t MaxCalibrationPoints = 32;				// Should a power of 2 for speed
-#elif defined(__LPC17xx__)
+#elif __LPC17xx__
 constexpr size_t MaxGridProbePoints = 121;    			// 121 allows us to probe 200x200 at 20mm intervals
 constexpr size_t MaxXGridPoints = 21;         			// Maximum number of grid points in one X row
 constexpr size_t MaxProbePoints = 32;       			// Maximum number of G30 probe points
@@ -243,7 +243,7 @@ constexpr size_t SHORT_GCODE_LENGTH = 64;
 // When using RTOS, it is best if it is possible to fit an HTTP response header in a single buffer. Our headers are currently about 230 bytes long.
 // A note on reserved buffers: the worst case is when a GCode with a long response is processed. After string the response, there must be enough buffer space
 // for the HTTP responder to return a status response. Otherwise DWC never gets to know that it needs to make a rr_reply call and the system deadlocks.
-#if SAME70 || SAME5x || defined(STM32F4)
+#if SAME70 || SAME5x || STM32F4
 constexpr size_t OUTPUT_BUFFER_SIZE = 256;				// How many bytes does each OutputBuffer hold?
 constexpr size_t OUTPUT_BUFFER_COUNT = 40;				// How many OutputBuffer instances do we have?
 constexpr size_t RESERVED_OUTPUT_BUFFERS = 4;			// Number of reserved output buffers after long responses, enough to hold a status response
@@ -255,7 +255,7 @@ constexpr size_t RESERVED_OUTPUT_BUFFERS = 4;			// Number of reserved output buf
 constexpr size_t OUTPUT_BUFFER_SIZE = 256;				// How many bytes does each OutputBuffer hold?
 constexpr size_t OUTPUT_BUFFER_COUNT = 16;				// How many OutputBuffer instances do we have?
 constexpr size_t RESERVED_OUTPUT_BUFFERS = 2;			// Number of reserved output buffers after long responses
-#elif defined(__LPC17xx__)
+#elif __LPC17xx__
 constexpr uint16_t OUTPUT_BUFFER_SIZE = 256;            // How many bytes does each OutputBuffer hold?
 constexpr size_t OUTPUT_BUFFER_COUNT = 16;              // How many OutputBuffer instances do we have?
 constexpr size_t RESERVED_OUTPUT_BUFFERS = 2;           // Number of reserved output buffers after long responses. Must be enough for an HTTP header
@@ -316,7 +316,7 @@ constexpr uint32_t I2cClockFreq = 100000;				// clock frequency in Hz. 100kHz is
 constexpr size_t MaxI2cBytes = 32;						// max bytes in M260 or M261 command
 
 // File handling
-#if defined(__LPC17xx__)
+#if __LPC17xx__
 # if defined (ESP_NETWORKING)
 constexpr size_t MAX_FILES = 10;						// Must be large enough to handle the max number of concurrent web requests + file being printed + macros being executed + log file
 # else

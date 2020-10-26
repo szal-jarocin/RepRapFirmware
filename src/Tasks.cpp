@@ -37,7 +37,7 @@ extern uint32_t _firmware_crc;			// defined in linker script
 // The timer and idle tasks currently never do I/O, so they can be much smaller.
 #if SAME70
 constexpr unsigned int MainTaskStackWords = 1800;			// on the SAME70 we use matrices of doubles
-#elif defined(__LPC17xx__)
+#elif __LPC17xx__
 constexpr unsigned int MainTaskStackWords = 1110-(16*9);	// LPC builds only support 16 calibration points, so less space needed
 #else
 constexpr unsigned int MainTaskStackWords = 1110;			// on other processors we use matrixes of floats
@@ -165,7 +165,7 @@ extern "C" [[noreturn]] void AppMain() noexcept
 	// We could also trap unaligned memory access, if we change the gcc options to not generate code that uses unaligned memory access.
 	SCB->CCR |= SCB_CCR_DIV_0_TRP_Msk;
 
-#if !defined(__LPC17xx__) && !SAME5x && !defined(STM32F4)
+#if !__LPC17xx__ && !SAME5x && !STM32F4
 	// When doing a software reset, we disable the NRST input (User reset) to prevent the negative-going pulse that gets generated on it being held
 	// in the capacitor and changing the reset reason from Software to User. So enable it again here. We hope that the reset signal will have gone away by now.
 # ifndef RSTC_MR_KEY_PASSWD
@@ -250,9 +250,9 @@ void Tasks::Diagnostics(MessageType mtype) noexcept
 			(char *) 0x20000000;
 #elif SAM3XA
 			(char *) 0x20070000;
-#elif defined(__LPC17xx__)
+#elif __LPC17xx__
 			(char *) 0x10000000;
-#elif defined(STM32F4)
+#elif STM32F4
 			(char *)  0x20000000;
 #else
 # error Unsupported processor

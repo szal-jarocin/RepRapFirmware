@@ -81,7 +81,7 @@ GCodes::GCodes(Platform& p) noexcept :
 # else
 	httpGCode = nullptr;
 # endif // SUPPORT_HTTP || HAS_LINUX_INTERFACE
-# if SUPPORT_TELNET || (HAS_LINUX_INTERFACE && !defined(__LPC17xx__))
+# if SUPPORT_TELNET || (HAS_LINUX_INTERFACE && !__LPC17xx__)
 	telnetInput = new NetworkGCodeInput();
 	telnetGCode = new GCodeBuffer(GCodeChannel::Telnet, telnetInput, fileInput, TelnetMessage, Compatibility::Marlin);
 # else
@@ -188,7 +188,7 @@ void GCodes::Init() noexcept
 	DotStarLed::Init();
 #endif
 
-#if HAS_AUX_DEVICES && !defined(__LPC17xx__) && !defined(STM32F4)
+#if HAS_AUX_DEVICES && !__LPC17xx__ && !STM32F4
 	// FIXME why don't we have this?
 	SERIAL_AUX_DEVICE.SetInterruptCallback(GCodes::CommandEmergencyStop);
 #endif

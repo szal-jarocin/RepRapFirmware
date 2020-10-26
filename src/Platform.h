@@ -175,7 +175,7 @@ enum class DiagnosticTestType : unsigned int
 	PrintObjectSizes = 105,			// print the sizes of various objects
 	PrintObjectAddresses = 106,		// print the addresses and sizes of various objects
 
-#if defined(__LPC17xx__) || defined(STM32F4)
+#if __LPC17xx__ || STM32F4
 	PrintBoardConfiguration = 200,	// Prints out all pin/values loaded from SDCard to configure board
 #endif
 
@@ -527,7 +527,8 @@ public:
 	MinMaxCurrent GetMcuTemperatures() const noexcept;
 	void SetMcuTemperatureAdjust(float v) noexcept { mcuTemperatureAdjust = v; }
 	float GetMcuTemperatureAdjust() const noexcept { return mcuTemperatureAdjust; }
-#elif defined(__LPC17xx__)
+#elif __LPC17xx__
+// FIXME is this still needed
     //Temporary to keep object model happy (return 0's) when no CPU temp is supported
     MinMaxCurrent GetMcuTemperatures() const noexcept {MinMaxCurrent m={0.0}; return m;}
 #endif
@@ -540,7 +541,8 @@ public:
 	void DisableAutoSave() noexcept;
 	void EnableAutoSave(float saveVoltage, float resumeVoltage) noexcept;
 	bool GetAutoSaveSettings(float& saveVoltage, float&resumeVoltage) noexcept;
-#elif defined(__LPC17xx__)
+#elif __LPC17xx__
+// FIXME is this still needed
     //Temporary to keep object model happy (return 0's) when no voltage monitor supported
     MinMaxCurrent GetPowerVoltages() const noexcept {MinMaxCurrent m={0.0}; return m;}
     float GetCurrentPowerVoltage() const noexcept {return 0;}
@@ -732,7 +734,7 @@ private:
 	Pin spiDacCS[MaxSpiDac];
 	DAC084S085 dacAlligator;
 	DAC084S085 dacPiggy;
-#elif defined(__LPC17xx__)
+#elif __LPC17xx__
 	MCP4461 mcp4451;// works for 5561 (only volatile setting commands)
 #endif
 

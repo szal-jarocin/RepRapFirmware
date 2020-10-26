@@ -479,9 +479,9 @@ void RepRap::Init() noexcept
 #if SAME5x
 	WatchdogInit();
 	NVIC_EnableIRQ(WDT_IRQn);														// enable the watchdog early warning interrupt
-#elif defined(__LPC17xx__)
+#elif __LPC17xx__
 	wdt_init(1); // set wdt to 1 second. reset the processor on a watchdog fault
-#elif defined(STM32F4)
+#elif STM32F4
 	watchdogEnable(1000);
 #else
 	{
@@ -504,7 +504,7 @@ void RepRap::Init() noexcept
 #endif
 
 	active = true;										// must do this before we start the network or call Spin(), else the watchdog may time out
-#if (defined(__LPC17xx__) || defined(STM32F4)) && defined(HAS_SMART_DRIVERS)
+#if (__LPC17xx__ || STM32F4) && HAS_SMART_DRIVERS
 	// ensure smart drivers are up and running
 	platform->MessageF(UsbMessage, "Checking drivers...\n");
 	do
@@ -792,7 +792,7 @@ void RepRap::Diagnostics(MessageType mtype) noexcept
 # endif
 	const char* const expansionName = DuetExpansion::GetExpansionBoardName();
 	platform->MessageF(mtype, (expansionName == nullptr) ? "\n" : " + %s\n", expansionName);
-#elif defined(__LPC17xx__)
+#elif __LPC17xx__
 	platform->MessageF(mtype, "%s (%s) version %s running on %s at %dMhz\n", FIRMWARE_NAME, lpcBoardName, VERSION, platform->GetElectronicsString(), (int)SystemCoreClock/1000000);
 #elif HAS_LINUX_INTERFACE
 	platform->MessageF(mtype, "%s version %s running on %s (%s mode)\n", FIRMWARE_NAME, VERSION, platform->GetElectronicsString(),
@@ -2639,9 +2639,9 @@ bool RepRap::WriteToolParameters(FileStore *f, const bool forceWriteOffsets) noe
 
 // Firmware update operations
 
-#ifdef __LPC17xx__
+#if __LPC17xx__
     #include "LPC/FirmwareUpdate.hpp"
-#elif defined(STM32F4)
+#elif STM32F4
     #include "STM32/FirmwareUpdate.hpp"
 #else
 
@@ -2862,10 +2862,10 @@ void RepRap::StartIap() noexcept
 	(void)*(reinterpret_cast<const volatile char*>(0x20800000));
 #elif SAM3XA
 	(void)*(reinterpret_cast<const volatile char*>(0x20200000));
-#elif defined(__LPC17xx__)
+#elif __LPC17xx__
 	// The LPC176x/5x generates Bus Fault exception when accessing a reserved memory address
 	(void)*(reinterpret_cast<const volatile char*>(0x00080000));
-#elif defined(STM32F4)
+#elif STM32F4
 	// FIXME need to test this probably not the correct address
 	(void)*(reinterpret_cast<const volatile char*>(0x00080000));
 #else
