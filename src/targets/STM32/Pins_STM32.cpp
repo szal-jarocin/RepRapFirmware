@@ -90,6 +90,10 @@ Pin SoftwareSPIPins[3] = {NoPin, NoPin, NoPin};         //GPIO pins for software
 
 bool ADCEnablePreFilter = true;
 
+#if SUPPORT_DOTSTAR_LED
+Pin NeopixelOutPin = NoPin;
+#endif
+
 //BrownOut Detection
 //The brownout interrupt is triggered when the supply voltage drops below approx 2.2V
 //If the voltage falls below approx 1.8V the BOD will reset the CPU (and Brownout will be

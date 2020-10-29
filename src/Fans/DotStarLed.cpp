@@ -7,7 +7,7 @@
 
 #include "DotStarLed.h"
 
-#if SUPPORT_DOTSTAR_LED
+#if SUPPORT_DOTSTAR_LED && !__LPC17xx__ && !STM32F4
 
 #include <GCodes/GCodeBuffer/GCodeBuffer.h>
 #include <Movement/StepTimer.h>

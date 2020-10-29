@@ -57,6 +57,8 @@
 
 #define HAS_ATX_POWER_MONITOR            1
 
+#define SUPPORT_DOTSTAR_LED              1
+
 #define ALLOCATE_DEFAULT_PORTS           0
 
 #if defined(LPC_NETWORKING)
@@ -287,6 +289,9 @@ extern Pin AuxSerialRxTxPins[NumberSerialPins];
 
 #endif
 
+#if SUPPORT_DOTSTAR_LED
+extern Pin NeopixelOutPin;
+#endif
 
 //Timer 0 is used for Step Generation
 #define STEP_TC             (LPC_TIMER0)
