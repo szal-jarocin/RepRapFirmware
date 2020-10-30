@@ -9,6 +9,7 @@ Version 3.2-beta2_4
 * Fix for watchdog timeout when creating a hiccup step
 * Set inital ATX power state with atx.initialPowerOn (default is true).
 * Enable/Disable TMC drivers based on ATX power (via M80/M81)
+* Add support for NeoPixel LEDs via m150 (new board.txt entry led.neopixelPin)
 
 
 

@@ -3,6 +3,8 @@
  *
  *  Created on: 18 Jul 2018
  *      Author: David/GA
+ * This is a simplified version of the standard Duet3D code that only supports NeoPixels
+ * and which reduces the memory required.
  */
 
 #include "DotStarLed.h"
