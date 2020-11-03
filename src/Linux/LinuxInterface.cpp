@@ -19,6 +19,7 @@
 #include "Tools/Filament.h"
 #include "RepRap.h"
 #include "RepRapFirmware.h"
+#include <Tasks.h>
 #include <Hardware/SoftwareReset.h>
 #include <Hardware/ExceptionHandlers.h>
 #include <Cache.h>
@@ -28,8 +29,9 @@
 #include <TaskPriorities.h>
 //#define LI_DEBUG
 
+extern char _estack;		// defined by the linker
+
 Mutex LinuxInterface::gcodeReplyMutex;
-Mutex LinuxInterface::codesMutex;
 
 #if __LPC17xx__
 constexpr size_t LinuxTaskStackWords = 600;
@@ -39,11 +41,11 @@ constexpr size_t LinuxTaskStackWords = 1000;			// needs to be enough to support 
 constexpr size_t LinuxTaskStackWords = 600;				// needs to be enough to support rr_model
 #endif
 
-static Task<LinuxTaskStackWords> linuxTask;
+static Task<LinuxTaskStackWords> *linuxTask;
 
 extern "C" [[noreturn]] void LinuxTaskStart(void * pvParameters) noexcept
 {
-	reprap.GetLinuxInterface().Task();
+	reprap.GetLinuxInterface().TaskLoop();
 }
 
 LinuxInterface::LinuxInterface() noexcept : wasConnected(false), numDisconnects(0),
@@ -61,7 +63,6 @@ LinuxInterface::~LinuxInterface()
 void LinuxInterface::Init() noexcept
 {
 	gcodeReplyMutex.Create("LinuxReply");
-	codesMutex.Create("LinuxCodes");
 
 #if defined(DUET_NG)
 	// Make sure that the Wifi module if present is disabled. The ESP Reset pin is already forced low in Platform::Init();
@@ -69,12 +70,14 @@ void LinuxInterface::Init() noexcept
 #endif
 
 	transfer.Init();
-	linuxTask.Create(LinuxTaskStart, "Linux", nullptr, TaskPriority::SpinPriority);
-	transfer.SetLinuxTask(linuxTask.GetHandle());
+	linuxTask = new Task<LinuxTaskStackWords>;
+	linuxTask->Create(LinuxTaskStart, "Linux", nullptr, TaskPriority::SpinPriority);
+	transfer.SetLinuxTask(linuxTask);
 	transfer.StartNextTransfer();
+	iapRamAvailable = &_estack - Tasks::GetHeapTop();
 }
 
-[[noreturn]] void LinuxInterface::Task() noexcept
+[[noreturn]] void LinuxInterface::TaskLoop() noexcept
 {
 	bool writingIap = false;
 	for (;;)
@@ -116,13 +119,13 @@ void LinuxInterface::Init() noexcept
 
 				// Reset the controller
 				case LinuxRequest::Reset:
-					SoftwareReset((uint16_t)SoftwareResetReason::user);
+					SoftwareReset(SoftwareResetReason::user);
 					break;
 
 				// Perform a G/M/T-code
 				case LinuxRequest::Code:
 				{
-					MutexLocker lock(codesMutex);
+					TaskCriticalSectionLocker locker;
 
 					// Read the next code and check if the GB is waiting for a macro file
 					const CodeHeader *code = reinterpret_cast<const CodeHeader*>(transfer.ReadData(packet->length));
@@ -167,6 +170,18 @@ void LinuxInterface::Init() noexcept
 								break;
 							}
 						}
+						else
+						{
+							// Check to see if we will overwrite existing buffer contents.
+							if (rxPointer < sizeof(BufferedCodeHeader) + packet->length)
+							{
+								// debugPrintf("Buffer overwrite txPointer %d rxPointer %d packet len %d\n", txPointer, rxPointer, sizeof(BufferedCodeHeader) + packet->length);
+								// reject this packet so it will be resent later
+								packetAcknowledged = false;
+								break;
+							}
+						}
+
 						txLength = txPointer;
 						txPointer = 0;
 						sendBufferUpdate = true;
@@ -181,6 +196,15 @@ void LinuxInterface::Init() noexcept
 						debugPrintf("About to overwrite rxData!!!! ");
 						debugPrintf("len %d txp %d rxp %d txl %d\n", packet->length + sizeof(BufferedCodeHeader), txPointer, rxPointer, txLength);
 #endif
+						packetAcknowledged = false;
+						break;
+					}
+
+					// Check to see if we are about to overwrite older packets.
+					if (txPointer < rxPointer && txPointer + sizeof(BufferedCodeHeader) + packet->length > rxPointer)
+					{
+						// debugPrintf("Buffer overwrite txPointer %d rxPointer %d packet len %d\n", txPointer, rxPointer, sizeof(BufferedCodeHeader) + packet->length);
+						// reject this packet so it will be resent later
 						packetAcknowledged = false;
 						break;
 					}
@@ -221,7 +245,7 @@ void LinuxInterface::Init() noexcept
 							OutputBuffer::ReleaseAll(outBuf);
 						}
 					}
-					catch (GCodeException& e)
+					catch (const GCodeException& e)
 					{
 						// Get the error message and send it back to DSF
 						OutputBuffer *buf;
@@ -515,7 +539,7 @@ void LinuxInterface::Init() noexcept
 								packetAcknowledged = false;
 							}
 						}
-						catch (GCodeException& e)
+						catch (const GCodeException& e)
 						{
 							// Get the error message and send it back to DSF
 							String<StringLength100> errorMessage;
@@ -585,7 +609,8 @@ void LinuxInterface::Init() noexcept
 			// Notify DSF about the available buffer space
 			if (sendBufferUpdate || transfer.LinuxHadReset())
 			{
-				MutexLocker lock(codesMutex);
+				TaskCriticalSectionLocker locker;
+
 				const uint16_t bufferSpace = (txLength == 0) ? max<uint16_t>(rxPointer, SpiCodeBufferSize - txPointer) : rxPointer - txPointer;
 #ifdef LI_DEBUG
 				debugPrintf("update buffer space %d txp %d rxp %d txlen %d\n", bufferSpace, txPointer, rxPointer, txLength);
@@ -617,10 +642,15 @@ void LinuxInterface::Init() noexcept
 					}
 #endif
 
-					// Handle macro start requests
+					// Handle macro requests
 					if (gb->IsWaitingForMacro())
 					{
-						if (gb->IsMacroRequestPending())
+						if (gb->IsMacroFileClosed() && transfer.WriteMacroFileClosed(channel))
+						{
+							// Note this is only sent when a macro file has finished successfully
+							gb->MacroFileClosedSent();
+						}
+						else if (gb->IsMacroRequestPending())
 						{
 							const char * const requestedMacroFile = gb->GetRequestedMacroFile();
 							bool fromCode = gb->IsMacroFromCode();
@@ -650,19 +680,29 @@ void LinuxInterface::Init() noexcept
 							gb->Invalidate(false);
 						}
 
-						// Handle file abort requests
+						// Handle file requests
 						if (gb->IsAbortRequested() && transfer.WriteAbortFileRequest(channel, gb->IsAbortAllRequested()))
 						{
-							gb->AcknowledgeAbort();
+							gb->FileAbortSent();
 							gb->Invalidate();
 						}
+						else if (gb->IsMacroFileClosed() && transfer.WriteMacroFileClosed(channel))
+						{
+							// Note this is only sent when a macro file has finished successfully
+							gb->MacroFileClosedSent();
+						}
 
-						// Handle blocking messages
+						// Handle blocking messages and their results
 						if (gb->MachineState().waitingForAcknowledgement && !gb->MachineState().waitingForAcknowledgementSent &&
 							transfer.WriteWaitForAcknowledgement(channel))
 						{
 							gb->MachineState().waitingForAcknowledgementSent = true;
 							gb->Invalidate();
+						}
+						else if (gb->IsMessageAcknowledged() && transfer.WriteMessageAcknowledged(channel))
+						{
+							// Note this is only sent when a message was acknowledged in a regular way (i.e. by M292)
+							gb->MessageAcknowledgementSent();
 						}
 
 						// Send pending firmware codes
@@ -755,7 +795,7 @@ void LinuxInterface::Diagnostics(MessageType mtype) noexcept
 {
 	reprap.GetPlatform().Message(mtype, "=== SBC interface ===\n");
 	transfer.Diagnostics(mtype);
-	reprap.GetPlatform().MessageF(mtype, "Number of disconnects: %" PRIu32 "\n", numDisconnects);
+	reprap.GetPlatform().MessageF(mtype, "Number of disconnects: %" PRIu32 ", IAP RAM available 0x%05" PRIx32 "\n", numDisconnects, iapRamAvailable);
 	reprap.GetPlatform().MessageF(mtype, "Buffer RX/TX: %d/%d-%d\n", (int)rxPointer, (int)txPointer, (int)txLength);
 }
 
@@ -766,7 +806,7 @@ bool LinuxInterface::IsConnected() const noexcept
 
 bool LinuxInterface::FillBuffer(GCodeBuffer &gb) noexcept
 {
-	if (gb.IsInvalidated() ||
+	if (gb.IsInvalidated() || gb.IsMacroFileClosed() || gb.IsMessageAcknowledged() ||
 		gb.IsAbortRequested() || (reportPause && gb.GetChannel() == GCodeChannel::File) ||
 		(gb.MachineState().waitingForAcknowledgement && !gb.MachineState().waitingForAcknowledgementSent))
 	{
@@ -774,7 +814,7 @@ bool LinuxInterface::FillBuffer(GCodeBuffer &gb) noexcept
 		return false;
 	}
 
-	MutexLocker lock(codesMutex);
+	TaskCriticalSectionLocker locker;
 	if (rxPointer != txPointer || txLength != 0)
 	{
 		bool found = false;
@@ -899,7 +939,7 @@ void LinuxInterface::HandleGCodeReply(MessageType mt, OutputBuffer *buffer) noex
 
 void LinuxInterface::InvalidateBufferChannel(GCodeChannel channel) noexcept
 {
-	MutexLocker lock(codesMutex);
+	TaskCriticalSectionLocker locker;
 	if (rxPointer != txPointer || txLength != 0)
 	{
 		bool updateRxPointer = true;

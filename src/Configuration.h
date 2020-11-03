@@ -107,7 +107,7 @@ constexpr float DefaultHotEndHeaterDeadTime = 5.5;
 constexpr unsigned int FirstExtraHeaterProtection = 100;	// Index of the first extra heater protection item
 
 // Default thermistor parameters
-#ifndef DUET3		// for Duet 3 these are defined in Duet3Common.h in project CANLib
+#if !defined(DUET3) && !defined(DUET3MINI)				// for Duet 3 these are defined in Duet3Common.h in project CANLib
 constexpr float DefaultThermistorR25 = 100000.0;
 constexpr float DefaultThermistorBeta = 4725.0;
 constexpr float DefaultThermistorC = 7.06e-8;
@@ -137,7 +137,7 @@ constexpr PwmFrequency DefaultPinWritePwmFreq = 500;	// default PWM frequency fo
 constexpr PwmFrequency ServoRefreshFrequency = 50;
 
 // Fan defaults
-#ifndef DUET3		// for Duet 3 these are defined in Duet3Common.h in project CANLib
+#if !defined(DUET3) && !defined(DUET3MINI)				// for Duet 3 these are defined in Duet3Common.h in project CANLib
 constexpr float DefaultMinFanPwm = 0.1;					// minimum fan PWM
 constexpr uint32_t DefaultFanBlipTime = 100;			// fan blip time in milliseconds
 #endif
@@ -189,7 +189,7 @@ constexpr float DefaultProbingSpeed = 2.0;				// Default Z probing speed mm/sec
 constexpr float DefaultZProbeTravelSpeed = 100.0;		// Default speed for travel to probe points
 constexpr float ZProbeMaxAcceleration = 250.0;			// Maximum Z acceleration to use at the start of a probing move
 
-#if !SAME70												// Using SAME70 as a proxy for Duet 3
+#if !defined(DUET3) && !defined(DUET3MINI)				// for Duet 3 these are defined in Duet3Common.h in project CANLib
 constexpr size_t MaxZProbeProgramBytes = 8;				// Maximum number of bytes in a Z probe program
 #endif
 
@@ -228,6 +228,7 @@ constexpr size_t MachineNameLength = StringLength50;
 constexpr size_t RepRapPasswordLength = StringLength20;
 constexpr size_t MediumStringLength = MaxFilenameLength;
 constexpr size_t StringBufferLength = StringLength256;	// Length of the string buffer used by the expression parser
+constexpr size_t StringLengthLoggedCommand = StringLength100;	// Length of a string buffer for a command to be logged
 
 #if SAM4E || SAM4S || SAME70 || SAME5x || defined(ESP_NETWORKING)
 // Increased GCODE_LENGTH on the SAM4 because M587 and M589 commands on the Duet WiFi can get very long and GCode meta commands can get even longer

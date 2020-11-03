@@ -24,12 +24,14 @@
 #if HAS_LINUX_INTERFACE
 
 # define PARSER_OPERATION(_x)	((isBinaryBuffer) ? (binaryParser._x) : (stringParser._x))
+# define BINARY_OR(_x)			((isBinaryBuffer) || (_x))
 # define NOT_BINARY_AND(_x)		((!isBinaryBuffer) && (_x))
 # define IF_NOT_BINARY(_x)		{ if (!isBinaryBuffer) { _x; } }
 
 #else
 
 # define PARSER_OPERATION(_x)	(stringParser._x)
+# define BINARY_OR(_x)			(_x)
 # define NOT_BINARY_AND(_x)		(_x)
 # define IF_NOT_BINARY(_x)		{ _x; }
 
@@ -93,7 +95,7 @@ GCodeBuffer::GCodeBuffer(GCodeChannel::RawType channel, GCodeInput *normalIn, Fi
 	  binaryParser(*this),
 #endif
 	  stringParser(*this),
-	  machineState(new GCodeMachineState()),
+	  machineState(new GCodeMachineState()), whenReportDueTimerStarted(millis()),
 #if HAS_LINUX_INTERFACE
 	  isBinaryBuffer(false),
 #endif
@@ -122,7 +124,7 @@ void GCodeBuffer::Reset() noexcept
 
 #if HAS_LINUX_INTERFACE
 	requestedMacroFile.Clear();
-	isWaitingForMacro = hasStartedMacro = abortFile = abortAllFiles = invalidated = false;
+	isWaitingForMacro = hasStartedMacro = abortFile = abortAllFiles = invalidated = messageAcknowledged = macroFileClosed = false;
 	isBinaryBuffer = false;
 	machineState->lastCodeFromSbc = machineState->isMacroFromCode = false;
 #endif
@@ -164,6 +166,20 @@ bool GCodeBuffer::DoDwellTime(uint32_t dwellMillis) noexcept
 
 	// New dwell - set it up
 	StartTimer();
+	return false;
+}
+
+// Delay executing this GCodeBuffer for the specified time. Return true when the timer has expired.
+bool GCodeBuffer::IsReportDue() noexcept
+{
+	const uint32_t now = millis();
+
+	// Are we due?
+	if (now - whenReportDueTimerStarted >= reportDueInterval)
+	{
+		ResetReportDueTimer();
+		return true;
+	}
 	return false;
 }
 
@@ -857,6 +873,9 @@ void GCodeBuffer::MessageAcknowledged(bool cancelled) noexcept
 			ms->waitingForAcknowledgement = false;
 			ms->messageAcknowledged = true;
 			ms->messageCancelled = cancelled;
+#if HAS_LINUX_INTERFACE
+			messageAcknowledged = true;
+#endif
 		}
 	}
 }
@@ -899,9 +918,9 @@ bool GCodeBuffer::IsWritingBinary() const noexcept
 	return NOT_BINARY_AND(stringParser.IsWritingBinary());
 }
 
-void GCodeBuffer::WriteBinaryToFile(char b) noexcept
+bool GCodeBuffer::WriteBinaryToFile(char b) noexcept
 {
-	IF_NOT_BINARY(stringParser.WriteBinaryToFile(b));
+	return BINARY_OR(stringParser.WriteBinaryToFile(b));
 }
 
 void GCodeBuffer::FinishWritingBinary() noexcept

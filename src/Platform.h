@@ -158,6 +158,17 @@ enum class BoardType : uint8_t
 #endif
 };
 
+// Type of an axis. The values must correspond to values of the R parameter in the M584 command.
+enum class AxisWrapType : uint8_t
+{
+	noWrap = 0,						// axis does not wrap
+	wrapAt360,						// axis wraps, actual position are modulo 360deg
+#if 0	// shortcut axes not implemented yet
+	wrapWithShortcut,				// axis wraps, G0 moves are allowed to take the shortest direction
+#endif
+	undefined						// this one must be last
+};
+
 /***************************************************************************************************/
 
 // Enumeration to describe various tests we do in response to the M122 command
@@ -315,7 +326,7 @@ public:
 
 	void Diagnostics(MessageType mtype) noexcept;
 	GCodeResult DiagnosticTest(GCodeBuffer& gb, const StringRef& reply, OutputBuffer*& buf, unsigned int d) THROWS(GCodeException);
-	bool WasDeliberateError() const noexcept { return deliberateError; }
+	static bool WasDeliberateError() noexcept { return deliberateError; }
 	void LogError(ErrorCode e) noexcept { errorCodeBits |= (uint32_t)e; }
 
 	bool AtxPower() const noexcept;
@@ -427,7 +438,7 @@ public:
 	void DisableOneLocalDriver(size_t driver) noexcept;
 	void EmergencyDisableDrivers() noexcept;
 	void SetDriversIdle() noexcept;
-	bool SetMotorCurrent(size_t axisOrExtruder, float current, int code, const StringRef& reply) noexcept;
+	GCodeResult SetMotorCurrent(size_t axisOrExtruder, float current, int code, const StringRef& reply) noexcept;
 	float GetMotorCurrent(size_t axisOrExtruder, int code) const noexcept;
 	void SetIdleCurrentFactor(float f) noexcept;
 	float GetIdleCurrentFactor() const noexcept { return idleCurrentFactor; }
@@ -457,6 +468,16 @@ public:
 	float AxisTotalLength(size_t axis) const noexcept;
 	float GetPressureAdvance(size_t extruder) const noexcept;
 	GCodeResult SetPressureAdvance(float advance, GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeException);
+
+	inline AxesBitmap GetLinearAxes() const noexcept { return linearAxes; }
+	inline AxesBitmap GetRotationalAxes() const noexcept { return rotationalAxes; }
+	inline bool IsAxisRotational(size_t axis) const noexcept { return rotationalAxes.IsBitSet(axis); }
+	inline bool IsAxisContinuous(size_t axis) const noexcept { return continuousAxes.IsBitSet(axis); }
+#if 0	// shortcut axes not implemented yet
+	inline bool IsAxisShortcutAllowed(size_t axis) const noexcept { return shortcutAxes.IsBitSet(axis); }
+#endif
+
+	void SetAxisType(size_t axis, AxisWrapType wrapType, bool isNistRotational) noexcept;
 
 	const AxisDriversConfig& GetAxisDriversConfig(size_t axis) const noexcept
 		pre(axis < MaxAxes)
@@ -573,6 +594,7 @@ public:
 	// Logging support
 	GCodeResult ConfigureLogging(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeException);
 	const char *GetLogFileName() const noexcept;
+	const char *GetLogLevel() const noexcept;
 #endif
 
 	// Ancillary PWM
@@ -605,6 +627,7 @@ public:
 
 #if SUPPORT_CAN_EXPANSION
 	void HandleRemoteGpInChange(CanAddress src, uint8_t handleMajor, uint8_t handleMinor, bool state) noexcept;
+	GCodeResult UpdateRemoteStepsPerMmAndMicrostepping(AxesBitmap axesAndExtruders, const StringRef& reply) noexcept;
 #endif
 
 #if VARIABLE_NUM_DRIVERS
@@ -625,7 +648,8 @@ private:
 
 #if SUPPORT_CAN_EXPANSION
 	void IterateDrivers(size_t axisOrExtruder, std::function<void(uint8_t) /*noexcept*/ > localFunc, std::function<void(DriverId) /*noexcept*/ > remoteFunc) noexcept;
-	void IterateLocalDrivers(size_t axisOrExtruder, std::function<void(uint8_t) /*noexcept*/ > func) noexcept { IterateDrivers(axisOrExtruder, func, [](DriverId){}); }
+	void IterateLocalDrivers(size_t axisOrExtruder, std::function<void(uint8_t) /*noexcept*/ > func) noexcept { IterateDrivers(axisOrExtruder, func, [](DriverId) noexcept {}); }
+	void IterateRemoteDrivers(size_t axisOrExtruder, std::function<void(DriverId) /*noexcept*/ > func) noexcept { IterateDrivers(axisOrExtruder, [](uint8_t) noexcept {}, func); }
 #else
 	void IterateDrivers(size_t axisOrExtruder, std::function<void(uint8_t) /*noexcept*/ > localFunc) noexcept;
 	void IterateLocalDrivers(size_t axisOrExtruder, std::function<void(uint8_t) /*noexcept*/ > func) noexcept { IterateDrivers(axisOrExtruder, func); }
@@ -689,6 +713,12 @@ private:
 	uint32_t driveDriverBits[MaxAxesPlusExtruders + NumDirectDrivers];
 															// the bitmap of local driver port bits for each axis or extruder, followed by the bitmaps for the individual Z motors
 	AxisDriversConfig axisDrivers[MaxAxes];					// the driver numbers assigned to each axis
+	AxesBitmap linearAxes;									// axes that behave like linear axes w.r.t. feedrate handling
+	AxesBitmap rotationalAxes;								// axes that behave like rotational axes w.r.t. feedrate handling
+	AxesBitmap continuousAxes;								// axes that wrap modulo 360
+#if 0	// shortcut axes not implemented yet
+	AxesBitmap shortcutAxes;								// axes that wrap modulo 360 and for which G0 may choose the shortest direction
+#endif
 
 	float pressureAdvance[MaxExtruders];
 #if SUPPORT_NONLINEAR_EXTRUSION
@@ -882,7 +912,7 @@ private:
 	bool deferredPowerDown;
 
 	// Misc
-	bool deliberateError;								// true if we deliberately caused an exception for testing purposes
+	static bool deliberateError;						// true if we deliberately caused an exception for testing purposes. Must be static in case of exception during startup.
 };
 
 #if HAS_MASS_STORAGE

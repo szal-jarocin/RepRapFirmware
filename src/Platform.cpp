@@ -52,6 +52,11 @@
 # include <sd_mmc.h>
 # include "ResetCause.h"
 #else
+
+#if SAM4E || SAM4S || SAME70
+# include "sam/services/flash_efc/flash_efc.h"		// for flash_read_unique_id()
+#endif
+
 #if SAME70
 # include <DmacManager.h>
 static_assert(NumDmaChannelsUsed <= NumDmaChannelsSupported, "Need more DMA channels in CoreNG");
@@ -247,6 +252,9 @@ constexpr ObjectModelTableEntry Platform::objectModelTable[] =
 #if SUPPORT_CAN_EXPANSION
 	{ "canAddress",			OBJECT_MODEL_FUNC_NOSELF((int32_t)0),																ObjectModelEntryFlags::none },
 #endif
+#if SUPPORT_12864_LCD
+	{ "directDisplay",		OBJECT_MODEL_FUNC_IF_NOSELF(reprap.GetDisplay().IsPresent(), &reprap.GetDisplay()),					ObjectModelEntryFlags::none },
+#endif
 	{ "firmwareDate",		OBJECT_MODEL_FUNC_NOSELF(DATE),																		ObjectModelEntryFlags::none },
 	{ "firmwareFileName",	OBJECT_MODEL_FUNC_NOSELF(IAP_FIRMWARE_FILE),														ObjectModelEntryFlags::none },
 	{ "firmwareName",		OBJECT_MODEL_FUNC_NOSELF(FIRMWARE_NAME),															ObjectModelEntryFlags::none },
@@ -268,7 +276,7 @@ constexpr ObjectModelTableEntry Platform::objectModelTable[] =
 	{ "name",				OBJECT_MODEL_FUNC_NOSELF(BOARD_NAME),																ObjectModelEntryFlags::none },
 	{ "shortName",			OBJECT_MODEL_FUNC_NOSELF(BOARD_SHORT_NAME),															ObjectModelEntryFlags::none },
 # endif
-	{ "supports12864",		OBJECT_MODEL_FUNC_NOSELF(SUPPORT_12864_LCD ? true : false),											ObjectModelEntryFlags::verbose },
+	{ "supportsDirectDisplay", OBJECT_MODEL_FUNC_NOSELF(SUPPORT_12864_LCD ? true : false),										ObjectModelEntryFlags::verbose },
 #if MCU_HAS_UNIQUE_ID
 	{ "uniqueId",			OBJECT_MODEL_FUNC(self->GetUniqueIdString()),														ObjectModelEntryFlags::none },
 #endif
@@ -296,7 +304,7 @@ constexpr ObjectModelTableEntry Platform::objectModelTable[] =
 	{ "babystep",			OBJECT_MODEL_FUNC_NOSELF(reprap.GetGCodes().GetTotalBabyStepOffset(context.GetLastIndex()), 3),		ObjectModelEntryFlags::none },
 	{ "current",			OBJECT_MODEL_FUNC((int32_t)lrintf(self->GetMotorCurrent(context.GetLastIndex(), 906))),				ObjectModelEntryFlags::none },
 	{ "drivers",			OBJECT_MODEL_FUNC_NOSELF(&axisDriversArrayDescriptor),												ObjectModelEntryFlags::none },
-	{ "homed",				OBJECT_MODEL_FUNC_NOSELF(reprap.GetGCodes().IsAxisHomed(context.GetLastIndex())),					ObjectModelEntryFlags::live },
+	{ "homed",				OBJECT_MODEL_FUNC_NOSELF(reprap.GetGCodes().IsAxisHomed(context.GetLastIndex())),					ObjectModelEntryFlags::none },
 	{ "jerk",				OBJECT_MODEL_FUNC(MinutesToSeconds * self->GetInstantDv(context.GetLastIndex()), 1),				ObjectModelEntryFlags::none },
 	{ "letter",				OBJECT_MODEL_FUNC_NOSELF(reprap.GetGCodes().GetAxisLetters()[context.GetLastIndex()]),				ObjectModelEntryFlags::none },
 	{ "machinePosition",	OBJECT_MODEL_FUNC_NOSELF(reprap.GetMove().LiveCoordinate(context.GetLastIndex(), reprap.GetCurrentTool()), 3),	ObjectModelEntryFlags::live },
@@ -350,7 +358,7 @@ constexpr ObjectModelTableEntry Platform::objectModelTable[] =
 constexpr uint8_t Platform::objectModelTableDescriptor[] =
 {
 	9,																		// number of sections
-	12 + HAS_LINUX_INTERFACE + HAS_12V_MONITOR + SUPPORT_CAN_EXPANSION + MCU_HAS_UNIQUE_ID,		// section 0: boards[0]
+	12 + HAS_LINUX_INTERFACE + HAS_12V_MONITOR + SUPPORT_CAN_EXPANSION + SUPPORT_12864_LCD + MCU_HAS_UNIQUE_ID,		// section 0: boards[0]
 #if HAS_CPU_TEMP_SENSOR
 	3,																		// section 1: mcuTemp
 #else
@@ -397,6 +405,8 @@ size_t Platform::GetNumGpOutputsToReport() const noexcept
 
 #endif
 
+bool Platform::deliberateError = false;						// true if we deliberately caused an exception for testing purposes
+
 Platform::Platform() noexcept :
 #if HAS_MASS_STORAGE
 	logger(nullptr),
@@ -414,7 +424,7 @@ Platform::Platform() noexcept :
 #if SUPPORT_LASER
 	lastLaserPwm(0.0),
 #endif
-	deferredPowerDown(false), deliberateError(false)
+	deferredPowerDown(false)
 {
 }
 
@@ -672,6 +682,8 @@ void Platform::Init() noexcept
 		axisDrivers[axis].driverNumbers[0].SetLocal(driver);
 		driveDriverBits[axis] = StepPins::CalcDriverBitmap(driver);	// overwrite the default value set up earlier
 	}
+	linearAxes = AxesBitmap::MakeLowestNBits(3);				// XYZ axes are linear
+
 	for (size_t axis = MinAxes; axis < MaxAxes; ++axis)
 	{
 		axisDrivers[axis].numDrivers = 0;
@@ -1930,6 +1942,22 @@ void Platform::Diagnostics(MessageType mtype) noexcept
 #endif
 }
 
+// Execute a timed square root that takes less than one millisecond
+static uint32_t TimedSqrt(uint64_t arg, uint32_t& timeAcc) noexcept
+{
+	cpu_irq_disable();
+	asm volatile("":::"memory");
+	uint32_t now1 = SysTick->VAL;
+	const uint32_t ret = isqrt64(arg);
+	uint32_t now2 = SysTick->VAL;
+	asm volatile("":::"memory");
+	cpu_irq_enable();
+	now1 &= 0x00FFFFFF;
+	now2 &= 0x00FFFFFF;
+	timeAcc += ((now1 > now2) ? now1 : now1 + (SysTick->LOAD & 0x00FFFFFF) + 1) - now2;
+	return ret;
+}
+
 GCodeResult Platform::DiagnosticTest(GCodeBuffer& gb, const StringRef& reply, OutputBuffer*& buf, unsigned int d) THROWS(GCodeException)
 {
 	static const uint32_t dummy[2] = { 0, 0 };
@@ -2080,6 +2108,7 @@ GCodeResult Platform::DiagnosticTest(GCodeBuffer& gb, const StringRef& reply, Ou
 
 	case (int)DiagnosticTestType::SetWriteBuffer:
 #if SAME70
+		//TODO set cache to write-back instead
 		reply.copy("Write buffer not supported on this processor");
 		return GCodeResult::error;
 #else
@@ -2192,13 +2221,9 @@ GCodeResult Platform::DiagnosticTest(GCodeBuffer& gb, const StringRef& reply, Ou
 			uint32_t tim1 = 0;
 			for (uint32_t i = 0; i < 100; ++i)
 			{
-				const uint32_t num1 = 0x7265ac3d + i;
+				const uint32_t num1 = 0x7fffffff - (67 * i);
 				const uint64_t sq = (uint64_t)num1 * num1;
-				cpu_irq_disable();
-				const uint32_t now1 = StepTimer::GetTimerTicks();
-				const uint32_t num1a = isqrt64(sq);
-				tim1 += StepTimer::GetTimerTicks() - now1;
-				cpu_irq_enable();
+				const uint32_t num1a = TimedSqrt(sq, tim1);
 				if (num1a != num1)
 				{
 					ok1 = false;
@@ -2209,13 +2234,9 @@ GCodeResult Platform::DiagnosticTest(GCodeBuffer& gb, const StringRef& reply, Ou
 			uint32_t tim2 = 0;
 			for (uint32_t i = 0; i < 100; ++i)
 			{
-				const uint32_t num2 = 0x0000a4c5 + i;
+				const uint32_t num2 = 0x0000ffff - (67 * i);
 				const uint64_t sq = (uint64_t)num2 * num2;
-				cpu_irq_disable();
-				const uint32_t now2 = StepTimer::GetTimerTicks();
-				const uint32_t num2a = isqrt64(sq);
-				tim2 += StepTimer::GetTimerTicks() - now2;
-				cpu_irq_enable();
+				const uint32_t num2a = TimedSqrt(sq, tim2);
 				if (num2a != num2)
 				{
 					ok2 = false;
@@ -2223,34 +2244,32 @@ GCodeResult Platform::DiagnosticTest(GCodeBuffer& gb, const StringRef& reply, Ou
 			}
 
 			reply.printf("Square roots: 62-bit %.2fus %s, 32-bit %.2fus %s",
-					(double)(tim1 * 10000)/StepTimer::StepClockRate, (ok1) ? "ok" : "ERROR",
-							(double)(tim2 * 10000)/StepTimer::StepClockRate, (ok2) ? "ok" : "ERROR");
+					(double)(tim1 * 10000)/SystemCoreClock, (ok1) ? "ok" : "ERROR",
+							(double)(tim2 * 10000)/SystemCoreClock, (ok2) ? "ok" : "ERROR");
 		}
 		break;
 
 	case (unsigned int)DiagnosticTestType::TimeSinCos:			// Show the sin/cosine calculation time. Caution: may disable interrupt for several tens of microseconds.
 		{
-			bool ok = true;
 			uint32_t tim1 = 0;
 			for (unsigned int i = 0; i < 100; ++i)
 			{
 				const float angle = 0.01 * i;
+
 				cpu_irq_disable();
-				const uint32_t now1 = StepTimer::GetTimerTicks();
-				const float f1 = RepRap::SinfCosf(angle);
-				tim1 += StepTimer::GetTimerTicks() - now1;
+				asm volatile("":::"memory");
+				uint32_t now1 = SysTick->VAL;
+				(void)RepRap::SinfCosf(angle);
+				uint32_t now2 = SysTick->VAL;
+				asm volatile("":::"memory");
 				cpu_irq_enable();
-				if (f1 >= 1.5)
-				{
-					ok = false;		// need to use f1 to prevent the calculations being omitted
-				}
+				now1 &= 0x00FFFFFF;
+				now2 &= 0x00FFFFFF;
+				tim1 += ((now1 > now2) ? now1 : now1 + (SysTick->LOAD & 0x00FFFFFF) + 1) - now2;
 			}
 
 			// We no longer calculate sin and cos for doubles because it pulls in those library functions, which we don't otherwise need
-			if (ok)			// should always be true
-			{
-				reply.printf("Sine + cosine: float %.2fus", (double)(tim1 * 10000)/StepTimer::StepClockRate);
-			}
+			reply.printf("Sine + cosine: float %.2fus", (double)(tim1 * 10000)/SystemCoreClock);
 		}
 		break;
 
@@ -2703,7 +2722,7 @@ void Platform::SetDriversIdle() noexcept
 }
 
 // Set the current for all drivers on an axis or extruder. Current is in mA.
-bool Platform::SetMotorCurrent(size_t axisOrExtruder, float currentOrPercent, int code, const StringRef& reply) noexcept
+GCodeResult Platform::SetMotorCurrent(size_t axisOrExtruder, float currentOrPercent, int code, const StringRef& reply) noexcept
 {
 	switch (code)
 	{
@@ -2722,11 +2741,11 @@ bool Platform::SetMotorCurrent(size_t axisOrExtruder, float currentOrPercent, in
 #endif
 
 	default:
-		return false;
+		return GCodeResult::error;
 	}
 
 #if SUPPORT_CAN_EXPANSION
-	CanDriversData canDriversToUpdate;
+	CanDriversData<float> canDriversToUpdate;
 
 	IterateDrivers(axisOrExtruder,
 							[this, axisOrExtruder, code](uint8_t driver)
@@ -2746,11 +2765,11 @@ bool Platform::SetMotorCurrent(size_t axisOrExtruder, float currentOrPercent, in
 							{
 								if (code == 917)
 								{
-									canDriversToUpdate.AddEntry(driver, (uint16_t)(standstillCurrentPercent[axisOrExtruder]));
+									canDriversToUpdate.AddEntry(driver, standstillCurrentPercent[axisOrExtruder]);
 								}
 								else
 								{
-									canDriversToUpdate.AddEntry(driver, (uint16_t)(motorCurrents[axisOrExtruder] * motorCurrentFraction[axisOrExtruder]));
+									canDriversToUpdate.AddEntry(driver, motorCurrents[axisOrExtruder] * motorCurrentFraction[axisOrExtruder]);
 								}
 							}
 						);
@@ -2778,7 +2797,7 @@ bool Platform::SetMotorCurrent(size_t axisOrExtruder, float currentOrPercent, in
 								}
 							}
 	);
-	return true;
+	return GCodeResult::ok;
 #endif
 }
 
@@ -2882,7 +2901,7 @@ void Platform::SetIdleCurrentFactor(float f) noexcept
 	reprap.MoveUpdated();
 
 #if SUPPORT_CAN_EXPANSION
-	CanDriversData canDriversToUpdate;
+	CanDriversData<float> canDriversToUpdate;
 #endif
 	for (size_t axisOrExtruder = 0; axisOrExtruder < MaxAxesPlusExtruders; ++axisOrExtruder)
 	{
@@ -2945,37 +2964,16 @@ bool Platform::SetDriverMicrostepping(size_t driver, unsigned int microsteps, in
 	return false;
 }
 
-// Set the microstepping, returning true if successful. All drivers for the same axis must use the same microstepping.
+// Set the microstepping for local drivers, returning true if successful. All drivers for the same axis must use the same microstepping.
+// Caller must deal with remote drivers.
 bool Platform::SetMicrostepping(size_t axisOrExtruder, int microsteps, bool interp, const StringRef& reply) noexcept
 {
 	//TODO check that it is a valid microstep setting
 	microstepping[axisOrExtruder] = (interp) ? microsteps | 0x8000 : microsteps;
 	reprap.MoveUpdated();
 	bool ok = true;
-#if SUPPORT_CAN_EXPANSION
-	CanDriversData canDriversToUpdate;
-	IterateDrivers(axisOrExtruder,
-					[this, microsteps, interp, &ok, reply](uint8_t driver)
-					{
-						if (!SetDriverMicrostepping(driver, microsteps, interp))
-						{
-							reply.lcatf("Driver %u does not support x%u microstepping", driver, microsteps);
-							if (interp)
-							{
-								reply.cat(" with interpolation");
-							}
-							ok = false;
-						}
-					},
-					[microsteps, interp, &canDriversToUpdate](DriverId driver)
-					{
-						canDriversToUpdate.AddEntry(driver, (interp) ? microsteps | 0x8000 : microsteps);
-					}
-				  );
-	return CanInterface::SetRemoteDriverMicrostepping(canDriversToUpdate, reply) && ok;
-#else
-	IterateDrivers(axisOrExtruder,
-					[this, microsteps, interp, &ok, reply](uint8_t driver)
+	IterateLocalDrivers(axisOrExtruder,
+					[this, microsteps, interp, &ok, reply](uint8_t driver) noexcept
 					{
 						if (!SetDriverMicrostepping(driver, microsteps, interp))
 						{
@@ -2988,15 +2986,14 @@ bool Platform::SetMicrostepping(size_t axisOrExtruder, int microsteps, bool inte
 						}
 					}
 				  );
-#endif
 	return ok;
 }
 
 // Get the microstepping for an axis or extruder
-unsigned int Platform::GetMicrostepping(size_t drive, bool& interpolation) const noexcept
+unsigned int Platform::GetMicrostepping(size_t axisOrExtruder, bool& interpolation) const noexcept
 {
-	interpolation = (microstepping[drive] & 0x8000) != 0;
-	return microstepping[drive] & 0x7FFF;
+	interpolation = (microstepping[axisOrExtruder] & 0x8000) != 0;
+	return microstepping[axisOrExtruder] & 0x7FFF;
 }
 
 void Platform::SetEnableValue(size_t driver, int8_t eVal) noexcept
@@ -3038,6 +3035,34 @@ void Platform::SetAxisDriversConfig(size_t axis, size_t numValues, const DriverI
 		}
 	}
 	driveDriverBits[axis] = bitmap;
+}
+
+// Set the characteristics of an axis
+void Platform::SetAxisType(size_t axis, AxisWrapType wrapType, bool isNistRotational) noexcept
+{
+	if (isNistRotational)
+	{
+		rotationalAxes.SetBit(axis);
+	}
+	else
+	{
+		linearAxes.SetBit(axis);
+	}
+
+	switch (wrapType)
+	{
+#if 0	// shortcut axes not implemented yet
+	case AxisWrapType::wrapWithShortcut:
+		shortcutAxes.SetBit(axis);
+		// no break
+#endif
+	case AxisWrapType::wrapAt360:
+		continuousAxes.SetBit(axis);
+		break;
+
+	default:
+		break;
+	}
 }
 
 // Map an extruder to a driver
@@ -3188,9 +3213,9 @@ void Platform::RawMessage(MessageType type, const char *message) noexcept
 {
 #if HAS_MASS_STORAGE
 	// Deal with logging
-	if ((type & LogMessage) != 0 && logger != nullptr)
+	if (logger != nullptr)
 	{
-		logger->LogMessage(realTime, message);
+		logger->LogMessage(realTime, message, type);
 	}
 #endif
 
@@ -3269,9 +3294,9 @@ void Platform::Message(const MessageType type, OutputBuffer *buffer) noexcept
 {
 #if HAS_MASS_STORAGE
 	// First deal with logging because it doesn't hang on to the buffer
-	if ((type & LogMessage) != 0 && logger != nullptr)
+	if (logger != nullptr)
 	{
-		logger->LogMessage(realTime, buffer);
+		logger->LogMessage(realTime, buffer, type);
 	}
 #endif
 
@@ -3427,6 +3452,8 @@ void Platform::SendAlert(MessageType mt, const char *message, const char *title,
 		reprap.SetAlert(message, title, sParam, tParam, controls);		// make the RepRap class cache this message until it's picked up by the HTTP clients and/or PanelDue
 	}
 
+	MessageF(MessageType::LogInfo, "M291: - %s - %s", (strlen(title) > 0 ? title : "[no title]"), message);
+
 	mt = (MessageType)(mt & (UsbMessage | TelnetMessage));
 	if (mt != 0)
 	{
@@ -3454,16 +3481,17 @@ GCodeResult Platform::ConfigureLogging(GCodeBuffer& gb, const StringRef& reply) 
 	if (gb.Seen('S'))
 	{
 		StopLogging();
-		if (gb.GetIValue() > 0)
+		const auto logLevel = (LogLevel) gb.GetLimitedUIValue('S', LogLevel::NumValues, LogLevel::off);
+		if (logLevel > LogLevel::off)
 		{
 			// Start logging
 			if (logger == nullptr)
 			{
-				logger = new Logger();
+				logger = new Logger(logLevel);
 			}
 			else
 			{
-				StopLogging();
+				logger->SetLogLevel(logLevel);
 			}
 
 			char buf[MaxFilenameLength + 1];
@@ -3481,7 +3509,15 @@ GCodeResult Platform::ConfigureLogging(GCodeBuffer& gb, const StringRef& reply) 
 	}
 	else
 	{
-		reply.printf("Event logging is %s", (logger != nullptr && logger->IsActive()) ? "enabled" : "disabled");
+		if (logger == nullptr || !logger->IsActive())
+		{
+			reply.copy("Event logging is disabled");
+		}
+		else
+		{
+			const auto logLevel = logger->GetLogLevel();
+			reply.printf("Event logging is enabled at log level %s", logLevel.ToString());
+		}
 	}
 	return GCodeResult::ok;
 }
@@ -3493,6 +3529,16 @@ const char *Platform::GetLogFileName() const noexcept
 }
 
 #endif
+
+const char *Platform::GetLogLevel() const noexcept
+{
+	static const LogLevel off = LogLevel::off;	// need to have an instance otherwise it will fail .ToString() below
+#if HAS_MASS_STORAGE
+	return (logger == nullptr) ? off.ToString() : logger->GetLogLevel().ToString();
+#else
+	return off.ToString();
+#endif
+}
 
 // This is called from EmergencyStop. It closes the log file and stops logging.
 void Platform::StopLogging() noexcept
@@ -3533,7 +3579,7 @@ void Platform::AtxPowerOff(bool defer) noexcept
 #if HAS_MASS_STORAGE
 		if (logger != nullptr)
 		{
-			logger->LogMessage(realTime, "Power off commanded");
+			logger->LogMessage(realTime, "Power off commanded", LogWarn);
 			logger->Flush(true);
 			// We don't call logger->Stop() here because we don't know whether turning off the power will work
 		}
@@ -3552,7 +3598,7 @@ GCodeResult Platform::SetPressureAdvance(float advance, GCodeBuffer& gb, const S
 	GCodeResult rslt = GCodeResult::ok;
 
 #if SUPPORT_CAN_EXPANSION
-	CanDriversData canDriversToUpdate;
+	CanDriversData<float> canDriversToUpdate;
 #endif
 
 	if (gb.Seen('D'))
@@ -3573,7 +3619,7 @@ GCodeResult Platform::SetPressureAdvance(float advance, GCodeBuffer& gb, const S
 #if SUPPORT_CAN_EXPANSION
 			if (extruderDrivers[extruder].IsRemote())
 			{
-				canDriversToUpdate.AddEntry(extruderDrivers[extruder], (uint16_t)(advance * 1000.0));
+				canDriversToUpdate.AddEntry(extruderDrivers[extruder], advance);
 			}
 #endif
 		}
@@ -3594,7 +3640,7 @@ GCodeResult Platform::SetPressureAdvance(float advance, GCodeBuffer& gb, const S
 										pressureAdvance[extruder] = advance;
 										if (extruderDrivers[extruder].IsRemote())
 										{
-											canDriversToUpdate.AddEntry(extruderDrivers[extruder], (uint16_t)(advance * 1000.0));
+											canDriversToUpdate.AddEntry(extruderDrivers[extruder], advance);
 										}
 									}
 								);
@@ -3609,8 +3655,7 @@ GCodeResult Platform::SetPressureAdvance(float advance, GCodeBuffer& gb, const S
 	}
 
 #if SUPPORT_CAN_EXPANSION
-	const bool remoteOk = CanInterface::SetRemotePressureAdvance(canDriversToUpdate, reply);
-	return (remoteOk) ? rslt : GCodeResult::error;
+	return max(rslt, CanInterface::SetRemotePressureAdvance(canDriversToUpdate, reply));
 #else
 	return rslt;
 #endif
@@ -4393,7 +4438,7 @@ bool Platform::SetDateTime(time_t time) noexcept
 
 		// Write a log message, giving the time since power up in same format as the logger does
 		const uint32_t timeSincePowerUp = (uint32_t)(millis64()/1000u);
-		MessageF(LogMessage, "Date and time set at power up + %02" PRIu32 ":%02" PRIu32 ":%02" PRIu32 "\n", timeSincePowerUp/3600u, (timeSincePowerUp % 3600u)/60u, timeSincePowerUp % 60u);
+		MessageF(LogWarn, "Date and time set at power up + %02" PRIu32 ":%02" PRIu32 ":%02" PRIu32 "\n", timeSincePowerUp/3600u, (timeSincePowerUp % 3600u)/60u, timeSincePowerUp % 60u);
 		timeLastUpdatedMillis = millis();
 	}
 	return ok;
@@ -4453,6 +4498,20 @@ void Platform::HandleRemoteGpInChange(CanAddress src, uint8_t handleMajor, uint8
 	{
 		gpinPorts[handleMajor].SetState(src, state);
 	}
+}
+
+GCodeResult Platform::UpdateRemoteStepsPerMmAndMicrostepping(AxesBitmap axesAndExtruders, const StringRef& reply) noexcept
+{
+	CanDriversData<StepsPerUnitAndMicrostepping> data;
+	axesAndExtruders.Iterate([this, &data](unsigned int axisOrExtruder, unsigned int count) noexcept
+								{
+									const StepsPerUnitAndMicrostepping driverData(this->driveStepsPerUnit[axisOrExtruder], this->microstepping[axisOrExtruder]);
+									this->IterateRemoteDrivers(axisOrExtruder, [&data, &driverData](DriverId driver) noexcept
+											{
+												data.AddEntry(driver, driverData);
+											});
+								});
+	return CanInterface::SetRemoteDriverStepsPerMmAndMicrostepping(data, reply);
 }
 
 #endif

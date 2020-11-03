@@ -12,6 +12,10 @@
 #include <TaskPriorities.h>
 #include <Hardware/SoftwareReset.h>
 
+#if SAM4E || SAM4S || SAME70
+# include "sam/services/flash_efc/flash_efc.h"		// for efc_enable_cloe()
+#endif
+
 #if SAME5x
 # include <DmacManager.h>
 # include <hpl_user_area.h>
@@ -23,9 +27,11 @@
 
 const uint8_t memPattern = 0xA5;
 
-extern "C" char *sbrk(int i);
 extern char _end;						// defined in linker script
-extern uint32_t _estack;				// defined in linker script
+extern char _estack;					// defined in linker script
+
+// Define replacement standard library functions
+#include <syscalls.h>
 
 #ifndef DEBUG
 extern uint32_t _firmware_crc;			// defined in linker script
@@ -76,9 +82,10 @@ extern "C" void vApplicationGetTimerTaskMemory(StaticTask_t **ppxTimerTaskTCBBuf
 static Mutex i2cMutex;
 static Mutex sysDirMutex;
 static Mutex mallocMutex;
+static Mutex filamentsMutex;
 
 // We need to make malloc/free thread safe. We must use a recursive mutex for it.
-extern "C" void __malloc_lock (struct _reent *_r) noexcept
+extern "C" void GetMallocMutex() noexcept
 {
 	if (xTaskGetSchedulerState() == taskSCHEDULER_RUNNING)		// don't take mutex if scheduler not started or suspended
 	{
@@ -86,7 +93,7 @@ extern "C" void __malloc_lock (struct _reent *_r) noexcept
 	}
 }
 
-extern "C" void __malloc_unlock (struct _reent *_r) noexcept
+extern "C" void ReleaseMallocMutex() noexcept
 {
 	if (xTaskGetSchedulerState() == taskSCHEDULER_RUNNING)		// don't release mutex if scheduler not started or suspended
 	{
@@ -127,7 +134,7 @@ extern "C" [[noreturn]] void AppMain() noexcept
 #endif	// !defined(DEBUG) && !defined(__LPC17xx__)
 
 	// Fill the free memory with a pattern so that we can check for stack usage and memory corruption
-	char* heapend = sbrk(0);
+	char* heapend = heapTop;
 	register const char * stack_ptr asm ("sp");
 	while (heapend + 16 < stack_ptr)
 	{
@@ -190,9 +197,12 @@ extern "C" [[noreturn]] void AppMain() noexcept
 	timerTask.AddToList();
 #endif
 
-	// Create the startup task
+	// Create the mutexes and the startup task
+	mallocMutex.Create("Malloc");
+	i2cMutex.Create("I2C");
+	sysDirMutex.Create("SysDir");
+	filamentsMutex.Create("Filaments");
 	mainTask.Create(MainTask, "MAIN", nullptr, TaskPriority::SpinPriority);
-
 	cpu_irq_restore(flags);
 	vTaskStartScheduler();			// doesn't return
 	for (;;) { }					// keep gcc happy
@@ -200,10 +210,6 @@ extern "C" [[noreturn]] void AppMain() noexcept
 
 extern "C" [[noreturn]] void MainTask(void *pvParameters) noexcept
 {
-	mallocMutex.Create("Malloc");
-	i2cMutex.Create("I2C");
-	sysDirMutex.Create("SysDir");
-
 	reprap.Init();
 	for (;;)
 	{
@@ -215,25 +221,26 @@ extern "C" [[noreturn]] void MainTask(void *pvParameters) noexcept
 	extern "C" size_t xPortGetTotalHeapSize( void );
 #endif
 
-static void GetHandlerStackUsage(uint32_t* maxStack, uint32_t* neverUsed) noexcept
+// Return the amount of free handler stack space. It may be negative if the stack has overflowed into the area reserved for the heap.
+static ptrdiff_t GetHandlerFreeStack() noexcept
 {
-	const char * const ramend = (const char *)&_estack;
-	const char * const heapend = sbrk(0);
-	const char * stack_lwm = heapend;
+	const char * const ramend = &_estack;
+	const char * stack_lwm = heapTop;
 	while (stack_lwm < ramend && *stack_lwm == memPattern)
 	{
 		++stack_lwm;
 	}
-	if (maxStack != nullptr) { *maxStack = ramend - stack_lwm; }
-	if (neverUsed != nullptr) { *neverUsed = stack_lwm - heapend; }
+	return stack_lwm - heapLimit;
 }
 
-uint32_t Tasks::GetNeverUsedRam() noexcept
+ptrdiff_t Tasks::GetNeverUsedRam() noexcept
 {
-	uint32_t neverUsedRam;
+	return heapLimit - heapTop;
+}
 
-	GetHandlerStackUsage(nullptr, &neverUsedRam);
-	return neverUsedRam;
+const char* Tasks::GetHeapTop() noexcept
+{
+	return heapTop;
 }
 
 // Write data about the current task
@@ -265,18 +272,15 @@ void Tasks::Diagnostics(MessageType mtype) noexcept
 		const struct mallinfo mi = mallinfo();
 		p.MessageF(mtype, "Dynamic ram: %d of which %d recycled\n", mi.uordblks, mi.fordblks);
 #endif
-		uint32_t maxStack, neverUsed;
-		GetHandlerStackUsage(&maxStack, &neverUsed);
-		p.MessageF(mtype, "Exception stack ram used: %" PRIu32 "\n", maxStack);
-		p.MessageF(mtype, "Never used ram: %" PRIu32 "\n", neverUsed);
+		p.MessageF(mtype, "Never used RAM %d, free system stack %d words\n", GetNeverUsedRam(), GetHandlerFreeStack()/4);
 
 	}	// end memory stats scope
 
 	p.Message(mtype, "Tasks:");
-	for (const TaskBase *t = TaskBase::GetTaskList(); t != nullptr; t = t->GetNext())
+	for (TaskBase *t = TaskBase::GetTaskList(); t != nullptr; t = t->GetNext())
 	{
 		TaskStatus_t taskDetails;
-		vTaskGetInfo(t->GetHandle(), &taskDetails, pdTRUE, eInvalid);
+		vTaskGetInfo(t->GetFreeRTOSHandle(), &taskDetails, pdTRUE, eInvalid);
 		const char* const stateText = (taskDetails.eCurrentState == eRunning) ? "running"
 										: (taskDetails.eCurrentState == eReady) ? "ready"
 											: (taskDetails.eCurrentState == eBlocked) ? "blocked"
@@ -291,15 +295,15 @@ void Tasks::Diagnostics(MessageType mtype) noexcept
 		const TaskHandle holder = m->GetHolder();
 		if (holder != nullptr)
 		{
-			p.MessageF(mtype, " %s(%s)", m->GetName(), pcTaskGetName(holder));
+			p.MessageF(mtype, " %s(%s)", m->GetName(), pcTaskGetName(holder->GetFreeRTOSHandle()));
 		}
 	}
-	p.MessageF(mtype, "\n");
+	p.Message(mtype, "\n");
 }
 
 TaskHandle Tasks::GetMainTask() noexcept
 {
-	return mainTask.GetHandle();
+	return &mainTask;
 }
 
 void Tasks::TerminateMainTask() noexcept
@@ -315,6 +319,11 @@ const Mutex *Tasks::GetI2CMutex() noexcept
 const Mutex *Tasks::GetSysDirMutex() noexcept
 {
 	return &sysDirMutex;
+}
+
+const Mutex *Tasks::GetFilamentsMutex() noexcept
+{
+	return &filamentsMutex;
 }
 
 // This intercepts the 1ms system tick

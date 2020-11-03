@@ -61,7 +61,7 @@ enum class PauseReason
 	filamentChange,	// M600 command
 	trigger,		// external switch
 	heaterFault,	// heater fault detected
-	filament,		// filament monitor
+	filamentError,	// filament monitor
 #if HAS_SMART_DRIVERS
 	stall,			// motor stall detected
 #endif
@@ -110,7 +110,7 @@ public:
 	bool IsTriggerBusy() const noexcept;										// Return true if the trigger G-code buffer is busy running config.g or a trigger file
 
 	bool IsAxisHomed(unsigned int axis) const noexcept							// Has the axis been homed?
-		{ return axesHomed.IsBitSet(axis); }
+		{ return axesVirtuallyHomed.IsBitSet(axis); }
 	void SetAxisIsHomed(unsigned int axis) noexcept;							// Tell us that the axis is now homed
 	void SetAxisNotHomed(unsigned int axis) noexcept;							// Tell us that the axis is not homed
 	void SetAllAxesNotHomed() noexcept;											// Flag all axes as not homed
@@ -156,7 +156,6 @@ public:
 	size_t GetTotalAxes() const noexcept { return numTotalAxes; }
 	size_t GetVisibleAxes() const noexcept { return numVisibleAxes; }
 	size_t GetNumExtruders() const noexcept { return numExtruders; }
-	AxesBitmap GetContinuousRotationAxes() const noexcept { return continuousRotationAxes; }
 
 	const char* GetMachineModeString() const noexcept;							// Get the name of the current machine mode
 
@@ -210,7 +209,7 @@ public:
 
 	void SavePosition(RestorePoint& rp, const GCodeBuffer& gb) const noexcept;		// Save position etc. to a restore point
 	void SaveSpindleSpeeds(RestorePoint& rp) const noexcept;						// Save spindle speeds to a restore point
-	void StartToolChange(GCodeBuffer& gb, int toolNum, uint8_t toolChangeParam) noexcept;
+	void StartToolChange(GCodeBuffer& gb, int toolNum, uint8_t param) noexcept;
 
 	unsigned int GetWorkplaceCoordinateSystemNumber() const noexcept { return currentCoordinateSystem + 1; }
 
@@ -251,6 +250,7 @@ public:
 	// Standard macro filenames
 #define DEPLOYPROBE		"deployprobe"
 #define RETRACTPROBE	"retractprobe"
+#define FILAMENT_ERROR	"filament-error"
 #define TPRE			"tpre"
 #define TPOST			"tpost"
 #define TFREE			"tfree"
@@ -302,14 +302,15 @@ private:
 	void UnlockResource(const GCodeBuffer& gb, Resource r) noexcept;			// Unlock the resource if we own it
 	void UnlockMovement(const GCodeBuffer& gb) noexcept;						// Unlock the movement resource if we own it
 
-	void StartNextGCode(GCodeBuffer& gb, const StringRef& reply) noexcept;		// Fetch a new or old GCode and process it
+	bool SpinGCodeBuffer(GCodeBuffer& gb) noexcept;								// Do some work on an input channel
+	bool StartNextGCode(GCodeBuffer& gb, const StringRef& reply) noexcept;		// Fetch a new or old GCode and process it
 	void RunStateMachine(GCodeBuffer& gb, const StringRef& reply) noexcept;		// Execute a step of the state machine
 	void DoStraightManualProbe(GCodeBuffer& gb, const StraightProbeSettings& sps);
 
 	void StartPrinting(bool fromStart) noexcept;								// Start printing the file already selected
 	void StopPrint(StopPrintReason reason) noexcept;							// Stop the current print
 
-	void DoFilePrint(GCodeBuffer& gb, const StringRef& reply) noexcept;			// Get G Codes from a file and print them
+	bool DoFilePrint(GCodeBuffer& gb, const StringRef& reply) noexcept;			// Get G Codes from a file and print them
 	bool DoFileMacro(GCodeBuffer& gb, const char* fileName, bool reportMissing, int codeRunning = -1) noexcept;
 																						// Run a GCode macro file, optionally report error if not found
 	void FileMacroCyclesReturn(GCodeBuffer& gb) noexcept;								// End a macro
@@ -324,9 +325,6 @@ private:
 
 	void HandleReply(GCodeBuffer& gb, OutputBuffer *reply) noexcept;
 	void HandleReplyPreserveResult(GCodeBuffer& gb, GCodeResult rslt, const char *reply) noexcept;	// Handle G-Code replies
-#if HAS_LINUX_INTERFACE
-	void SendSbcEvent(GCodeBuffer& gb);
-#endif
 
 	bool DoStraightMove(GCodeBuffer& gb, bool isCoordinated, const char *& err) __attribute__((hot));	// Execute a straight move
 	bool DoArcMove(GCodeBuffer& gb, bool clockwise, const char *& err)				// Execute an arc move
@@ -384,13 +382,13 @@ private:
 	GCodeResult RetractFilament(GCodeBuffer& gb, bool retract);					// Retract or un-retract filaments
 	GCodeResult LoadFilament(GCodeBuffer& gb, const StringRef& reply);			// Load the specified filament into a tool
 	GCodeResult UnloadFilament(GCodeBuffer& gb, const StringRef& reply);		// Unload the current filament from a tool
-	bool ChangeMicrostepping(size_t drive, unsigned int microsteps, bool interp, const StringRef& reply) const noexcept; // Change microstepping on the specified drive
+	bool ChangeMicrostepping(size_t axisOrExtruder, unsigned int microsteps, bool interp, const StringRef& reply) const noexcept; // Change microstepping on the specified drive
 	void CheckTriggers() noexcept;												// Check for and execute triggers
 	void CheckFilament() noexcept;												// Check for and respond to filament errors
 	void CheckHeaterFault() noexcept;											// Check for and respond to a heater fault, returning true if we should exit
 	void DoEmergencyStop() noexcept;											// Execute an emergency stop
 
-	void DoPause(GCodeBuffer& gb, PauseReason reason, const char *msg) noexcept	// Pause the print
+	void DoPause(GCodeBuffer& gb, PauseReason reason, const char *msg, uint16_t param = 0) noexcept	// Pause the print
 		pre(resourceOwners[movementResource] = &gb);
 	void CheckForDeferredPause(GCodeBuffer& gb) noexcept;						// Check if a pause is pending, action it if so
 
@@ -544,7 +542,6 @@ private:
 	};
 	SegmentedMoveState segMoveState;
 
-	AxesBitmap axesHomedBeforeSimulation;		// axes that were homed when we started the simulation
 	RestorePoint simulationRestorePoint;		// The position and feed rate when we started a simulation
 
 	RestorePoint numberedRestorePoints[NumRestorePoints];				// Restore points accessible using the R parameter in the G0/G1 command
@@ -578,7 +575,7 @@ private:
 
 	AxesBitmap toBeHomed;						// Bitmap of axes still to be homed
 	AxesBitmap axesHomed;						// Bitmap of which axes have been homed
-	AxesBitmap continuousRotationAxes;			// Axes declared as continuous rotation axes in M584
+	AxesBitmap axesVirtuallyHomed;				// same as axesHomed except all bits are set when simulating
 
 	float pausedFanSpeeds[MaxFans];				// Fan speeds when the print was paused or a tool change started
 	float lastDefaultFanSpeed;					// Last speed given in a M106 command with on fan number

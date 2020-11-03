@@ -40,7 +40,7 @@ public:
 	// The Init method must be called prior to calling any of the other methods. Use reprap.UsingLinuxInterface() to guard calls to other members.
 	// OTOH, calling Init when we don't have a SBC connected may cause problems due to noise pickup on the SPI CS and clock inputs
 	void Init() noexcept;
-	void Task() noexcept;
+	void TaskLoop() noexcept;
 	void Diagnostics(MessageType mtype) noexcept;
 	bool IsConnected() const noexcept;
 
@@ -74,6 +74,7 @@ private:
 	bool sendBufferUpdate;
 
 	uint32_t iapWritePointer;
+	uint32_t iapRamAvailable;											// must be at least 64Kb otherwise the SPI IAP can't work
 
 #if SUPPORT_CAN_EXPANSION
 	// Data needed when a CAN expansion board requests a firmware file chunk
@@ -84,11 +85,10 @@ private:
 	int32_t requestedFileDataLength;
 #endif
 
-	static Mutex gcodeReplyMutex;										// static so that the LinuxInterface is safe to delete even is the mutex is linked into the mutex chain or is in use
+	static Mutex gcodeReplyMutex;											// static so that the LinuxInterface is safe to delete even is the mutex is linked into the mutex chain or is in use
 	OutputStack *gcodeReply;
 
-	static Mutex codesMutex;
-	void InvalidateBufferChannel(GCodeChannel channel) noexcept;		// Invalidate every buffered G-code of the corresponding channel from the buffer ring
+	void InvalidateBufferChannel(GCodeChannel channel) noexcept;            // Invalidate every buffered G-code of the corresponding channel from the buffer ring
 };
 
 inline void LinuxInterface::SetPauseReason(FilePosition position, PrintPausedReason reason) noexcept

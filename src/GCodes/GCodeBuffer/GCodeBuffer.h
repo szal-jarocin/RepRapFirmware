@@ -152,7 +152,14 @@ public:
 
 	bool IsAbortRequested() const noexcept;						// Is the cancellation of the current file requested?
 	bool IsAbortAllRequested() const noexcept;					// Is the cancellation of all files being executed on this channel requested?
-	void AcknowledgeAbort() noexcept;							// Indicates that the current macro file is being cancelled
+	void FileAbortSent() noexcept;								// Called when the SBC has been notified about a file (or all files) being closed
+
+	void MacroFileClosed() noexcept;							// Called to notify the SBC about the file being internally closed on success
+	bool IsMacroFileClosed() const noexcept;					// Indicates if a file has been closed internally in RRF
+	void MacroFileClosedSent() noexcept;						// Called when the SBC has been notified about the internally closed file
+
+	bool IsMessageAcknowledged() const noexcept;				// Indicates if a message has been acknowledged
+	void MessageAcknowledgementSent() noexcept;					// Called when the SBC has been notified about the message acknowledgement
 
 	bool IsInvalidated() const noexcept { return invalidated; }	// Indicates if the channel is invalidated
 	void Invalidate(bool i = true) noexcept { invalidated = i; }	// Invalidate this channel (or not)
@@ -163,6 +170,7 @@ public:
 
 	GCodeState GetState() const noexcept;
 	void SetState(GCodeState newState) noexcept;
+	void SetState(GCodeState newState, uint16_t param) noexcept;
 	void AdvanceState() noexcept;
 	void MessageAcknowledged(bool cancelled) noexcept;
 
@@ -178,7 +186,7 @@ public:
 	void WriteToFile() noexcept;								// Write the current GCode to file
 
 	bool IsWritingBinary() const noexcept;						// Returns true if writing binary
-	void WriteBinaryToFile(char b) noexcept;					// Write a byte to the file
+	bool WriteBinaryToFile(char b) noexcept;					// Write a byte to the file, returning true if the upload is now complete
 	void FinishWritingBinary() noexcept;
 #endif
 
@@ -193,6 +201,9 @@ public:
 	void StartTimer() noexcept;
 	void StopTimer() noexcept { timerRunning = false; }
 	bool DoDwellTime(uint32_t dwellMillis) noexcept;			// Execute a dwell returning true if it has finished
+
+	void ResetReportDueTimer() noexcept { whenReportDueTimerStarted = millis(); };
+	bool IsReportDue() noexcept;
 
 	void RestartFrom(FilePosition pos) noexcept;
 
@@ -237,6 +248,8 @@ private:
 	GCodeMachineState *machineState;					// Machine state for this gcode source
 
 	uint32_t whenTimerStarted;							// When we started waiting
+	uint32_t whenReportDueTimerStarted;					// When the report-due-timer has been started
+	static constexpr uint32_t reportDueInterval = 1000;	// Interval in which we send in ms
 
 #if HAS_LINUX_INTERFACE
 	bool isBinaryBuffer;
@@ -252,7 +265,7 @@ private:
 
 #if HAS_LINUX_INTERFACE
 	String<MaxFilenameLength> requestedMacroFile;
-	uint8_t
+	uint16_t
 		isWaitingForMacro : 1,		// Is this GB waiting in DoFileMacro?
 		hasStartedMacro : 1,		// Whether the GB has just started a macro file
 		macroEmpty : 1,				// May be true if the macro file could be opened but it is empty
@@ -260,7 +273,9 @@ private:
 		abortFile : 1,				// Whether to abort the last file on the stack
 		abortAllFiles : 1,			// Whether to abort all opened files
 		invalidated : 1,			// Set to true if the GB content is not valid and about to be cleared
-		sendToSbc : 1;				// Indicates if the GB string content is supposed to be sent to the SBC
+		sendToSbc : 1,				// Indicates if the GB string content is supposed to be sent to the SBC
+		messageAcknowledged : 1,	// Last message has been acknowledged
+		macroFileClosed : 1;		// Last macro file has been closed
 	BinarySemaphore macroSemaphore;
 #endif
 };
@@ -277,6 +292,12 @@ inline GCodeState GCodeBuffer::GetState() const noexcept
 
 inline void GCodeBuffer::SetState(GCodeState newState) noexcept
 {
+	machineState->SetState(newState);
+}
+
+inline void GCodeBuffer::SetState(GCodeState newState, uint16_t param) noexcept
+{
+	machineState->stateParameter = param;
 	machineState->SetState(newState);
 }
 
@@ -318,9 +339,35 @@ inline bool GCodeBuffer::IsAbortAllRequested() const noexcept
 	return abortAllFiles;
 }
 
-inline void GCodeBuffer::AcknowledgeAbort() noexcept
+inline void GCodeBuffer::FileAbortSent() noexcept
 {
 	abortFile = abortAllFiles = false;
+}
+
+inline void GCodeBuffer::MacroFileClosed() noexcept
+{
+	machineState->CloseFile();
+	macroFileClosed = true;
+}
+
+inline bool GCodeBuffer::IsMacroFileClosed() const noexcept
+{
+	return macroFileClosed;
+}
+
+inline void GCodeBuffer::MacroFileClosedSent() noexcept
+{
+	macroFileClosed = false;
+}
+
+inline bool GCodeBuffer::IsMessageAcknowledged() const noexcept
+{
+	return messageAcknowledged;
+}
+
+inline void GCodeBuffer::MessageAcknowledgementSent() noexcept
+{
+	messageAcknowledged = false;
 }
 
 #endif

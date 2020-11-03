@@ -495,7 +495,7 @@ Pin IoPort::GetPin() const noexcept
 	return (IsValid()) ? GetPinNoCheck() : NoPin;
 }
 
-bool IoPort::Read() const noexcept
+bool IoPort::ReadDigital() const noexcept
 {
 	if (IsValid())
 	{

@@ -333,7 +333,6 @@ void GCodes::RunStateMachine(GCodeBuffer& gb, const StringRef& reply) noexcept
 		}
 		else
 		{
-			CheckReportDue(gb, reply);
 			isWaiting = true;
 		}
 		break;
@@ -355,9 +354,28 @@ void GCodes::RunStateMachine(GCodeBuffer& gb, const StringRef& reply) noexcept
 			gb.AdvanceState();
 			if (AllAxesAreHomed())
 			{
-				if (!DoFileMacro(gb, FILAMENT_CHANGE_G, false, 600))
+				if (!DoFileMacro(gb, FILAMENT_CHANGE_G, false, -1))
 				{
-					DoFileMacro(gb, PAUSE_G, true, 600);
+					DoFileMacro(gb, PAUSE_G, true, -1);
+				}
+			}
+		}
+		break;
+
+	case GCodeState::filamentErrorPause1:
+		if (LockMovementAndWaitForStandstill(gb))
+		{
+			gb.AdvanceState();
+			if (AllAxesAreHomed())
+			{
+				String<StringLength20> macroName;
+				macroName.printf(FILAMENT_ERROR "%u.g", gb.MachineState().stateParameter);
+				if (!DoFileMacro(gb, macroName.c_str(), false, -1))
+				{
+					if (!DoFileMacro(gb, FILAMENT_ERROR ".g", false, -1))
+					{
+						DoFileMacro(gb, PAUSE_G, true, -1);
+					}
 				}
 			}
 		}
@@ -365,6 +383,7 @@ void GCodes::RunStateMachine(GCodeBuffer& gb, const StringRef& reply) noexcept
 
 	case GCodeState::pausing2:
 	case GCodeState::filamentChangePause2:
+	case GCodeState::filamentErrorPause2:
 		if (LockMovementAndWaitForStandstill(gb))
 		{
 			reply.printf((gb.GetState() == GCodeState::filamentChangePause2) ? "Printing paused for filament change at" : "Printing paused at");
@@ -372,7 +391,7 @@ void GCodes::RunStateMachine(GCodeBuffer& gb, const StringRef& reply) noexcept
 			{
 				reply.catf(" %c%.1f", axisLetters[axis], (double)pauseRestorePoint.moveCoords[axis]);
 			}
-			platform.MessageF(LogMessage, "%s\n", reply.c_str());
+			platform.MessageF(LogWarn, "%s\n", reply.c_str());
 			gb.SetState(GCodeState::normal);
 		}
 		break;
@@ -422,17 +441,18 @@ void GCodes::RunStateMachine(GCodeBuffer& gb, const StringRef& reply) noexcept
 			restartInitialUserY = pauseRestorePoint.initialUserY;
 			isPaused = false;
 			reply.copy("Printing resumed");
-			platform.Message(LogMessage, "Printing resumed\n");
+			platform.Message(LogWarn, "Printing resumed\n");
 			gb.SetState(GCodeState::normal);
 		}
 		break;
 
 	case GCodeState::flashing1:
 #if HAS_WIFI_NETWORKING
-		if (&gb == auxGCode)								// if M997 S1 is sent from USB, don't keep sending temperature reports
-		{
-			CheckReportDue(gb, reply);						// this is so that the ATE gets status reports and can tell when flashing is complete
-		}
+// wilriker: This probably can be removed
+//		if (&gb == auxGCode)								// if M997 S1 is sent from USB, don't keep sending temperature reports
+//		{
+//			CheckReportDue(gb, reply);						// this is so that the ATE gets status reports and can tell when flashing is complete
+//		}
 
 		// Update additional modules before the main firmware
 		if (FirmwareUpdater::IsReady())
@@ -769,7 +789,7 @@ void GCodes::RunStateMachine(GCodeBuffer& gb, const StringRef& reply) noexcept
 		}
 		if (stateMachineResult == GCodeResult::ok)
 		{
-			reprap.GetPlatform().MessageF(LogMessage, "%s\n", reply.c_str());
+			reprap.GetPlatform().MessageF(LogWarn, "%s\n", reply.c_str());
 		}
 		gb.SetState(GCodeState::normal);
 		break;
@@ -1358,14 +1378,7 @@ void GCodes::RunStateMachine(GCodeBuffer& gb, const StringRef& reply) noexcept
 
 #if HAS_LINUX_INTERFACE
 	case GCodeState::waitingForAcknowledgement:	// finished M291 and the SBC expects a response next
-		if (!gb.MachineState().lastCodeFromSbc)
-		{
-			SendSbcEvent(gb);
-		}
-		gb.SetState(GCodeState::normal);
-		break;
 #endif
-
 	case GCodeState::checkError:				// we return to this state after running the retractprobe macro when there may be a stored error message
 		gb.SetState(GCodeState::normal);
 		break;
