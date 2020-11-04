@@ -427,7 +427,6 @@ void DataTransfer::Init() noexcept
 {
 	// Initialise transfer ready pin
 	pinMode(SbcTfrReadyPin, OUTPUT_LOW);
-	// Initialize SPI pins
 
 #if !SAME70
 	// Allocate buffers

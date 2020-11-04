@@ -87,7 +87,7 @@ GCodes::GCodes(Platform& p) noexcept :
 # endif // SUPPORT_TELNET || HAS_LINUX_INTERFACE
 
 #if defined(SERIAL_MAIN_DEVICE)
-# if SAME5x
+# if SAME5x || __LPC17xx__
 	// CoreN2G already uses an efficient buffer for receiving data from USB
 	StreamGCodeInput * const usbInput = new StreamGCodeInput(SERIAL_MAIN_DEVICE);
 # else
@@ -781,6 +781,7 @@ bool GCodes::DoFilePrint(GCodeBuffer& gb, const StringRef& reply) noexcept
 			return true;
 		}
 #endif
+		return false;
 	}
 }
 

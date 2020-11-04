@@ -296,11 +296,10 @@ bool GCodes::HandleGcode(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeEx
 			{
 				sparam = gb.GetIValue();
 			}
-			/* FIXME - need matching DSF for this to work
 			else if (DoFileMacro(gb, MESH_G, false, 29))	// no S parameter found so try to execute mesh.g
 			{
 				break;
-			} */
+			}
 			else
 			{
 				sparam = 0;									// mesh.g not found, so treat G29 the same as G29 S0

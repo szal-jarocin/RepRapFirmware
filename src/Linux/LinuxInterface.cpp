@@ -27,7 +27,6 @@
 #include "BoardConfig.h"
 #endif
 #include <TaskPriorities.h>
-//#define LI_DEBUG
 
 extern char _estack;		// defined by the linker
 
@@ -133,42 +132,14 @@ void LinuxInterface::Init() noexcept
 					GCodeBuffer *gb = reprap.GetGCodes().GetGCodeBuffer(channel);
 					if (gb->IsWaitingForMacro() && !gb->IsMacroRequestPending())
 					{
-#ifdef LI_DEBUG
-						debugPrintf("Starting macro\n");
-#endif
 						gb->ResolveMacroRequest(false, false);
 					}
-#ifdef LI_DEBUG
-					debugPrintf("Add len %d txp %d rxp %d txl %d\n", packet->length, txPointer, rxPointer, txLength);
-#endif
 					// Check if the next code overlaps. If yes, restart from the beginning
 					if (txPointer + sizeof(BufferedCodeHeader) + packet->length > SpiCodeBufferSize)
 					{
-						if (txLength != 0)
-						{
-							debugPrintf("about set txLength when it is already set\n");
-							debugPrintf("Add len %d txp %d rxp %d txl %d\n", packet->length, txPointer, rxPointer, txLength);
-							delay(1000);
-						}
 						if (rxPointer == txPointer)
 						{
 							rxPointer = 0;
-							// We should never need to do this as the buffer is in effect empty
-							debugPrintf("Incorrectly setting txLength to %d\n", txPointer);
-							delay(1000);
-						}
-						else
-						{
-							// Check to see if we will overwrite existing buffer contents Should never happen... But does with 3.2-beta2
-							if (rxPointer < sizeof(BufferedCodeHeader) + packet->length)
-							{
-#ifdef LI_DEBUG
-								debugPrintf("Buffer is full\n");
-								debugPrintf("Add len %d txp %d rxp %d txl %d\n", packet->length, txPointer, rxPointer, txLength);
-#endif
-								packetAcknowledged = false;
-								break;
-							}
 						}
 						else
 						{
@@ -185,21 +156,7 @@ void LinuxInterface::Init() noexcept
 						txLength = txPointer;
 						txPointer = 0;
 						sendBufferUpdate = true;
-#ifdef LI_DEBUG
-						debugPrintf("Adjust len %d txp %d rxp %d txl %d\n", packet->length, txPointer, rxPointer, txLength);
-#endif
 					}
-					// Check to see if we are about to overwrite older packets! Should never happen... But does with 3.2-beta2
-					if (txPointer < rxPointer && txPointer + sizeof(BufferedCodeHeader) + packet->length > rxPointer)
-					{
-#ifdef LI_DEBUG
-						debugPrintf("About to overwrite rxData!!!! ");
-						debugPrintf("len %d txp %d rxp %d txl %d\n", packet->length + sizeof(BufferedCodeHeader), txPointer, rxPointer, txLength);
-#endif
-						packetAcknowledged = false;
-						break;
-					}
-
 					// Check to see if we are about to overwrite older packets.
 					if (txPointer < rxPointer && txPointer + sizeof(BufferedCodeHeader) + packet->length > rxPointer)
 					{
@@ -218,11 +175,6 @@ void LinuxInterface::Init() noexcept
 					// Store the corresponding code
 					memcpy(codeBuffer + txPointer, code, packet->length);
 					txPointer += packet->length;
-					if (txPointer > SpiCodeBufferSize)
-					{
-						debugPrintf("Invalid txPointer %d\n", txPointer);
-						delay(1000);
-					}
 					break;
 				}
 
@@ -331,11 +283,8 @@ void LinuxInterface::Init() noexcept
 
 							if (reprap.Debug(moduleLinuxInterface))
 							{
-								reprap.GetPlatform().MessageF(DebugMessage, "Empty macro completed on channel %u\n", channel.ToBaseType());
+								reprap.GetPlatform().MessageF(DebugMessage, "Macro completed on channel %u\n", channel.ToBaseType());
 							}
-							InvalidateBufferChannel(channel);
-							gb->Invalidate(false);
-
 						}
 						else
 						{
@@ -612,9 +561,6 @@ void LinuxInterface::Init() noexcept
 				TaskCriticalSectionLocker locker;
 
 				const uint16_t bufferSpace = (txLength == 0) ? max<uint16_t>(rxPointer, SpiCodeBufferSize - txPointer) : rxPointer - txPointer;
-#ifdef LI_DEBUG
-				debugPrintf("update buffer space %d txp %d rxp %d txlen %d\n", bufferSpace, txPointer, rxPointer, txLength);
-#endif
 				sendBufferUpdate = !transfer.WriteCodeBufferUpdate(bufferSpace);
 			}
 
@@ -761,7 +707,7 @@ void LinuxInterface::Init() noexcept
 			// Close all open G-code files
 			for (size_t i = 0; i < NumGCodeChannels; i++)
 			{
-				GCodeBuffer *gb = reprap.GetGCodes().GetGCodeBuffer((GCodeChannel)i);
+				GCodeBuffer *gb = reprap.GetGCodes().GetGCodeBuffer(GCodeChannel(i));
 				if (gb == nullptr) continue;
 				if (gb->IsWaitingForMacro())
 				{
@@ -817,8 +763,6 @@ bool LinuxInterface::FillBuffer(GCodeBuffer &gb) noexcept
 	TaskCriticalSectionLocker locker;
 	if (rxPointer != txPointer || txLength != 0)
 	{
-		bool found = false;
-		bool wrapped = false;
 		bool updateRxPointer = true;
 		uint16_t readPointer = rxPointer;
 		do
@@ -827,55 +771,42 @@ bool LinuxInterface::FillBuffer(GCodeBuffer &gb) noexcept
 			readPointer += sizeof(BufferedCodeHeader);
 			const CodeHeader * const header = reinterpret_cast<const CodeHeader*>(codeBuffer + readPointer);
 			readPointer += bufHeader->length;
-			if (readPointer == txLength)
-			{
-				readPointer = 0;
-				wrapped = true;
-			}
-			if (((readPointer >= SpiCodeBufferSize) && (readPointer != txPointer)) || txPointer > SpiCodeBufferSize)
-			{
-				debugPrintf("Invalid read pointer %d txp %d rxp %d txl %d\n", readPointer, txPointer, rxPointer, txLength);
-				delay(1000);
-			}
+
 			if (bufHeader->isPending)
 			{
 				if (gb.GetChannel().RawValue() == header->channel)
 				{
-#ifdef LI_DEBUG
-					debugPrintf("FillBuffer chan %d len %d pending %d txp %d rxp %d txl %d\n", header->channel, bufHeader->length, bufHeader->isPending, txPointer, rxPointer, txLength);
-#endif
 					gb.PutAndDecode(reinterpret_cast<const char *>(header), bufHeader->length, true);
 					bufHeader->isPending = false;
-					found = true;
+
+					if (updateRxPointer)
+					{
+						sendBufferUpdate = true;
+
+						rxPointer = readPointer;
+						if (rxPointer == txLength)
+						{
+							rxPointer = txLength = 0;
+						}
+						else if (rxPointer == txPointer && txLength == 0)
+						{
+							rxPointer = txPointer = 0;
+						}
+					}
+
+					return true;
 				}
 				else
 				{
 					updateRxPointer = false;
 				}
 			}
-		} while (readPointer != txPointer && !found);
-		if (updateRxPointer)
-		{
-			sendBufferUpdate = true;
-#ifdef LI_DEBUG
-			debugPrintf("FillBuffer update rp %d wrapped %d txp %d rxp %d txl %d\n", readPointer, wrapped, txPointer, rxPointer, txLength);
-#endif
-			rxPointer = readPointer;
-			// buffer may have wrapped when processing a burrer that was not pending
-			if (wrapped)
-			{
-				txLength = 0;
-			}
-			if (rxPointer == txPointer && txLength == 0)
-			{
-				rxPointer = txPointer = 0;
-			}
-#ifdef LI_DEBUG
-			debugPrintf("After txp %d rxp %d txl %d\n", txPointer, rxPointer, txLength);
-#endif
-		}
-		return found;
 
+			if (readPointer == txLength)
+			{
+				readPointer = 0;
+			}
+		} while (readPointer != txPointer);
 	}
 	return false;
 }
@@ -920,7 +851,6 @@ void LinuxInterface::HandleGCodeReply(MessageType mt, const char *reply) noexcep
 	}
 	else
 	{
-		if (reply[0] != 0) debugPrintf("Sending null reply when we have data!!!\n");
 		// Store nullptr to indicate an empty response. This way many OutputBuffer references can be saved
 		gcodeReply->Push(nullptr, mt);
 	}
@@ -952,9 +882,6 @@ void LinuxInterface::InvalidateBufferChannel(GCodeChannel channel) noexcept
 			if (bufHeader->isPending)
 			{
 				const CodeHeader *header = reinterpret_cast<const CodeHeader*>(codeBuffer + readPointer);
-#ifdef LI_DEBUG
-				debugPrintf("Inavlidate chan %d len %d txp %d rxp %d rp %d\n", header->channel, bufHeader->length, txPointer, rxPointer, readPointer);
-#endif
 				if (header->channel == channel.RawValue())
 				{
 					bufHeader->isPending = false;
@@ -964,42 +891,24 @@ void LinuxInterface::InvalidateBufferChannel(GCodeChannel channel) noexcept
 					updateRxPointer = false;
 				}
 			}
-#ifdef LI_DEBUG
-			else
-				debugPrintf("skip len %d txp %d rxp %d rp %d\n", bufHeader->length, txPointer, rxPointer, readPointer);
-#endif
 			readPointer += bufHeader->length;
 
 			if (readPointer == txLength)
 			{
 				readPointer = 0;
 			}
-			if (((readPointer >= SpiCodeBufferSize) && (readPointer != txPointer)) || txPointer > SpiCodeBufferSize)
-			{
-				debugPrintf("IBC Invalid read pointer %d txp %d rxp %d txl %d\n", readPointer, txPointer, rxPointer, txLength);
-				delay(1000);
-			}
 
 			if (updateRxPointer)
 			{
-#ifdef LI_DEBUG
-				debugPrintf("invalidate buffer chan %d len %d txp %d rxp %d txl %d\n", channel.RawValue(), bufHeader->length, txPointer, rxPointer, txLength);
-#endif
 				sendBufferUpdate = true;
 				rxPointer = readPointer;
 				if (rxPointer == 0)
 				{
 					txLength = 0;
-#ifdef LI_DEBUG
-					debugPrintf("after txp %d rxp %d txl %d\n", txPointer, rxPointer, txLength);
-#endif
 				}
 				else if (rxPointer == txPointer && txLength == 0)
 				{
 					rxPointer = txPointer = 0;
-#ifdef LI_DEBUG
-					debugPrintf("after txp %d rxp %d txl %d\n", txPointer, rxPointer, txLength);
-#endif
 					break;
 				}
 			}
