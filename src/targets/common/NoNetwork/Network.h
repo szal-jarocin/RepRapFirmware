@@ -5,15 +5,16 @@
 #include "MessageType.h"
 #include "GCodes/GCodeResult.h"
 #include "General/IPAddress.h"
-
+#include <ObjectModel/ObjectModel.h>
 #include "Networking/NetworkDefs.h"
 //forward declarations
 class NetworkInterface;
+const size_t NumNetworkInterfaces = 0;
 
 
 
 // The main network class that drives the network.
-class Network
+class Network INHERIT_OBJECT_MODEL
 {
 public:
     Network(Platform& p) noexcept { };
@@ -49,13 +50,13 @@ public:
 	void HandleTelnetGCodeReply(OutputBuffer *buf) noexcept;
 	uint32_t GetHttpReplySeq() noexcept { return 0; }
     
-//protected:
-//    DECLARE_OBJECT_MODEL
-//    OBJECT_MODEL_ARRAY(interfaces)
+protected:
+    DECLARE_OBJECT_MODEL
+    OBJECT_MODEL_ARRAY(interfaces)
 
   
 private:
-    //NetworkInterface *interfaces[NumNetworkInterfaces];
+    NetworkInterface *interfaces[NumNetworkInterfaces];
     MacAddress macAddress;
 
 };
