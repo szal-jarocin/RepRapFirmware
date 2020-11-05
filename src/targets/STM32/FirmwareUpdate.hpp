@@ -51,7 +51,7 @@ void RepRap::UpdateFirmware() noexcept
         return;
     }
     
-    SoftwareReset((uint16_t)SoftwareResetReason::user); // Reboot
+    SoftwareReset(SoftwareResetReason::user); // Reboot
 #endif
     
 }
