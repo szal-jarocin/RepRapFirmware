@@ -900,7 +900,7 @@ void BoardConfig::EndFirmwareUpdate()
     }
     //debugPrintf("Doing software reset\n");
     reprap.EmergencyStop();			// turn off heaters etc.
-    SoftwareReset((uint16_t)SoftwareResetReason::user); // Reboot
+    SoftwareReset(SoftwareResetReason::user); // Reboot
     //debugPrintf("OH dear we should not see this!\n");
 }
 #endif

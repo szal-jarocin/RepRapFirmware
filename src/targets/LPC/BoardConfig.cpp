@@ -874,7 +874,7 @@ void BoardConfig::EndFirmwareUpdate()
         firmwareFile = nullptr;
     }
     reprap.EmergencyStop();			// turn off heaters etc.
-    SoftwareReset((uint16_t)SoftwareResetReason::user); // Reboot
+    SoftwareReset(SoftwareResetReason::user); // Reboot
 }
 #endif
 
