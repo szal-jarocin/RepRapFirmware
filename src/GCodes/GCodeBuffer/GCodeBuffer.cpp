@@ -101,7 +101,7 @@ GCodeBuffer::GCodeBuffer(GCodeChannel::RawType channel, GCodeInput *normalIn, Fi
 #endif
 	  timerRunning(false), motionCommanded(false)
 #if HAS_LINUX_INTERFACE
-	  , isWaitingForMacro(false)
+	  , isWaitingForMacro(false), invalidated(false)
 #endif
 {
 	mutex.Create(((GCodeChannel)channel).ToString());
@@ -115,18 +115,18 @@ void GCodeBuffer::Reset() noexcept
 #if HAS_LINUX_INTERFACE
 	if (isWaitingForMacro)
 	{
-		macroError = true;
-		macroSemaphore.Give();
+		ResolveMacroRequest(true, false);
 	}
 #endif
 
 	while (PopState(false)) { }
 
 #if HAS_LINUX_INTERFACE
-	requestedMacroFile.Clear();
-	isWaitingForMacro = hasStartedMacro = abortFile = abortAllFiles = invalidated = messageAcknowledged = macroFileClosed = false;
 	isBinaryBuffer = false;
-	machineState->lastCodeFromSbc = machineState->isMacroFromCode = false;
+	requestedMacroFile.Clear();
+	isWaitingForMacro = macroFileClosed = false;
+	macroJustStarted = macroFileError = macroFileEmpty = abortFile = abortAllFiles = sendToSbc = messagePromptPending = messageAcknowledged = false;
+	machineState->lastCodeFromSbc = machineState->macroStartedByCode = false;
 #endif
 	Init();
 }
@@ -243,7 +243,7 @@ bool GCodeBuffer::Put(char c) noexcept
 // Decode the command in the buffer when it is complete
 void GCodeBuffer::DecodeCommand() noexcept
 {
-	IF_NOT_BINARY(stringParser.DecodeCommand());
+	PARSER_OPERATION(DecodeCommand());
 }
 
 // Check whether the current command is a meta command, or we are skipping a block. Return true if we are and the current line no longer needs to be processed.
@@ -252,32 +252,29 @@ bool GCodeBuffer::CheckMetaCommand(const StringRef& reply)
 	return NOT_BINARY_AND(stringParser.CheckMetaCommand(reply));
 }
 
-// Add an entire G-Code, overwriting any existing content
 #if HAS_LINUX_INTERFACE
 
-void GCodeBuffer::PutAndDecode(const char *str, size_t len, bool isBinary) noexcept
+// Add an entire binary G-Code, overwriting any existing content
+// CAUTION! This may be called with the task scheduler suspended, so don't do anything that might block or take more than a few microseconds to execute
+void GCodeBuffer::PutBinary(const char *str, size_t len) noexcept
 {
-	machineState->lastCodeFromSbc = isBinary;
-	isBinaryBuffer = isBinary;
-	if (isBinary)
-	{
-		binaryParser.Put(str, len);
-		hasStartedMacro = false;
-	}
-	else
-	{
-		stringParser.PutAndDecode(str, len);
-	}
-}
-
-#else
-
-void GCodeBuffer::PutAndDecode(const char *str, size_t len) noexcept
-{
-	stringParser.PutAndDecode(str, len);
+	machineState->lastCodeFromSbc = true;
+	isBinaryBuffer = true;
+	macroJustStarted = false;
+	binaryParser.Put(str, len);
 }
 
 #endif
+
+// Add an entire G-Code, overwriting any existing content
+void GCodeBuffer::PutAndDecode(const char *str, size_t len) noexcept
+{
+#if HAS_LINUX_INTERFACE
+	machineState->lastCodeFromSbc = false;
+	isBinaryBuffer = false;
+#endif
+	stringParser.PutAndDecode(str, len);
+}
 
 // Add a null-terminated string, overwriting any existing content
 void GCodeBuffer::PutAndDecode(const char *str) noexcept
@@ -291,6 +288,9 @@ void GCodeBuffer::PutAndDecode(const char *str) noexcept
 
 void GCodeBuffer::StartNewFile() noexcept
 {
+#if HAS_LINUX_INTERFACE
+	machineState->SetFileExecuting();
+#endif
 	machineState->lineNumber = 0;						// reset line numbering when M32 is run
 	IF_NOT_BINARY(stringParser.StartNewFile());
 }
@@ -641,16 +641,6 @@ bool GCodeBuffer::IsCompletelyIdle() const noexcept
 	return GetState() == GCodeState::normal && IsIdle();
 }
 
-bool GCodeBuffer::IsReady() const noexcept
-{
-	return bufferState == GCodeBufferState::ready;
-}
-
-bool GCodeBuffer::IsExecuting() const noexcept
-{
-	return bufferState == GCodeBufferState::executing;
-}
-
 void GCodeBuffer::SetFinished(bool f) noexcept
 {
 	if (f)
@@ -739,7 +729,6 @@ bool GCodeBuffer::PopState(bool withinSameFile) noexcept
 	return true;
 }
 
-
 // Abort execution of any files or macros being executed
 // We now avoid popping the state if we were not executing from a file, so that if DWC or PanelDue is used to jog the axes before they are homed, we don't report stack underflow.
 void GCodeBuffer::AbortFile(bool abortAll, bool requestAbort) noexcept
@@ -775,45 +764,35 @@ void GCodeBuffer::AbortFile(bool abortAll, bool requestAbort) noexcept
 
 #if HAS_LINUX_INTERFACE
 
-bool GCodeBuffer::IsFileFinished() const noexcept
+void GCodeBuffer::SetFileFinished() noexcept
 {
-	return machineState->isFileFinished;
-}
-
-void GCodeBuffer::SetFileFinished(bool error) noexcept
-{
-	uint32_t lastFileId = 0;
-	for (GCodeMachineState *ms = machineState; ms != nullptr; ms = ms->GetPrevious())
+	uint32_t lastFileId = machineState->fileId;
+	if (lastFileId != 0)
 	{
-		if (ms->fileId != 0)
+		for (GCodeMachineState *ms = machineState; ms != nullptr; ms = ms->GetPrevious())
 		{
-			if (lastFileId == 0)
+			if (ms->fileId == lastFileId)
 			{
-				lastFileId = ms->fileId;
+				ms->fileFinished = true;
 			}
-			else if (ms->fileId != lastFileId)
-			{
-				break;
-			}
-			ms->isFileFinished = true;
-			ms->fileError = error;
 		}
 	}
 }
 
 void GCodeBuffer::SetPrintFinished() noexcept
 {
-	const uint32_t fileId = OriginalMachineState().fileId;
-	for (GCodeMachineState *ms = machineState; ms != nullptr; ms = ms->GetPrevious())
+	uint32_t printFileId = OriginalMachineState().fileId;
+	if (printFileId != 0)
 	{
-		if (ms->fileId == fileId)
+		for (GCodeMachineState *ms = machineState; ms != nullptr; ms = ms->GetPrevious())
 		{
-			ms->isFileFinished = true;
-			ms->fileError = false;
+			if (ms->fileId == printFileId)
+			{
+				ms->fileFinished = true;
+			}
 		}
 	}
 }
-
 // This is only called when using the Linux interface and returns if the macro file could be opened
 bool GCodeBuffer::RequestMacroFile(const char *filename, bool fromCode) noexcept
 {
@@ -823,9 +802,9 @@ bool GCodeBuffer::RequestMacroFile(const char *filename, bool fromCode) noexcept
 		return false;
 	}
 	// Request the macro file from the SBC
+	macroJustStarted = false;
+	machineState->macroStartedByCode = fromCode;
 	requestedMacroFile.copy(filename);
-	machineState->isMacroFromCode = fromCode;
-	hasStartedMacro = macroError = macroEmpty = false;
 	isWaitingForMacro = true;
 
 	// Wait for a response (but not forever)
@@ -836,9 +815,10 @@ bool GCodeBuffer::RequestMacroFile(const char *filename, bool fromCode) noexcept
 		return false;
 	}
 
-	if (!macroError)
+	// When we get here most of the variables above have been set
+	if (!macroFileError)
 	{
-		hasStartedMacro = !macroEmpty;
+		macroJustStarted = true;
 		return true;
 	}
 	return false;
@@ -846,10 +826,17 @@ bool GCodeBuffer::RequestMacroFile(const char *filename, bool fromCode) noexcept
 
 void GCodeBuffer::ResolveMacroRequest(bool hadError, bool isEmpty) noexcept
 {
+	macroFileError = hadError;
+	macroFileEmpty = !hadError && isEmpty;
 	isWaitingForMacro = false;
-	macroError = hadError;
-	macroEmpty = isEmpty;
 	macroSemaphore.Give();
+}
+
+void GCodeBuffer::MacroFileClosed() noexcept
+{
+	machineState->CloseFile();
+	macroJustStarted = false;
+	macroFileClosed = true;
 }
 
 #endif
@@ -866,7 +853,7 @@ void GCodeBuffer::MessageAcknowledged(bool cancelled) noexcept
 			ms->messageAcknowledged = true;
 			ms->messageCancelled = cancelled;
 #if HAS_LINUX_INTERFACE
-			messageAcknowledged = true;
+			messageAcknowledged = !cancelled;
 #endif
 		}
 	}
@@ -886,6 +873,17 @@ MessageType GCodeBuffer::GetResponseMessageType() const noexcept
 FilePosition GCodeBuffer::GetFilePosition() const noexcept
 {
 	return PARSER_OPERATION(GetFilePosition());
+}
+
+void GCodeBuffer::WaitForAcknowledgement() noexcept
+{
+	machineState->WaitForAcknowledgement();
+#if HAS_LINUX_INTERFACE
+	if (reprap.UsingLinuxInterface())
+	{
+		messagePromptPending = true;
+	}
+#endif
 }
 
 #if HAS_MASS_STORAGE
@@ -949,23 +947,6 @@ void GCodeBuffer::PrintCommand(const StringRef& s) const noexcept
 void GCodeBuffer::AppendFullCommand(const StringRef &s) const noexcept
 {
 	PARSER_OPERATION(AppendFullCommand(s));
-}
-
-bool GCodeBuffer::IsPausing() const
-{
-	const GCodeState topState = OriginalMachineState().GetState();
-	return (   topState == GCodeState::pausing1 || topState == GCodeState::pausing2
-			|| topState == GCodeState::filamentChangePause1 || topState == GCodeState::filamentChangePause2
-#if HAS_VOLTAGE_MONITOR
-			|| topState == GCodeState::powerFailPausing1
-#endif
-	   	   );
-}
-
-bool GCodeBuffer::IsResuming() const
-{
-	const GCodeState topState = OriginalMachineState().GetState();
-	return topState == GCodeState::resuming1 || topState == GCodeState::resuming2 || topState == GCodeState::resuming3;
 }
 
 // End
