@@ -7,6 +7,8 @@ static HardwareSPI *spiDevice;
 
 volatile bool dataReceived = false, transferReadyHigh = false;
 volatile unsigned int spiTxUnderruns = 0, spiRxOverruns = 0;
+bool needInit = true;
+
 void InitSpi() noexcept;
 
 // interrupt handler
@@ -20,6 +22,12 @@ void SpiInterrupt(HardwareSPI *spi) noexcept
 
 void setup_spi(void *inBuffer, const void *outBuffer, size_t bytesToTransfer)
 {
+    if (needInit)
+    {
+        debugPrintf("setup_spi calling init\n");
+        InitSpi();
+    }
+
     spiDevice->flushRx();
     spiDevice->startTransfer((const uint8_t *)outBuffer, (uint8_t *)inBuffer, bytesToTransfer, SpiInterrupt);
    
@@ -30,12 +38,16 @@ void setup_spi(void *inBuffer, const void *outBuffer, size_t bytesToTransfer)
 
 void disable_spi()
 {
+    debugPrintf("disable_spi called\n");
     spiDevice->disable();
+    needInit = true;
 }
     
 // Set up the SPI system
 void InitSpi() noexcept
 {
+    debugPrintf("InitSpi called\n");
     spiDevice = &HardwareSPI::SSP2;
     spiDevice->configureDevice(SPI_MODE_SLAVE, 8, (uint8_t)SPI_MODE_0, 100000000, true);
+    needInit = false;
 }
