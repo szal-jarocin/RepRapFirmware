@@ -24,7 +24,6 @@ void setup_spi(void *inBuffer, const void *outBuffer, size_t bytesToTransfer)
 {
     if (needInit)
     {
-        debugPrintf("setup_spi calling init\n");
         InitSpi();
     }
 
@@ -38,7 +37,6 @@ void setup_spi(void *inBuffer, const void *outBuffer, size_t bytesToTransfer)
 
 void disable_spi()
 {
-    debugPrintf("disable_spi called\n");
     spiDevice->disable();
     needInit = true;
 }
@@ -46,7 +44,6 @@ void disable_spi()
 // Set up the SPI system
 void InitSpi() noexcept
 {
-    debugPrintf("InitSpi called\n");
     spiDevice = &HardwareSPI::SSP2;
     spiDevice->configureDevice(SPI_MODE_SLAVE, 8, (uint8_t)SPI_MODE_0, 100000000, true);
     needInit = false;
