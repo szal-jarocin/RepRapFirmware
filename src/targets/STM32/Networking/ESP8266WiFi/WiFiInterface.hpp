@@ -20,6 +20,7 @@ static inline void DisableSpi() noexcept
 static inline void spi_dma_disable() noexcept
 {
     spiDevice->stopTransfer();
+    dmaActive = false;
 }
 
 static bool spi_dma_check_rx_complete() noexcept
