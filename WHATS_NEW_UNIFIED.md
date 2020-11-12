@@ -1,5 +1,6 @@
-Version 3.2-beta2_4
+Version 3.2-beta3_2
 ===================
+* RRF v3.2-beta3 (See the RRF docs for details)
 * LPC reduce number of probe points (to 16) to avoid firmware reset
 * LPC Increased exception handler stack size (to avoid resets)
 * LPC fix PWM interrupt priority
@@ -10,6 +11,7 @@ Version 3.2-beta2_4
 * Set inital ATX power state with atx.initialPowerOn (default is true).
 * Enable/Disable TMC drivers based on ATX power (via M80/M81)
 * Add support for NeoPixel LEDs via m150 (new board.txt entry led.neopixelPin)
+* LPC Add support for FLY-CDY board.
 
 
 
