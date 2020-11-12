@@ -18,12 +18,12 @@ constexpr PinEntry PinTable_FLY_CDY[] =
     {P0_24, PinCapability::ainrw, "e2temp,t2"},
 
     //Endstops
-    {P1_29, PinCapability::rw, "xstop"},
-    {P1_28, PinCapability::rw, "xstopmax"},
-    {P1_27, PinCapability::rw, "ystop"},
-    {P1_25, PinCapability::rw, "ystopmax"},
-    {P1_22, PinCapability::rw, "zstop"},
-    {P1_19, PinCapability::rw, "zstopmax"},
+    {P1_29, PinCapability::rw, "xmin,xstop"},
+    {P1_28, PinCapability::rw, "xmax,xstopmax"},
+    {P1_27, PinCapability::rw, "ymin,ystop"},
+    {P1_25, PinCapability::rw, "ymax,ystopmax"},
+    {P1_22, PinCapability::rw, "zmin,zstop"},
+    {P1_19, PinCapability::rw, "zmax,zstopmax"},
 
     //Heaters and Fans
     {P3_26,  PinCapability::wpwm, "bed" },
@@ -52,20 +52,20 @@ constexpr PinEntry PinTable_FLY_CDY[] =
     {P2_6, PinCapability::rwpwm,  "P2.6"},
 
     //Servos
-    {P1_26,  PinCapability::rwpwm, "servo0,P1.26" },
+    {P1_26,  PinCapability::rwpwm, "servo0" },
 
 	//Wifi
-	{P0_1, PinCapability::rwpwm, "wifi1,P0.1"},
-	{P0_0, PinCapability::rwpwm, "wifi2,P0.0"},
+	{P0_1, PinCapability::rwpwm, "wifi1"},
+	{P0_0, PinCapability::rwpwm, "wifi2"},
 
 	//screen
 	{P0_2,  PinCapability::rwpwm, "P0.2"},
 	{P0_3,  PinCapability::rwpwm, "P0.3"},
 
 	//TMC-SPI Pins
-	{P0_19,  PinCapability::rwpwm, "P0_19"},  //SOFT MISO
-	{P0_20,  PinCapability::rwpwm, "P0_20"},  //SOFT MOSI
-	{P0_21,  PinCapability::rwpwm, "P0_21"},  //SCK
+	{P0_19,  PinCapability::rwpwm, "P0.19"},  //SOFT MISO
+	{P0_20,  PinCapability::rwpwm, "P0.20"},  //SOFT MOSI
+	{P0_21,  PinCapability::rwpwm, "P0.21"},  //SCK
 
 };
 
