@@ -33,7 +33,7 @@ public:
 	Heater(const Heater&) = delete;
 
 	// Configuration methods
-	virtual GCodeResult ConfigurePortAndSensor(const char *portName, PwmFrequency freq, unsigned int sensorNumber, const StringRef& reply) = 0;
+	virtual GCodeResult ConfigurePortAndSensor(const char *portName, PwmFrequency freq, unsigned int sn, const StringRef& reply) = 0;
 	virtual GCodeResult SetPwmFrequency(PwmFrequency freq, const StringRef& reply) = 0;
 	virtual GCodeResult ReportDetails(const StringRef& reply) const noexcept = 0;
 
@@ -42,10 +42,11 @@ public:
 	virtual GCodeResult ResetFault(const StringRef& reply) noexcept = 0;	// Reset a fault condition - only call this if you know what you are doing
 	virtual void SwitchOff() noexcept = 0;
 	virtual void Spin() noexcept = 0;
-	virtual GCodeResult StartAutoTune(float targetTemp, float maxPwm, const StringRef& reply) noexcept = 0;	// Start an auto tune cycle for this PID
-	virtual void GetAutoTuneStatus(const StringRef& reply) const = 0;	// Get the auto tune status or last result
+	virtual GCodeResult StartAutoTune(GCodeBuffer& gb, const StringRef& reply, FansBitmap fans) THROWS(GCodeException) = 0;	// Start an auto tune cycle for this heater
+	virtual void GetAutoTuneStatus(const StringRef& reply) const noexcept = 0;	// Get the auto tune status or last result
 	virtual void Suspend(bool sus) noexcept = 0;						// Suspend the heater to conserve power or while doing Z probing
 	virtual float GetAccumulator() const noexcept = 0;					// Get the inertial term accumulator
+	virtual void PrintCoolingFanPwmChanged(float pwmChange) noexcept = 0;
 
 #if SUPPORT_CAN_EXPANSION
 	virtual void UpdateRemoteStatus(CanAddress src, const CanHeaterReport& report) noexcept = 0;
@@ -70,7 +71,7 @@ public:
 	float GetLowestTemperatureLimit() const noexcept;					// Get the lowest temperature limit
 
 	const FopDt& GetModel() const noexcept { return model; }			// Get the process model
-	GCodeResult SetOrReportModel(unsigned int heater, GCodeBuffer& gb, const StringRef& reply) noexcept;
+	GCodeResult SetOrReportModel(unsigned int heater, GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeException);
 	void SetModelDefaults() noexcept;
 
 	bool IsHeaterEnabled() const noexcept								// Is this heater enabled?
@@ -117,7 +118,7 @@ protected:
 	float GetMaxTemperatureExcursion() const noexcept { return maxTempExcursion; }
 	float GetMaxHeatingFaultTime() const noexcept { return maxHeatingFaultTime; }
 	float GetTargetTemperature() const noexcept { return (active) ? activeTemperature : standbyTemperature; }
-	GCodeResult SetModel(float gain, float tc, float td, float maxPwm, float voltage, bool usePid, bool inverted, const StringRef& reply) noexcept;	// Set the process model
+	GCodeResult SetModel(float heatingRate, float coolingRateFanOff, float coolingRateFanOn, float td, float maxPwm, float voltage, bool usePid, bool inverted, const StringRef& reply) noexcept;	// Set the process model
 
 	HeaterMonitor monitors[MaxMonitorsPerHeater];	// embedding them in the Heater uses less memory than dynamic allocation
 

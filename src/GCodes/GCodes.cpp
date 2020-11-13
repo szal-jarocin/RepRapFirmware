@@ -497,6 +497,7 @@ bool GCodes::SpinGCodeBuffer(GCodeBuffer& gb) noexcept
 {
 	// Set up a buffer for the reply
 	String<GCodeReplyLength> reply;
+	bool result;
 
 	MutexLocker gbLock(gb.mutex);
 	if (gb.GetState() == GCodeState::normal)
@@ -504,7 +505,7 @@ bool GCodes::SpinGCodeBuffer(GCodeBuffer& gb) noexcept
 		if (gb.MachineState().messageAcknowledged)
 		{
 			const bool wasCancelled = gb.MachineState().messageCancelled;
-			gb.PopState(false);                                                             // this could fail if the current macro has already been aborted
+			gb.PopState(false);											// this could fail if the current macro has already been aborted
 
 			if (wasCancelled)
 			{
@@ -517,20 +518,25 @@ bool GCodes::SpinGCodeBuffer(GCodeBuffer& gb) noexcept
 					FileMacroCyclesReturn(gb);
 				}
 			}
-			return wasCancelled;
+			result = wasCancelled;
 		}
-
-		return StartNextGCode(gb, reply.GetRef());
+		else
+		{
+			result = StartNextGCode(gb, reply.GetRef());
+		}
 	}
 	else
 	{
 		RunStateMachine(gb, reply.GetRef());                            // execute the state machine
+		result = true;													// assume we did something useful (not necessarily true, e.g. could be waiting for movement to stop)
 	}
+
 	if (gb.IsExecuting())
 	{
 		CheckReportDue(gb, reply.GetRef());
 	}
-	return true;
+
+	return result;
 }
 
 // Start a new gcode, or continue to execute one that has already been started. Return true if we found something significant to do.
@@ -1539,6 +1545,8 @@ bool GCodes::Push(GCodeBuffer& gb, bool withinSameFile)
 // Recover a saved state
 void GCodes::Pop(GCodeBuffer& gb, bool withinSameFile)
 {
+	// FIXME If withinSameFile is false, we should pop all stack levels that have the same file (ID)
+	// and output a warning message is the stack is popped more than once
 	if (!gb.PopState(withinSameFile))
 	{
 		platform.Message(ErrorMessage, "Pop(): stack underflow\n");
@@ -2043,7 +2051,7 @@ bool GCodes::DoStraightMove(GCodeBuffer& gb, bool isCoordinated, const char *& e
 			// We assume that the segments will be smaller than the mesh spacing.
 			const float xyLength = sqrtf(fsquare(currentUserPosition[X_AXIS] - initialXY[0]) + fsquare(currentUserPosition[Y_AXIS] - initialXY[1]));
 			const float moveTime = xyLength/moveBuffer.feedRate;			// this is a best-case time, often the move will take longer
-			totalSegments = (unsigned int)max<int>(1, min<int>(rintf(xyLength/kin.GetMinSegmentLength()), rintf(moveTime * kin.GetSegmentsPerSecond())));
+			totalSegments = (unsigned int)max<long>(1, min<long>(lrintf(xyLength/kin.GetMinSegmentLength()), lrintf(moveTime * kin.GetSegmentsPerSecond())));
 		}
 		else if (reprap.GetMove().IsUsingMesh() && (moveBuffer.isCoordinated || machineType == MachineType::fff))
 		{
@@ -3409,8 +3417,7 @@ void GCodes::SetMappedFanSpeed(float f) noexcept
 	}
 	else
 	{
-		const FansBitmap fanMap = ct->GetFanMapping();
-		fanMap.Iterate([f](unsigned int i, unsigned int) noexcept { reprap.GetFansManager().SetFanValue(i, f); });
+		ct->SetFansPwm(f);
 	}
 }
 
@@ -4413,7 +4420,7 @@ void GCodes::CheckReportDue(GCodeBuffer& gb, const StringRef& reply) const
 	}
 	else if (&gb == auxGCode)
 	{
-		if ( lastAuxStatusReportType >= 0 && platform.IsAuxEnabled(0) && gb.IsReportDue())
+		if (lastAuxStatusReportType >= 0 && platform.IsAuxEnabled(0) && gb.IsReportDue())
 		{
 			// Send a standard status response for PanelDue
 			OutputBuffer * const statusBuf =

@@ -766,33 +766,55 @@ void GCodeBuffer::AbortFile(bool abortAll, bool requestAbort) noexcept
 
 void GCodeBuffer::SetFileFinished() noexcept
 {
-	uint32_t lastFileId = machineState->fileId;
-	if (lastFileId != 0)
+	FileId macroFileId = NoFileId, printFileId = OriginalMachineState().fileId;
+	for (GCodeMachineState *ms = machineState; ms != nullptr; ms = ms->GetPrevious())
 	{
-		for (GCodeMachineState *ms = machineState; ms != nullptr; ms = ms->GetPrevious())
+		if (macroFileId == NoFileId && ms->fileId != NoFileId && ms->fileId != printFileId && !ms->fileFinished)
 		{
-			if (ms->fileId == lastFileId)
+			// Get the next macro file being executed
+			macroFileId = ms->fileId;
+		}
+
+		if (macroFileId != NoFileId)
+		{
+			if (ms->fileId == macroFileId)
 			{
+				// Flag it (and following machine states) as finished
 				ms->fileFinished = true;
 			}
+			else
+			{
+				break;
+			}
 		}
+	}
+
+	if (macroFileId == NoFileId)
+	{
+		reprap.GetPlatform().Message(WarningMessage, "Cannot set macro file finished because there is no file ID\n");
 	}
 }
 
 void GCodeBuffer::SetPrintFinished() noexcept
 {
-	uint32_t printFileId = OriginalMachineState().fileId;
-	if (printFileId != 0)
+	FileId printFileId = OriginalMachineState().fileId;
+	if (printFileId != NoFileId)
 	{
 		for (GCodeMachineState *ms = machineState; ms != nullptr; ms = ms->GetPrevious())
 		{
 			if (ms->fileId == printFileId)
 			{
+				// Mark machine states executing the print file as finished
 				ms->fileFinished = true;
 			}
 		}
 	}
+	else
+	{
+		reprap.GetPlatform().Message(WarningMessage, "Cannot set print file finished because there is no file ID\n");
+	}
 }
+
 // This is only called when using the Linux interface and returns if the macro file could be opened
 bool GCodeBuffer::RequestMacroFile(const char *filename, bool fromCode) noexcept
 {
@@ -802,20 +824,25 @@ bool GCodeBuffer::RequestMacroFile(const char *filename, bool fromCode) noexcept
 		return false;
 	}
 	// Request the macro file from the SBC
-	macroJustStarted = false;
+	macroJustStarted = macroFileError = macroFileEmpty = false;
 	machineState->macroStartedByCode = fromCode;
 	requestedMacroFile.copy(filename);
-	isWaitingForMacro = true;
 
-	// Wait for a response (but not forever)
-	if (!macroSemaphore.Take(SpiConnectionTimeout))
+	// There is no need to block the main task if daemon.g is requested.
+	// If it doesn't exist, DSF will simply close the virtual file again
+	if (GetChannel() != GCodeChannel::Daemon || machineState->doingFileMacro)
 	{
-		isWaitingForMacro = false;
-		reprap.GetPlatform().MessageF(ErrorMessage, "Failed to get macro response within %" PRIu32 "ms from SBC (channel %s)\n", SpiConnectionTimeout, GetChannel().ToString());
-		return false;
+		// Wait for a response (but not forever)
+		isWaitingForMacro = true;
+		if (!macroSemaphore.Take(SpiConnectionTimeout))
+		{
+			isWaitingForMacro = false;
+			reprap.GetPlatform().MessageF(ErrorMessage, "Failed to get macro response within %" PRIu32 "ms from SBC (channel %s)\n", SpiConnectionTimeout, GetChannel().ToString());
+			return false;
+		}
 	}
 
-	// When we get here most of the variables above have been set
+	// When we get here we expect the Linux interface to have set the variables above for us
 	if (!macroFileError)
 	{
 		macroJustStarted = true;

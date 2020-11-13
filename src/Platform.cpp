@@ -2106,6 +2106,14 @@ GCodeResult Platform::DiagnosticTest(GCodeBuffer& gb, const StringRef& reply, Ou
 		}
 		break;
 
+	case (int)DiagnosticTestType::OutputBufferStarvation:
+		{
+			OutputBuffer *buf;
+			while (OutputBuffer::Allocate(buf)) { }
+			OutputBuffer::ReleaseAll(buf);
+		}
+		break;
+
 	case (int)DiagnosticTestType::SetWriteBuffer:
 #if SAME70
 		//TODO set cache to write-back instead
