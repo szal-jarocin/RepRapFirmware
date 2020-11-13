@@ -848,7 +848,11 @@ void LocalHeater::CalculateModel(HeaterParameters& params) noexcept
 										lrintf(dLow.GetMean()), lrintf(dLow.GetDeviation()),
 										(double)heatingRate.GetMean(), (double)heatingRate.GetDeviation(),
 										(double)coolingRate.GetMean(), (double)coolingRate.GetDeviation(),
+#if HAS_VOLTAGE_MONITOR
 										(double)tuningVoltage.GetMean(), (double)tuningVoltage.GetDeviation(),
+#else
+										(double)0.0, (double)0.0,
+#endif
 										coolingRate.GetNumSamples()
 									 );
 	}
