@@ -185,7 +185,7 @@ constexpr PinEntry PinTable_Generic[] =
 
 //NoPin for Generic, Actual pins must be specified in /sys/Board.txt 
 constexpr BoardDefaults genericDefaults = {
-    7,
+    5,
     {NoPin, NoPin, NoPin, NoPin, NoPin},    //enablePins
     {NoPin, NoPin, NoPin, NoPin, NoPin},    //stepPins
     {NoPin, NoPin, NoPin, NoPin, NoPin},    //dirPins
