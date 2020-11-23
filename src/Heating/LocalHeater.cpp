@@ -562,12 +562,12 @@ void LocalHeater::GetAutoTuneStatus(const StringRef& reply) const noexcept
 {
 	if (mode >= HeaterMode::tuning0)
 	{
-		// Phases are: 1 = stabilising, 2 = heating, 3 = settling, 4 = cycling with fan off, 5 = cycling with fan on
-		const unsigned int numPhases = (tuningFans.IsEmpty()) ? 4
+		// Phases are: 1 = stabilising, 2 = heating, 3 = settling, 4 = cycling with fan off, 5 = extended cycling with fan off, 6 = cycling with fan on
+		const unsigned int numPhases = (tuningFans.IsEmpty()) ? 5
 #if TUNE_WITH_HALF_FAN
-				: 6;
+				: 7;
 #else
-				: 5;
+				: 6;
 #endif
 		reply.printf("Heater %u is being tuned, phase %u of %u", GetHeaterNumber(), tuningPhase + 1, numPhases);
 	}
@@ -735,7 +735,7 @@ void LocalHeater::DoTuningStep() noexcept
 								reprap.GetPlatform().Message(WarningMessage, "heater behaviour was not consistent during tuning\n");
 							}
 
-							if (tuningPhase == 3)
+							if (tuningPhase == 3 || tuningPhase == 4)
 							{
 								CalculateModel(fanOffParams);
 								if (tuningFans.IsEmpty())
@@ -745,7 +745,7 @@ void LocalHeater::DoTuningStep() noexcept
 								}
 								else
 								{
-									tuningPhase = 4;
+									tuningPhase = 5;
 									ClearCounters();
 #if TUNE_WITH_HALF_FAN
 									reprap.GetFansManager().SetFansValue(tuningFans, 0.5);		// turn fans on at half PWM
@@ -757,10 +757,10 @@ void LocalHeater::DoTuningStep() noexcept
 								}
 							}
 #if TUNE_WITH_HALF_FAN
-							else if (tuningPhase == 4)
+							else if (tuningPhase == 5)
 							{
 								CalculateModel(fanOnParams);
-								tuningPhase = 5;
+								tuningPhase = 6;
 								ClearCounters();
 								reprap.GetFansManager().SetFansValue(tuningFans, 1.0);			// turn fans fully on
 								reprap.GetPlatform().Message(GenericMessage, "Auto tune starting phase 4, fan 100%\n");
@@ -773,6 +773,12 @@ void LocalHeater::DoTuningStep() noexcept
 								SetAndReportModel(true);
 								break;
 							}
+						}
+						else if (tuningPhase == 3)
+						{
+							tuningPhase = 4;
+							reprap.GetPlatform().Message(GenericMessage, "Tuning values not stable extending tuning\n");
+							ClearCounters();
 						}
 					}
 				}
