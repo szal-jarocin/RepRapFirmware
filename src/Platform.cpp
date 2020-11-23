@@ -1608,7 +1608,7 @@ float Platform::GetCpuTemperature() const noexcept
 	return (voltage - 0.72) * (1000.0/2.33) + 25.0 + mcuTemperatureAdjust;			// accuracy at 25C is +/-34C
 # elif STM32F4
 	// Magic numbers are the location of STM32 calibration constants
-	return ((110.0f - 30.0f)/(((float)(*(uint16_t *)0x1FFF7A2E)) - ((float)(*(uint16_t *)0x1FFF7A2C)))) * ((voltage*((float)(1u << AdcBits))/3.3f) - ((float)(*(uint16_t *)0x1FFF7A2C))) + 30.0f; 
+	return ((110.0f - 30.0f)/(((float)(*(uint16_t *)0x1FFF7A2E)) - ((float)(*(uint16_t *)0x1FFF7A2C)))) * ((voltage*((float)(1u << 12))/3.3f) - ((float)(*(uint16_t *)0x1FFF7A2C))) + 30.0f; 
 # else
 #  error undefined CPU temp conversion
 # endif
