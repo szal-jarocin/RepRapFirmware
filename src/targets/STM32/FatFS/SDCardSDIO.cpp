@@ -101,11 +101,15 @@ DRESULT SDCardSDIO::disk_read (uint8_t *buff, uint32_t sector, uint32_t count) n
 {
     if (!count) return RES_PARERR;        /* Check parameter */
     if (status & STA_NOINIT) return RES_NOTRDY;    /* Check if drive is ready */
+    //debugPrintf("Read sector %d length %d\n", sector, count);
     //if (!(cardtype & CT_BLOCK)) sector *= 512;    /* LBA ot BA conversion (byte addressing cards) */
     if (sdio->ReadBlocks((uint32_t *) buff, sector, count, SD_COMMAND_TIMEOUT) == MSD_OK)
         return RES_OK;
     else
+    {
+        debugPrintf("Error reading sector %d length %d\n", sector, count);
         return RES_ERROR;
+    }
 }
 
 
@@ -129,10 +133,14 @@ DRESULT SDCardSDIO::disk_write (const uint8_t *buff, uint32_t sector, uint32_t c
     if (status & STA_PROTECT) return RES_WRPRT;    /* Check write protect */
     
     //if (!(cardtype & CT_BLOCK)) sector *= 512;    /* LBA ==> BA conversion (byte addressing cards) */
+    //debugPrintf("write sector %d length %d\n", sector, count);
     if (sdio->WriteBlocks((uint32_t *)buff, sector, count, SD_COMMAND_TIMEOUT) == MSD_OK)
         return RES_OK;
     else
+    {
+        debugPrintf("Write error\n");
         return RES_ERROR;
+    }
 }
 
 

@@ -492,7 +492,6 @@ void Platform::Init() noexcept
 	{
 		pinMode(SdCardDetectPins[i], INPUT_PULLUP);
 	}
-
 #if HAS_MASS_STORAGE
 	MassStorage::Init();
 #endif
@@ -508,6 +507,9 @@ void Platform::Init() noexcept
 	// Deal with power first (we assume this doesn't depend on identifying the board type)
 	pinMode(ATX_POWER_PIN,OUTPUT_LOW);
 #endif
+//#if HAS_MASS_STORAGE
+	//MassStorage::Init();
+//#endif
 
     // Ethernet networking defaults
 	ipAddress = DefaultIpAddress;

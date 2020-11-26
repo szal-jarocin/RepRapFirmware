@@ -180,9 +180,7 @@ void BoardConfig::Init() noexcept
     delay(STARTUP_DELAY);
 #endif
     ClearPinArrays();
-#if !HAS_MASS_STORAGE
-    sd_mmc_init(SdWriteProtectPins, SdSpiCSPins);
-#endif
+    //sd_mmc_init(SdWriteProtectPins, SdSpiCSPins);
     // Mount the internal SD card
     rslt = f_mount (&fs, "0:", 1);
     if (rslt != FR_OK)
@@ -258,7 +256,8 @@ void BoardConfig::Init() noexcept
         //Setup the Software SPI Pins
         SPI::getSSPDevice(SWSPI0)->initPins(SoftwareSPIPins[0], SoftwareSPIPins[1], SoftwareSPIPins[2]);
         //Setup the pins for SPI
-        SPI::getSSPDevice(SSP2)->initPins(PB_13, PB_14, PB_15, PB_12, DMA1_Stream3, DMA_CHANNEL_0, DMA1_Stream3_IRQn, DMA1_Stream4, DMA_CHANNEL_0, DMA1_Stream4_IRQn);
+        //SPI::getSSPDevice(SSP2)->initPins(PB_13, PB_14, PB_15, PB_12, DMA1_Stream3, DMA_CHANNEL_0, DMA1_Stream3_IRQn, DMA1_Stream4, DMA_CHANNEL_0, DMA1_Stream4_IRQn);
+        SPI::getSSPDevice(SSP2)->initPins(PB_13, PB_14, PB_15, NoPin, DMA1_Stream3, DMA_CHANNEL_0, DMA1_Stream3_IRQn, DMA1_Stream4, DMA_CHANNEL_0, DMA1_Stream4_IRQn);
 // FIXME
 #if 0
         //Internal SDCard SPI Frequency
