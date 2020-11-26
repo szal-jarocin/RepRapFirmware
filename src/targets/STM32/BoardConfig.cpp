@@ -259,8 +259,8 @@ void BoardConfig::Init() noexcept
         SPI::getSSPDevice(SWSPI0)->initPins(SoftwareSPIPins[0], SoftwareSPIPins[1], SoftwareSPIPins[2]);
         //Setup the pins for SPI
         SPI::getSSPDevice(SSP2)->initPins(PB_13, PB_14, PB_15, PB_12, DMA1_Stream3, DMA_CHANNEL_0, DMA1_Stream3_IRQn, DMA1_Stream4, DMA_CHANNEL_0, DMA1_Stream4_IRQn);
-
-
+// FIXME
+#if 0
         //Internal SDCard SPI Frequency
         sd_mmc_reinit_slot(0, SdSpiCSPins[0], InternalSDCardFrequency);
         
@@ -276,7 +276,7 @@ void BoardConfig::Init() noexcept
             //set the CSPin and the frequency for the External SDCard
             sd_mmc_reinit_slot(1, SdSpiCSPins[1], ExternalSDCardFrequency);
         }
-        
+#endif        
         #if HAS_WIFI_NETWORKING
             if(SamCsPin != NoPin) pinMode(SamCsPin, OUTPUT_LOW);
             if(EspResetPin != NoPin) pinMode(EspResetPin, OUTPUT_LOW);
