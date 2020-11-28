@@ -564,6 +564,7 @@ const NvicPriority NvicPriorityDriversSerialTMC = 1;// STM uses a software UART,
 const NvicPriority NvicPriorityTimerPWM = 2;		// Run PWM timing as high as we can to avoid jitter
 const NvicPriority NvicPriorityPanelDueUart = 3;	// UART is next we have a 16 byte FIFO so less critical than the Duet
 const NvicPriority NvicPriorityTimerServo = 5;
+const NvicPriority NvicPrioritySDIO = 9;
 #else
 const NvicPriority NvicPriorityPanelDueUart = 1;	// UART is highest to avoid character loss (it has only a 1-character receive buffer)
 const NvicPriority NvicPriorityDriversSerialTMC = 5;// USART or UART used to control and monitor the smart drivers
