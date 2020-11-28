@@ -34,7 +34,7 @@ volatile OutputStack LinuxInterface::gcodeReply;
 Mutex LinuxInterface::gcodeReplyMutex;
 
 #if __LPC17xx__
-constexpr size_t LinuxTaskStackWords = 600;
+constexpr size_t LinuxTaskStackWords = 550;
 #elif defined(DEBUG)
 constexpr size_t LinuxTaskStackWords = 1000;			// needs to be enough to support rr_model
 #else

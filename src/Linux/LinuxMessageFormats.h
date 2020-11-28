@@ -30,7 +30,7 @@ constexpr size_t LinuxTransferBufferSize = 3072;    // maximum length of a data 
 static_assert(LinuxTransferBufferSize % sizeof(uint32_t) == 0, "LinuxTransferBufferSize must be a whole number of dwords");
 
 #if !__LPC17xx__
-constexpr size_t MaxCodeBufferSize = 256;			// maximum length of a G/M/T-code in binary encoding
+constexpr size_t MaxCodeBufferSize = 200;			// maximum length of a G/M/T-code in binary encoding
 #else
 constexpr size_t MaxCodeBufferSize = 256;           // maximum length of a G/M/T-code in binary encoding
 #endif
@@ -45,7 +45,7 @@ constexpr uint32_t SpiConnectionTimeout = 8000;		// maximum time to wait for the
 #if !__LPC17xx__
 constexpr uint16_t SpiCodeBufferSize = 4096;		// number of bytes available for G-code caching
 #else
-constexpr uint16_t SpiCodeBufferSize = 2048;        // number of bytes available for G-code caching
+constexpr uint16_t SpiCodeBufferSize = 1920;        // number of bytes available for G-code caching
 #endif
 
 // Shared structures

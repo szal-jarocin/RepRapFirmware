@@ -45,7 +45,11 @@ Licence: GPL
 # include <Duet3Ate.h>
 #endif
 
+#if __LPC17xx__
+constexpr uint32_t HeaterTaskStackWords = 300;			// task stack size in dwords, must be large enough for auto tuning
+#else
 constexpr uint32_t HeaterTaskStackWords = 400;			// task stack size in dwords, must be large enough for auto tuning
+#endif
 static Task<HeaterTaskStackWords> heaterTask;
 
 extern "C" [[noreturn]] void HeaterTaskStart(void * pvParameters) noexcept
