@@ -151,7 +151,7 @@ static void FatalError(const char* fmt, ...)
     {
         va_list vargs;
         va_start(vargs, fmt);
-        reprap.GetPlatform().MessageF(DebugMessage, fmt, vargs);
+        debugPrintf(fmt, vargs);
         va_end(vargs);
         delay(2000);
     }

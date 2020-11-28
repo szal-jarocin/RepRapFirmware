@@ -72,10 +72,12 @@ const char *SafeStrptime(const char *buf, const char *format, struct tm *timeptr
 // Functions needed for builds that use CoreNG. Not needed when using CoreN2G.
 void delay(uint32_t ms) noexcept;
 
+#if !__LPC17xx__ && !STM32F4
 static inline void WatchdogReset() noexcept
 {
 	WDT->WDT_CR = WDT_CR_KEY_PASSWD | WDT_CR_WDRSTT;
 }
+#endif
 
 // Optimised version of memcpy for use when the source and destination are known to be 32-bit aligned and a whole number of 32-bit words is to be copied
 void memcpyu32(uint32_t *dst, const uint32_t *src, size_t numWords) noexcept;
