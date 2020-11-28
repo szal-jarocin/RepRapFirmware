@@ -151,8 +151,13 @@ extern "C" [[noreturn]] void WWDG_IRQHandler() noexcept __attribute__((naked));
 void WWDG_IRQHandler() noexcept
 {
 #else
+# if SAME70		// SAME70 has a separate interrupt line for the RSWDT
+extern "C" [[noreturn]] void RSWDT_Handler() noexcept __attribute__((naked));
+void RSWDT_Handler() noexcept
+# else
 extern "C" [[noreturn]] void WDT_Handler() noexcept __attribute__((naked));
 void WDT_Handler() noexcept
+# endif
 {
 #endif
 	__asm volatile

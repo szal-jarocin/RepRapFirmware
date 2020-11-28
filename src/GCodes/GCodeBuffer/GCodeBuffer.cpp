@@ -24,14 +24,14 @@
 #if HAS_LINUX_INTERFACE
 
 # define PARSER_OPERATION(_x)	((isBinaryBuffer) ? (binaryParser._x) : (stringParser._x))
-# define BINARY_OR(_x)			((isBinaryBuffer) || (_x))
+# define IS_BINARY_OR(_x)		((isBinaryBuffer) || (_x))
 # define NOT_BINARY_AND(_x)		((!isBinaryBuffer) && (_x))
 # define IF_NOT_BINARY(_x)		{ if (!isBinaryBuffer) { _x; } }
 
 #else
 
 # define PARSER_OPERATION(_x)	(stringParser._x)
-# define BINARY_OR(_x)			(_x)
+# define IS_BINARY_OR(_x)		(_x)
 # define NOT_BINARY_AND(_x)		(_x)
 # define IF_NOT_BINARY(_x)		{ _x; }
 
@@ -324,6 +324,13 @@ void GCodeBuffer::GetCompleteParameters(const StringRef& str) THROWS(GCodeExcept
 int8_t GCodeBuffer::GetCommandFraction() const noexcept
 {
 	return PARSER_OPERATION(GetCommandFraction());
+}
+
+// Return true if the command we have just completed was the last command in the line of GCode.
+// If the command was or called a macro then there will be no command in the buffer, so we must return true for this case also.
+bool GCodeBuffer::IsLastCommand() const noexcept
+{
+	return 	IS_BINARY_OR((bufferState != GCodeBufferState::ready && bufferState != GCodeBufferState::executing) || stringParser.IsLastCommand());
 }
 
 bool GCodeBuffer::ContainsExpression() const noexcept
@@ -834,7 +841,7 @@ bool GCodeBuffer::RequestMacroFile(const char *filename, bool fromCode) noexcept
 	{
 		// Wait for a response (but not forever)
 		isWaitingForMacro = true;
-		if (!macroSemaphore.Take(SpiConnectionTimeout))
+		if (!macroSemaphore.Take(SpiMacroRequestTimeout))
 		{
 			isWaitingForMacro = false;
 			reprap.GetPlatform().MessageF(ErrorMessage, "Failed to get macro response within %" PRIu32 "ms from SBC (channel %s)\n", SpiConnectionTimeout, GetChannel().ToString());
@@ -937,7 +944,7 @@ bool GCodeBuffer::IsWritingBinary() const noexcept
 
 bool GCodeBuffer::WriteBinaryToFile(char b) noexcept
 {
-	return BINARY_OR(stringParser.WriteBinaryToFile(b));
+	return IS_BINARY_OR(stringParser.WriteBinaryToFile(b));
 }
 
 void GCodeBuffer::FinishWritingBinary() noexcept

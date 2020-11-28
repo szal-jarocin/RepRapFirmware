@@ -41,6 +41,10 @@ Licence: GPL
 # include "CAN/CanInterface.h"
 #endif
 
+#ifdef DUET3_ATE
+# include <Duet3Ate.h>
+#endif
+
 constexpr uint32_t HeaterTaskStackWords = 400;			// task stack size in dwords, must be large enough for auto tuning
 static Task<HeaterTaskStackWords> heaterTask;
 
@@ -244,7 +248,7 @@ void Heat::ResetHeaterModels() noexcept
 	{
 		if (h != nullptr && h->IsHeaterEnabled())
 		{
-			h->SetModelDefaults();
+			h->ClearModelAndMonitors();
 		}
 	}
 }
@@ -573,6 +577,7 @@ HeaterStatus Heat::GetStatus(int heater) const noexcept
 
 void Heat::SetBedHeater(size_t index, int heater) noexcept
 {
+	// First, turn off any existing bed heater in this slot
 	{
 		const auto h = FindHeater(bedHeaters[index]);
 		if (h.IsNotNull())
@@ -582,10 +587,10 @@ void Heat::SetBedHeater(size_t index, int heater) noexcept
 	}
 	bedHeaters[index] = heater;
 	{
-		const auto h = FindHeater(bedHeaters[index]);
+		const auto h = FindHeater(heater);
 		if (h.IsNotNull())
 		{
-			h->SetDefaultMonitors();
+			h->SetAsBedOrChamberHeater();
 		}
 	}
 	reprap.HeatUpdated();
@@ -605,6 +610,7 @@ bool Heat::IsBedHeater(int heater) const noexcept
 
 void Heat::SetChamberHeater(size_t index, int heater) noexcept
 {
+	// First, turn off any existing chamber heater in this slot
 	{
 		const auto h = FindHeater(chamberHeaters[index]);
 		if (h.IsNotNull())
@@ -613,10 +619,10 @@ void Heat::SetChamberHeater(size_t index, int heater) noexcept
 		}
 	}
 	chamberHeaters[index] = heater;
-	const auto h = FindHeater(chamberHeaters[index]);
+	const auto h = FindHeater(heater);
 	if (h.IsNotNull())
 	{
-		h->SetDefaultMonitors();
+		h->SetAsBedOrChamberHeater();
 	}
 	reprap.HeatUpdated();
 }
@@ -631,6 +637,18 @@ bool Heat::IsChamberHeater(int heater) const noexcept
 		}
 	}
 	return false;
+}
+
+// This is called when a tool is created that uses this heater
+void Heat::SetAsToolHeater(int8_t heater) const noexcept
+{
+	const auto h = FindHeater(heater);
+	if (h.IsNotNull())
+	{
+		h->SetAsToolHeater();
+	}
+	reprap.HeatUpdated();
+
 }
 
 void Heat::SetTemperature(int heater, float t, bool activeNotStandby) THROWS(GCodeException)
@@ -1168,46 +1186,43 @@ bool Heat::WriteBedAndChamberTempSettings(FileStore *f) const noexcept
 
 void Heat::ProcessRemoteSensorsReport(CanAddress src, const CanMessageSensorTemperatures& msg) noexcept
 {
-	uint64_t sensorsReported = msg.whichSensors;
-	size_t index = 0;
-	for (unsigned int sensor = 0; sensor < 64 && sensorsReported != 0; ++sensor)
-	{
-		if (((uint8_t)sensorsReported & 1u) != 0)
-		{
-			if (index < ARRAY_SIZE(msg.temperatureReports))
-			{
-				const auto ts = FindSensor(sensor);
-				if (ts.IsNotNull())
-				{
-					ts->UpdateRemoteTemperature(src, msg.temperatureReports[index]);
-				}
-			}
-			++index;
-		}
-		sensorsReported >>= 1;
-	}
+	Bitmap<uint64_t> sensorsReported(msg.whichSensors);
+	sensorsReported.Iterate([this, src, msg](unsigned int sensor, unsigned int index)
+								{
+									if (index < ARRAY_SIZE(msg.temperatureReports))
+									{
+										const auto ts = FindSensor(sensor);
+										if (ts.IsNotNull())
+										{
+											ts->UpdateRemoteTemperature(src, msg.temperatureReports[index]);
+										}
+# ifdef DUET3_ATE
+										else
+										{
+											Duet3Ate::ProcessOrphanedSensorReport(src, sensor, msg.temperatureReports[index]);
+										}
+# endif
+									}
+
+								}
+							);
 }
 
 void Heat::ProcessRemoteHeatersReport(CanAddress src, const CanMessageHeatersStatus& msg) noexcept
 {
-	uint64_t heatersReported = msg.whichHeaters;
-	size_t index = 0;
-	for (unsigned int heaterNum = 0; heaterNum < 64 && heatersReported != 0; ++heaterNum)
-	{
-		if (((uint8_t)heatersReported & 1u) != 0)
-		{
-			if (index < ARRAY_SIZE(msg.reports))
-			{
-				const auto h = FindHeater(heaterNum);
-				if (h.IsNotNull())
-				{
-					h->UpdateRemoteStatus(src, msg.reports[index]);
-				}
-			}
-			++index;
-		}
-		heatersReported >>= 1;
-	}
+	Bitmap<uint64_t> heatersReported(msg.whichHeaters);
+	heatersReported.Iterate([this, src, msg](unsigned int heaterNum, unsigned int index)
+								{
+									if (index < ARRAY_SIZE(msg.reports))
+									{
+										const auto h = FindHeater(heaterNum);
+										if (h.IsNotNull())
+										{
+											h->UpdateRemoteStatus(src, msg.reports[index]);
+										}
+									}
+								}
+							);
 }
 
 #endif

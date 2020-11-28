@@ -46,7 +46,7 @@ void BinaryParser::DecodeCommand() noexcept
 		{
 			String<MaxCodeBufferSize> buf;
 			AppendFullCommand(buf.GetRef());
-			reprap.GetPlatform().MessageF(DebugMessage, "%s: %s\n", gb.GetIdentity(), buf.c_str());
+			debugPrintf("%s: %s\n", gb.GetIdentity(), buf.c_str());
 		}
 		gb.bufferState = GCodeBufferState::executing;
 	}
@@ -258,7 +258,6 @@ DriverId BinaryParser::GetDriverId() THROWS(GCodeException)
 		break;
 
 	default:
-		value.Clear();
 		break;
 	}
 	seenParameter = nullptr;

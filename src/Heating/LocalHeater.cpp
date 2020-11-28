@@ -153,11 +153,6 @@ TemperatureError LocalHeater::ReadTemperature() noexcept
 // This must be called whenever the heater is turned on, and any time the heater is active and the target temperature is changed
 GCodeResult LocalHeater::SwitchOn(const StringRef& reply) noexcept
 {
-	if (!GetModel().IsEnabled())
-	{
-		SetModelDefaults();
-	}
-
 	if (mode == HeaterMode::fault)
 	{
 		reply.printf("Heater %u not switched on due to temperature fault\n", GetHeaterNumber());
@@ -693,8 +688,8 @@ void LocalHeater::DoTuningStep() noexcept
 				// Move on to next phase
 				lastPwm = 0.0;
 				SetHeater(0.0);
-				peakTemp = temperature;
-				lastOffTime = peakTime = now;
+				peakTemp = afterPeakTemp = temperature;
+				lastOffTime = peakTime = afterPeakTime = now;
 #if HAS_VOLTAGE_MONITOR
 				tuningVoltage.Clear();
 #endif
@@ -784,8 +779,8 @@ void LocalHeater::DoTuningStep() noexcept
 					reprap.GetPlatform().Message(GenericMessage, "Auto tune starting phase 3, fan off\n");
 				}
 			}
-			lastOnTime = peakTime = now;
-			peakTemp = temperature;
+			lastOnTime = peakTime = afterPeakTime = now;
+			peakTemp = afterPeakTemp = temperature;
 			lastPwm = tuningPwm;						// turn on heater at specified power
 			mode = HeaterMode::tuning3;
 		}
@@ -810,8 +805,8 @@ void LocalHeater::DoTuningStep() noexcept
 			dLow.Add((float)(peakTime - lastOnTime));
 			tOn.Add((float)(now - lastOnTime));
 			heatingRate.Add((temperature - afterPeakTemp) * SecondsToMillis/(now - afterPeakTime));
-			lastOffTime = peakTime = now;
-			peakTemp = temperature;
+			lastOffTime = peakTime = afterPeakTime = now;
+			peakTemp = afterPeakTemp = temperature;
 			lastPwm = 0.0;								// turn heater off
 			mode = HeaterMode::tuning2;
 		}
@@ -841,7 +836,10 @@ void LocalHeater::CalculateModel(HeaterParameters& params) noexcept
 										"tOn %ld" PLUS_OR_MINUS "%ld, tOff %ld" PLUS_OR_MINUS "%ld,"
 										" dHigh %ld" PLUS_OR_MINUS "%ld, dLow %ld" PLUS_OR_MINUS "%ld,"
 										" R %.3f" PLUS_OR_MINUS "%.3f, C %.3f" PLUS_OR_MINUS "%.3f,"
-										" V %.1f" PLUS_OR_MINUS "%.1f, cycles %u\n",
+#if HAS_VOLTAGE_MONITOR
+										" V %.1f" PLUS_OR_MINUS "%.1f,"
+#endif
+										" cycles %u\n",
 										lrintf(tOn.GetMean()), lrintf(tOn.GetDeviation()),
 										lrintf(tOff.GetMean()), lrintf(tOff.GetDeviation()),
 										lrintf(dHigh.GetMean()), lrintf(dHigh.GetDeviation()),
@@ -850,8 +848,6 @@ void LocalHeater::CalculateModel(HeaterParameters& params) noexcept
 										(double)coolingRate.GetMean(), (double)coolingRate.GetDeviation(),
 #if HAS_VOLTAGE_MONITOR
 										(double)tuningVoltage.GetMean(), (double)tuningVoltage.GetDeviation(),
-#else
-										(double)0.0, (double)0.0,
 #endif
 										coolingRate.GetNumSamples()
 									 );
