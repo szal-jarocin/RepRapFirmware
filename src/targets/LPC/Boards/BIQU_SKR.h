@@ -265,4 +265,61 @@ constexpr BoardDefaults biquskr_1_4_Defaults = {
     0                                       //digiPot Factor
 };
 
+
+constexpr PinEntry PinTable_BIQU_SKR_E3T[] =
+{
+    //Thermistors
+    {P0_25, PinCapability::ainrw, "bedtemp,tb"},
+    {P0_24, PinCapability::ainrw, "e0temp,t0"},
+    {P0_23, PinCapability::ainrw, "e1temp,t1"},
+
+    //Endstops
+    {P1_29, PinCapability::rw, "xstop"},
+    {P1_28, PinCapability::rw, "ystop"},
+    {P1_27, PinCapability::rw, "zstop"},
+    {P1_26, PinCapability::rw, "e0stop"},
+    {P1_25, PinCapability::rw, "e1stop"},
+    {P1_23, PinCapability::rw, "probe0"},
+    {P1_22, PinCapability::rw, "probe1"},
+    {P1_20, PinCapability::rw, "ptdet"},
+
+    //Heaters and Fans
+    {P2_5,  PinCapability::wpwm, "bed" },
+    {P2_4,  PinCapability::wpwm, "e0heat" },
+    {P2_3,  PinCapability::wpwm, "e1heat" },
+    {P2_1,  PinCapability::wpwm, "fan0" },
+    {P2_2,  PinCapability::wpwm, "fan1" },
+
+    //Exp1
+    {P2_8, PinCapability::rwpwm, "P2.8"}, 
+    {P0_16, PinCapability::rwpwm, "P0.16"},
+    {P0_19, PinCapability::rwpwm, "P0.19"}, 
+    {P0_20, PinCapability::rwpwm, "P0.20"},
+    {P0_15, PinCapability::rwpwm, "P0.15"},
+    {P0_17, PinCapability::rwpwm, "P0.17"},
+    {P0_18, PinCapability::rwpwm, "P0.18"},
+
+    //PS On
+    {P1_21, PinCapability::rw, "pson"},
+
+    //EEProm
+    {P0_0, PinCapability::rw, "eeprom0,SDA1"},
+    {P0_1, PinCapability::rw, "eeprom1,SCL1"},
+
+    //Neopixel
+    {P1_24, PinCapability::rw, "neopixel"},
+
+};
+
+constexpr BoardDefaults biquskr_E3T_Defaults = {
+    5,
+    {P1_0,  P1_9, P1_16, P0_4, P0_21},     //enablePins
+    {P1_4,  P1_14, P4_29,  P2_6,  P2_11},      //stepPins
+    {P1_8,  P1_15, P4_28, P2_7, P2_12},      //dirPins
+#if TMC_SOFT_UART
+    {P1_1, P1_10, P1_17, P1_26, P1_25},    //uartPins
+    5,                                      // Smart drivers
+#endif
+    0,                                      //digiPot Factor
+};
 #endif

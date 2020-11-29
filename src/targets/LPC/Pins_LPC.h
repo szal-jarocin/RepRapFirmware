@@ -413,6 +413,7 @@ constexpr BoardEntry LPC_Boards[] =
     {"biquskr_1.1",      PinTable_BIQU_SKR_v1_1,    ARRAY_SIZE(PinTable_BIQU_SKR_v1_1),    biquskr_1_1_Defaults},
     {"biquskr_1.3",      PinTable_BIQU_SKR_v1_3,    ARRAY_SIZE(PinTable_BIQU_SKR_v1_3),    biquskr_1_3_Defaults},
     {"biquskr_1.4",      PinTable_BIQU_SKR_v1_4,    ARRAY_SIZE(PinTable_BIQU_SKR_v1_4),    biquskr_1_4_Defaults},
+    {"biquskr_e3t",      PinTable_BIQU_SKR_E3T,     ARRAY_SIZE(PinTable_BIQU_SKR_E3T),     biquskr_E3T_Defaults},
     {"azteegx5mini_1.1", PinTable_AzteegX5MiniV1_1, ARRAY_SIZE(PinTable_AzteegX5MiniV1_1), azteegX5Mini1_1Defaults},
 	{"azteegx5mini_2",   PinTable_AzteegX5MiniV2,   ARRAY_SIZE(PinTable_AzteegX5MiniV2),   azteegX5Mini2Defaults},
     {"azteegx5mini_3",   PinTable_AzteegX5MiniV3,   ARRAY_SIZE(PinTable_AzteegX5MiniV3),   azteegX5Mini3Defaults},
