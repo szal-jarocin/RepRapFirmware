@@ -13,15 +13,19 @@
 #define DEFAULT_BOARD_TYPE		 BoardType::Duet3Mini_Unknown
 
 #ifdef DUET3MINI_V02
-#define BOARD_SHORT_NAME		"Mini5plus_v02"
-#define BOARD_NAME				"Duet 3 Mini 5+ prototype v0.2"
-#define FIRMWARE_NAME			"RepRapFirmware for Duet 3 Mini 5+ prototype v0.2"
+# define BOARD_SHORT_NAME		"Mini5plus_v02"
+# define BOARD_NAME				"Duet 3 Mini 5+ prototype v0.2"
+# define FIRMWARE_NAME			"RepRapFirmware for Duet 3 Mini 5+ prototype v0.2"
 #endif
 
 #ifdef DUET3MINI_V04
-#define BOARD_SHORT_NAME		"Mini5plus"
-#define BOARD_NAME				"Duet 3 Mini 5+"
-#define FIRMWARE_NAME			"RepRapFirmware for Duet 3 Mini 5+"
+# define BOARD_SHORT_NAME		"Mini5plus"
+# define BOARD_NAME				"Duet 3 Mini 5+"
+# ifdef DUET3_ATE
+#  define FIRMWARE_NAME			"RepRapFirmware for Duet 3 Mini 5+ ATE"
+# else
+#  define FIRMWARE_NAME			"RepRapFirmware for Duet 3 Mini 5+"
+# endif
 #endif
 
 constexpr size_t NumFirmwareUpdateModules = 2;		// main module and WiFi module
@@ -189,6 +193,7 @@ constexpr Pin TMC22xxMuxPins[1] = { PortDPin(0) };
 #define TMC22xx_VARIABLE_NUM_DRIVERS	0
 #define TMC22xx_SINGLE_DRIVER			0
 #define TMC22xx_USE_SLAVEADDR			1
+#define TMC22xx_DEFAULT_STEALTHCHOP		1
 
 // Define the baud rate used to send/receive data to/from the drivers.
 // If we assume a worst case clock frequency of 8MHz then the maximum baud rate is 8MHz/16 = 500kbaud.

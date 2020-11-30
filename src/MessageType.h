@@ -32,6 +32,8 @@ enum MessageType : uint32_t
 	BlockingUsbMessage =	   0x10000,	// A message that is to be sent to USB in blocking mode
 	ImmediateAuxMessage =	   0x20000,	// A message that is to be sent to LCD in immediate mode
 
+	DestinationsMask =		   0x308FF, // Mask for all the destinations
+
 	// Special indicators (byte 4)
 	// The first two are not processed when calling the version of Platform::Message that takes an OutputBuffer.
 	ErrorMessageFlag =		 0x1000000,	// This is an error message
@@ -44,7 +46,6 @@ enum MessageType : uint32_t
 
 	// Common combinations
 	NoDestinationMessage = 0,												// A message that is going nowhere
-	DebugMessage = BlockingUsbMessage,										// A debug message to send in blocking mode to USB
 	GenericMessage = UsbMessage | AuxMessage | HttpMessage | TelnetMessage,	// A message that is to be sent to the web, Telnet, USB and panel
 	LogOff = LogMessageLowBit | LogMessageHighBit,							// Log level "off (3): do not log this message
 	LogWarn = LogMessageHighBit,											// Log level "warn" (2): all messages of type Error and Warning are logged

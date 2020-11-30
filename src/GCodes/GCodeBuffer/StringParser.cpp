@@ -36,7 +36,7 @@ StringParser::StringParser(GCodeBuffer& gcodeBuffer) noexcept
 void StringParser::Init() noexcept
 {
 	gcodeLineEnd = 0;
-	commandLength = 0;
+	commandStart = commandLength = 0;								// set both to zero so that calls to GetFilePosition don't return negative values
 	readPointer = -1;
 	hadLineNumber = hadChecksum = overflowed = seenExpression = false;
 	computedChecksum = 0;
@@ -293,7 +293,7 @@ bool StringParser::LineFinished()
 		const bool missingChecksum = (checksumRequired && !hadChecksum && gb.machineState->GetPrevious() == nullptr);
 		if (reprap.Debug(moduleGcodes) && fileBeingWritten == nullptr)
 		{
-			reprap.GetPlatform().MessageF(DebugMessage, "%s%s: %s\n", gb.GetChannel().ToString(), ((badChecksum) ? "(bad-csum)" : (missingChecksum) ? "(no-csum)" : ""), gb.buffer);
+			debugPrintf("%s%s: %s\n", gb.GetChannel().ToString(), ((badChecksum) ? "(bad-csum)" : (missingChecksum) ? "(no-csum)" : ""), gb.buffer);
 		}
 	}
 
@@ -892,6 +892,12 @@ const char* StringParser::DataStart() const noexcept
 size_t StringParser::DataLength() const noexcept
 {
 	return commandEnd - commandStart;
+}
+
+// Return true if the command being processed is the last one in this line of GCode
+bool StringParser::IsLastCommand() const noexcept
+{
+	return commandEnd >= gcodeLineEnd;			// using >= here also covers the case where the buffer is empty and gcodeLineEnd has been set to zero
 }
 
 // Is 'c' in the G Code string? 'c' must be uppercase.

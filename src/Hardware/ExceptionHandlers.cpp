@@ -17,7 +17,7 @@
 	cpu_irq_disable();							// disable interrupts before we call any flash functions. We don't enable them again.
 	WatchdogReset();							// kick the watchdog
 #if STM32F4
-	watchdogDisable();
+	WatchdogDisable();
 #endif
 #if SAM4E || SAME70
 	rswdt_restart(RSWDT);						// kick the secondary watchdog
@@ -151,8 +151,13 @@ extern "C" [[noreturn]] void WWDG_IRQHandler() noexcept __attribute__((naked));
 void WWDG_IRQHandler() noexcept
 {
 #else
+# if SAME70		// SAME70 has a separate interrupt line for the RSWDT
+extern "C" [[noreturn]] void RSWDT_Handler() noexcept __attribute__((naked));
+void RSWDT_Handler() noexcept
+# else
 extern "C" [[noreturn]] void WDT_Handler() noexcept __attribute__((naked));
 void WDT_Handler() noexcept
+# endif
 {
 #endif
 	__asm volatile

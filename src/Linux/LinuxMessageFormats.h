@@ -30,7 +30,7 @@ constexpr size_t LinuxTransferBufferSize = 3072;    // maximum length of a data 
 static_assert(LinuxTransferBufferSize % sizeof(uint32_t) == 0, "LinuxTransferBufferSize must be a whole number of dwords");
 
 #if !__LPC17xx__
-constexpr size_t MaxCodeBufferSize = 256;			// maximum length of a G/M/T-code in binary encoding
+constexpr size_t MaxCodeBufferSize = 200;			// maximum length of a G/M/T-code in binary encoding
 #else
 constexpr size_t MaxCodeBufferSize = 256;           // maximum length of a G/M/T-code in binary encoding
 #endif
@@ -38,13 +38,14 @@ constexpr size_t MaxCodeBufferSize = 256;           // maximum length of a G/M/T
 static_assert(MaxCodeBufferSize % sizeof(uint32_t) == 0, "MaxCodeBufferSize must be a whole number of dwords");
 static_assert(MaxCodeBufferSize >= GCODE_LENGTH, "MaxCodeBufferSize must be at least as big as GCODE_LENGTH");
 
+constexpr uint32_t SpiMacroRequestTimeout = 4000;	// maximum time to wait a macro file
 constexpr uint32_t SpiTransferTimeout = 500;		// maximum allowed delay between data exchanges during a full transfer (in ms)
 constexpr uint32_t SpiConnectionTimeout = 8000;		// maximum time to wait for the next transfer (in ms)
 
 #if !__LPC17xx__
 constexpr uint16_t SpiCodeBufferSize = 4096;		// number of bytes available for G-code caching
 #else
-constexpr uint16_t SpiCodeBufferSize = 2048;        // number of bytes available for G-code caching
+constexpr uint16_t SpiCodeBufferSize = 1920;        // number of bytes available for G-code caching
 #endif
 
 // Shared structures
@@ -238,8 +239,10 @@ enum class LinuxRequest : uint16_t
 	FileChunk = 15,								// Response to a file chunk request from a CAN-connected board
 	EvaluateExpression = 16,					// Evaluate an arbitrary expression
 	Message = 17,								// Send an arbitrary message
+	MacroStarted = 18,							// Macro file has been started
+	FilesAborted = 19,							// All files on the given channel have been aborted by DSF
 
-	InvalidRequest = 18
+	InvalidRequest = 20
 };
 
 struct AssignFilamentHeader

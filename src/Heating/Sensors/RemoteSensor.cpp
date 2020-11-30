@@ -20,12 +20,17 @@ RemoteSensor::RemoteSensor(unsigned int sensorNum, CanAddress pBoardAddress) noe
 {
 }
 
+RemoteSensor::~RemoteSensor()
+{
+	//TODO delete the remote sensor
+}
+
 GCodeResult RemoteSensor::Configure(GCodeBuffer& gb, const StringRef& reply, bool& changed)
 {
 	TryConfigureSensorName(gb, changed);
-	CanMessageGenericConstructor cons(M308Params);
+	CanMessageGenericConstructor cons(M308NewParams);
 	cons.PopulateFromCommand(gb);
-	const GCodeResult ret = cons.SendAndGetResponse(CanMessageType::m308, boardAddress, reply);
+	const GCodeResult ret = cons.SendAndGetResponse(CanMessageType::m308New, boardAddress, reply);
 	if ((ret == GCodeResult::ok || ret == GCodeResult::warning) && StringStartsWith(reply.c_str(), "type "))
 	{
 		// It's just a query for the sensor parameters, so prefix the sensor number and name

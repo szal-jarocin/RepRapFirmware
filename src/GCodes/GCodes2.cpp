@@ -1754,13 +1754,19 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeEx
 
 				if (result != GCodeResult::error)
 				{
-					if ((type & HttpMessage) == 0)
+					type = (MessageType)(type | PushFlag);
+					if ((type & HttpMessage) != 0)
 					{
-						platform.Message((MessageType)(type | PushFlag), message.c_str());
-						platform.Message(type, "\n");
+						// Send the message to HTTP before we append newline
+						constexpr MessageType mask = (MessageType)(HttpMessage | ~DestinationsMask);
+						platform.Message((MessageType)(type & mask), message.c_str());
+						type = (MessageType)(type & ~HttpMessage);
 					}
-					else
+
+					if ((type & DestinationsMask) != 0)
 					{
+						// Append newline and send the message to the remaining destinations
+						message.cat('\n');
 						platform.Message(type, message.c_str());
 					}
 				}
@@ -3107,6 +3113,9 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeEx
 			break;
 
 		case 556: // Axis compensation (we support only X, Y, Z)
+		{
+			bool seen = false;
+
 			if (gb.Seen('S'))
 			{
 				const float value = gb.GetFValue();
@@ -3117,16 +3126,26 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeEx
 						if (gb.Seen(axisLetters[axis]))
 						{
 							reprap.GetMove().SetAxisCompensation(axis, gb.GetFValue() / value);
+							seen = true;
 						}
 					}
 				}
 			}
-			else
+
+			if (gb.Seen('P'))
 			{
-				reply.printf("Axis compensations - XY: %.5f, YZ: %.5f, ZX: %.5f",
+				reprap.GetMove().SetXYCompensation(gb.GetIValue() <= 0);
+				seen = true;
+			}
+
+			if (!seen)
+			{
+				reply.printf("Axis compensations - %s: %.5f, YZ: %.5f, ZX: %.5f",
+					reprap.GetMove().IsXYCompensated() ? "XY" : "YX",
 					(double)reprap.GetMove().AxisCompensation(X_AXIS), (double)reprap.GetMove().AxisCompensation(Y_AXIS), (double)reprap.GetMove().AxisCompensation(Z_AXIS));
 			}
 			break;
+		}
 
 		case 557: // Set/report Z probe point coordinates
 			result = DefineGrid(gb, reply);
