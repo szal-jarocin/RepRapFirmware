@@ -45,6 +45,6 @@ void disable_spi()
 void InitSpi() noexcept
 {
     spiDevice = &HardwareSPI::SSP2;
-    spiDevice->configureDevice(SPI_MODE_SLAVE, 8, (uint8_t)SPI_MODE_0, 100000000, true);
+    spiDevice->configureDevice(SPI_MODE_SLAVE, 8, (uint8_t)SPI_MODE_0, 100000000, false);
     needInit = false;
 }

@@ -64,7 +64,7 @@ Pin SoftwareSPIPins[3] = {NoPin, NoPin, NoPin};         //GPIO pins for software
     Pin EspDataReadyPin = NoPin;
     Pin SamTfrReadyPin = NoPin;
     Pin EspResetPin = NoPin;
-
+    Pin SamCsPin = PB_12;
     Pin APIN_Serial1_TXD = NoPin;
     Pin APIN_Serial1_RXD = NoPin;
 
@@ -86,6 +86,7 @@ Pin SoftwareSPIPins[3] = {NoPin, NoPin, NoPin};         //GPIO pins for software
 
 #if HAS_LINUX_INTERFACE
     Pin SbcTfrReadyPin = NoPin;
+    Pin SbcCsPin = PB_12;
 #endif
 
 bool ADCEnablePreFilter = true;

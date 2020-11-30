@@ -17,7 +17,7 @@ bool RepRap::CheckFirmwareUpdatePrerequisites(const StringRef& reply) noexcept
         }
 
         // Check that the binary looks sensible. The first word is the initial stack pointer, which should be the top of RAM.
-        const uint32_t initialStackPointer = 0x20020000;
+        const uint32_t initialStackPointer = 0x20020000-4;
 
         uint32_t firstDword;
         bool ok = firmwareFile->Read(reinterpret_cast<char*>(&firstDword), sizeof(firstDword)) == (int)sizeof(firstDword);

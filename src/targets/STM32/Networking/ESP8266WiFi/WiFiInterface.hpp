@@ -70,7 +70,7 @@ static void SpiCSInterrupt(CallbackParameter) noexcept
 {
     // Called when CS goes high. If the DMA trasnfer has not yet completed
     // we force it to end early.
-    if (transferPending && digitalRead(PF_11) != 0)
+    if (transferPending && digitalRead(SamCsPin) != 0)
         wifiInterface->SpiInterrupt();    
 }
 
@@ -78,7 +78,7 @@ static void SpiCSInterrupt(CallbackParameter) noexcept
 // Set up the SPI system
 void WiFiInterface::SetupSpi() noexcept
 {
-    attachInterrupt(PF_11, SpiCSInterrupt, INTERRUPT_MODE_RISING, nullptr);
+    attachInterrupt(SamCsPin, SpiCSInterrupt, INTERRUPT_MODE_RISING, nullptr);
     spiDevice = &HardwareSPI::SSP2;
     spiDevice->configureDevice(SPI_MODE_SLAVE, 8, (uint8_t)SPI_MODE_1, 100000000, false);
 }

@@ -65,7 +65,7 @@ uint8_t SDCardSDIO::disk_initialize () noexcept
         {
             HAL_SD_CardInfoTypeDef cardInfo;
             sdio->GetCardInfo(&cardInfo);
-            debugPrintf("Card type %x ver %d class %x sectors %d\n", cardInfo.CardType, cardInfo.CardVersion, cardInfo.Class, cardInfo.LogBlockNbr);
+            debugPrintf("Card type %x ver %d class %x sectors %d\n", (unsigned int)cardInfo.CardType, (int)cardInfo.CardVersion, (unsigned int)cardInfo.Class, (int)cardInfo.LogBlockNbr);
             frequency = 20000000;
             cardtype = cardInfo.CardType;
             sdcardBlockSize = cardInfo.LogBlockSize / SD_DEFAULT_BLOCK_SIZE;
@@ -107,7 +107,7 @@ DRESULT SDCardSDIO::disk_read (uint8_t *buff, uint32_t sector, uint32_t count) n
         return RES_OK;
     else
     {
-        debugPrintf("Error reading sector %d length %d\n", sector, count);
+        debugPrintf("Error reading sector %d length %d\n", (int)sector, (int)count);
         return RES_ERROR;
     }
 }
@@ -138,7 +138,7 @@ DRESULT SDCardSDIO::disk_write (const uint8_t *buff, uint32_t sector, uint32_t c
         return RES_OK;
     else
     {
-        debugPrintf("Write error\n");
+        debugPrintf("Write error sector %d length %d\n", (int)sector, (int)count);
         return RES_ERROR;
     }
 }

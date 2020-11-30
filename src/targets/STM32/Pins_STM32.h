@@ -202,6 +202,7 @@ extern SSPChannel TempSensorSSPChannel;
 
 #if HAS_LINUX_INTERFACE
     extern Pin SbcTfrReadyPin;
+    extern Pin SbcCsPin;
 #endif
 
 // Power control
@@ -262,7 +263,7 @@ extern Pin AuxSerialRxTxPins[NumberSerialPins];
     extern Pin EspDataReadyPin;
     extern Pin SamTfrReadyPin;
     extern Pin EspResetPin;
-    constexpr Pin SamCsPin = PF_11; //CS for SSP0
+    extern Pin SamCsPin; //CS for SSP0
     extern Pin APIN_Serial1_TXD;
     extern Pin APIN_Serial1_RXD;
     extern Pin WifiSerialRxTxPins[NumberSerialPins];

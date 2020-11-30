@@ -84,11 +84,13 @@ static const boardConfigEntry_t boardConfigs[]=
     {"8266wifi.espDataReadyPin", &EspDataReadyPin, nullptr, cvPinType},
     {"8266wifi.lpcTfrReadyPin", &SamTfrReadyPin, nullptr, cvPinType},
     {"8266wifi.espResetPin", &EspResetPin, nullptr, cvPinType},
+    {"8266wifi.csPin", &SamCsPin, nullptr, cvPinType},
     {"8266wifi.serialRxTxPins", &WifiSerialRxTxPins, &NumberSerialPins, cvPinType},
 #endif
 
 #if HAS_LINUX_INTERFACE
     {"sbc.lpcTfrReadyPin", &SbcTfrReadyPin, nullptr, cvPinType},
+    {"sbc.csPin", &SbcCsPin, nullptr, cvPinType},
 #endif
 
 #if defined(SERIAL_AUX_DEVICE)
@@ -162,8 +164,7 @@ static inline bool isSpaceOrTab(char c) noexcept
     
 BoardConfig::BoardConfig() noexcept
 {
-    
-}
+} 
 
 static void FatalError(const char* fmt, ...)
 {
@@ -179,6 +180,54 @@ static void FatalError(const char* fmt, ...)
 
 static uint32_t signature;
 
+typedef struct {
+    uint32_t sig;
+    SSPChannel device;
+    Pin pins[4];    
+} SDCardConfig;
+
+static constexpr SDCardConfig SDCardConfigs[] = {
+    {0x768a39d6, SSP1, {PA_5, PA_6, PB_5, PA_4}}, // SKR Pro
+    {0x94a2cc03, SSP1, {PA_5, PA_6, PA_7, PA_4}}, // GTR
+    {0x8a5f5551, SSPSDIO, {NoPin, NoPin, NoPin, NoPin}}, // Fly/SDIO
+};
+
+
+FRESULT InitSDCard(uint32_t boardSig, FATFS *fs)
+{
+    FRESULT rslt;
+    int conf = 0;
+    // First try to find a mayching board
+    for(uint32_t i = 0; i < ARRAY_SIZE(SDCardConfigs); i++)
+        if (SDCardConfigs[i].sig == boardSig)
+        {
+            conf = i;
+            break;
+        }
+    for(uint32_t i = 0; i < ARRAY_SIZE(SDCardConfigs); i++)
+    {
+        debugPrintf("InitSDCard try config %d type %d\n", conf, SDCardConfigs[i].device);
+        if (SDCardConfigs[conf].device != SSPSDIO)
+        {
+            SPI::getSSPDevice(SDCardConfigs[conf].device)->initPins(SDCardConfigs[conf].pins[0], SDCardConfigs[conf].pins[1], SDCardConfigs[conf].pins[2], SDCardConfigs[conf].pins[3]);
+            sd_mmc_setSSPChannel(0, SDCardConfigs[conf].device, SDCardConfigs[conf].pins[3]);
+        }
+        else
+            sd_mmc_setSSPChannel(0, SDCardConfigs[conf].device, NoPin);
+        rslt = f_mount (fs, "0:", 1);
+        if (rslt == FR_OK)
+        {
+            debugPrintf("Config %d selected\n", conf);
+            return FR_OK;
+        }
+        if (SDCardConfigs[conf].device != SSPSDIO)
+            ((HardwareSPI *)(SPI::getSSPDevice(SSP1)))->disable();
+        sd_mmc_setSSPChannel(0, SSPNONE, NoPin);
+        conf = (conf + 1) % ARRAY_SIZE(SDCardConfigs);
+    }
+    return rslt;
+}
+
 void BoardConfig::Init() noexcept
 {
 
@@ -191,7 +240,7 @@ void BoardConfig::Init() noexcept
     // We need to setup DMA and SPI devices before we can use File I/O
     // Using DMA2 for both TMC UART and the SD card causes corruption problems (see STM errata) so for now we use
     // polled I/O for the disk.
-    SPI::getSSPDevice(SSP1)->initPins(PA_5, PA_6, PB_5, PA_4);
+    //SPI::getSSPDevice(SSP1)->initPins(PA_5, PA_6, PB_5, PA_4);
     //SPI::getSSPDevice(SSP1)->initPins(PA_5, PA_6, PB_5, PA_4, DMA2_Stream2, DMA_CHANNEL_3, DMA2_Stream2_IRQn, DMA2_Stream3, DMA_CHANNEL_3, DMA2_Stream3_IRQn);
     //FIXME need to sort out int priorities
     //NVIC_SetPriority(DMA_IRQn, NvicPriorityDMA);
@@ -205,16 +254,11 @@ void BoardConfig::Init() noexcept
     delay(STARTUP_DELAY);
 #endif
     ClearPinArrays();
-    //sd_mmc_init(SdWriteProtectPins, SdSpiCSPins);
+#if !HAS_MASS_STORAGE
+    sd_mmc_init(SdWriteProtectPins, SdSpiCSPins);
+#endif
     // Mount the internal SD card
-    rslt = f_mount (&fs, "0:", 1);
-    if (rslt != FR_OK)
-    {
-        debugPrintf("Failed to mount SKR Pro SD, trying GTR settings\n");
-        ((HardwareSPI *)(SPI::getSSPDevice(SSP1)))->disable();
-        SPI::getSSPDevice(SSP1)->initPins(PA_5, PA_6, PA_7, PA_4);
-        rslt = f_mount (&fs, "0:", 1);
-    }
+    rslt = InitSDCard(signature, &fs);
     if (rslt == FR_OK)
     {
         //Open File
@@ -300,7 +344,10 @@ void BoardConfig::Init() noexcept
             //set the CSPin and the frequency for the External SDCard
             sd_mmc_reinit_slot(1, SdSpiCSPins[1], ExternalSDCardFrequency);
         }
-#endif        
+#endif
+        #if HAS_LINUX_INTERFACE
+            if(SbcCsPin != NoPin) pinMode(SbcCsPin, INPUT_PULLUP);
+        #endif
         #if HAS_WIFI_NETWORKING
             if(SamCsPin != NoPin) pinMode(SamCsPin, OUTPUT_LOW);
             if(EspResetPin != NoPin) pinMode(EspResetPin, OUTPUT_LOW);
@@ -464,7 +511,7 @@ void BoardConfig::Diagnostics(MessageType mtype) noexcept
 {
     reprap.GetPlatform().MessageF(mtype, "== Configurable Board.txt Settings ==\n");
     //
-    reprap.GetPlatform().MessageF(mtype, "Signature 0x%x\n", signature);
+    reprap.GetPlatform().MessageF(mtype, "Signature 0x%x\n", (unsigned int)signature);
     //Print the board name
     boardConfigEntry_t board = boardEntryConfig[0];
     reprap.GetPlatform().MessageF(mtype, "%s = ", board.key );
