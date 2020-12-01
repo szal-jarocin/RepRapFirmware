@@ -1,3 +1,17 @@
+Version 3.2-beta4+3_1
+=====================
+* RRF v3.2-beta4 (See the RRF docs for details)
+* LPC reduce memory usage of SBC version (to allow for beta4 features)
+* LPC add support for BTT SKR E3 Turbo
+* STM add support for SDIO SD card access
+* STM Allow use of non standard CS pins for ESP8266 and SBC interfaces (new board.txt settings sbc.csPin and 8266wifi.csPin)
+* STM add support for Fly F407ZG board
+* STM Improved ADC accuracy via oversampling
+* STM Fix heater off by one bug
+* Experimental board identification by bootloader hash
+
+
+
 Version 3.2-beta3.2_1
 ===================
 * RRF v3.2-beta3.2 (See the RRF docs for details)
