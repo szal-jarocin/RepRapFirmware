@@ -436,7 +436,7 @@ void BoardConfig::PrintValue(MessageType mtype, configValueType configType, void
 void BoardConfig::Diagnostics(MessageType mtype) noexcept
 {
     reprap.GetPlatform().MessageF(mtype, "== Configurable Board.txt Settings ==\n");
-    reprap.GetPlatform().MessageF(mtype, "Signature 0x%x\n", signature);
+    reprap.GetPlatform().MessageF(mtype, "Signature 0x%x\n", (unsigned int)signature);
 
     //Print the board name
     boardConfigEntry_t board = boardEntryConfig[0];
