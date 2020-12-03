@@ -31,9 +31,9 @@
 
 
 #if defined(ESP8266WIFI)
-    constexpr size_t NumFirmwareUpdateModules = 4;        // 3 modules, plus one for manual upload to WiFi module (module 2 is now unused)
+    constexpr size_t NumFirmwareUpdateModules = 5;        // 3 modules, plus one for manual upload to WiFi module (module 2 is now unused)
 #else
-    constexpr size_t NumFirmwareUpdateModules = 1;
+    constexpr size_t NumFirmwareUpdateModules = 5;
 #endif
 
 // Features definition

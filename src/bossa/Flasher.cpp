@@ -52,7 +52,9 @@ int Flasher::GetNextChunk(char* buffer, const uint32_t length, uint32_t& offset,
 	if (!reprap.UsingLinuxInterface())
 #endif
 	{
+#if HAS_MASS_STORAGE
 		read = infile->Read(buffer, length);
+#endif
 	}
 #if HAS_LINUX_INTERFACE
 	else
@@ -83,6 +85,7 @@ Flasher::write(const char* filename, uint32_t& foffset) THROWS(GCodeException)
     	if (!reprap.UsingLinuxInterface())
 #endif
     	{
+#if HAS_MASS_STORAGE
     		infile = MassStorage::OpenFile(filename, OpenMode::read, 0);
     		if (infile == nullptr)
     		{
@@ -90,6 +93,10 @@ Flasher::write(const char* filename, uint32_t& foffset) THROWS(GCodeException)
     			throw GCodeException(nullptr);
     		}
     		fileSize = infile->Length();
+#else
+    		platform.MessageF(ErrorMessage, "Failed to open file %s no mass storage\n", filename);
+    		throw GCodeException(nullptr);
+#endif
     	}
 #if HAS_LINUX_INTERFACE
     	else
@@ -105,10 +112,12 @@ Flasher::write(const char* filename, uint32_t& foffset) THROWS(GCodeException)
 #endif
 		if (fileSize == 0)
 		{
+#if HAS_MASS_STORAGE
 	    	if (infile != nullptr)
 			{
 	        	infile->Close();
 			}
+#endif
 			platform.MessageF(ErrorMessage, "Firmware file is empty %s\n", filename);
 			throw GCodeException(nullptr);
 		}
@@ -147,18 +156,21 @@ Flasher::write(const char* filename, uint32_t& foffset) THROWS(GCodeException)
     }
     catch(...)
     {
+#if HAS_MASS_STORAGE
     	if (infile != nullptr)
 		{
         	infile->Close();
 		}
-
+#endif
         throw;
     }
+#if HAS_MASS_STORAGE
 
 	if (infile != nullptr)
 	{
 		infile->Close();
 	}
+#endif
     _observer.onProgress(numPages, numPages);
     return true;
 }
@@ -191,7 +203,9 @@ Flasher::verify(const char* filename, uint32_t& pageErrors, uint32_t& totalError
     	if (!reprap.UsingLinuxInterface())
 #endif
     	{
+#if HAS_MASS_STORAGE
     		infile = MassStorage::OpenFile(filename, OpenMode::read, 0);
+#endif
     	}
     }
 
@@ -238,17 +252,22 @@ Flasher::verify(const char* filename, uint32_t& pageErrors, uint32_t& totalError
     }
     catch(...)
     {
+#if HAS_MASS_STORAGE
     	if (infile != nullptr)
     	{
             infile->Close();
     	}
+#endif
         throw;
     }
 
+
+#if HAS_MASS_STORAGE
 	if (infile != nullptr)
 	{
         infile->Close();
 	}
+#endif
 
      _observer.onProgress(numPages, numPages);
 
