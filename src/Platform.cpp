@@ -416,6 +416,9 @@ Platform::Platform() noexcept :
 	nextDriveToPoll(0),
 #endif
 	lastFanCheckTime(0),
+#if HAS_AUX_DEVICES
+	panelDueUpdater(nullptr),
+#endif
 #if HAS_MASS_STORAGE
 	sysDir(nullptr),
 #endif
@@ -984,7 +987,11 @@ void Platform::PanelDueBeep(int freq, int ms) noexcept
 void Platform::SendPanelDueMessage(size_t auxNumber, const char* msg) noexcept
 {
 #if HAS_AUX_DEVICES
-	auxDevices[auxNumber].SendPanelDueMessage(msg);
+	// Don't send anything to PanelDue while we are flashing it
+	if (!reprap.GetGCodes().IsFlashingPanelDue())
+	{
+		auxDevices[auxNumber].SendPanelDueMessage(msg);
+	}
 #endif
 }
 
@@ -3198,11 +3205,26 @@ void Platform::SetAuxRaw(size_t auxNumber, bool raw) noexcept
 #endif
 }
 
+#if HAS_AUX_DEVICES
+void Platform::InitPanelDueUpdater() noexcept
+{
+	if (panelDueUpdater == nullptr)
+	{
+		panelDueUpdater = new PanelDueUpdater();
+	}
+}
+#endif
+
 void Platform::AppendAuxReply(size_t auxNumber, const char *msg, bool rawMessage) noexcept
 {
 #if HAS_AUX_DEVICES
 	if (auxNumber < ARRAY_SIZE(auxDevices))
 	{
+		// Don't send anything to PanelDue while we are flashing it
+		if (auxNumber == 0 && reprap.GetGCodes().IsFlashingPanelDue())
+		{
+			return;
+		}
 		auxDevices[auxNumber].AppendAuxReply(msg, rawMessage);
 	}
 #endif
@@ -3213,6 +3235,12 @@ void Platform::AppendAuxReply(size_t auxNumber, OutputBuffer *reply, bool rawMes
 #if HAS_AUX_DEVICES
 	if (auxNumber < ARRAY_SIZE(auxDevices))
 	{
+		// Don't send anything to PanelDue while we are flashing it
+		if (auxNumber == 0 && reprap.GetGCodes().IsFlashingPanelDue())
+		{
+			OutputBuffer::ReleaseAll(reply);
+			return;
+		}
 		auxDevices[auxNumber].AppendAuxReply(reply, rawMessage);
 	}
 	else

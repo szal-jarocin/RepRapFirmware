@@ -246,10 +246,10 @@ void StepTimer::DisableTimerInterrupt() noexcept
 
 // Step pulse timer interrupt
 #if STM32F4
-extern "C" void STEP_TC_HANDLER(HardwareTimer *) noexcept __attribute__ ((hot));
+extern "C" void STEP_TC_HANDLER(HardwareTimer *) noexcept SPEED_CRITICAL;
 void STEP_TC_HANDLER(HardwareTimer * notused) noexcept
 #else
-extern "C" void STEP_TC_HANDLER() noexcept __attribute__ ((hot));
+extern "C" void STEP_TC_HANDLER() noexcept SPEED_CRITICAL;
 
 void STEP_TC_HANDLER() noexcept
 #endif
