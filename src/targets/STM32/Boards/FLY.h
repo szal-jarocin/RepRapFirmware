@@ -84,8 +84,15 @@ constexpr BoardDefaults fly_f407zg_Defaults = {
     {PB_9, PB_8, PA_8, PC_7,  PC_6, PD_15, PD_14, PD_13, PD_12},	//stepPins
     {PE_0, PG_11, PD_6, PD_3,  PA_15, PG_7, PG_4, PD_11, PD_8},    	//dirPins
 #if TMC_SOFT_UART
-    {PG_13, PG_10, PD_5, PD_1, /*PA_14*/NoPin, PG_6, PG_3, PD_10, PB_12},      //uartPins
-    0,                                      	// Smart drivers
+    {PG_13, PG_10, PD_5, PD_1,
+#if STARTUP_DELAY
+    // Avoid clash with jtag pins
+    NoPin,
+#else
+    PA_14,
+#endif
+     PG_6, PG_3, PD_10, PB_12},                 //uartPins
+    9,                                      	// Smart drivers
 #endif
     0                                       	//digiPot Factor
 };
