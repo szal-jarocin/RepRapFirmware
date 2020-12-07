@@ -35,6 +35,7 @@ constexpr IRQn SBC_SPI_IRQn = SbcSpiSercomIRQn;
 #elif __LPC17xx__ || STM32F4
 # define USE_DMAC           0
 # define USE_XDMAC          0
+uint32_t HeaderCRCErrors, DataCRCErrors;
 #else
 # error Unknown board
 #endif
@@ -508,6 +509,9 @@ void DataTransfer::Diagnostics(MessageType mtype) noexcept
 	reprap.GetPlatform().MessageF(mtype, "Last transfer: %" PRIu32 "ms ago\n", millis() - lastTransferTime);
 	reprap.GetPlatform().MessageF(mtype, "RX/TX seq numbers: %d/%d\n", (int)rxHeader.sequenceNumber, (int)txHeader.sequenceNumber);
 	reprap.GetPlatform().MessageF(mtype, "SPI underruns %u, overruns %u\n", spiTxUnderruns, spiRxOverruns);
+#if __LPC17xx__ || STM32F4
+	reprap.GetPlatform().MessageF(mtype, "CRC errors header %u, data %u\n", HeaderCRCErrors, DataCRCErrors);
+#endif
 }
 
 const PacketHeader *DataTransfer::ReadPacket() noexcept
@@ -779,6 +783,9 @@ bool DataTransfer::IsReady() noexcept
 			const uint16_t checksum = CRC16(reinterpret_cast<const char *>(&rxHeader), sizeof(TransferHeader) - sizeof(uint16_t));
 			if (rxHeader.checksumHeader != checksum)
 			{
+#if __LPC17xx__ || STM32F4
+				HeaderCRCErrors++;
+#endif
 				if (reprap.Debug(moduleLinuxInterface))
 				{
 					debugPrintf("Bad header checksum (expected %04" PRIx32 ", got %04" PRIx32 ")\n", (uint32_t)rxHeader.checksumHeader, (uint32_t)checksum);
@@ -864,6 +871,9 @@ bool DataTransfer::IsReady() noexcept
 			const uint16_t checksum = CRC16(rxBuffer, rxHeader.dataLength);
 			if (rxHeader.checksumData != checksum)
 			{
+#if __LPC17xx__ || STM32F4
+				DataCRCErrors++;
+#endif
 				if (reprap.Debug(moduleLinuxInterface))
 				{
 					debugPrintf("Bad data checksum (expected %04" PRIx32 ", got %04" PRIx32 ")\n", (uint32_t)rxHeader.checksumData, (uint32_t)checksum);
