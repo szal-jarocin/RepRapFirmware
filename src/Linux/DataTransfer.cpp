@@ -510,7 +510,7 @@ void DataTransfer::Diagnostics(MessageType mtype) noexcept
 	reprap.GetPlatform().MessageF(mtype, "RX/TX seq numbers: %d/%d\n", (int)rxHeader.sequenceNumber, (int)txHeader.sequenceNumber);
 	reprap.GetPlatform().MessageF(mtype, "SPI underruns %u, overruns %u\n", spiTxUnderruns, spiRxOverruns);
 #if __LPC17xx__ || STM32F4
-	reprap.GetPlatform().MessageF(mtype, "CRC errors header %u, data %u\n", HeaderCRCErrors, DataCRCErrors);
+	reprap.GetPlatform().MessageF(mtype, "CRC errors header %u, data %u\n", (unsigned)HeaderCRCErrors, (unsigned)DataCRCErrors);
 #endif
 }
 
