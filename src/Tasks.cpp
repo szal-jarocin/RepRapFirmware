@@ -11,9 +11,10 @@
 #include <Cache.h>
 #include <TaskPriorities.h>
 #include <Hardware/SoftwareReset.h>
+#include <Storage/CRC32.h>
 
 #if SAM4E || SAM4S || SAME70
-# include "sam/services/flash_efc/flash_efc.h"		// for efc_enable_cloe()
+# include <efc/efc.h>		// for efc_enable_cloe()
 #endif
 
 #if SAME5x
@@ -243,6 +244,21 @@ const char* Tasks::GetHeapTop() noexcept
 	return heapTop;
 }
 
+// Allocate memory permanently. Using this saves about 8 bytes per object. You must not call free() on the returned object.
+// It doesn't try to allocate from the free list maintained by malloc, only from virgin memory.
+void *Tasks::AllocPermanent(size_t sz, std::align_val_t align) noexcept
+{
+	GetMallocMutex();
+	char *newHeapLimit = reinterpret_cast<char *>(reinterpret_cast<uint32_t>(heapLimit - sz) & ~((uint32_t)align - 1));
+	if (newHeapLimit < heapTop)
+	{
+		OutOfMemoryHandler();
+	}
+	heapLimit = newHeapLimit;
+	ReleaseMallocMutex();
+	return newHeapLimit;
+}
+
 // Write data about the current task
 void Tasks::Diagnostics(MessageType mtype) noexcept
 {
@@ -311,17 +327,17 @@ void Tasks::TerminateMainTask() noexcept
 	mainTask.TerminateAndUnlink();
 }
 
-const Mutex *Tasks::GetI2CMutex() noexcept
+Mutex *Tasks::GetI2CMutex() noexcept
 {
 	return &i2cMutex;
 }
 
-const Mutex *Tasks::GetSysDirMutex() noexcept
+Mutex *Tasks::GetSysDirMutex() noexcept
 {
 	return &sysDirMutex;
 }
 
-const Mutex *Tasks::GetFilamentsMutex() noexcept
+Mutex *Tasks::GetFilamentsMutex() noexcept
 {
 	return &filamentsMutex;
 }

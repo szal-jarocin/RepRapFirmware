@@ -110,6 +110,7 @@ void Menu::LoadFixedMenu() noexcept
 {
 	displayingFixedMenu = true;
 	numNestedMenus = 0;
+	commandBufferIndex = 0;
 	rowOffset = 0;
 	currentMargin = 0;
 	lcd.Clear();
@@ -119,28 +120,13 @@ void Menu::LoadFixedMenu() noexcept
 
 	ResetCache();
 
+#if HAS_MASS_STORAGE
 	char acLine1[] = "text R3 C5 F0 T\"No SD Card Found\"";
 	char acLine2[] = "button R15 C5 F0 T\"Mount SD\" A\"M21\"";
 
-	const char *errMsg = ParseMenuLine(acLine1);
-	if (nullptr != errMsg)
-	{
-		LoadError(errMsg, 1);
-	}
-	if (commandBufferIndex == sizeof(commandBuffer))
-	{
-		LoadError("|Menu buffer full", 1);
-	}
-
-	errMsg = ParseMenuLine(acLine2);
-	if (nullptr != errMsg)
-	{
-		LoadError(errMsg, 2);
-	}
-	if (commandBufferIndex == sizeof(commandBuffer))
-	{
-		LoadError("|Menu buffer full", 2);
-	}
+	(void)ParseMenuLine(acLine1);
+	(void)ParseMenuLine(acLine2);
+#endif
 }
 
 // Display a M291 message box
@@ -390,6 +376,7 @@ const char *Menu::ParseMenuLine(char * const commandWord) noexcept
 		AddItem(pNewItem, true);
 		column += pNewItem->GetWidth();
 	}
+#if HAS_MASS_STORAGE
 	else if (StringEqualsIgnoreCase(commandWord, "files"))
 	{
 		const char * const actionString = AppendString(action);
@@ -399,6 +386,7 @@ const char *Menu::ParseMenuLine(char * const commandWord) noexcept
 		row += nparam * lcd.GetFontHeight(fontNumber);
 		column = 0;
 	}
+#endif
 	else
 	{
 		errorColumn = 1;
@@ -668,7 +656,16 @@ void Menu::EncoderAction(int action) noexcept
 // Refresh is called every Spin() of the Display under most circumstances; an appropriate place to check if timeout action needs to be taken
 void Menu::Refresh() noexcept
 {
-	if (!MassStorage::IsDriveMounted(0))
+	if (
+#if HAS_LINUX_INTERFACE
+		!reprap.UsingLinuxInterface() &&
+#endif
+#if HAS_MASS_STORAGE
+		!MassStorage::IsDriveMounted(0)
+#else
+		true	// When there is no mass storage drives cannot be mounted anyway and the above equals true
+#endif
+	   )
 	{
 		if (!displayingFixedMenu)
 		{

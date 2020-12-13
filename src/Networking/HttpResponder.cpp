@@ -9,6 +9,7 @@
 
 #if SUPPORT_HTTP
 
+#include "Network.h"
 #include "Socket.h"
 #include "GCodes/GCodes.h"
 #include "General/IP4String.h"
@@ -658,7 +659,7 @@ const char* HttpResponder::GetKeyValue(const char *key) const noexcept
 bool HttpResponder::SendFileInfo(bool quitEarly) noexcept
 {
 	OutputBuffer *jsonResponse = nullptr;
-	bool gotFileInfo = reprap.GetFileInfoResponse(filenameBeingProcessed.c_str(), jsonResponse, quitEarly);
+	bool gotFileInfo = (reprap.GetFileInfoResponse(filenameBeingProcessed.c_str(), jsonResponse, quitEarly) != GCodeResult::notFinished);
 	if (gotFileInfo)
 	{
 		// Got it - send the response now
@@ -666,10 +667,10 @@ bool HttpResponder::SendFileInfo(bool quitEarly) noexcept
 						"Cache-Control: no-cache, no-store, must-revalidate\r\n"
 						"Pragma: no-cache\r\n"
 						"Expires: 0\r\n"
-						"Access-Control-Allow-Origin: *\r\n"
 						"Content-Type: application/json\r\n"
 					);
 		outBuf->catf("Content-Length: %u\r\n", (jsonResponse != nullptr) ? jsonResponse->Length() : 0);
+		AddCorsHeader();
 		outBuf->cat("Connection: close\r\n\r\n");
 		outBuf->Append(jsonResponse);
 		if (outBuf->HadOverflow())
@@ -857,8 +858,8 @@ void HttpResponder::SendFile(const char* nameOfFileToSend, bool isWebFile) noexc
 		outBuf->cat(	"Cache-Control: no-cache, no-store, must-revalidate\r\n"
 						"Pragma: no-cache\r\n"
 						"Expires: 0\r\n"
-						"Access-Control-Allow-Origin: *\r\n"
 					);
+		AddCorsHeader();
 	}
 
 	const char* contentType;
@@ -943,10 +944,10 @@ void HttpResponder::SendGCodeReply() noexcept
 						"Cache-Control: no-cache, no-store, must-revalidate\r\n"
 						"Pragma: no-cache\r\n"
 						"Expires: 0\r\n"
-						"Access-Control-Allow-Origin: *\r\n"
 						"Content-Type: text/plain\r\n"
 					);
 		outBuf->catf("Content-Length: %u\r\n", gcodeReply.DataLength());
+		AddCorsHeader();
 		outBuf->cat("Connection: close\r\n\r\n");
 		outStack.Append(gcodeReply);
 
@@ -1047,11 +1048,11 @@ void HttpResponder::SendJsonResponse(const char* command) noexcept
 					"Cache-Control: no-cache, no-store, must-revalidate\r\n"
 					"Pragma: no-cache\r\n"
 					"Expires: 0\r\n"
-					"Access-Control-Allow-Origin: *\r\n"
 					"Content-Type: application/json\r\n"
 				);
 	const unsigned int replyLength = (jsonResponse != nullptr) ? jsonResponse->Length() : 0;
 	outBuf->catf("Content-Length: %u\r\n", replyLength);
+	AddCorsHeader();
 	outBuf->catf("Connection: %s\r\n\r\n", keepOpen ? "keep-alive" : "close");
 	outBuf->Append(jsonResponse);
 
@@ -1130,16 +1131,19 @@ void HttpResponder::ProcessRequest() noexcept
 
 		if (StringEqualsIgnoreCase(commandWords[0], "OPTIONS"))
 		{
-			outBuf->copy(	"HTTP/1.1 200 OK\r\n"
+			outBuf->copy(	"HTTP/1.1 204 No Content\r\n"
 							"Allow: OPTIONS, GET, POST\r\n"
 							"Cache-Control: no-cache, no-store, must-revalidate\r\n"
 							"Pragma: no-cache\r\n"
 							"Expires: 0\r\n"
-							"Access-Control-Allow-Origin: *\r\n"
-							"Access-Control-Allow-Headers: Content-Type\r\n"
 							"Content-Length: 0\r\n"
-							"\r\n"
 						);
+			if (reprap.GetNetwork().GetCorsSite() != nullptr)
+			{
+				outBuf->catf("Access-Control-Allow-Headers: Content-Type\r\n");
+				AddCorsHeader();
+			}
+			outBuf->cat("\r\n");
 			if (outBuf->HadOverflow())
 			{
 				OutputBuffer::ReleaseAll(outBuf);
@@ -1265,10 +1269,9 @@ void HttpResponder::RejectMessage(const char* response, unsigned int code) noexc
 	if (outBuf != nullptr || OutputBuffer::Allocate(outBuf))
 	{
 		outBuf->printf("HTTP/1.1 %u %s\r\n"
-			"Connection: close\r\n"
-			"Access-Control-Allow-Origin: *\r\n"
-			"\r\n", code, response);
-		outBuf->catf("%s%s%s", ErrorPagePart1, response, ErrorPagePart2);
+					   "Connection: close\r\n", code, response);
+		AddCorsHeader();
+		outBuf->catf("\r\n%s%s%s", ErrorPagePart1, response, ErrorPagePart2);
 		Commit();
 	}
 	else
@@ -1499,6 +1502,14 @@ void HttpResponder::Diagnostics(MessageType mt) const noexcept
 /*static*/ void HttpResponder::CommonDiagnostics(MessageType mtype) noexcept
 {
 	GetPlatform().MessageF(mtype, "HTTP sessions: %u of %u\n", numSessions, MaxHttpSessions);
+}
+
+void HttpResponder::AddCorsHeader() noexcept
+{
+	if (reprap.GetNetwork().GetCorsSite() != nullptr)
+	{
+		outBuf->catf("Access-Control-Allow-Origin: %s\r\n", reprap.GetNetwork().GetCorsSite());
+	}
 }
 
 // Static data

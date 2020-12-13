@@ -148,7 +148,7 @@ public:
 	OutputBuffer *GetFilelistResponse(const char* dir, unsigned int startAt) noexcept;
 #endif
 
-	bool GetFileInfoResponse(const char *filename, OutputBuffer *&response, bool quitEarly) noexcept;
+	GCodeResult GetFileInfoResponse(const char *filename, OutputBuffer *&response, bool quitEarly) noexcept;
 
 #if SUPPORT_OBJECT_MODEL
 	OutputBuffer *GetModelResponse(const char *key, const char *flags) const THROWS(GCodeException);
@@ -252,7 +252,7 @@ private:
  	ExpansionManager *expansion;
 #endif
 
- 	Mutex messageBoxMutex;
+ 	mutable Mutex messageBoxMutex;				// mutable so that we can lock and release it in const functions
 
 	uint16_t boardsSeq, directoriesSeq, fansSeq, heatSeq, inputsSeq, jobSeq, moveSeq;
 	uint16_t networkSeq, scannerSeq, sensorsSeq, spindlesSeq, stateSeq, toolsSeq, volumesSeq;

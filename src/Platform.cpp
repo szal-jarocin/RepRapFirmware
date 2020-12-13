@@ -54,7 +54,7 @@
 #else
 
 #if SAM4E || SAM4S || SAME70
-# include "sam/services/flash_efc/flash_efc.h"		// for flash_read_unique_id()
+# include <Flash.h>		// for flash_read_unique_id()
 #endif
 
 #if SAME70
@@ -82,7 +82,7 @@ using AnalogIn::AdcBits;
 #endif
 
 #if HAS_WIFI_NETWORKING
-# include "FirmwareUpdater.h"
+# include <Comms/FirmwareUpdater.h>
 #endif
 
 #if SUPPORT_12864_LCD
@@ -262,7 +262,9 @@ constexpr ObjectModelTableEntry Platform::objectModelTable[] =
 #if HAS_LINUX_INTERFACE
 	{ "iapFileNameSBC",		OBJECT_MODEL_FUNC_NOSELF(IAP_UPDATE_FILE_SBC),														ObjectModelEntryFlags::none },
 #endif
+#if HAS_MASS_STORAGE
 	{ "iapFileNameSD",		OBJECT_MODEL_FUNC_NOSELF(IAP_UPDATE_FILE),															ObjectModelEntryFlags::none },
+#endif
 	{ "maxHeaters",			OBJECT_MODEL_FUNC_NOSELF((int32_t)MaxHeaters),														ObjectModelEntryFlags::verbose },
 	{ "maxMotors",			OBJECT_MODEL_FUNC_NOSELF((int32_t)NumDirectDrivers),												ObjectModelEntryFlags::verbose },
 	{ "mcuTemp",			OBJECT_MODEL_FUNC(self, 1),																			ObjectModelEntryFlags::live },
@@ -358,7 +360,7 @@ constexpr ObjectModelTableEntry Platform::objectModelTable[] =
 constexpr uint8_t Platform::objectModelTableDescriptor[] =
 {
 	9,																		// number of sections
-	12 + HAS_LINUX_INTERFACE + HAS_12V_MONITOR + SUPPORT_CAN_EXPANSION + SUPPORT_12864_LCD + MCU_HAS_UNIQUE_ID,		// section 0: boards[0]
+	11 + HAS_LINUX_INTERFACE + HAS_MASS_STORAGE + HAS_12V_MONITOR + SUPPORT_CAN_EXPANSION + SUPPORT_12864_LCD + MCU_HAS_UNIQUE_ID,		// section 0: boards[0]
 #if HAS_CPU_TEMP_SENSOR
 	3,																		// section 1: mcuTemp
 #else
@@ -1762,7 +1764,7 @@ extern void SPWMDiagnostics();
 // Return diagnostic information
 void Platform::Diagnostics(MessageType mtype) noexcept
 {
-#if USE_CACHE && SAM4E
+#if USE_CACHE && (SAM4E || SAME5x)
 	// Get the cache statistics before we start messing around with the cache
 	const uint32_t cacheCount = Cache::GetHitCount();
 #endif
@@ -1846,6 +1848,14 @@ void Platform::Diagnostics(MessageType mtype) noexcept
 	// Show the current error codes
 	MessageF(mtype, "Error status: 0x%02" PRIx32 "\n", errorCodeBits);		// we only use the bottom 5 bits at present, so print just 2 characters
 
+#if HAS_AUX_DEVICES
+	// Show the aux port status
+	for (size_t i = 0; i < ARRAY_SIZE(auxDevices); ++i)
+	{
+		auxDevices[i].Diagnostics(mtype, i);
+	}
+#endif
+
 #if HAS_CPU_TEMP_SENSOR
 	// Show the MCU temperatures
 	const float currentMcuTemperature = GetCpuTemperature();
@@ -1905,7 +1915,7 @@ void Platform::Diagnostics(MessageType mtype) noexcept
 		Message(mtype, "not set\n");
 	}
 
-#if USE_CACHE && SAM4E
+#if USE_CACHE && (SAM4E || SAME5x)
 	MessageF(mtype, "Cache data hit count %" PRIu32 "\n", cacheCount);
 #endif
 
@@ -4020,14 +4030,7 @@ bool Platform::IsDuetWiFi() const noexcept
 
 #endif
 
-#if HAS_MASS_STORAGE
-
-// Where the system files are. Not thread safe!
-const char* Platform::InternalGetSysDir() const noexcept
-{
-	return (sysDir != nullptr) ? sysDir : DEFAULT_SYS_DIR;
-}
-
+#if HAS_MASS_STORAGE || HAS_LINUX_INTERFACE
 // Open a file
 FileStore* Platform::OpenFile(const char* folder, const char* fileName, OpenMode mode, uint32_t preAllocSize) const noexcept
 {
@@ -4037,16 +4040,25 @@ FileStore* Platform::OpenFile(const char* folder, const char* fileName, OpenMode
 				: nullptr;
 }
 
-bool Platform::Delete(const char* folder, const char *filename) const noexcept
-{
-	String<MaxFilenameLength> location;
-	return MassStorage::CombineName(location.GetRef(), folder, filename) && MassStorage::Delete(location.c_str(), true);
-}
-
 bool Platform::FileExists(const char* folder, const char *filename) const noexcept
 {
 	String<MaxFilenameLength> location;
 	return MassStorage::CombineName(location.GetRef(), folder, filename) && MassStorage::FileExists(location.c_str());
+}
+#endif
+
+#if HAS_MASS_STORAGE
+
+// Where the system files are. Not thread safe!
+const char* Platform::InternalGetSysDir() const noexcept
+{
+	return (sysDir != nullptr) ? sysDir : DEFAULT_SYS_DIR;
+}
+
+bool Platform::Delete(const char* folder, const char *filename) const noexcept
+{
+	String<MaxFilenameLength> location;
+	return MassStorage::CombineName(location.GetRef(), folder, filename) && MassStorage::Delete(location.c_str(), true);
 }
 
 bool Platform::DirectoryExists(const char *folder, const char *dir) const noexcept

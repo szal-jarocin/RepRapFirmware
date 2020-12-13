@@ -136,7 +136,8 @@ public:
 		pre(axis < maxAxes);
 	float GetUserCoordinate(size_t axis) const noexcept;						// Get the current user coordinate in the current workspace coordinate system
 
-#if HAS_NETWORKING || HAS_LINUX_INTERFACE
+	bool CheckNetworkCommandAllowed(GCodeBuffer& gb, const StringRef& reply, GCodeResult& result) noexcept;
+#if HAS_NETWORKING
 	NetworkGCodeInput *GetHTTPInput() const noexcept { return httpInput; }
 	NetworkGCodeInput *GetTelnetInput() const noexcept { return telnetInput; }
 #endif
@@ -463,9 +464,15 @@ private:
 #endif
 	Pwm_t ConvertLaserPwm(float reqVal) const noexcept;
 
-	bool CheckNetworkCommandAllowed(GCodeBuffer& gb, const StringRef& reply, GCodeResult& result) noexcept;
-
 #if HAS_AUX_DEVICES
+#if !ALLOW_ARBITRARY_PANELDUE_PORT
+	static constexpr
+#endif
+	uint8_t serialChannelForPanelDueFlashing
+#if !ALLOW_ARBITRARY_PANELDUE_PORT
+	= 1
+#endif
+	;
 	static bool emergencyStopCommanded;
 	static void CommandEmergencyStop(UARTClass *p) noexcept;
 #endif

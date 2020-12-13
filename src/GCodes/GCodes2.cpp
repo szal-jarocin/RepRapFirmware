@@ -39,7 +39,7 @@
 #endif
 
 #if HAS_WIFI_NETWORKING
-# include "FirmwareUpdater.h"
+# include <Comms/FirmwareUpdater.h>
 #endif
 
 #if SUPPORT_12864_LCD
@@ -472,7 +472,8 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeEx
 			|| code == 112
 			|| code == 374 || code == 375
 			|| code == 470 || code == 471
-			|| code == 500 || code == 503 || code == 505 || code == 550
+			|| code == 500 || code == 503 || code == 505
+			|| code == 540 || code == 550 || code == 552 || code == 586 || (code >= 587 && code <= 589)
 			|| code == 703
 			|| code == 905 || code == 929 || code == 997 || code == 999
 		   )
@@ -757,25 +758,22 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeEx
 					FileInfo fileInfo;
 					if (MassStorage::FindFirst(dir.c_str(), fileInfo))
 					{
-						// iterate through all entries and append each file name
-						do {
+						// Iterate through all entries and append each file name
+						bool first = true;
+						do
+						{
 							if (encapsulateList)
 							{
-								outBuf->catf("%c%s%c%c", FILE_LIST_BRACKET, fileInfo.fileName.c_str(), FILE_LIST_BRACKET, FILE_LIST_SEPARATOR);
+								outBuf->catf((first) ? "\"%s\"" : ",\"%s\"", fileInfo.fileName.c_str());
+								first = false;
 							}
 							else
 							{
 								outBuf->catf("%s\n", fileInfo.fileName.c_str());
 							}
 						} while (MassStorage::FindNext(fileInfo));
-
-						if (encapsulateList)
-						{
-							// remove the last separator
-							(*outBuf)[outBuf->Length() - 1] = 0;
-						}
 					}
-					else
+					else if (!encapsulateList)
 					{
 						outBuf->cat("NONE\n");
 					}
@@ -1057,12 +1055,7 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeEx
 
 				String<MaxFilenameLength> filename;
 				gb.GetUnprecedentedString(filename.GetRef(), true);
-				const bool done = reprap.GetFileInfoResponse((filename.IsEmpty()) ? nullptr : filename.c_str(), outBuf, false);
-				if (outBuf != nullptr)
-				{
-					outBuf->cat('\n');
-				}
-				result = (done) ? GCodeResult::ok : GCodeResult::notFinished;
+				result = reprap.GetFileInfoResponse((filename.IsEmpty()) ? nullptr : filename.c_str(), outBuf, false);
 # endif
 			}
 			break;
@@ -1690,10 +1683,14 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeEx
 				gb.GetQuotedString(message.GetRef());
 
 				MessageType type = GenericMessage;
+#if HAS_MASS_STORAGE
 				bool seenP = false;
+#endif
 				if (gb.Seen('P'))
 				{
+#if HAS_MASS_STORAGE
 					seenP = true;
+#endif
 					const int32_t param = gb.GetIValue();
 					switch (param)
 					{
@@ -3549,6 +3546,17 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeEx
 			{
 				const unsigned int interface = (gb.Seen('I') ? gb.GetUIValue() : 0);
 
+				bool seen = false;
+#if SUPPORT_HTTP
+				if (gb.Seen('C'))
+				{
+					String<StringLength20> corsSite;
+					gb.GetQuotedString(corsSite.GetRef(), true);
+					reprap.GetNetwork().SetCorsSite(corsSite.c_str());
+					seen = true;
+				}
+#endif
+
 				if (gb.Seen('P'))
 				{
 					const unsigned int protocol = gb.GetUIValue();
@@ -3565,10 +3573,23 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeEx
 						{
 							result = reprap.GetNetwork().DisableProtocol(interface, protocol, reply);
 						}
+						seen = true;
 					}
 				}
-				else
+
+
+				if (!seen)
 				{
+#if SUPPORT_HTTP
+					if (reprap.GetNetwork().GetCorsSite() != nullptr)
+					{
+						reply.printf("CORS enabled for site '%s'", reprap.GetNetwork().GetCorsSite());
+					}
+					else
+					{
+						reply.copy("CORS disabled");
+					}
+#endif
 					// Default to reporting current protocols if P or S parameter missing
 					result = reprap.GetNetwork().ReportProtocols(interface, reply);
 				}
@@ -3624,6 +3645,10 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeEx
 			result = reprap.GetMove().StartHeightFollowing(gb, reply);
 			break;
 #endif
+
+		case 595:	// Configure movement queue size
+			result = reprap.GetMove().ConfigureMovementQueue(gb, reply);
+			break;
 
 		// For cases 600 and 601, see 226
 

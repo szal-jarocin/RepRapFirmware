@@ -12,24 +12,27 @@
 #define BOARD_SHORT_NAME_SBC		"2SBC"
 
 #if defined(USE_SBC)
-#define FIRMWARE_NAME			"RepRapFirmware for Duet 2 + SBC"
+
+#define FIRMWARE_NAME			"RepRapFirmware for Duet 2 SBC"
 #define DEFAULT_BOARD_TYPE	 	BoardType::Duet2SBC_10
-#define IAP_FIRMWARE_FILE		"Duet2Firmware_" BOARD_SHORT_NAME_SBC ".bin"
-#define IAP_UPDATE_FILE			"Duet2_SDiap_" BOARD_SHORT_NAME_SBC ".bin"
-#define IAP_UPDATE_FILE_SBC		"Duet2_SBCiap_" BOARD_SHORT_NAME_SBC ".bin"
+#define IAP_FIRMWARE_FILE		"Duet2Firmware_SBC.bin"
+#define IAP_UPDATE_FILE_SBC		"Duet2_SBCiap32_SBC.bin"
 
 constexpr size_t NumFirmwareUpdateModules = 5;		// 0 = mainboard, 4 = PanelDue, values in between unused
+
 #else
+
 #define FIRMWARE_NAME			"RepRapFirmware for Duet 2 WiFi/Ethernet"
 #define DEFAULT_BOARD_TYPE	 	BoardType::DuetWiFi_10
 #define IAP_FIRMWARE_FILE		"Duet2CombinedFirmware.bin"
-#define IAP_UPDATE_FILE			"Duet2CombinedIAP.bin"	// using the same IAP file for both Duet WiFi and Duet Ethernet
+#define IAP_UPDATE_FILE			"Duet2_SDiap32_WiFiEth.bin"	// using the same IAP file for both Duet WiFi and Duet Ethernet
 #define WIFI_FIRMWARE_FILE		"DuetWiFiServer.bin"
 
 constexpr size_t NumFirmwareUpdateModules = 5;		// 4 modules, plus one for manual upload to WiFi module (module 2 is now unused)
+
 #endif
 
-constexpr uint32_t IAP_IMAGE_START = 0x20010000;	// IAP is loaded into the second 64kb of RAM
+constexpr uint32_t IAP_IMAGE_START = 0x20018000;	// IAP is loaded into the last 32kb of RAM
 
 // Features definition
 #define HAS_LWIP_NETWORKING		0
@@ -38,6 +41,7 @@ constexpr uint32_t IAP_IMAGE_START = 0x20010000;	// IAP is loaded into the secon
 # define HAS_WIFI_NETWORKING	0
 # define HAS_W5500_NETWORKING	0
 # define HAS_LINUX_INTERFACE	1
+# define HAS_MASS_STORAGE		0
 #else
 # define HAS_WIFI_NETWORKING	1
 # define HAS_W5500_NETWORKING	1
@@ -45,7 +49,11 @@ constexpr uint32_t IAP_IMAGE_START = 0x20010000;	// IAP is loaded into the secon
 #endif
 
 #define HAS_CPU_TEMP_SENSOR		1
-#define HAS_HIGH_SPEED_SD		1
+#if defined(USE_SBC)
+# define HAS_HIGH_SPEED_SD		0
+#else
+# define HAS_HIGH_SPEED_SD		1
+#endif
 #define SUPPORT_TMC2660			1
 #define TMC2660_USES_USART		1
 #define HAS_VOLTAGE_MONITOR		1
@@ -55,7 +63,11 @@ constexpr uint32_t IAP_IMAGE_START = 0x20010000;	// IAP is loaded into the secon
 
 #define SUPPORT_INKJET			0					// set nonzero to support inkjet control
 #define SUPPORT_ROLAND			0					// set nonzero to support Roland mill
-#define SUPPORT_SCANNER			1					// set zero to disable support for FreeLSS scanners
+#if defined(USE_SBC)
+# define SUPPORT_SCANNER		0
+#else
+# define SUPPORT_SCANNER		1					// set zero to disable support for FreeLSS scanners
+#endif
 #define SUPPORT_LASER			1					// support laser cutters and engravers using G1 S parameter
 #define SUPPORT_IOBITS			1					// set to support P parameter in G0/G1 commands
 #define SUPPORT_DHT_SENSOR		1					// set nonzero to support DHT temperature/humidity sensors

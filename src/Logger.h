@@ -17,7 +17,6 @@ NamedEnum(LogLevel, uint8_t, off, warn, info, debug);
 #include <ctime>
 #include "Storage/FileData.h"
 #include "MessageType.h"
-#include <General/NamedEnum.h>
 
 class OutputBuffer;
 
