@@ -62,16 +62,16 @@ constexpr PinEntry PinTable_FLY_F407ZG[] =
     {PC_4, PinCapability::rwpwm, "PC4"},
     {PF_11, PinCapability::rwpwm, "PF11"},
     {PB_15, PinCapability::rwpwm, "PB15"},
-    {PB_2, PinCapability::rwpwm, "PB_2"},
+    {PB_2, PinCapability::rwpwm, "PB2"},
 
 	//SD
 	{PC_13, PinCapability::rwpwm, "SDCD"},
-	{PC_9, PinCapability::rwpwm, "SD_D1"},
-	{PC_8, PinCapability::rwpwm, "SD_D0"},
-	{PC_12, PinCapability::rwpwm, "SD_SCK"},
-	{PD_2, PinCapability::rwpwm, "SD_CMD"},
-	{PC_11, PinCapability::rwpwm, "SD_D3"},
-	{PC_10, PinCapability::rwpwm, "SD_D2"},
+	{PC_9, PinCapability::rwpwm, "SDD1"},
+	{PC_8, PinCapability::rwpwm, "SDD0"},
+	{PC_12, PinCapability::rwpwm, "SDSCK"},
+	{PD_2, PinCapability::rwpwm, "SDCMD"},
+	{PC_11, PinCapability::rwpwm, "SDD3"},
+	{PC_10, PinCapability::rwpwm, "SDD2"},
 
 	// UART
 	{PA_9, PinCapability::rwpwm, "TX1"},
