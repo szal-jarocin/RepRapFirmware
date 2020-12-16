@@ -483,9 +483,6 @@ void LinuxInterface::Init() noexcept
 						{
 							filament->Load(filamentName.c_str());
 						}
-
-						TaskCriticalSectionLocker locker;
-						reprap.MoveUpdated();
 					}
 					break;
 				}
@@ -890,6 +887,11 @@ bool LinuxInterface::FillBuffer(GCodeBuffer &gb) noexcept
 			uint16_t readPointer = rxPointer;
 			do
 			{
+				if (readPointer == txLength)
+				{
+					readPointer = 0;
+				}
+
 				BufferedCodeHeader * const bufHeader = reinterpret_cast<BufferedCodeHeader*>(codeBuffer + readPointer);
 				readPointer += sizeof(BufferedCodeHeader);
 				const CodeHeader * const header = reinterpret_cast<const CodeHeader*>(codeBuffer + readPointer);
@@ -944,15 +946,7 @@ bool LinuxInterface::FillBuffer(GCodeBuffer &gb) noexcept
 						gotCommand = true;
 						break;
 					}
-					else
-					{
-						updateRxPointer = false;
-					}
-				}
-
-				if (readPointer == txLength)
-				{
-					readPointer = 0;
+					updateRxPointer = false;
 				}
 			} while (readPointer != txPointer);
 		}

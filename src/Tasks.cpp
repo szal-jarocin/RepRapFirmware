@@ -26,7 +26,7 @@
 #include "task.h"
 #include <malloc.h>
 
-const uint8_t memPattern = 0xA5;
+const uint8_t memPattern = 0xA5;		// this must be the same pattern as FreeRTOS because we use common code for checking for stack overflow
 
 extern char _end;						// defined in linker script
 extern char _estack;					// defined in linker script
@@ -81,7 +81,6 @@ extern "C" void vApplicationGetTimerTaskMemory(StaticTask_t **ppxTimerTaskTCBBuf
 
 // Mutexes
 static Mutex i2cMutex;
-static Mutex sysDirMutex;
 static Mutex mallocMutex;
 static Mutex filamentsMutex;
 
@@ -201,7 +200,6 @@ extern "C" [[noreturn]] void AppMain() noexcept
 	// Create the mutexes and the startup task
 	mallocMutex.Create("Malloc");
 	i2cMutex.Create("I2C");
-	sysDirMutex.Create("SysDir");
 	filamentsMutex.Create("Filaments");
 	mainTask.Create(MainTask, "MAIN", nullptr, TaskPriority::SpinPriority);
 	cpu_irq_restore(flags);
@@ -267,18 +265,14 @@ void Tasks::Diagnostics(MessageType mtype) noexcept
 	// Print memory stats
 	{
 		const char * const ramstart =
-#if SAME70
-			(char *) 0x20400000;
-#elif SAM4E || SAM4S || SAME5x
-			(char *) 0x20000000;
-#elif SAM3XA
-			(char *) 0x20070000;
+#if SAME5x
+			(char *) HSRAM_ADDR;
 #elif __LPC17xx__
 			(char *) 0x10000000;
 #elif STM32F4
 			(char *)  0x20000000;
 #else
-# error Unsupported processor
+			(char *) IRAM_ADDR;
 #endif
 		p.MessageF(mtype, "Static ram: %d\n", &_end - ramstart);
 
@@ -330,11 +324,6 @@ void Tasks::TerminateMainTask() noexcept
 Mutex *Tasks::GetI2CMutex() noexcept
 {
 	return &i2cMutex;
-}
-
-Mutex *Tasks::GetSysDirMutex() noexcept
-{
-	return &sysDirMutex;
 }
 
 Mutex *Tasks::GetFilamentsMutex() noexcept

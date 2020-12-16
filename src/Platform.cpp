@@ -1972,8 +1972,6 @@ static uint32_t TimedSqrt(uint64_t arg, uint32_t& timeAcc) noexcept
 
 GCodeResult Platform::DiagnosticTest(GCodeBuffer& gb, const StringRef& reply, OutputBuffer*& buf, unsigned int d) THROWS(GCodeException)
 {
-	static const uint32_t dummy[2] = { 0, 0 };
-
 	switch (d)
 	{
 	case (unsigned int)DiagnosticTestType::PrintTestReport:
@@ -2186,16 +2184,14 @@ GCodeResult Platform::DiagnosticTest(GCodeBuffer& gb, const StringRef& reply, Ou
 		(void)RepRap::DoDivide(1, 0);							// call function in another module so it can't be optimised away
 		break;
 
-	case (unsigned int)DiagnosticTestType::UnalignedMemoryAccess: // do an unaligned memory access to test exception handling
+	case (unsigned int)DiagnosticTestType::UnalignedMemoryAccess: // disable unaligned memory accesses
 		if (!gb.DoDwellTime(1000))								// wait a second to allow the response to be sent back to the web server, otherwise it may retry
 		{
 			return GCodeResult::notFinished;
 		}
 		deliberateError = true;
 		SCB->CCR |= SCB_CCR_UNALIGN_TRP_Msk;					// by default, unaligned memory accesses are allowed, so change that
-		__DSB();												// make sure that instruction completes
-		__DMB();												// don't allow prefetch
-		(void)*(reinterpret_cast<const volatile char*>(dummy) + 1);
+		// We don't actually generate a fault any more, instead we let this function identify existing unaligned accesses in the code
 		break;
 
 	case (unsigned int)DiagnosticTestType::BusFault:
@@ -2372,6 +2368,32 @@ GCodeResult Platform::DiagnosticTest(GCodeBuffer& gb, const StringRef& reply, Ou
 					, reinterpret_cast<uint32_t>(&reprap.GetExpansion()), reinterpret_cast<uint32_t>(&reprap.GetExpansion()) + sizeof(ExpansionManager) - 1
 #endif
 				);
+		break;
+
+	case (unsigned int)DiagnosticTestType::TimeCRC32:
+		{
+			CRC32 crc;
+			cpu_irq_disable();
+			asm volatile("":::"memory");
+			uint32_t now1 = SysTick->VAL;
+			crc.Update(
+#if SAME5x
+						reinterpret_cast<const char*>(HSRAM_ADDR),
+#elif SAME70
+						reinterpret_cast<const char*>(IRAM_ADDR + 0x10000),		// make sure we choose an address after the end of the non-cacheable RAM
+#else
+						reinterpret_cast<const char*>(IRAM_ADDR),
+#endif
+						1024);
+			uint32_t now2 = SysTick->VAL;
+			asm volatile("":::"memory");
+			cpu_irq_enable();
+			now1 &= 0x00FFFFFF;
+			now2 &= 0x00FFFFFF;
+			uint32_t tim1 = ((now1 > now2) ? now1 : now1 + (SysTick->LOAD & 0x00FFFFFF) + 1) - now2;
+			// We no longer calculate sin and cos for doubles because it pulls in those library functions, which we don't otherwise need
+			reply.printf("CRC of 1kb %.2fus", (double)(tim1 * 10000)/SystemCoreClock);
+		}
 		break;
 
 #ifdef DUET_NG
@@ -4031,6 +4053,7 @@ bool Platform::IsDuetWiFi() const noexcept
 #endif
 
 #if HAS_MASS_STORAGE || HAS_LINUX_INTERFACE
+
 // Open a file
 FileStore* Platform::OpenFile(const char* folder, const char* fileName, OpenMode mode, uint32_t preAllocSize) const noexcept
 {
@@ -4045,11 +4068,12 @@ bool Platform::FileExists(const char* folder, const char *filename) const noexce
 	String<MaxFilenameLength> location;
 	return MassStorage::CombineName(location.GetRef(), folder, filename) && MassStorage::FileExists(location.c_str());
 }
+
 #endif
 
 #if HAS_MASS_STORAGE
 
-// Where the system files are. Not thread safe!
+// Return a pointer to a string holding the directory where the system files are. Lock the sysdir lock before calling this.
 const char* Platform::InternalGetSysDir() const noexcept
 {
 	return (sysDir != nullptr) ? sysDir : DEFAULT_SYS_DIR;
@@ -4071,7 +4095,7 @@ bool Platform::DirectoryExists(const char *folder, const char *dir) const noexce
 GCodeResult Platform::SetSysDir(const char* dir, const StringRef& reply) noexcept
 {
 	String<MaxFilenameLength> newSysDir;
-	MutexLocker lock(Tasks::GetSysDirMutex());
+	WriteLocker lock(sysDirLock);
 
 	if (!MassStorage::CombineName(newSysDir.GetRef(), InternalGetSysDir(), dir) || (!newSysDir.EndsWith('/') && newSysDir.cat('/')))
 	{
@@ -4111,20 +4135,18 @@ bool Platform::DeleteSysFile(const char *filename) const noexcept
 
 bool Platform::MakeSysFileName(const StringRef& result, const char *filename) const noexcept
 {
-	MutexLocker lock(Tasks::GetSysDirMutex());
-	return MassStorage::CombineName(result, InternalGetSysDir(), filename);
+	return MassStorage::CombineName(result, GetSysDir().Ptr(), filename);
 }
 
 void Platform::AppendSysDir(const StringRef & path) const noexcept
 {
-	MutexLocker lock(Tasks::GetSysDirMutex());
-	path.cat(InternalGetSysDir());
+	path.cat(GetSysDir().Ptr());
 }
 
-void Platform::EncodeSysDir(OutputBuffer *buf) const noexcept
+ReadLockedPointer<const char> Platform::GetSysDir() const noexcept
 {
-	MutexLocker lock(Tasks::GetSysDirMutex());
-	buf->EncodeString(InternalGetSysDir(), false);
+	ReadLocker lock(sysDirLock);
+	return ReadLockedPointer<const char>(lock, InternalGetSysDir());
 }
 
 #endif

@@ -496,7 +496,7 @@ void ObjectModel::ReportItemAsJsonFull(OutputBuffer *buf, ObjectExplorationConte
 		break;
 
 	case TypeCode::CString:
-		buf->EncodeString(val.sVal, true);
+		buf->catf("\"%.s\"", val.sVal);
 		break;
 
 #if SUPPORT_CAN_EXPANSION
@@ -628,7 +628,7 @@ void ObjectModel::ReportItemAsJsonFull(OutputBuffer *buf, ObjectExplorationConte
 		switch ((ExpressionValue::SpecialType)val.param)
 		{
 		case ExpressionValue::SpecialType::sysDir:
-			reprap.GetPlatform().EncodeSysDir(buf);
+			buf->catf("\"%.s\"", reprap.GetPlatform().GetSysDir().Ptr());
 			break;
 		}
 #endif
@@ -1004,7 +1004,7 @@ void ObjectModel::ReportExpansionBoardDetail(OutputBuffer *buf, const Expression
 {
 	String<StringLength50> rslt;
 	val.ExtractRequestedPart(rslt.GetRef());
-	buf->EncodeString(rslt.c_str(), true);
+	buf->catf("\"%.s\"", rslt.c_str());
 }
 
 ExpressionValue ObjectModel::GetExpansionBoardDetailLength(const ExpressionValue& val) noexcept

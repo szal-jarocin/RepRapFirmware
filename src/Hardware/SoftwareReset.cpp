@@ -87,42 +87,26 @@ void SoftwareResetData::Populate(uint16_t reason, const uint32_t *stk) noexcept
 #endif
 	// Get the task name if we can. There may be no task executing, so we must allow for this.
 	const TaskHandle_t currentTask = xTaskGetCurrentTaskHandle();
-	taskName = (currentTask == nullptr) ? 0 : LoadLE32(pcTaskGetName(currentTask));
-#if __LPC17xx__
-    //Find the highest address of the stack currently in use.
+	taskName = (currentTask == nullptr) ? 0x656e6f6e : LoadLE32(pcTaskGetName(currentTask));
 
-    volatile uint32_t *stackEnd = &_estack; //default to the exception stack
-
-    if(currentTask != nullptr)
-    {
-        //Each task has its own stack which is currently statically assigned somewhere in RAM or AHB RAM
-        //If the stack pointer is in the address range of the current task stack, stop at the high address of the task stack
-        volatile uint32_t* taskStackHighAddress = CheckSPCurrentTaskStack(stk); //returns null if sp is not within the current task stack space
-        if(taskStackHighAddress != nullptr)
-        {
-            stackEnd = taskStackHighAddress;
-        }
-    }
-
-    if (stk != nullptr)
-    {
-        sp = reinterpret_cast<uint32_t>(stk);
-        for (uint32_t& stval : stack)
-        {
-            stval = (stk < stackEnd) ? *stk : 0xFFFFFFFF;
-            ++stk;
-        }
-    }
-#else
-	if (stk != nullptr)
+	sp = reinterpret_cast<uint32_t>(stk);
+	if (stk == nullptr)
 	{
-		sp = reinterpret_cast<uint32_t>(stk);
+		stackOffset = 0;
+		stackMarkerValid = 0;
+		spare = 0;
+	}
+	else
+	{
+		const char *stackLimit = (currentTask == nullptr) ? sysStackLimit : (const char*)currentTask + sizeof(TaskBase);
+		stackOffset = ((const char*)stk - stackLimit) >> 2;
+		stackMarkerValid = stackLimit[0] == 0xA5 && stackLimit[3] == 0xA5;
+		spare = 0;
 		for (uint32_t& stval : stack)
 		{
 			stval = (stk < &_estack) ? *stk++ : 0xFFFFFFFF;
 		}
 	}
-#endif
 }
 
 void SoftwareResetData::Print(MessageType mtype, unsigned int slot) const noexcept
@@ -183,10 +167,10 @@ void SoftwareResetData::Print(MessageType mtype, unsigned int slot) const noexce
 	// The task name may include nulls at the end, so print it as a string
 	const uint32_t taskNameWords[2] = { taskName, 0u };
 	reprap.GetPlatform().MessageF(mtype,
-			"Software reset code 0x%04x HFSR 0x%08" PRIx32 " CFSR 0x%08" PRIx32 " ICSR 0x%08" PRIx32 " BFAR 0x%08" PRIx32 " SP 0x%08" PRIx32 " Task %s\n",
-			resetReason, hfsr, cfsr, icsr, bfar, sp, (const char *)taskNameWords
+			"Software reset code 0x%04x HFSR 0x%08" PRIx32 " CFSR 0x%08" PRIx32 " ICSR 0x%08" PRIx32 " BFAR 0x%08" PRIx32 " SP 0x%08" PRIx32 " Task %s Freestk %u %s\n",
+			resetReason, hfsr, cfsr, icsr, bfar, sp, (const char *)taskNameWords, (unsigned int)stackOffset, (sp == 0) ? "n/a" : (stackMarkerValid) ? "ok" : "bad marker"
 		);
-	if (sp != 0xFFFFFFFF)
+	if (sp != 0)
 	{
 		// We saved a stack dump, so print it
 		scratchString.Clear();

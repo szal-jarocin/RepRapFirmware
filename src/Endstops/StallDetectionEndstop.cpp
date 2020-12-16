@@ -7,12 +7,14 @@
 
 #include "StallDetectionEndstop.h"
 
+#if HAS_STALL_DETECT
+
 #include "Platform.h"
 #include "Movement/Kinematics/Kinematics.h"
 
 // Stall detection endstop
-StallDetectionEndstop::StallDetectionEndstop(uint8_t axis, EndStopPosition pos, bool p_individualMotors) noexcept
-	: Endstop(axis, pos), individualMotors(p_individualMotors)
+StallDetectionEndstop::StallDetectionEndstop(uint8_t p_axis, EndStopPosition pos, bool p_individualMotors) noexcept
+	: Endstop(p_axis, pos), individualMotors(p_individualMotors)
 {
 }
 
@@ -24,10 +26,7 @@ StallDetectionEndstop::StallDetectionEndstop() noexcept
 // Test whether we are at or near the stop
 EndStopHit StallDetectionEndstop::Stopped() const noexcept
 {
-#if SUPPORT_TMC22xx && HAS_STALL_DETECT
-	UpdateStalledDriversState(driversMonitored);
-#endif
-	return (GetStalledDrivers().Intersects(driversMonitored)) ? EndStopHit::atStop : EndStopHit::noStop;
+	return (GetStalledDrivers(driversMonitored).IsNonEmpty()) ? EndStopHit::atStop : EndStopHit::noStop;
 }
 
 // This is called to prime axis endstops
@@ -53,8 +52,7 @@ EndstopHitDetails StallDetectionEndstop::CheckTriggered(bool goingSlow) noexcept
 	UpdateStalledDriversState(driversMonitored);
 #endif
 	EndstopHitDetails rslt;				// initialised by default constructor
-	const DriversBitmap relevantStalledDrivers = driversMonitored & GetStalledDrivers();
-
+	const DriversBitmap relevantStalledDrivers = GetStalledDrivers(driversMonitored);
 	if (relevantStalledDrivers.IsNonEmpty())
 	{
 		rslt.axis = GetAxis();
@@ -130,5 +128,7 @@ void StallDetectionEndstop::SetDrivers(DriversBitmap extruderDrivers) noexcept
 	driversMonitored = extruderDrivers;
 	stopAll = true;
 }
+
+#endif
 
 // End
