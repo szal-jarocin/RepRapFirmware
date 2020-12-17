@@ -33,6 +33,11 @@ static_assert(SD_MMC_MEM_CNT == NumSdCards);
 
 // Private data and methods
 
+# if SAME70
+alignas(4) static __nocache uint8_t sectorBuffers[NumSdCards][512];
+alignas(4) static __nocache char writeBufferStorage[NumFileWriteBuffers][FileWriteBufLen];
+# endif
+
 enum class CardDetectState : uint8_t
 {
 	notPresent = 0,
@@ -52,9 +57,20 @@ struct SdCardInfo INHERIT_OBJECT_MODEL
 	bool isMounted;
 	CardDetectState cardState;
 
+	void Clear(unsigned int card) noexcept;
+
 protected:
 	DECLARE_OBJECT_MODEL
 };
+
+void SdCardInfo::Clear(unsigned int card) noexcept
+{
+	memset(&fileSystem, 0, sizeof(fileSystem));
+#if SAME70
+	fileSystem.win = sectorBuffers[card];
+	memset(sectorBuffers[card], 0, sizeof(sectorBuffers[card]));
+#endif
+}
 
 #if SUPPORT_OBJECT_MODEL
 
@@ -110,6 +126,7 @@ static FileInfoParser infoParser;
 static DIR findDir;
 static FileWriteBuffer *freeWriteBuffers;
 #endif
+
 #if HAS_MASS_STORAGE || HAS_LINUX_INTERFACE
 static Mutex fsMutex;
 static FileStore files[MAX_FILES];
@@ -156,14 +173,14 @@ static FileStore files[MAX_FILES];
 FileWriteBuffer *MassStorage::AllocateWriteBuffer() noexcept
 {
 	MutexLocker lock(fsMutex);
-	if (freeWriteBuffers == nullptr)
-	{
-		return nullptr;
-	}
 
 	FileWriteBuffer * const buffer = freeWriteBuffers;
-	freeWriteBuffers = buffer->Next();
-	buffer->SetNext(nullptr);
+	if (buffer != nullptr)
+	{
+		freeWriteBuffers = buffer->Next();
+		buffer->SetNext(nullptr);
+		buffer->DataTaken();				// make sure that the write pointer is clear
+	}
 	return buffer;
 }
 
@@ -183,7 +200,7 @@ static unsigned int InternalUnmount(size_t card, bool doClose) noexcept
 	const unsigned int invalidated = MassStorage::InvalidateFiles(&inf.fileSystem, doClose);
 	const char path[3] = { (char)('0' + card), ':', 0 };
 	f_mount(nullptr, path, 0);
-	memset(&inf.fileSystem, 0, sizeof(inf.fileSystem));
+	inf.Clear(card);
 	sd_mmc_unmount(card);
 	inf.isMounted = false;
 	reprap.VolumesUpdated();
@@ -260,13 +277,17 @@ void MassStorage::Init() noexcept
 	freeWriteBuffers = nullptr;
 	for (size_t i = 0; i < NumFileWriteBuffers; ++i)
 	{
+#if SAME70
+		freeWriteBuffers = new FileWriteBuffer(freeWriteBuffers, writeBufferStorage[i]);
+#else
 		freeWriteBuffers = new FileWriteBuffer(freeWriteBuffers);
+#endif
 	}
 
 	for (size_t card = 0; card < NumSdCards; ++card)
 	{
 		SdCardInfo& inf = info[card];
-		memset(&inf.fileSystem, 0, sizeof(inf.fileSystem));
+		inf.Clear(card);
 		inf.mounting = inf.isMounted = false;
 		inf.cdPin = SdCardDetectPins[card];
 		inf.cardState = (inf.cdPin == NoPin) ? CardDetectState::present : CardDetectState::notPresent;
