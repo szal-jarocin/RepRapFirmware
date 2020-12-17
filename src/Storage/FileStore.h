@@ -6,10 +6,8 @@
 #include <Core.h>
 #if HAS_MASS_STORAGE
 # include "Libraries/Fatfs/ff.h"
-//# include "CRC32.h"
-#endif
-
 # include "CRC32.h"
+#endif
 
 class Platform;
 class FileWriteBuffer;
