@@ -246,6 +246,9 @@ const char* Tasks::GetHeapTop() noexcept
 // It doesn't try to allocate from the free list maintained by malloc, only from virgin memory.
 void *Tasks::AllocPermanent(size_t sz, std::align_val_t align) noexcept
 {
+#if __LPC17xx__
+	return ::operator new(sz);
+#else
 	GetMallocMutex();
 	char *newHeapLimit = reinterpret_cast<char *>(reinterpret_cast<uint32_t>(heapLimit - sz) & ~((uint32_t)align - 1));
 	if (newHeapLimit < heapTop)
@@ -255,6 +258,7 @@ void *Tasks::AllocPermanent(size_t sz, std::align_val_t align) noexcept
 	heapLimit = newHeapLimit;
 	ReleaseMallocMutex();
 	return newHeapLimit;
+#endif
 }
 
 // Write data about the current task
