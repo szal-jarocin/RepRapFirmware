@@ -68,6 +68,9 @@ namespace SmartDrivers
 	bool SetRegister(size_t driver, SmartDriverRegister reg, uint32_t regVal) noexcept;
 	uint32_t GetRegister(size_t driver, SmartDriverRegister reg) noexcept;
 	bool IsReady() noexcept;
+#if HAS_STALL_DETECT
+	DriversBitmap GetStalledDrivers(DriversBitmap driversOfInterest) noexcept;
+#endif
 };
 
 #endif

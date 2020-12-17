@@ -33,7 +33,7 @@ constexpr unsigned int InitialDdaRingLength = 60;
 constexpr unsigned int AuxDdaRingLength = 5;
 const unsigned int InitialNumDms = (InitialDdaRingLength/2 * 4) + AuxDdaRingLength;
 
-#elif SAM4E || SAM4S || SAME5x
+#elif SAM4E || SAM4S || SAME5x || STM32F4
 
 constexpr unsigned int InitialDdaRingLength = 40;
 constexpr unsigned int AuxDdaRingLength = 3;
@@ -42,8 +42,9 @@ const unsigned int InitialNumDms = (InitialDdaRingLength/2 * 4) + AuxDdaRingLeng
 #else
 
 // We are more memory-constrained on the SAM3X and LPC
-const unsigned int DdaRingLength = 20;
-const unsigned int NumDms = 20 * 5;												// suitable for e.g. a delta + 2-input hot end
+constexpr unsigned int InitialDdaRingLength = 20;
+constexpr unsigned int AuxDdaRingLength = 0;
+const unsigned int InitialNumDms = (InitialDdaRingLength/2 * 4) + AuxDdaRingLength;
 
 #endif
 

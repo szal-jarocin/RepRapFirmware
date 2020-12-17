@@ -57,7 +57,7 @@
 #define HAS_ATX_POWER_MONITOR            1
 
 #define SUPPORT_DOTSTAR_LED              1
-
+#define SUPPORT_ASYNC_MOVES		         0
 #define ALLOCATE_DEFAULT_PORTS           0
 
 #if defined(LPC_NETWORKING)
@@ -160,7 +160,7 @@ extern Pin ENABLE_PINS[NumDirectDrivers];
 extern Pin STEP_PINS[NumDirectDrivers];
 extern Pin DIRECTION_PINS[NumDirectDrivers];
 #if SUPPORT_TMC22xx
-extern Pin DIAG_PINS[NumDirectDrivers];
+extern Pin DriverDiagPins[NumDirectDrivers];
 #endif
 #if TMC_SOFT_UART
     extern Pin TMC_UART_PINS[NumDirectDrivers];

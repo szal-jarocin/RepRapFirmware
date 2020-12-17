@@ -267,10 +267,6 @@ void Tasks::Diagnostics(MessageType mtype) noexcept
 		const char * const ramstart =
 #if SAME5x
 			(char *) HSRAM_ADDR;
-#elif __LPC17xx__
-			(char *) 0x10000000;
-#elif STM32F4
-			(char *)  0x20000000;
 #else
 			(char *) IRAM_ADDR;
 #endif

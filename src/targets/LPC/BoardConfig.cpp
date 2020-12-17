@@ -46,7 +46,7 @@ static const boardConfigEntry_t boardConfigs[]=
     {"stepper.numSmartDrivers", &lpcSmartDrivers, nullptr, cvUint32Type},
 #endif
 #if HAS_STALL_DETECT
-    {"stepper.TmcDiagPins", DIAG_PINS, &MaxTotalDrivers, cvPinType},
+    {"stepper.TmcDiagPins", DriverDiagPins, &MaxTotalDrivers, cvPinType},
 #endif
 
     //Heater sensors
