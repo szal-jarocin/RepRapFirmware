@@ -247,7 +247,7 @@ const char* Tasks::GetHeapTop() noexcept
 void *Tasks::AllocPermanent(size_t sz, std::align_val_t align) noexcept
 {
 #if __LPC17xx__
-	return ::operator new(sz);
+	return pvPortMallocPermanent(sz);
 #else
 	GetMallocMutex();
 	char *newHeapLimit = reinterpret_cast<char *>(reinterpret_cast<uint32_t>(heapLimit - sz) & ~((uint32_t)align - 1));
@@ -278,6 +278,11 @@ void Tasks::Diagnostics(MessageType mtype) noexcept
 
 #if __LPC17xx__
 		p.MessageF(mtype, "Dynamic Memory (RTOS Heap 5): %d free, %d never used\n", xPortGetFreeHeapSize(), xPortGetMinimumEverFreeHeapSize() );
+		{
+			HeapStats_t stats;
+			vPortGetHeapStats(&stats);
+			p.MessageF(mtype, "Allocations: %d Frees: %d\n", stats.xNumberOfSuccessfulAllocations, stats.xNumberOfSuccessfulFrees);
+		}
 #else
 		const struct mallinfo mi = mallinfo();
 		p.MessageF(mtype, "Dynamic ram: %d of which %d recycled\n", mi.uordblks, mi.fordblks);
