@@ -1,5 +1,5 @@
 /*
- * DotStarLed.cpp
+ * LedStripDriver.cpp
  *
  *  Created on: 18 Jul 2018
  *      Author: David/GA
@@ -7,9 +7,9 @@
  * and which reduces the memory required.
  */
 
-#include "DotStarLed.h"
+#include "LedStripDriver.h"
 
-#if SUPPORT_DOTSTAR_LED
+#if SUPPORT_LED_STRIPS
 
 #include <GCodes/GCodeBuffer/GCodeBuffer.h>
 #include <Movement/StepTimer.h>
@@ -17,9 +17,9 @@
 #include <GCodes/GCodes.h>
 
 
-namespace DotStarLed
+namespace LedStripDriver
 {
-	constexpr uint32_t MinNeoPixelResetTicks = (50 * StepTimer::StepClockRate)/1000000;		// 50us minimum Neopixel reset time
+	constexpr uint32_t MinNeoPixelResetTicks = (250 * StepTimer::StepClockRate)/1000000;		// 250us minimum Neopixel reset time
 
 	constexpr size_t ChunkBufferSize = 180;								// the size of our buffer NeoPixels use 3 bytes per pixel
 
@@ -171,7 +171,7 @@ namespace DotStarLed
 	}
 }
 
-void DotStarLed::Init() noexcept
+void LedStripDriver::Init() noexcept
 {
 	if (NeopixelOutPin != NoPin)
 	{
@@ -189,7 +189,7 @@ void DotStarLed::Init() noexcept
 //	If there is a gap or more then about 9us in transmission, the string will reset and the next command will be taken as applying to the start of the strip.
 //  Therefore we need to DMA the data for all LEDs in one go. So the maximum strip length is limited by the size of our DMA buffer.
 //	We buffer up incoming data until we get a command with the Following parameter missing or set to zero, then we DMA it all.
-GCodeResult DotStarLed::SetColours(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeException)
+GCodeResult LedStripDriver::SetColours(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeException)
 {
 	bool seen = false;
 

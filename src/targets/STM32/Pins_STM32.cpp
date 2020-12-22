@@ -91,7 +91,7 @@ Pin SoftwareSPIPins[3] = {NoPin, NoPin, NoPin};         //GPIO pins for software
 
 bool ADCEnablePreFilter = true;
 
-#if SUPPORT_DOTSTAR_LED
+#if SUPPORT_LED_STRIPS
 Pin NeopixelOutPin = NoPin;
 #endif
 

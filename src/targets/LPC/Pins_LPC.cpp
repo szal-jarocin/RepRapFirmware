@@ -92,7 +92,7 @@ Pin SSP0Pins[4] = {SPI0_SCK, SPI0_MISO, SPI0_MOSI, SPI0_SSEL}; //GPIO pins for S
 
 bool ADCEnablePreFilter = true;
 
-#if SUPPORT_DOTSTAR_LED
+#if SUPPORT_LED_STRIPS
 Pin NeopixelOutPin = NoPin;
 #endif
 

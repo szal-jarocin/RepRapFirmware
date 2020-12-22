@@ -10,6 +10,7 @@
 #if SAM4E || SAM4S || SAME70
 # include <Cache.h>
 # include <Flash.h>
+# include <RTOSIface/RTOSIface.h>
 #endif
 
 

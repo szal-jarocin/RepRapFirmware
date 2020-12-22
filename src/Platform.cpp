@@ -497,7 +497,8 @@ void Platform::Init() noexcept
 	{
 		pinMode(SdCardDetectPins[i], INPUT_PULLUP);
 	}
-#if HAS_MASS_STORAGE
+
+#if HAS_MASS_STORAGE || HAS_LINUX_INTERFACE
 	MassStorage::Init();
 #endif
 
@@ -893,8 +894,9 @@ void Platform::ReadUniqueId()
 	}
 # else
 	memset(uniqueId, 0, sizeof(uniqueId));
+
 	const bool cacheWasEnabled = Cache::Disable();
-	const uint32_t rc = flash_read_unique_id(uniqueId, 4);
+	const uint32_t rc = flash_read_unique_id(uniqueId);
 	if (cacheWasEnabled)
 	{
 		Cache::Enable();
@@ -2248,7 +2250,8 @@ GCodeResult Platform::DiagnosticTest(GCodeBuffer& gb, const StringRef& reply, Ou
 
 			bool ok2 = true;
 			uint32_t tim2 = 0;
-			for (uint32_t i = 0; i < 100; ++i)
+			constexpr uint32_t iterations = 100;				// use a value that divides into one million
+			for (uint32_t i = 0; i < iterations; ++i)
 			{
 				const uint32_t num2 = 0x0000ffff - (67 * i);
 				const uint64_t sq = (uint64_t)num2 * num2;
@@ -2260,15 +2263,16 @@ GCodeResult Platform::DiagnosticTest(GCodeBuffer& gb, const StringRef& reply, Ou
 			}
 
 			reply.printf("Square roots: 62-bit %.2fus %s, 32-bit %.2fus %s",
-					(double)(tim1 * 10000)/SystemCoreClock, (ok1) ? "ok" : "ERROR",
-							(double)(tim2 * 10000)/SystemCoreClock, (ok2) ? "ok" : "ERROR");
+					(double)((float)(tim1 * (1'000'000/iterations))/SystemCoreClock), (ok1) ? "ok" : "ERROR",
+							(double)((float)(tim2 * (1'000'000/iterations))/SystemCoreClock), (ok2) ? "ok" : "ERROR");
 		}
 		break;
 
 	case (unsigned int)DiagnosticTestType::TimeSinCos:			// Show the sin/cosine calculation time. Caution: may disable interrupt for several tens of microseconds.
 		{
 			uint32_t tim1 = 0;
-			for (unsigned int i = 0; i < 100; ++i)
+			constexpr uint32_t iterations = 100;				// use a value that divides into one million
+			for (unsigned int i = 0; i < iterations; ++i)
 			{
 				const float angle = 0.01 * i;
 
@@ -2285,7 +2289,7 @@ GCodeResult Platform::DiagnosticTest(GCodeBuffer& gb, const StringRef& reply, Ou
 			}
 
 			// We no longer calculate sin and cos for doubles because it pulls in those library functions, which we don't otherwise need
-			reply.printf("Sine + cosine: float %.2fus", (double)(tim1 * 10000)/SystemCoreClock);
+			reply.printf("Sine + cosine: float %.2fus", (double)((float)(tim1 * (1'000'000/iterations))/SystemCoreClock));
 		}
 		break;
 
@@ -2372,6 +2376,7 @@ GCodeResult Platform::DiagnosticTest(GCodeBuffer& gb, const StringRef& reply, Ou
 
 	case (unsigned int)DiagnosticTestType::TimeCRC32:
 		{
+			const size_t length = (gb.Seen('S')) ? gb.GetUIValue() : 1024;
 			CRC32 crc;
 			cpu_irq_disable();
 			asm volatile("":::"memory");
@@ -2382,15 +2387,14 @@ GCodeResult Platform::DiagnosticTest(GCodeBuffer& gb, const StringRef& reply, Ou
 #else
 						reinterpret_cast<const char*>(IRAM_ADDR),		// for the SAME70 this is in the non-cacheable RAM, which is the usual case when computing a CRC
 #endif
-						4096);
+						length);
 			uint32_t now2 = SysTick->VAL;
 			asm volatile("":::"memory");
 			cpu_irq_enable();
 			now1 &= 0x00FFFFFF;
 			now2 &= 0x00FFFFFF;
 			uint32_t tim1 = ((now1 > now2) ? now1 : now1 + (SysTick->LOAD & 0x00FFFFFF) + 1) - now2;
-			// We no longer calculate sin and cos for doubles because it pulls in those library functions, which we don't otherwise need
-			reply.printf("CRC of 4kb %.2fus", (double)(tim1 * 10000)/SystemCoreClock);
+			reply.printf("CRC of %u bytes took %.2fus", length, (double)((1'000'000.0f * (float)tim1)/(float)SystemCoreClock));
 		}
 		break;
 
@@ -3489,7 +3493,8 @@ void Platform::MessageF(MessageType type, const char *fmt, ...) noexcept
 void Platform::Message(MessageType type, const char *message) noexcept
 {
 #if HAS_LINUX_INTERFACE
-	if (reprap.UsingLinuxInterface() && ((type & GenericMessage) == GenericMessage || (type & BinaryCodeReplyFlag) != 0))
+	if (reprap.UsingLinuxInterface() &&
+		((type & BinaryCodeReplyFlag) != 0 || (type & GenericMessage) == GenericMessage || (type & LogOff) != LogOff))
 	{
 		reprap.GetLinuxInterface().HandleGCodeReply(type, message);
 		if ((type & BinaryCodeReplyFlag) != 0)

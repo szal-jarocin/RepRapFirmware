@@ -1,22 +1,22 @@
 /*
- * DotStarLed.h
+ * LedStripDriver.h
  *
  *  Created on: 18 Jul 2018
  *      Author: David
  */
 
-#ifndef SRC_FANS_DOTSTARLED_H_
-#define SRC_FANS_DOTSTARLED_H_
+#ifndef SRC_FANS_LEDSTRIPDRIVER_H_
+#define SRC_FANS_LEDSTRIPDRIVER_H_
 
 #include "RepRapFirmware.h"
 #include "GCodes/GCodeResult.h"
 
 class GCodeBuffer;
 
-namespace DotStarLed
+namespace LedStripDriver
 {
 	void Init() noexcept;
 	GCodeResult SetColours(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeException);		// handle M150
 };
 
-#endif /* SRC_FANS_DOTSTARLED_H_ */
+#endif /* SRC_FANS_FANS_LEDSTRIPDRIVER_H_ */

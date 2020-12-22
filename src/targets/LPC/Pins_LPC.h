@@ -57,7 +57,7 @@
 
 #define HAS_ATX_POWER_MONITOR            1
 
-#define SUPPORT_DOTSTAR_LED              1
+#define SUPPORT_LED_STRIPS               1
 #define SUPPORT_ASYNC_MOVES		         0
 #define ALLOCATE_DEFAULT_PORTS           0
 
@@ -289,7 +289,7 @@ extern Pin AuxSerialRxTxPins[NumberSerialPins];
 
 #endif
 
-#if SUPPORT_DOTSTAR_LED
+#if SUPPORT_LED_STRIPS
 extern Pin NeopixelOutPin;
 #endif
 

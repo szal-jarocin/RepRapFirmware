@@ -100,7 +100,7 @@ static const boardConfigEntry_t boardConfigs[]=
     
     {"adc.prefilter.enable", &ADCEnablePreFilter, nullptr, cvBoolType},
 
-#if SUPPORT_DOTSTAR_LED
+#if SUPPORT_LED_STRIPS
     {"led.neopixelPin", &NeopixelOutPin, nullptr, cvPinType},
 #endif
 };
