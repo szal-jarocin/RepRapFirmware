@@ -181,15 +181,15 @@ static void FatalError(const char* fmt, ...)
 static uint32_t signature;
 
 typedef struct {
-    uint32_t sig;
+    uint32_t sigs[5];
     SSPChannel device;
     Pin pins[4];    
 } SDCardConfig;
 
 static constexpr SDCardConfig SDCardConfigs[] = {
-    {0x768a39d6, SSP1, {PA_5, PA_6, PB_5, PA_4}}, // SKR Pro
-    {0x94a2cc03, SSP1, {PA_5, PA_6, PA_7, PA_4}}, // GTR
-    {0x8a5f5551, SSPSDIO, {NoPin, NoPin, NoPin, NoPin}}, // Fly/SDIO
+    {{0x768a39d6}, SSP1, {PA_5, PA_6, PB_5, PA_4}}, // SKR Pro
+    {{0x94a2cc03}, SSP1, {PA_5, PA_6, PA_7, PA_4}}, // GTR
+    {{0x8a5f5551, 0xd0c680ae}, SSPSDIO, {NoPin, NoPin, NoPin, NoPin}}, // Fly/SDIO
 };
 
 
@@ -197,16 +197,19 @@ FRESULT InitSDCard(uint32_t boardSig, FATFS *fs)
 {
     FRESULT rslt;
     int conf = 0;
-    // First try to find a mayching board
+    // First try to find a matching board
+    debugPrintf("Searching for board signature 0x%x\n", (unsigned) boardSig);
     for(uint32_t i = 0; i < ARRAY_SIZE(SDCardConfigs); i++)
-        if (SDCardConfigs[i].sig == boardSig)
-        {
-            conf = i;
-            break;
-        }
+        for(uint32_t j = 0; j < ARRAY_SIZE(SDCardConfigs[0].sigs); j++)
+            if (SDCardConfigs[i].sigs[j] == boardSig)
+            {
+                debugPrintf("Found matching board entry %d\n", (int)i);
+                conf = i;
+                break;
+            }
     for(uint32_t i = 0; i < ARRAY_SIZE(SDCardConfigs); i++)
     {
-        debugPrintf("InitSDCard try config %d type %d\n", conf, SDCardConfigs[i].device);
+        debugPrintf("InitSDCard try config %d type %d\n", conf, SDCardConfigs[conf].device);
         if (SDCardConfigs[conf].device != SSPSDIO)
         {
             SPI::getSSPDevice(SDCardConfigs[conf].device)->initPins(SDCardConfigs[conf].pins[0], SDCardConfigs[conf].pins[1], SDCardConfigs[conf].pins[2], SDCardConfigs[conf].pins[3]);

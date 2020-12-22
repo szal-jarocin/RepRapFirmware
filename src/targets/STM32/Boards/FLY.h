@@ -97,4 +97,101 @@ constexpr BoardDefaults fly_f407zg_Defaults = {
     0                                       	//digiPot Factor
 };
 
+
+constexpr PinEntry PinTable_FLY_E3[] =
+{
+
+
+    //Thermistors
+    {PA_4, PinCapability::ainrw, "e0temp,t0"},
+    {PA_3, PinCapability::ainrw, "bedtemp,tb"},
+
+    //Endstops
+    {PA_2, PinCapability::rw, "xmin,xstop"},
+    {PA_1, PinCapability::rw, "ymin,ystop"},
+    {PC_5, PinCapability::rw, "zmin,zstop"},
+
+	// Servo
+    {PB_0,  PinCapability::wpwm, "servo0" },
+
+   // Porbe
+    {PC_4, PinCapability::rwpwm, "probe"},
+	
+    //Heaters and Fans (Big and Small Mosfets}
+    {PA_0,  PinCapability::wpwm, "bed,hbed" },
+    {PA_5,  PinCapability::wpwm, "e0heat,he0" },
+    {PA_7,  PinCapability::wpwm, "fan0,fan" },
+    {PA_6,  PinCapability::wpwm, "fan1" },
+
+
+
+    //EXP1
+    {PE_12, PinCapability::rwpwm, "beep"},
+    {PE_11, PinCapability::rwpwm, "btnenc"},
+    {PE_10, PinCapability::rwpwm, "btnen1"},
+    {PE_9, PinCapability::rwpwm, "btnen2"},
+    {PE_8, PinCapability::rwpwm, "lcdd4"},
+    {PE_7, PinCapability::rwpwm, "lcdrs"},
+    {PB_1, PinCapability::rwpwm, "lcden"},
+
+	//SD
+	{PA_15, PinCapability::rwpwm, "SDCD"},
+	{PC_9, PinCapability::rwpwm, "SDD1"},
+	{PC_8, PinCapability::rwpwm, "SDD0"},
+	{PC_12, PinCapability::rwpwm, "SDSCK"},
+	{PD_2, PinCapability::rwpwm, "SDCMD"},
+	{PC_11, PinCapability::rwpwm, "SDD3"},
+	{PC_10, PinCapability::rwpwm, "SDD2"},
+
+	// UART
+	{PA_9, PinCapability::rwpwm, "TX1"},
+	{PA_10, PinCapability::rwpwm, "RX1"},
+
+    // WIFI UART	
+	{PB_10, PinCapability::rwpwm, "PB10"},
+	{PB_11, PinCapability::rwpwm, "PB11"},	
+	
+    //WIFI
+    {PE_13, PinCapability::rwpwm, "PE13"},
+    {PE_14, PinCapability::rwpwm, "PE14"},
+    {PE_15, PinCapability::rwpwm, "PE15"},
+
+    //soft spi 
+    {PC_0, PinCapability::rwpwm, "PC0"},
+    {PC_1, PinCapability::rwpwm, "PC1"},
+    {PC_2, PinCapability::rwpwm, "PC2"},
+    {PC_3, PinCapability::rwpwm, "PC3"},
+    {PC_7, PinCapability::rwpwm, "PC7"},
+
+    //Signal light
+     {PA_8, PinCapability::rwpwm, "PA8"},
+
+    //FPC
+    {PB_10, PinCapability::rwpwm, "FPC1"},
+    {PB_11, PinCapability::rwpwm, "FPC2"},
+    {PD_10, PinCapability::rwpwm, "FPC3"},
+    {PD_11, PinCapability::rwpwm, "FPC4"},
+    {PD_12, PinCapability::rwpwm, "FPC5"},
+    {PD_13, PinCapability::rwpwm, "FPC6"},
+    {PD_14, PinCapability::rwpwm, "FPC7"},
+    {PD_15, PinCapability::rwpwm, "FPC8"},
+    {PC_6, PinCapability::rwpwm, "FPC9"},
+    {PD_0, PinCapability::rwpwm, "FPC10"},
+    {PD_1, PinCapability::rwpwm, "FPC11"},
+
+
+};
+
+constexpr BoardDefaults fly_e3_Defaults = {
+	4,											// Number of drivers
+    {PC_15, PE_5, PE_1, PB_5},   	//enablePins
+    {PC_13, PE_3, PB_9, PB_3},	    //stepPins
+    {PC_14, PE_4, PE_0, PB_4},    	//dirPins
+#if TMC_SOFT_UART
+    {PE_6, PE_2, PD_5, PD_7},             
+	 4, 			                         //uartPins                                          	// Smart drivers
+#endif
+    0  
+
+};
 #endif
