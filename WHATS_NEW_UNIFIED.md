@@ -1,3 +1,13 @@
+Version 3.2-RC1
+===============
+* RRF V3.2-RC1 (See the RRF docs for details)
+* Support for SDIO based SD card readers
+* Reduced memory usage for permanently allocated objects
+* Dynamic allocation of DDA objects via M595 (Frees more memory on LPC, may need fine tuning)
+* Add support for Fly 407 (fly_f407zg) and E3 (fly_e3) boards
+* New LPC SBC Settings: "SpiTransferMode": 3, "SpiBufferSize": 3072, "MaxCodeBufferSize": 200, "MaxMessageLength": 2560
+* Removed undescore from pin names
+
 Version 3.2-beta4.1_1
 =====================
 * RRF v3.2-beta4.1 (See the RRF docs for details)
