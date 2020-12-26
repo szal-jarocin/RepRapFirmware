@@ -1,3 +1,10 @@
+Version 3.2-RC2
+===============
+* RRF V3.2-RC1 (See the RRF docs for details)
+* LPC increased SBC code buffer size tp 2048 bytes
+
+
+
 Version 3.2-RC1
 ===============
 * RRF V3.2-RC1 (See the RRF docs for details)
