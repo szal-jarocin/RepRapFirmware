@@ -301,6 +301,8 @@ void BoardConfig::Init() noexcept
         
         //Calculate STEP_DRIVER_MASK (used for parallel writes)
         STEP_DRIVER_MASK = 0;
+        // Currently not implemented for STM32
+        #if 0
         for(size_t i=0; i<MaxTotalDrivers; i++)
         {
             //It is assumed all pins will be on Port 2
@@ -318,6 +320,8 @@ void BoardConfig::Init() noexcept
                 }
             }
         }
+        #endif
+        hasStepPinsOnDifferentPorts = true;
         
         //Does board have build in current control via digipots?
         if(digipotFactor > 1)
