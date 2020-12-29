@@ -5,9 +5,9 @@ Version 3.2-RC2
 
 
 
-Version 3.2-RC1
+Version 3.2-RC2_2
 ===============
-* RRF V3.2-RC1 (See the RRF docs for details)
+* RRF V3.2-RC2 (See the RRF docs for details)
 * Support for SDIO based SD card readers
 * Reduced memory usage for permanently allocated objects
 * Dynamic allocation of DDA objects via M595 (Frees more memory on LPC, may need fine tuning)
