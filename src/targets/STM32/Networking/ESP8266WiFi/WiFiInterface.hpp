@@ -6,20 +6,16 @@
 static HardwareSPI *spiDevice;
 static volatile bool dmaActive;
 
-//maintain compatibility with RRF code
-void spi_disable(SSPChannel sspChannel) noexcept
-{
-    spiDevice->disable();
-}
-
 static inline void DisableSpi() noexcept
 {
-	spi_disable(ESP_SPI);
+    if (spiDevice != nullptr)
+        spiDevice->disable();
 }
 
 static inline void spi_dma_disable() noexcept
 {
-    spiDevice->stopTransfer();
+    if (spiDevice != nullptr)
+        spiDevice->stopTransfer();
     dmaActive = false;
 }
 
