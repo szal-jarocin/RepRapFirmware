@@ -617,6 +617,11 @@ void LinuxInterface::Init() noexcept
 					if (channel.IsValid())
 					{
 						GCodeBuffer * const gb = reprap.GetGCodes().GetGCodeBuffer(channel);
+						if (gb->IsWaitingForMacro())
+						{
+							gb->ResolveMacroRequest(true, false);
+						}
+
 						MutexLocker locker(gb->mutex, 10);
 						if (locker)
 						{
