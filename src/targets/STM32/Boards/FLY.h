@@ -148,8 +148,8 @@ constexpr PinEntry PinTable_FLY_E3[] =
 	{PA_10, PinCapability::rwpwm, "RX1"},
 
     // WIFI UART	
-	{PB_10, PinCapability::rwpwm, "PB10"},
-	{PB_11, PinCapability::rwpwm, "PB11"},	
+	{PD_8, PinCapability::rwpwm, "PD8"},
+	{PD_9, PinCapability::rwpwm, "PD9"},	
 	
     //WIFI
     {PE_13, PinCapability::rwpwm, "PE13"},
