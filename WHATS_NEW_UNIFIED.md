@@ -1,3 +1,12 @@
+Version 3.2_1
+===============
+* RRF V3.2 (See the RRF docs for details)
+* STM32F4 use hardware for CRC32 calculations
+* Fix board reset when attempting to update and empty ESP8266 device
+* Fix SDIO based card capacity calculation
+* Fix WiFi RX/TX pin assignments
+
+
 Version 3.2-RC2
 ===============
 * RRF V3.2-RC1 (See the RRF docs for details)
