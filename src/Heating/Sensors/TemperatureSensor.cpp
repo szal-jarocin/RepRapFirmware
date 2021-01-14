@@ -1,6 +1,7 @@
 #include "TemperatureSensor.h"
 #include "Thermistor.h"
 #include "ThermocoupleSensor31855.h"
+#include "ThermocoupleSensor6675.h"
 #include "ThermocoupleSensor31856.h"
 #include "RtdSensor31865.h"
 #include "CurrentLoopTemperatureSensor.h"
@@ -199,6 +200,10 @@ TemperatureSensor *TemperatureSensor::Create(unsigned int sensorNum, const char 
 	else if (ReducedStringEquals(typeName, CurrentLoopTemperatureSensor::TypeName))
 	{
 		ts = new CurrentLoopTemperatureSensor(sensorNum);
+	}
+	else if (ReducedStringEquals(typeName, ThermocoupleSensor6675::TypeName))
+	{
+		ts = new ThermocoupleSensor6675(sensorNum);
 	}
 #if SUPPORT_DHT_SENSOR
 	else if (ReducedStringEquals(typeName, DhtTemperatureSensor::TypeNameDht11))
