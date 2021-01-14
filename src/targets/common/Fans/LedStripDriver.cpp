@@ -28,91 +28,6 @@ namespace LedStripDriver
 	static uint8_t *chunkBuffer = nullptr;								// buffer for sending data to LEDs
 	constexpr size_t MaxLeds = ChunkBufferSize/3;
 
-
-// This was the original delay function used. It works fine on the STM32F4, but on the LPC
-// it can occasionally generate delays that are too long (and this results in glitches in the
-// NeoPixel display). So for now we use the loop based timer. Which is not very accurate but
-// seems to work for both MCUs
-#if 0
-	// Delay for a specified number of CPU clock cycles from the starting time. Return the time at which we actually stopped waiting.
-	[[gnu::always_inline, gnu::optimize("03")]] static inline uint32_t DelayCycles(const uint32_t start, const uint32_t cycles, const uint32_t reload) noexcept
-	{
-		//const uint32_t reload = (SysTick->LOAD & 0x00FFFFFF) + 1;
-		uint32_t now = start;
-
-		// Wait for the systick counter to cycle round until we need to wait less than the reload value
-		while (cycles >= reload)
-		{
-			const uint32_t last = now;
-			now = SysTick->VAL & 0x00FFFFFF;
-			if (now > last)
-			{
-				cycles -= reload;
-			}
-		}
-
-		uint32_t when;
-		if (start >= cycles)
-		{
-			when = start - cycles;
-		}
-		else
-		{
-			when = start + reload - cycles;
-
-			// Wait for the counter to cycle again
-			while (true)
-			{
-				const uint32_t last = now;
-				now = SysTick->VAL & 0x00FFFFFF;
-				if (now > last)
-				{
-					break;
-				}
-			}
-		}
-
-		// Wait until the counter counts down to 'when' or below, or cycles again
-		while (true)
-		{
-			const uint32_t last = now;
-			now = SysTick->VAL & 0x00FFFFFF;
-			if (now <= when || now > last)
-			{
-				return now;
-			}
-		}
-	}
-
-#else
-
-	[[gnu::always_inline, gnu::optimize("O3")]] static inline void __delay_4cycles(uint32_t cy) { // +1 cycle
-	__asm__ __volatile__(
-		"  .syntax unified\n\t" // is to prevent CM0,CM1 non-unified syntax
-		"1:\n\t"
-		"  subs %[cnt],#1\n\t" // 1
-		"  mov r0, r0\n\t"            // 1
-		"  bne 1b\n\t"         // 1 + (1? reload)
-		: [cnt]"+r"(cy)   // output: +r means input+output
-		:                 // input:
-		: "cc"            // clobbers:
-	);
-	}
-
-	// Delay in cycles
-	[[gnu::always_inline, gnu::optimize("03")]] static inline uint32_t DelayCycles(const uint32_t start, const uint32_t cycles, const uint32_t reload) noexcept 
-	{
-		if (cycles >> 2) __delay_4cycles(cycles >> 2);
-		return 0;
-	}
-#endif
-
-
-	uint32_t NanosecondsToCycles(uint32_t ns) noexcept
-	{
-		return (ns * (uint64_t)SystemCoreClock)/1000000000u;
-	}
-
 	// Send data to NeoPixel LEDs by bit banging
 	static GCodeResult BitBangNeoPixelData(uint8_t red, uint8_t green, uint8_t blue, uint32_t numLeds, bool following) noexcept
 	{
@@ -137,8 +52,7 @@ namespace LedStripDriver
 			const uint8_t *q = chunkBuffer;
 			uint32_t nextDelay = T0L;
 			cpu_irq_disable();
-			uint32_t lastTransitionTime = SysTick->VAL & 0x00FFFFFF;
-			const uint32_t reload = (SysTick->LOAD & 0x00FFFFFF) + 1;
+			uint32_t lastTransitionTime = GetCurrentCycles();
 
 			while (q < p)
 			{
@@ -147,17 +61,17 @@ namespace LedStripDriver
 				{
 					if (c & 0x80)
 					{
-						lastTransitionTime = DelayCycles(lastTransitionTime, nextDelay, reload);
+						lastTransitionTime = DelayCycles(lastTransitionTime, nextDelay);
 						fastDigitalWriteHigh(NeopixelOutPin);
-						lastTransitionTime = DelayCycles(lastTransitionTime, T1H, reload);
+						lastTransitionTime = DelayCycles(lastTransitionTime, T1H);
 						fastDigitalWriteLow(NeopixelOutPin);
 						nextDelay = T1L;
 					}
 					else
 					{
-						lastTransitionTime = DelayCycles(lastTransitionTime, nextDelay, reload);
+						lastTransitionTime = DelayCycles(lastTransitionTime, nextDelay);
 						fastDigitalWriteHigh(NeopixelOutPin);
-						lastTransitionTime = DelayCycles(lastTransitionTime, T0H, reload);
+						lastTransitionTime = DelayCycles(lastTransitionTime, T0H);
 						fastDigitalWriteLow(NeopixelOutPin);
 						nextDelay = T0L;
 					}
