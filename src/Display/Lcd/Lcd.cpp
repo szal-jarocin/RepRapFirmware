@@ -9,10 +9,10 @@
 #include <Hardware/SharedSpi/SharedSpiDevice.h>
 
 Lcd::Lcd(PixelNumber nr, PixelNumber nc, const LcdFont * const fnts[], size_t nFonts, SpiMode mode) noexcept
-#if __LPC17xx__
- : device(SharedSpiDevice::GetSharedSpiDevice(LcdSpiChannel), LcdSpiClockFrequency, SpiMode::mode0, NoPin, true),
+#if __LPC17xx__ || STM32F4
+ : device(SharedSpiDevice::GetSharedSpiDevice(LcdSpiChannel), LcdSpiClockFrequency, mode, NoPin, true),
 #else
- : device(SharedSpiDevice::GetMainSharedSpiDevice(), LcdSpiClockFrequency, SpiMode::mode0, NoPin, true),
+ : device(SharedSpiDevice::GetMainSharedSpiDevice(), LcdSpiClockFrequency, mode, NoPin, true),
 #endif
 	  numRows(nr), numCols(nc),
 	  fonts(fnts), numFonts(nFonts)
