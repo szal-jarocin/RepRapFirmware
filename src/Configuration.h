@@ -229,7 +229,7 @@ constexpr size_t MediumStringLength = MaxFilenameLength;
 constexpr size_t StringBufferLength = StringLength256;	// Length of the string buffer used by the expression parser
 constexpr size_t StringLengthLoggedCommand = StringLength100;	// Length of a string buffer for a command to be logged
 
-#if SAM4E || SAM4S || SAME70 || SAME5x || defined(ESP_NETWORKING)
+#if SAM4E || SAM4S || SAME70 || SAME5x || defined(ESP_NETWORKING) || __LPC17xx__ || STM32F4
 // Increased GCODE_LENGTH on the SAM4 because M587 and M589 commands on the Duet WiFi can get very long and GCode meta commands can get even longer
 constexpr size_t GCODE_LENGTH = 201;					// maximum number of non-comment characters in a line of GCode including the null terminator
 #else
@@ -317,11 +317,7 @@ constexpr size_t MaxI2cBytes = 32;						// max bytes in M260 or M261 command
 
 // File handling
 #if __LPC17xx__
-# if defined (ESP_NETWORKING)
-constexpr size_t MAX_FILES = 10;						// Must be large enough to handle the max number of concurrent web requests + file being printed + macros being executed + log file
-# else
-constexpr size_t MAX_FILES = 4;							// Must be large enough to handle the max number of concurrent web requests + file being printed + macros being executed + log file
-# endif
+constexpr size_t MAX_FILES = 6;						// Must be large enough to handle the max number of concurrent web requests + file being printed + macros being executed + log file
 #else
 constexpr size_t MAX_FILES = 10;						// Must be large enough to handle the max number of concurrent web requests + file being printed + macros being executed + log file
 #endif
