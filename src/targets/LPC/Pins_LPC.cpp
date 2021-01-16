@@ -214,7 +214,7 @@ bool LookupPinName(const char*pn, LogicalPin& lpin, bool& hardwareInverted) noex
             {
                 ++q;
             }
-            while (*q != ',' && *q != 0 && *p == *q)
+            while (*q != ',' && *q != 0 && tolower(*p) == tolower(*q))
             {
                 ++p;
                 ++q;

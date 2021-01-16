@@ -339,6 +339,7 @@ struct PinEntry
 };
 
 extern PinEntry *PinTable;
+extern size_t NumNamedLPCPins;
 
 
 

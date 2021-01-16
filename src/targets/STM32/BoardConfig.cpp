@@ -552,6 +552,15 @@ void BoardConfig::Diagnostics(MessageType mtype) noexcept
 
         }
     }
+
+    // Display all pins
+    reprap.GetPlatform().MessageF(mtype, "\n== Defined Pins ==\n");
+    for (size_t lp = 0; lp < NumNamedLPCPins; ++lp)
+    {
+        reprap.GetPlatform().MessageF(mtype, "%s = ", PinTable[lp].names );
+        BoardConfig::PrintValue(mtype, cvPinType, &PinTable[lp].pin);
+        reprap.GetPlatform().MessageF(mtype, "\n");
+    }
     
 #if defined(SERIAL_AUX_DEVICE) || defined(SERIAL_AUX2_DEVICE) || HAS_WIFI_NETWORKING
     reprap.GetPlatform().MessageF(mtype, "\n== Hardware Serial ==\n");

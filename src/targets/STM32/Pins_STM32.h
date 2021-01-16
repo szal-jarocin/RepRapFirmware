@@ -324,7 +324,7 @@ struct PinEntry
 };
 
 extern PinEntry *PinTable;
-
+extern size_t NumNamedLPCPins;
 
 
 bool LookupPinName(const char *pn, LogicalPin& lpin, bool& hardwareInverted) noexcept;
