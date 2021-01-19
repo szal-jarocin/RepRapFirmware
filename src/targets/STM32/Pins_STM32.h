@@ -238,7 +238,7 @@ constexpr bool DiagOnPolarity = true;
 extern bool ADCEnablePreFilter;
 
 constexpr size_t NumSoftwareSPIPins = 3;
-extern Pin SoftwareSPIPins[3]; //GPIO pins for softwareSPI (used with SharedSPI)
+extern Pin SoftwareSPIPins[NumSoftwareSPIDevices][NumSoftwareSPIPins]; //GPIO pins for softwareSPI (used with SharedSPI)
 constexpr size_t NumSSP0Pins = 4;
 extern Pin SSP0Pins[];         //GPIO pins for SSP0 (used with SharedSPI)
 

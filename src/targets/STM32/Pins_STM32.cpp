@@ -57,7 +57,7 @@ bool hasDriverCurrentControl = false;                   //Supports digipots to s
 float digipotFactor = 0.0;                              //defualt factor for converting current to digipot value
 
 
-Pin SoftwareSPIPins[3] = {NoPin, NoPin, NoPin};         //GPIO pins for softwareSPI (used with SharedSPI)
+Pin SoftwareSPIPins[NumSoftwareSPIDevices][NumSoftwareSPIPins]; //GPIO pins for softwareSPI (used with SharedSPI)
 
 
 #if HAS_WIFI_NETWORKING
@@ -144,7 +144,6 @@ static void InitPinArray(Pin *dst, size_t len) noexcept
 
 void ClearPinArrays() noexcept
 {
-    //copy default settings (if not set in board.txt)
     InitPinArray(ENABLE_PINS, NumDirectDrivers);
     InitPinArray(STEP_PINS, NumDirectDrivers);
     InitPinArray(DIRECTION_PINS, NumDirectDrivers);
@@ -155,6 +154,9 @@ void ClearPinArrays() noexcept
     InitPinArray(DriverDiagPins, NumDirectDrivers);
 #endif
     InitPinArray(TEMP_SENSE_PINS, NumThermistorInputs);
+    for(size_t i = 0; i < ARRAY_SIZE(SoftwareSPIPins); i++)
+        InitPinArray(SoftwareSPIPins[i], NumSoftwareSPIPins);
+
 }
 
 //Find Board settings from string
