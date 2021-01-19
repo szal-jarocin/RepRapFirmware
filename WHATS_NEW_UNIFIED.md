@@ -13,7 +13,7 @@ Version 3.2_4
 * STM32F4 add support for LCD displays (ST7567 and ST7920)
 * STM32F4 increse number of software SPI devices from 1 to 3
 * STM32F4 improved software SPI performance
-* STM32F4 add support for SPI modes 1, 2, 4 to Software SPI device
+* STM32F4 add support for SPI modes 1, 2, 3 to Software SPI device
 * STM32F4 improved UART driver
 * STM32F4 report SDIO errors
 * STM32F4 fix hardware PWM bug, PWM not disabled correctly
