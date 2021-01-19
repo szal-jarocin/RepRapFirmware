@@ -29,6 +29,7 @@
 static const boardConfigEntry_t boardEntryConfig[]=
 {
     {"lpc.board", &lpcBoardName, nullptr, cvStringType},
+    {"board", &lpcBoardName, nullptr, cvStringType},
 };
 
 //All other board configs
@@ -83,12 +84,14 @@ static const boardConfigEntry_t boardConfigs[]=
 #if HAS_WIFI_NETWORKING
     {"8266wifi.espDataReadyPin", &EspDataReadyPin, nullptr, cvPinType},
     {"8266wifi.lpcTfrReadyPin", &SamTfrReadyPin, nullptr, cvPinType},
+    {"8266wifi.TfrReadyPin", &SamTfrReadyPin, nullptr, cvPinType},
     {"8266wifi.espResetPin", &EspResetPin, nullptr, cvPinType},
     {"8266wifi.serialRxTxPins", &WifiSerialRxTxPins, &NumberSerialPins, cvPinType},
 #endif
 
 #if HAS_LINUX_INTERFACE
     {"sbc.lpcTfrReadyPin", &SbcTfrReadyPin, nullptr, cvPinType},
+    {"sbc.TfrReadyPin", &SbcTfrReadyPin, nullptr, cvPinType},
 #endif
 
 #if defined(SERIAL_AUX_DEVICE)
@@ -213,7 +216,7 @@ void BoardConfig::Init() noexcept
 
         
         //First find the board entry to load the correct PinTable for looking up Pin by name
-        BoardConfig::GetConfigKeys(&configFile, boardEntryConfig, (size_t) 1);
+        BoardConfig::GetConfigKeys(&configFile, boardEntryConfig, (size_t) ARRAY_SIZE(boardEntryConfig));
         if(!SetBoard(lpcBoardName)) // load the Correct PinTable for the defined Board (RRF3)
         {
             //Failed to find string in known boards array
@@ -436,14 +439,12 @@ void BoardConfig::PrintValue(MessageType mtype, configValueType configType, void
 void BoardConfig::Diagnostics(MessageType mtype) noexcept
 {
     reprap.GetPlatform().MessageF(mtype, "== Configurable Board.txt Settings ==\n");
-    reprap.GetPlatform().MessageF(mtype, "Signature 0x%x\n", (unsigned int)signature);
 
     //Print the board name
-    boardConfigEntry_t board = boardEntryConfig[0];
+    boardConfigEntry_t board = boardEntryConfig[1];
     reprap.GetPlatform().MessageF(mtype, "%s = ", board.key );
     BoardConfig::PrintValue(mtype, board.type, board.variable);
-    reprap.GetPlatform().MessageF(mtype, "\n");
-
+    reprap.GetPlatform().MessageF(mtype, "  Signature 0x%x\n\n", (unsigned int)signature);
     
     //Print rest of board configurations
     const size_t numConfigs = ARRAY_SIZE(boardConfigs);

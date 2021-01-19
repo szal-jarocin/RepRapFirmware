@@ -29,6 +29,7 @@
 static const boardConfigEntry_t boardEntryConfig[]=
 {
     {"lpc.board", &lpcBoardName, nullptr, cvStringType},
+    {"board", &lpcBoardName, nullptr, cvStringType},
 };
 
 //All other board configs
@@ -77,12 +78,15 @@ static const boardConfigEntry_t boardConfigs[]=
     {"lcd.spiChannel", &LcdSpiChannel, nullptr, cvUint8Type},
 #endif
     
-    {"softwareSPI.pins", SoftwareSPIPins, &NumSoftwareSPIPins, cvPinType}, //SCK, MISO, MOSI
+    {"softwareSPI.pins", SoftwareSPIPins[0], &NumSoftwareSPIPins, cvPinType}, //SCK, MISO, MOSI
+    {"softwareSPI1.pins", SoftwareSPIPins[1], &NumSoftwareSPIPins, cvPinType}, //SCK, MISO, MOSI
+    {"softwareSPI2.pins", SoftwareSPIPins[2], &NumSoftwareSPIPins, cvPinType}, //SCK, MISO, MOSI
     //{"SSP0.pins", SSP0Pins, &NumSSP0Pins, cvPinType}, // SCK, MISO, MOSI, CS
     
 #if HAS_WIFI_NETWORKING
     {"8266wifi.espDataReadyPin", &EspDataReadyPin, nullptr, cvPinType},
     {"8266wifi.lpcTfrReadyPin", &SamTfrReadyPin, nullptr, cvPinType},
+    {"8266wifi.TfrReadyPin", &SamTfrReadyPin, nullptr, cvPinType},
     {"8266wifi.espResetPin", &EspResetPin, nullptr, cvPinType},
     {"8266wifi.csPin", &SamCsPin, nullptr, cvPinType},
     {"8266wifi.serialRxTxPins", &WifiSerialRxTxPins, &NumberSerialPins, cvPinType},
@@ -90,6 +94,7 @@ static const boardConfigEntry_t boardConfigs[]=
 
 #if HAS_LINUX_INTERFACE
     {"sbc.lpcTfrReadyPin", &SbcTfrReadyPin, nullptr, cvPinType},
+    {"sbc.TfrReadyPin", &SbcTfrReadyPin, nullptr, cvPinType},
     {"sbc.csPin", &SbcCsPin, nullptr, cvPinType},
 #endif
 
@@ -285,7 +290,7 @@ void BoardConfig::Init() noexcept
         reprap.GetPlatform().MessageF(UsbMessage, "Loading config from %s...\n", boardConfigPath );
 
         //First find the board entry to load the correct PinTable for looking up Pin by name
-        BoardConfig::GetConfigKeys(&configFile, boardEntryConfig, (size_t) 1);
+        BoardConfig::GetConfigKeys(&configFile, boardEntryConfig, (size_t) ARRAY_SIZE(boardEntryConfig));
         if(!SetBoard(lpcBoardName)) // load the Correct PinTable for the defined Board (RRF3)
         {
             //Failed to find string in known boards array
@@ -330,9 +335,9 @@ void BoardConfig::Init() noexcept
         }
         
         //Setup the Software SPI Pins
-        SPI::getSSPDevice(SWSPI0)->initPins(SoftwareSPIPins[0], SoftwareSPIPins[1], SoftwareSPIPins[2]);
+        for(size_t i = 0; i < ARRAY_SIZE(SoftwareSPIPins); i++)
+            SPI::getSSPDevice((SSPChannel)(SWSPI0+i))->initPins(SoftwareSPIPins[i][0], SoftwareSPIPins[i][1], SoftwareSPIPins[i][2]);
         //Setup the pins for SPI
-        //SPI::getSSPDevice(SSP2)->initPins(PB_13, PB_14, PB_15, PB_12, DMA1_Stream3, DMA_CHANNEL_0, DMA1_Stream3_IRQn, DMA1_Stream4, DMA_CHANNEL_0, DMA1_Stream4_IRQn);
         SPI::getSSPDevice(SSP2)->initPins(PB_13, PB_14, PB_15, NoPin, DMA1_Stream3, DMA_CHANNEL_0, DMA1_Stream3_IRQn, DMA1_Stream4, DMA_CHANNEL_0, DMA1_Stream4_IRQn);
 // FIXME
 #if 0
@@ -517,14 +522,11 @@ void BoardConfig::PrintValue(MessageType mtype, configValueType configType, void
 void BoardConfig::Diagnostics(MessageType mtype) noexcept
 {
     reprap.GetPlatform().MessageF(mtype, "== Configurable Board.txt Settings ==\n");
-    //
-    reprap.GetPlatform().MessageF(mtype, "Signature 0x%x\n", (unsigned int)signature);
     //Print the board name
-    boardConfigEntry_t board = boardEntryConfig[0];
+    boardConfigEntry_t board = boardEntryConfig[1];
     reprap.GetPlatform().MessageF(mtype, "%s = ", board.key );
     BoardConfig::PrintValue(mtype, board.type, board.variable);
-    reprap.GetPlatform().MessageF(mtype, "\n");
-
+    reprap.GetPlatform().MessageF(mtype, "  Signature 0x%x\n\n", (unsigned int)signature);
     
     //Print rest of board configurations
     const size_t numConfigs = ARRAY_SIZE(boardConfigs);
