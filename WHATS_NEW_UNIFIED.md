@@ -1,3 +1,26 @@
+Version 3.2_4
+=============
+* Added aliases for config names that contain "lpc"
+    "board" = "lpc.board"
+    "8266wifi.TfrReadyPin" = "8266wifi.lpcTfrReadyPin"
+    "sbc.TfrReadyPin" = "sbc.lpcTfrReadyPin"
+* M122 P200 reports all available pin names
+* Names defined with mixed case now work correctly
+* Add support for MAX6675
+* USB serial no longer waits for DTR (to match Duet)
+* LPC Increase max gcode line length to 256
+* LPC Increase number of open files to 6
+* STM32F4 add support for LCD displays (ST7567 and ST7920)
+* STM32F4 increse number of software SPI devices from 1 to 3
+* STM32F4 improved software SPI performance
+* STM32F4 add support for SPI modes 1, 2, 4 to Software SPI device
+* STM32F4 improved UART driver
+* STM32F4 report SDIO errors
+* STM32F4 fix hardware PWM bug, PWM not disabled correctly
+
+
+
+
 Version 3.2_1
 ===============
 * RRF V3.2 (See the RRF docs for details)
