@@ -17,6 +17,8 @@ Version 3.2_4
 * STM32F4 improved UART driver
 * STM32F4 report SDIO errors
 * STM32F4 fix hardware PWM bug, PWM not disabled correctly
+* STM32F4 Correct mcu temperature for VRef changes
+* Add preliminary support for Fly CDYV2 board
 
 
 

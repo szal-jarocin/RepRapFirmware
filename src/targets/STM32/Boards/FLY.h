@@ -194,4 +194,106 @@ constexpr BoardDefaults fly_e3_Defaults = {
     0  
 
 };
+
+
+constexpr PinEntry PinTable_FLY_CDYV2[] =
+{
+
+
+    //Thermistors
+    {PA_3, PinCapability::ainrw, "e0temp,t0"},
+    {PC_4, PinCapability::ainrw, "e1temp,t1"},
+    {PC_5, PinCapability::ainrw, "e2temp,t2"},
+    {PB_1, PinCapability::ainrw, "bedtemp,tb"},
+
+    //Endstops
+    {PC_7, PinCapability::rw, "xmin,xstop"},
+    {PC_6, PinCapability::rw, "xmax,xstopmax"},
+    {PD_11, PinCapability::rw, "ymin,ystop"},
+    {PD_10, PinCapability::rw, "ymax,ystopmax"},
+    {PB_10, PinCapability::rw, "zmin,zstop"},
+    {PB_11, PinCapability::rw, "zmax,zstopmax"},
+
+	// Servo
+    {PE_6,  PinCapability::wpwm, "servo0" },
+
+   // Probe
+    {PC_2, PinCapability::rwpwm, "probe"},
+	
+    //Heaters and Fans (Big and Small Mosfets}
+    {PB_0,  PinCapability::wpwm, "bed,hbed" },
+    {PD_12,  PinCapability::wpwm, "e0heat,he0" },
+    {PD_13,  PinCapability::wpwm, "e1heat,he1" },
+    {PD_14,  PinCapability::wpwm, "e2heat,he2" },
+    {PA_0,  PinCapability::wpwm, "fan0,fan" },
+    {PA_1,  PinCapability::wpwm, "fan1" },
+    {PA_2,  PinCapability::wpwm, "fan2" },
+
+
+    //EXP1
+    // {PE_12, PinCapability::rwpwm, "beep"},
+    // {PE_11, PinCapability::rwpwm, "btnenc"},
+    // {PE_10, PinCapability::rwpwm, "btnen1"},
+    // {PE_9, PinCapability::rwpwm, "btnen2"},
+    // {PE_8, PinCapability::rwpwm, "lcdd4"},
+    // {PE_7, PinCapability::rwpwm, "lcdrs"},
+    // {PB_1, PinCapability::rwpwm, "lcden"},
+
+	//SD
+	{PC_9, PinCapability::rwpwm, "SDD1"},
+	{PC_8, PinCapability::rwpwm, "SDD0"},
+	{PC_12, PinCapability::rwpwm, "SDSCK"},
+	{PD_2, PinCapability::rwpwm, "SDCMD"},
+	{PC_11, PinCapability::rwpwm, "SDD3"},
+	{PC_10, PinCapability::rwpwm, "SDD2"},
+
+	// UART
+	{PA_9, PinCapability::rwpwm, "TX1"},
+	{PA_10, PinCapability::rwpwm, "RX1"},
+
+    // WIFI UART	
+	{PD_8, PinCapability::rwpwm, "PD8"},
+	{PD_9, PinCapability::rwpwm, "PD9"},	
+	
+    //WIFI
+    {PE_10, PinCapability::rwpwm, "PE10"},
+    {PE_11, PinCapability::rwpwm, "PE11"},
+    {PE_12, PinCapability::rwpwm, "PE12"},
+
+    //spi 1  (SD,MAX311865,MAX6675)
+    {PA_4, PinCapability::rwpwm, "SDCS"},
+    {PA_5, PinCapability::rwpwm, "PA5"},
+    {PA_6, PinCapability::rwpwm, "PA6"},
+    {PA_7, PinCapability::rwpwm, "PA7"},
+    {PE_7, PinCapability::rwpwm, "PE7,SPI1CS1"},  
+    {PE_8, PinCapability::rwpwm, "PE8,SPI1CS2"},
+
+    //spi 3  (MOT TMC2130 TMC5160)
+    {PB_3, PinCapability::rwpwm, "PB3"},
+    {PB_4, PinCapability::rwpwm, "PB4"},
+    {PB_5, PinCapability::rwpwm, "PB5"},
+
+    //Signal light   Neopixel
+    {PD_15, PinCapability::rwpwm, "PD15"},
+
+    //Laser 
+    {PB_9, PinCapability::rwpwm, "PB9,Laser"},
+
+
+
+};
+
+constexpr BoardDefaults fly_cdyv2_Defaults = {
+	6,											// Number of drivers
+    {PC_1, PC_14, PB_8, PD_7, PD_4, PD_0},   	//enablePins
+    {PE_5, PE_4, PE_3, PE_2, PE_1, PE_0},	    //stepPins
+    {PC_0, PC_13, PB_7, PD_6, PD_3, PA_15},    	//dirPins
+#if TMC_SOFT_UART
+    {PC_15, PA_8, PB_6, PD_5, PD_1, PE_9},             
+	 6, 			                         //uartPins                                          	// Smart drivers
+#endif
+    0  
+
+};
+
 #endif
