@@ -824,7 +824,10 @@ void Platform::Init() noexcept
 	tcFilter.Init(0);
 	AnalogIn::EnableTemperatureSensor(1, tcFilter.CallbackFeedIntoFilter, &tcFilter, 1, 0);
 	TemperatureCalibrationInit();
-# else
+# elif STM32F4
+	filteredAdcChannels[VrefFilterIndex] = GetVREFAdcChannel();
+	filteredAdcChannels[CpuTempFilterIndex] = GetTemperatureAdcChannel();
+#else
 	filteredAdcChannels[CpuTempFilterIndex] = GetTemperatureAdcChannel();
 # endif
 #endif
@@ -1618,7 +1621,13 @@ float Platform::GetCpuTemperature() const noexcept
 	return (voltage - 0.72) * (1000.0/2.33) + 25.0 + mcuTemperatureAdjust;			// accuracy at 25C is +/-34C
 # elif STM32F4
 	// Magic numbers are the location of STM32 calibration constants
-	return ((110.0f - 30.0f)/(((float)(*(uint16_t *)0x1FFF7A2E)) - ((float)(*(uint16_t *)0x1FFF7A2C)))) * ((voltage*((float)(1u << 12))/3.3f) - ((float)(*(uint16_t *)0x1FFF7A2C))) + 30.0f; 
+	// See: http://www.efton.sk/STM32/STM32_VREF.pdf and https://www.st.com/resource/en/datasheet/dm00037051.pdf
+	// We get current VRef to compensate reading.
+	// VRef = 3.3*VREFIN_CAL*VREFINT
+	const float vref = 3.3f*((float)(*(uint16_t *)0x1FFF7A2A))/((float)(adcFilters[VrefFilterIndex].GetSum() >> (AdcBits - 12))/ThermistorAverageReadings);
+	// VSENSE_CORRECTED = VSENSE*VRef/3.3
+	// TMCU = ((TSCAL2_TEMP - TSCAL1_TEMP)/(TSCAL2 - TSCAL1))*(VSENSE_CORRECTED - TSCAL1) + TSCAL1_TEMP
+	return ((110.0f - 30.0f)/(((float)(*(uint16_t *)0x1FFF7A2E)) - ((float)(*(uint16_t *)0x1FFF7A2C)))) * ((voltage*((float)(1u << 12))/3.3f)*vref/3.3f - ((float)(*(uint16_t *)0x1FFF7A2C))) + 30.0f; 
 # else
 #  error undefined CPU temp conversion
 # endif

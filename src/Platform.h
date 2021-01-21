@@ -74,6 +74,10 @@ constexpr size_t NumAdcFilters = NumThermistorInputs + 3;
 # else
 constexpr size_t NumAdcFilters = NumThermistorInputs + 2;
 # endif
+#elif HAS_CPU_TEMP_SENSOR && STM32F4
+constexpr size_t VrefFilterIndex = NumThermistorInputs;
+constexpr size_t CpuTempFilterIndex = NumThermistorInputs + 1;
+constexpr size_t NumAdcFilters = NumThermistorInputs + 2;
 #elif HAS_CPU_TEMP_SENSOR && !SAME5x
 constexpr size_t CpuTempFilterIndex = NumThermistorInputs;
 constexpr size_t NumAdcFilters = NumThermistorInputs + 1;
