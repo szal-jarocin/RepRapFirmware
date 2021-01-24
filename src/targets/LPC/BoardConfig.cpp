@@ -466,7 +466,7 @@ void BoardConfig::Diagnostics(MessageType mtype) noexcept
 #ifdef DUET_NG
 # if HAS_LINUX_INTERFACE
 	reprap.GetPlatform().MessageF(mtype, "%s version %s running on %s (%s mode)", FIRMWARE_NAME, VERSION, reprap.GetPlatform().GetElectronicsString(),
-						(UsingLinuxInterface()) ? "SBC" : "standalone");
+						(reprap.UsingLinuxInterface()) ? "SBC" : "standalone");
 # else
 	reprap.GetPlatform().MessageF(mtype, "%s version %s running on %s", FIRMWARE_NAME, VERSION, reprap.GetPlatform().GetElectronicsString());
 # endif
@@ -476,7 +476,7 @@ void BoardConfig::Diagnostics(MessageType mtype) noexcept
 	reprap.GetPlatform().MessageF(mtype, "%s (%s) version %s running on %s at %dMhz\n", FIRMWARE_NAME, lpcBoardName, VERSION, reprap.GetPlatform().GetElectronicsString(), (int)SystemCoreClock/1000000);
 #elif HAS_LINUX_INTERFACE
 	reprap.GetPlatform().MessageF(mtype, "%s version %s running on %s (%s mode)\n", FIRMWARE_NAME, VERSION, reprap.GetPlatform().GetElectronicsString(),
-						(UsingLinuxInterface()) ? "SBC" : "standalone");
+						(reprap.UsingLinuxInterface()) ? "SBC" : "standalone");
 #else
 	reprap.GetPlatform().MessageF(mtype, "%s version %s running on %s\n", FIRMWARE_NAME, VERSION, reprap.GetPlatform().GetElectronicsString());
 #endif
