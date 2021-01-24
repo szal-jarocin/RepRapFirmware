@@ -209,6 +209,9 @@ bool LookupPinName(const char*pn, LogicalPin& lpin, bool& hardwareInverted) noex
         {
             // Try the next alias in the list of names for this pin
             const char *p = pn;
+            // skip hardware pin options
+            if (*q == '+' || *q == '-' || *q == '^')
+                ++q;
             bool hwInverted = (*q == '!');
             if (hwInverted)
             {

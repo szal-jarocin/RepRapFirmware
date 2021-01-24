@@ -38,7 +38,7 @@ Pin EncoderPinSw = NoPin;           //click
 Pin PanelButtonPin = NoPin;         //Extra button on Viki and RRD Panels (reset/back etc)
 SSPChannel LcdSpiChannel = SWSPI0;
 
-Pin DiagPin = PA_7;
+Pin DiagPin = NoPin;
 
 //Stepper settings
 Pin ENABLE_PINS[NumDirectDrivers];
@@ -209,6 +209,9 @@ bool LookupPinName(const char*pn, LogicalPin& lpin, bool& hardwareInverted) noex
         {
             // Try the next alias in the list of names for this pin
             const char *p = pn;
+            // skip hardware pin options
+            if (*q == '+' || *q == '-' || *q == '^')
+                ++q;
             bool hwInverted = (*q == '!');
             if (hwInverted)
             {

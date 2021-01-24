@@ -285,8 +285,8 @@ constexpr PinEntry PinTable_BIQU_SKR_E3T[] =
 
     //Heaters and Fans
     {P2_5,  PinCapability::wpwm, "bed" },
-    {P2_4,  PinCapability::wpwm, "e0heat" },
-    {P2_3,  PinCapability::wpwm, "e1heat" },
+    {P2_3,  PinCapability::wpwm, "e0heat" },
+    {P2_4,  PinCapability::wpwm, "e1heat" },
     {P2_1,  PinCapability::wpwm, "fan0" },
     {P2_2,  PinCapability::wpwm, "fan1" },
 
@@ -309,6 +309,12 @@ constexpr PinEntry PinTable_BIQU_SKR_E3T[] =
     //Neopixel
     {P1_24, PinCapability::rw, "neopixel"},
 
+    // TMC Standby pins, force low to enable
+    {P3_26, PinCapability::rw, "-sbyx"},
+    {P3_25, PinCapability::rw, "-sbyy"},
+    {P1_18, PinCapability::rw, "-sbyz"},
+    {P1_19, PinCapability::rw, "-sbye0"},
+    {P2_13, PinCapability::rw, "-sbye1"},
 };
 
 constexpr BoardDefaults biquskr_E3T_Defaults = {
@@ -317,7 +323,7 @@ constexpr BoardDefaults biquskr_E3T_Defaults = {
     {P1_4,  P1_14, P4_29,  P2_6,  P2_11},      //stepPins
     {P1_8,  P1_15, P4_28, P2_7, P2_12},      //dirPins
 #if TMC_SOFT_UART
-    {P1_1, P1_10, P1_17, P1_26, P1_25},    //uartPins
+    {P1_1, P1_10, P1_17, P0_5, P0_22},    //uartPins
     5,                                      // Smart drivers
 #endif
     0,                                      //digiPot Factor
