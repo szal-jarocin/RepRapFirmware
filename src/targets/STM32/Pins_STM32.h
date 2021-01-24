@@ -110,16 +110,25 @@ constexpr size_t NumDirectDrivers = 11;               // The maximum number of d
 #if defined(SUPPORT_TMC22xx)
     constexpr size_t MaxSmartDrivers = NumDirectDrivers;            // The maximum number of smart drivers
     constexpr size_t NumTmcDriversSenseChannels = 1;
-    #define TMC_SOFT_UART 1
+    #define TMC_SOFT_UART                   1
     #define TMC22xx_HAS_ENABLE_PINS			1
     #define TMC22xx_VARIABLE_NUM_DRIVERS	1
-    #define TMC22xx_USE_SLAVEADDR 0
-    #define TMC22xx_HAS_MUX 0
-
+    #define TMC22xx_USE_SLAVEADDR           0
+    #define TMC22xx_HAS_MUX                 0
+    #define SUPPORT_TMC22xx                 1
+    # define HAS_STALL_DETECT               1
+#elif defined(SUPPORT_TMC51xx)
+    constexpr size_t MaxSmartDrivers = NumDirectDrivers;            // The maximum number of smart drivers
+    constexpr size_t NumTmcDriversSenseChannels = 1;
+    #define SUPPORT_TMC51xx			1
+    #define TMC51xx_USES_USART		0
+    # define HAS_STALL_DETECT       1
 #else
     constexpr size_t MaxSmartDrivers = 0;            // The maximum number of smart drivers
     #define TMC_SOFT_UART 0
 #endif
+
+constexpr float MaxTmc5160Current = 6300.0;			// The maximum current we allow the TMC5160/5161 drivers to be set to
 
 constexpr size_t MaxSensors = 32;
 
@@ -159,7 +168,7 @@ constexpr size_t MaxSpindles = 4;                    // Maximum number of config
 extern Pin ENABLE_PINS[NumDirectDrivers];
 extern Pin STEP_PINS[NumDirectDrivers];
 extern Pin DIRECTION_PINS[NumDirectDrivers];
-#if SUPPORT_TMC22xx
+#if HAS_STALL_DETECT && SUPPORT_TMC22xx
 extern Pin DriverDiagPins[NumDirectDrivers];
 #endif
 #if TMC_SOFT_UART

@@ -111,12 +111,12 @@ constexpr size_t NumDirectDrivers = 7;               // The maximum number of dr
 #if defined(SUPPORT_TMC22xx)
     constexpr size_t MaxSmartDrivers = NumDirectDrivers;            // The maximum number of smart drivers
     constexpr size_t NumTmcDriversSenseChannels = 1;
-    #define TMC_SOFT_UART 1
+    #define TMC_SOFT_UART                   1
     #define TMC22xx_HAS_ENABLE_PINS			1
     #define TMC22xx_VARIABLE_NUM_DRIVERS	1
-    #define TMC22xx_USE_SLAVEADDR 0
-    #define TMC22xx_HAS_MUX 0
-
+    #define TMC22xx_USE_SLAVEADDR           0
+    #define TMC22xx_HAS_MUX                 0
+    #define HAS_STALL_DETECT                1
 #else
     constexpr size_t MaxSmartDrivers = 0;            // The maximum number of smart drivers
     #define TMC_SOFT_UART 0

@@ -552,7 +552,7 @@ void RepRap::Init() noexcept
 #endif
 
 	active = true;										// must do this before we start the network or call Spin(), else the watchdog may time out
-#if (__LPC17xx__ || STM32F4) && HAS_SMART_DRIVERS
+#if (__LPC17xx__ || STM32F4) && SUPPORT_TMC22xx
 	if (platform->AtxPower())
 	{
 		// ensure smart drivers are up and running

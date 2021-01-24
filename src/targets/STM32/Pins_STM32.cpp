@@ -44,7 +44,7 @@ Pin DiagPin = NoPin;
 Pin ENABLE_PINS[NumDirectDrivers];
 Pin STEP_PINS[NumDirectDrivers];
 Pin DIRECTION_PINS[NumDirectDrivers];
-#if HAS_STALL_DETECT
+#if HAS_STALL_DETECT && SUPPORT_TMC22xx
     Pin DriverDiagPins[NumDirectDrivers];
 #endif
 #if TMC_SOFT_UART
@@ -150,7 +150,7 @@ void ClearPinArrays() noexcept
 #if TMC_SOFT_UART
     InitPinArray(TMC_UART_PINS, NumDirectDrivers);
 #endif
-#if HAS_STALL_DETECT
+#if HAS_STALL_DETECT && SUPPORT_TMC22xx
     InitPinArray(DriverDiagPins, NumDirectDrivers);
 #endif
     InitPinArray(TEMP_SENSE_PINS, NumThermistorInputs);

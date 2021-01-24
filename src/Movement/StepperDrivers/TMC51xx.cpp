@@ -14,7 +14,9 @@
 #include <RTOSIface/RTOSIface.h>
 #include <TaskPriorities.h>
 #include <Movement/Move.h>
+#if !STM32F4
 #include <DmacManager.h>
+#endif
 #include <Endstops/Endstop.h>
 #include <General/Portability.h>
 
@@ -32,6 +34,9 @@ static inline const Move& GetMoveInstance() noexcept { return *moveInstance; }
 #include <sam/drivers/xdmac/xdmac.h>
 
 # define TMC51xx_USES_SERCOM	0
+static inline const Move& GetMoveInstance() noexcept { return reprap.GetMove(); }
+
+#elif STM32F4
 static inline const Move& GetMoveInstance() noexcept { return reprap.GetMove(); }
 
 #endif
