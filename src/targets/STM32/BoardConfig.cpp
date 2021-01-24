@@ -11,7 +11,7 @@
 #include <ctype.h>
 #include <string.h>
 #include <stdint.h>
-
+#include "Version.h"
 #include "BoardConfig.h"
 #include "RepRapFirmware.h"
 #include "GCodes/GCodeResult.h"
@@ -547,7 +547,27 @@ void BoardConfig::PrintValue(MessageType mtype, configValueType configType, void
 //Information printed by M122 P200
 void BoardConfig::Diagnostics(MessageType mtype) noexcept
 {
-    reprap.GetPlatform().MessageF(mtype, "== Configurable Board.txt Settings ==\n");
+    reprap.GetPlatform().Message(mtype, "=== Diagnostics ===\n");
+
+#ifdef DUET_NG
+# if HAS_LINUX_INTERFACE
+	reprap.GetPlatform().MessageF(mtype, "%s version %s running on %s (%s mode)", FIRMWARE_NAME, VERSION, reprap.GetPlatform().GetElectronicsString(),
+						(UsingLinuxInterface()) ? "SBC" : "standalone");
+# else
+	reprap.GetPlatform().MessageF(mtype, "%s version %s running on %s", FIRMWARE_NAME, VERSION, reprap.GetPlatform().GetElectronicsString());
+# endif
+	const char* const expansionName = DuetExpansion::GetExpansionBoardName();
+	reprap.GetPlatform().MessageF(mtype, (expansionName == nullptr) ? "\n" : " + %s\n", expansionName);
+#elif __LPC17xx__
+	reprap.GetPlatform().MessageF(mtype, "%s (%s) version %s running on %s at %dMhz\n", FIRMWARE_NAME, lpcBoardName, VERSION, reprap.GetPlatform().GetElectronicsString(), (int)SystemCoreClock/1000000);
+#elif HAS_LINUX_INTERFACE
+	reprap.GetPlatform().MessageF(mtype, "%s version %s running on %s (%s mode)\n", FIRMWARE_NAME, VERSION, reprap.GetPlatform().GetElectronicsString(),
+						(UsingLinuxInterface()) ? "SBC" : "standalone");
+#else
+	reprap.GetPlatform().MessageF(mtype, "%s version %s running on %s\n", FIRMWARE_NAME, VERSION, reprap.GetPlatform().GetElectronicsString());
+#endif
+
+    reprap.GetPlatform().MessageF(mtype, "\n== Configurable Board.txt Settings ==\n");
     //Print the board name
     boardConfigEntry_t board = boardEntryConfig[1];
     reprap.GetPlatform().MessageF(mtype, "%s = ", board.key );
@@ -759,7 +779,7 @@ bool BoardConfig::GetConfigKeys(FIL *configFile, const boardConfigEntry_t *board
     {
         size_t len = (size_t) readLen;
         size_t pos = 0;
-        while(pos < len && isSpaceOrTab(line[pos] && line[pos] != 0) == true) pos++; //eat leading whitespace
+        while(pos < len && line[pos] != 0 && isSpaceOrTab(line[pos])) pos++; //eat leading whitespace
 
         if(pos < len){
 
