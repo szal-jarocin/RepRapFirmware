@@ -44,13 +44,16 @@ Pin DiagPin = NoPin;
 Pin ENABLE_PINS[NumDirectDrivers];
 Pin STEP_PINS[NumDirectDrivers];
 Pin DIRECTION_PINS[NumDirectDrivers];
+#if HAS_SMART_DRIVERS
 #if HAS_STALL_DETECT && SUPPORT_TMC22xx
     Pin DriverDiagPins[NumDirectDrivers];
 #endif
 #if TMC_SOFT_UART
     Pin TMC_UART_PINS[NumDirectDrivers];
-    size_t lpcSmartDrivers;
 #endif
+size_t lpcSmartDrivers;
+#endif
+
 uint32_t STEP_DRIVER_MASK = 0;                          //SD: mask of the step pins on Port 2 used for writing to step pins in parallel
 bool hasStepPinsOnDifferentPorts = false;               //for boards that don't have all step pins on port2
 bool hasDriverCurrentControl = false;                   //Supports digipots to set stepper current
@@ -175,12 +178,12 @@ bool SetBoard(const char* bn) noexcept
             SetDefaultPinArray(LPC_Boards[i].defaults.enablePins, ENABLE_PINS, LPC_Boards[i].defaults.numDrivers);
             SetDefaultPinArray(LPC_Boards[i].defaults.stepPins, STEP_PINS, LPC_Boards[i].defaults.numDrivers);
             SetDefaultPinArray(LPC_Boards[i].defaults.dirPins, DIRECTION_PINS, LPC_Boards[i].defaults.numDrivers);
+#if HAS_SMART_DRIVERS
 #if TMC_SOFT_UART
             SetDefaultPinArray(LPC_Boards[i].defaults.uartPins, TMC_UART_PINS, LPC_Boards[i].defaults.numDrivers);
+#endif
             lpcSmartDrivers = LPC_Boards[i].defaults.numSmartDrivers;
 #endif
-
-
             digipotFactor = LPC_Boards[i].defaults.digipotFactor;
                         
             return true;

@@ -941,7 +941,9 @@ static __nocache uint8_t rcvData[5 * MaxSmartDrivers];
 // Set up the PDC or DMAC to send a register and receive the status, but don't enable it yet
 static void SetupDMA() noexcept
 {
-#if SAME70
+#if STM32F4
+
+#elif SAME70
 	/* From the data sheet:
 	 * Single Block Transfer With Single Microblock
 		1. Read the XDMAC Global Channel Status Register (XDMAC_GS) to select a free channel. [we use fixed channel numbers instead.]
@@ -1042,7 +1044,8 @@ static void SetupDMA() noexcept
 
 static inline void EnableDma() noexcept
 {
-#if SAME70
+#if STM32F4
+#elif SAME70
 	xdmac_channel_enable(XDMAC, DmacChanTmcRx);
 	xdmac_channel_enable(XDMAC, DmacChanTmcTx);
 #elif SAME5x
@@ -1055,7 +1058,8 @@ static inline void EnableDma() noexcept
 
 static inline void DisableDma() noexcept
 {
-#if SAME70
+#if STM32F4
+#elif SAME70
 	xdmac_channel_disable(XDMAC, DmacChanTmcTx);
 	xdmac_channel_disable(XDMAC, DmacChanTmcRx);
 #elif SAME5x
@@ -1068,7 +1072,8 @@ static inline void DisableDma() noexcept
 
 static inline void ResetSpi() noexcept
 {
-#if TMC51xx_USES_SERCOM
+#if STM32F4
+#elif TMC51xx_USES_SERCOM
 	hri_sercomspi_clear_CTRLA_ENABLE_bit(SERCOM_TMC51xx);	// warning: this makes SCLK float!
 #elif TMC51xx_USES_USART
 	USART_TMC51xx->US_CR = US_CR_RSTRX | US_CR_RSTTX;	// reset transmitter and receiver
@@ -1080,7 +1085,8 @@ static inline void ResetSpi() noexcept
 
 static inline void EnableSpi() noexcept
 {
-#if TMC51xx_USES_SERCOM
+#if STM32F4
+#elif TMC51xx_USES_SERCOM
 	hri_sercomspi_set_CTRLB_RXEN_bit(SERCOM_TMC51xx);
 	hri_sercomspi_set_CTRLA_ENABLE_bit(SERCOM_TMC51xx);
 #elif TMC51xx_USES_USART
@@ -1092,7 +1098,8 @@ static inline void EnableSpi() noexcept
 
 static inline void DisableEndOfTransferInterrupt() noexcept
 {
-#if SAME70
+#if STM32F4
+#elif SAME70
 	xdmac_channel_disable_interrupt(XDMAC, DmacChanTmcRx, XDMAC_CIE_BIE);
 #elif TMC51xx_USES_SERCOM
 	DmacManager::DisableCompletedInterrupt(TmcRxDmaChannel);
@@ -1105,7 +1112,8 @@ static inline void DisableEndOfTransferInterrupt() noexcept
 
 static inline void EnableEndOfTransferInterrupt() noexcept
 {
-#if SAME70
+#if STM32F4
+#elif SAME70
 	xdmac_channel_enable_interrupt(XDMAC, DmacChanTmcRx, XDMAC_CIE_BIE);
 #elif TMC51xx_USES_SERCOM
 	DmacManager::EnableCompletedInterrupt(TmcRxDmaChannel);
@@ -1119,11 +1127,14 @@ static inline void EnableEndOfTransferInterrupt() noexcept
 // DMA complete callback
 void RxDmaCompleteCallback(CallbackParameter param) noexcept
 {
+#if STM32F4
+#else
 #if SAME70
 	xdmac_channel_disable_interrupt(XDMAC, DmacChanTmcRx, 0xFFFFFFFF);
 #endif
 	fastDigitalWriteHigh(GlobalTmc51xxCSPin);			// set CS high
 	tmcTask.GiveFromISR();
+#endif
 }
 
 extern "C" [[noreturn]] void TmcLoop(void *) noexcept
@@ -1170,7 +1181,10 @@ extern "C" [[noreturn]] void TmcLoop(void *) noexcept
 
 					if (allInitialised)
 					{
+#if STM32F4
+#else
 						fastDigitalWriteLow(GlobalTmc51xxEnablePin);
+#endif
 						driversState = DriversState::ready;
 					}
 				}
@@ -1184,6 +1198,8 @@ extern "C" [[noreturn]] void TmcLoop(void *) noexcept
 				driverStates[i].GetSpiCommand(writeBufPtr);
 			}
 
+#if STM32F4
+#else
 			// Kick off a transfer.
 			// On the SAME5x the only way I have found to get reliable transfers and no timeouts is to disable SPI, enable DMA, and then enable SPI.
 			// Enabling SPI before DMA sometimes results in timeouts.
@@ -1221,6 +1237,7 @@ extern "C" [[noreturn]] void TmcLoop(void *) noexcept
 					driverStates[drive].TransferFailed();
 				}
 			}
+#endif
 		}
 	}
 }
@@ -1231,6 +1248,8 @@ extern "C" [[noreturn]] void TmcLoop(void *) noexcept
 // It is assumed that the drivers are not powered, so driversPowered(true) must be called after calling this before the motors can be moved.
 void SmartDrivers::Init() noexcept
 {
+#if STM32F4
+#else
 	// Make sure the ENN and CS pins are high
 	pinMode(GlobalTmc51xxEnablePin, OUTPUT_HIGH);
 	pinMode(GlobalTmc51xxCSPin, OUTPUT_HIGH);
@@ -1339,7 +1358,7 @@ void SmartDrivers::Init() noexcept
 	DmacManager::SetInterruptCallback(DmacChanTmcRx, RxDmaCompleteCallback, CallbackParameter());				// set up DMA receive complete callback
 	xdmac_enable_interrupt(XDMAC, DmacChanTmcRx);
 #endif
-
+#endif
 	driversState = DriversState::noPower;
 	tmcTask.Create(TmcLoop, "TMC", nullptr, TaskPriority::TmcPriority);
 }
@@ -1347,8 +1366,11 @@ void SmartDrivers::Init() noexcept
 // Shut down the drivers and stop any related interrupts
 void SmartDrivers::Exit() noexcept
 {
+#if STM32F4
+#else
 	digitalWrite(GlobalTmc51xxEnablePin, HIGH);
 	NVIC_DisableIRQ(TMC51xx_SPI_IRQn);
+#endif
 	tmcTask.TerminateAndUnlink();
 	driversState = DriversState::shutDown;						// prevent Spin() calls from doing anything
 }
@@ -1451,14 +1473,20 @@ void SmartDrivers::Spin(bool powered) noexcept
 	else if (driversState != DriversState::shutDown)
 	{
 		driversState = DriversState::noPower;				// flag that there is no power to the drivers
+#if STM32F4
+#else
 		fastDigitalWriteHigh(GlobalTmc51xxEnablePin);		// disable the drivers
+#endif
 	}
 }
 
 // This is called from the tick ISR, possibly while Spin (with powered either true or false) is being executed
 void SmartDrivers::TurnDriversOff() noexcept
 {
+#if STM32F4
+#else
 	digitalWrite(GlobalTmc51xxEnablePin, true);				// disable the drivers
+#endif
 	driversState = DriversState::noPower;
 }
 

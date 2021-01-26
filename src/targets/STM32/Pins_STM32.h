@@ -1,5 +1,5 @@
-#ifndef PINS_LPC_H__
-#define PINS_LPC_H__
+#ifndef PINS_STM32_H__
+#define PINS_STM32_H__
 #include "Core.h"
 #include "Microstepping.h"
 #include "sd_mmc.h"
@@ -361,8 +361,10 @@ struct BoardDefaults
     const Pin enablePins[NumDirectDrivers];
     const Pin stepPins[NumDirectDrivers];
     const Pin dirPins[NumDirectDrivers];
+#if SUPPORT_TMC51xx || SUPPORT_TMC22xx
 #if TMC_SOFT_UART
     const Pin uartPins[NumDirectDrivers];
+#endif
     const uint32_t numSmartDrivers;
 #endif
     const float digipotFactor;    
