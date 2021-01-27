@@ -1,5 +1,5 @@
 #include "RepRapFirmware.h"
-#include "Pins_STM32.h"
+#include "Pins.h"
 #include "BoardConfig.h"
 
 
@@ -48,9 +48,7 @@ Pin DIRECTION_PINS[NumDirectDrivers];
 #if HAS_STALL_DETECT && SUPPORT_TMC22xx
     Pin DriverDiagPins[NumDirectDrivers];
 #endif
-#if TMC_SOFT_UART
-    Pin TMC_UART_PINS[NumDirectDrivers];
-#endif
+Pin TMC_UART_PINS[NumDirectDrivers];
 size_t lpcSmartDrivers;
 #endif
 
@@ -150,7 +148,7 @@ void ClearPinArrays() noexcept
     InitPinArray(ENABLE_PINS, NumDirectDrivers);
     InitPinArray(STEP_PINS, NumDirectDrivers);
     InitPinArray(DIRECTION_PINS, NumDirectDrivers);
-#if TMC_SOFT_UART
+#if HAS_SMART_DRIVERS
     InitPinArray(TMC_UART_PINS, NumDirectDrivers);
 #endif
 #if HAS_STALL_DETECT && SUPPORT_TMC22xx

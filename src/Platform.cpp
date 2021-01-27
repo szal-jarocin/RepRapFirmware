@@ -718,7 +718,11 @@ void Platform::Init() noexcept
 #if HAS_SMART_DRIVERS
 	// Initialise TMC driver module
 # if SUPPORT_TMC51xx
+#  if TMC51xx_VARIABLE_NUM_DRIVERS
+	SmartDrivers::Init(numSmartDrivers);
+#  else
 	SmartDrivers::Init();
+#endif
 # elif SUPPORT_TMC22xx
 #  if TMC22xx_VARIABLE_NUM_DRIVERS
 	SmartDrivers::Init(numSmartDrivers);

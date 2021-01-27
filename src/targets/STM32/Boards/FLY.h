@@ -84,7 +84,6 @@ constexpr BoardDefaults fly_f407zg_Defaults = {
     {PB_9, PB_8, PA_8, PC_7,  PC_6, PD_15, PD_14, PD_13, PD_12},	//stepPins
     {PE_0, PG_11, PD_6, PD_3,  PA_15, PG_7, PG_4, PD_11, PD_8},    	//dirPins
 #if HAS_SMART_DRIVERS
-#if TMC_SOFT_UART
     {PG_13, PG_10, PD_5, PD_1,
 #if STARTUP_DELAY
     // Avoid clash with jtag pins
@@ -93,7 +92,6 @@ constexpr BoardDefaults fly_f407zg_Defaults = {
     PA_14,
 #endif
      PG_6, PG_3, PD_10, PB_12},                 //uartPins
-#endif
     9,                                      	// Smart drivers
 #endif
     0                                       	//digiPot Factor
@@ -190,9 +188,7 @@ constexpr BoardDefaults fly_e3_Defaults = {
     {PC_13, PE_3, PB_9, PB_3},	    //stepPins
     {PC_14, PE_4, PE_0, PB_4},    	//dirPins
 #if HAS_SMART_DRIVERS
-#if TMC_SOFT_UART
     {PE_6, PE_2, PB_8, PD_7},             
-#endif
 	 4, 			                         //uartPins                                          	// Smart drivers
 #endif
     0  
@@ -293,9 +289,7 @@ constexpr BoardDefaults fly_cdyv2_Defaults = {
     {PE_5, PE_4, PE_3, PE_2, PE_1, PE_0},	    //stepPins
     {PC_0, PC_13, PB_7, PD_6, PD_3, PA_15},    	//dirPins
 #if HAS_SMART_DRIVERS
-#if TMC_SOFT_UART
     {PC_15, PA_8, PB_6, PD_5, PD_1, PE_9},      //uartPins      
-#endif
 	 6,                                       	// Smart drivers
 #endif
     0  

@@ -115,9 +115,7 @@ constexpr BoardDefaults biquskr_pro_1_1_Defaults = {
     {PE_9, PE_11, PE_13, PE_14,  PD_15, PD_13, PG_3, PG_2},	//stepPins
     {PF_1, PE_8, PC_2, PA_0,  PE_7, PG_9, PD_10, PG_6},    	//dirPins
 #if HAS_SMART_DRIVERS
-#if TMC_SOFT_UART
     {PC_13, PE_3, PE_1, PD_4, PD_1, PD_6, PF_11, PG_10},      //uartPins
-#endif
     6,                                      	// Smart drivers
 #endif
     0                                       	//digiPot Factor
@@ -243,9 +241,7 @@ constexpr BoardDefaults biqu_gtr_1_0_Defaults = {
 	{PC_15, PE_3, PB_8, PG_12,  PD_6, PD_1,PF_3,PD_14,PE_12,PG_0,PH_12},    //stepPins Including M5
 	{PF_0, PE_2, PB_7, PG_11,  PD_5, PD_0,PG_3,PD_11,PE_10,PG_1,PH_15}, //dirPins Including M5
 #if HAS_SMART_DRIVERS
-#if TMC_SOFT_UART
 	{PC_14, PE_1, PB_5, PG_10, PD_4, PC_12,PG_4,PE_15,PE_7,PF_15,PH_14},  //uartpins including M5
-#endif
     6,                                      // Smart drivers or 11 with M5
 #endif
     0                                       //digiPot Factor

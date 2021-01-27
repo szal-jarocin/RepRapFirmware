@@ -14,7 +14,10 @@
 #include <RTOSIface/RTOSIface.h>
 #include <TaskPriorities.h>
 #include <Movement/Move.h>
-#if !STM32F4
+#if STM32F4
+#include <Hardware/SharedSpi/SharedSpiDevice.h>
+#include <Hardware/SharedSpi/SharedSpiClient.h>
+#else
 #include <DmacManager.h>
 #endif
 #include <Endstops/Endstop.h>
@@ -259,7 +262,11 @@ constexpr uint8_t REGNUM_PWM_SCALE = 0x71;
 constexpr uint8_t REGNUM_PWM_AUTO = 0x72;
 
 // Common data
+#if TMC51xx_VARIABLE_NUM_DRIVERS
+static size_t numTmc51xxDrivers = 0;
+#else
 static constexpr size_t numTmc51xxDrivers = MaxSmartDrivers;
+#endif
 
 enum class DriversState : uint8_t
 {
@@ -931,6 +938,10 @@ void TmcDriverState::TransferFailed() noexcept
 // State structures for all drivers
 static TmcDriverState driverStates[MaxSmartDrivers];
 
+#if STM32F4
+static SharedSpiClient *spiDevice;
+#endif
+
 // TMC51xx management task
 static Task<TmcTaskStackWords> tmcTask;
 
@@ -1182,6 +1193,10 @@ extern "C" [[noreturn]] void TmcLoop(void *) noexcept
 					if (allInitialised)
 					{
 #if STM32F4
+						for (size_t driver = 0; driver < numTmc51xxDrivers; ++driver)
+						{
+							digitalWrite(ENABLE_PINS[driver], false);
+						}
 #else
 						fastDigitalWriteLow(GlobalTmc51xxEnablePin);
 #endif
@@ -1190,6 +1205,31 @@ extern "C" [[noreturn]] void TmcLoop(void *) noexcept
 				}
 			}
 
+#if STM32F4
+			if (!spiDevice->Select(100))
+			{
+				debugPrintf("TMC51xx: Failed to select spi device\n");
+				continue;
+			}		
+			// Set up data to write. We don't use chained SPI but we keep the same order
+			uint8_t *writeBufPtr = sendData + 5 * numTmc51xxDrivers;
+			uint8_t *readBufPtr = rcvData + 5 * numTmc51xxDrivers;
+			for (size_t i = 0; i < numTmc51xxDrivers; ++i)
+			{
+				writeBufPtr -= 5;
+				readBufPtr -= 5;
+				driverStates[i].GetSpiCommand(writeBufPtr);
+				if (TMC_UART_PINS[i] != NoPin)
+				{
+					timedOut = false;
+					fastDigitalWriteLow(TMC_UART_PINS[i]);
+					spiDevice->TransceivePacket(writeBufPtr, readBufPtr, 5);
+					fastDigitalWriteHigh(TMC_UART_PINS[i]);
+				}
+			}
+			spiDevice->Deselect();
+			delay(1);
+#else
 			// Set up data to write. Driver 0 is the first in the SPI chain so we must write them in reverse order.
 			uint8_t *writeBufPtr = sendData + 5 * numTmc51xxDrivers;
 			for (size_t i = 0; i < numTmc51xxDrivers; ++i)
@@ -1198,8 +1238,6 @@ extern "C" [[noreturn]] void TmcLoop(void *) noexcept
 				driverStates[i].GetSpiCommand(writeBufPtr);
 			}
 
-#if STM32F4
-#else
 			// Kick off a transfer.
 			// On the SAME5x the only way I have found to get reliable transfers and no timeouts is to disable SPI, enable DMA, and then enable SPI.
 			// Enabling SPI before DMA sometimes results in timeouts.
@@ -1246,9 +1284,23 @@ extern "C" [[noreturn]] void TmcLoop(void *) noexcept
 
 // Initialise the driver interface and the drivers, leaving each drive disabled.
 // It is assumed that the drivers are not powered, so driversPowered(true) must be called after calling this before the motors can be moved.
+#if TMC51xx_VARIABLE_NUM_DRIVERS
+void SmartDrivers::Init(size_t numDrivers) noexcept
+{
+	numTmc51xxDrivers = min<size_t>(numDrivers, MaxSmartDrivers);
+#else
 void SmartDrivers::Init() noexcept
 {
+#endif
 #if STM32F4
+	// make sure CS is not enabled
+	for (size_t driver = 0; driver < numTmc51xxDrivers; ++driver)
+	{
+		if (TMC_UART_PINS[driver] != NoPin)
+			pinMode(TMC_UART_PINS[driver], OUTPUT_HIGH);
+	}
+	spiDevice = new SharedSpiClient(SharedSpiDevice::GetSharedSpiDevice(SSPChannel::SWSPI2), DriversSpiClockFrequency, SPI_MODE_3, NoPin, false);
+
 #else
 	// Make sure the ENN and CS pins are high
 	pinMode(GlobalTmc51xxEnablePin, OUTPUT_HIGH);
@@ -1352,12 +1404,11 @@ void SmartDrivers::Init() noexcept
 	{
 		driverStates[driver].Init(driver);
 	}
-
+#endif
 #if SAME70
 	xdmac_channel_disable_interrupt(XDMAC, DmacChanTmcRx, 0xFFFFFFFF);
 	DmacManager::SetInterruptCallback(DmacChanTmcRx, RxDmaCompleteCallback, CallbackParameter());				// set up DMA receive complete callback
 	xdmac_enable_interrupt(XDMAC, DmacChanTmcRx);
-#endif
 #endif
 	driversState = DriversState::noPower;
 	tmcTask.Create(TmcLoop, "TMC", nullptr, TaskPriority::TmcPriority);
@@ -1367,6 +1418,10 @@ void SmartDrivers::Init() noexcept
 void SmartDrivers::Exit() noexcept
 {
 #if STM32F4
+	for (size_t driver = 0; driver < numTmc51xxDrivers; ++driver)
+	{
+		digitalWrite(ENABLE_PINS[driver], true);
+	}
 #else
 	digitalWrite(GlobalTmc51xxEnablePin, HIGH);
 	NVIC_DisableIRQ(TMC51xx_SPI_IRQn);
@@ -1474,6 +1529,10 @@ void SmartDrivers::Spin(bool powered) noexcept
 	{
 		driversState = DriversState::noPower;				// flag that there is no power to the drivers
 #if STM32F4
+		for (size_t driver = 0; driver < numTmc51xxDrivers; ++driver)
+		{
+			digitalWrite(ENABLE_PINS[driver], true);
+		}
 #else
 		fastDigitalWriteHigh(GlobalTmc51xxEnablePin);		// disable the drivers
 #endif
@@ -1484,6 +1543,11 @@ void SmartDrivers::Spin(bool powered) noexcept
 void SmartDrivers::TurnDriversOff() noexcept
 {
 #if STM32F4
+	for (size_t driver = 0; driver < numTmc51xxDrivers; ++driver)
+	{
+		digitalWrite(ENABLE_PINS[driver], true);
+	}
+
 #else
 	digitalWrite(GlobalTmc51xxEnablePin, true);				// disable the drivers
 #endif

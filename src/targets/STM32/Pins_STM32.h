@@ -116,13 +116,14 @@ constexpr size_t NumDirectDrivers = 11;               // The maximum number of d
     #define TMC22xx_USE_SLAVEADDR           0
     #define TMC22xx_HAS_MUX                 0
     #define SUPPORT_TMC22xx                 1
-    # define HAS_STALL_DETECT               1
+    #define HAS_STALL_DETECT               1
 #elif defined(SUPPORT_TMC51xx)
     constexpr size_t MaxSmartDrivers = NumDirectDrivers;            // The maximum number of smart drivers
     constexpr size_t NumTmcDriversSenseChannels = 1;
-    #define SUPPORT_TMC51xx			1
-    #define TMC51xx_USES_USART		0
-    # define HAS_STALL_DETECT       1
+    #define SUPPORT_TMC51xx			        1
+    #define TMC51xx_USES_USART		        0
+    #define HAS_STALL_DETECT                1
+    #define TMC51xx_VARIABLE_NUM_DRIVERS    1
 #else
     constexpr size_t MaxSmartDrivers = 0;            // The maximum number of smart drivers
     #define TMC_SOFT_UART 0
@@ -168,11 +169,13 @@ constexpr size_t MaxSpindles = 4;                    // Maximum number of config
 extern Pin ENABLE_PINS[NumDirectDrivers];
 extern Pin STEP_PINS[NumDirectDrivers];
 extern Pin DIRECTION_PINS[NumDirectDrivers];
+#if SUPPORT_TMC22xx || SUPPORT_TMC51xx
+extern Pin TMC_UART_PINS[NumDirectDrivers];
+#endif
 #if HAS_STALL_DETECT && SUPPORT_TMC22xx
 extern Pin DriverDiagPins[NumDirectDrivers];
 #endif
 #if TMC_SOFT_UART
-    extern Pin TMC_UART_PINS[NumDirectDrivers];
     constexpr Pin GlobalTmc22xxEnablePin = NoPin;			// The pin that drives ENN of all drivers
     constexpr uint32_t DriversBaudRate = 50000;
     constexpr uint32_t TransferTimeout = 10;				// any transfer should complete within 100 ticks @ 1ms/tick
@@ -355,16 +358,17 @@ constexpr size_t MaxBoardNameLength = 20;
 extern char lpcBoardName[MaxBoardNameLength];
 extern size_t lpcSmartDrivers;
 
+// HAS_SMART_DRIVERS is defined in Pins.h, we duplicate it for the board files to use
+#define HAS_SMART_DRIVERS		(SUPPORT_TMC2660 || SUPPORT_TMC22xx || SUPPORT_TMC51xx)
+
 struct BoardDefaults
 {
     const uint32_t numDrivers;
     const Pin enablePins[NumDirectDrivers];
     const Pin stepPins[NumDirectDrivers];
     const Pin dirPins[NumDirectDrivers];
-#if SUPPORT_TMC51xx || SUPPORT_TMC22xx
-#if TMC_SOFT_UART
+#if HAS_SMART_DRIVERS
     const Pin uartPins[NumDirectDrivers];
-#endif
     const uint32_t numSmartDrivers;
 #endif
     const float digipotFactor;    
@@ -378,10 +382,11 @@ struct BoardEntry
     const BoardDefaults defaults;
 };
 
-
+// HAS_SMART_DRIVERS is defined in Pins.h, we duplicate it for the board files to use
+#define HAS_SMART_DRIVERS		(SUPPORT_TMC2660 || SUPPORT_TMC22xx || SUPPORT_TMC51xx)
 #include "Boards/BIQU_SKR.h"
 #include "Boards/FLY.h"
-
+#undef HAS_SMART_DRIVERS
 
 
 //Known boards with built in stepper configurations and pin table 

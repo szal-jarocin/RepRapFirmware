@@ -26,7 +26,11 @@ const uint32_t TMC_RR_SGRESULT = 0x3FF;				// 10-bit stallGuard2 result
 
 namespace SmartDrivers
 {
+#ifdef TMC51xx_VARIABLE_NUM_DRIVERS
+	void Init(size_t numDrivers) noexcept;
+#else
 	void Init() noexcept;
+#endif
 	void Exit() noexcept;
 	void Spin(bool powered) noexcept;
 	void TurnDriversOff() noexcept;
