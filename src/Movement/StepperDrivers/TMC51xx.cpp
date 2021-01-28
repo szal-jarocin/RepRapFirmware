@@ -65,7 +65,11 @@ constexpr float SenseResistor = 0.11;						// 0.082R external + 0.03 internal
 #elif TMC_TYPE == 5160
 // We now define MaxTmc5160Current in the board configuration file because it varies between boards
 constexpr float MaximumStandstillCurrent = MaxTmc5160Current * 0.707;
+#if STM32F4
+constexpr float SenseResistor = 0.075;						// This seems to be common for most modules
+#else
 constexpr float SenseResistor = 0.050;						// assume same as we use for TMC2660
+#endif
 constexpr float RecipFullScaleCurrent = SenseResistor/325.0;		// 1.0 divided by full scale current in mA
 #endif
 
@@ -350,7 +354,7 @@ private:
 
 	static const uint8_t WriteRegNumbers[NumWriteRegisters];	// the register numbers that we write to
 
-	static constexpr unsigned int NumReadRegisters = 5;		// the number of registers that we read from
+	static constexpr unsigned int NumReadRegisters = 6;		// the number of registers that we read from
 	static const uint8_t ReadRegNumbers[NumReadRegisters];	// the register numbers that we read from
 
 	// Read register numbers, in same order as ReadRegNumbers
@@ -359,6 +363,7 @@ private:
 	static constexpr unsigned int ReadMsCnt = 2;
 	static constexpr unsigned int ReadPwmScale = 3;
 	static constexpr unsigned int ReadPwmAuto = 4;
+	static constexpr unsigned int ReadChopConf = 5;
 
 	static constexpr uint8_t NoRegIndex = 0xFF;				// this means no register updated, or no register requested
 
@@ -411,7 +416,8 @@ const uint8_t TmcDriverState::ReadRegNumbers[NumReadRegisters] =
 	REGNUM_DRV_STATUS,
 	REGNUM_MSCNT,
 	REGNUM_PWM_SCALE,
-	REGNUM_PWM_AUTO
+	REGNUM_PWM_AUTO,
+	REGNUM_CHOPCONF
 };
 
 uint16_t TmcDriverState::numTimeouts = 0;								// how many times a transfer timed out
@@ -784,6 +790,7 @@ void TmcDriverState::AppendDriverStatus(const StringRef& reply, bool clearGlobal
 	{
 		reply.cat("SG min/max not available");
 	}
+	reply.catf(" WChop %x RChop %x base %x def %x", writeRegisters[WriteChopConf], readRegisters[ReadChopConf], configuredChopConfReg, DefaultChopConfReg);
 	ResetLoadRegisters();
 }
 
@@ -1398,13 +1405,13 @@ void SmartDrivers::Init() noexcept
 					| SPI_CSR_CPOL;								// clock high between transfers
 	SPI_TMC51xx->SPI_CSR[0] = csr;
 #endif
-
+#endif
 	driversState = DriversState::noPower;
 	for (size_t driver = 0; driver < numTmc51xxDrivers; ++driver)
 	{
 		driverStates[driver].Init(driver);
 	}
-#endif
+
 #if SAME70
 	xdmac_channel_disable_interrupt(XDMAC, DmacChanTmcRx, 0xFFFFFFFF);
 	DmacManager::SetInterruptCallback(DmacChanTmcRx, RxDmaCompleteCallback, CallbackParameter());				// set up DMA receive complete callback
