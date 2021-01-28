@@ -320,8 +320,17 @@ public:
 	void GetSpiCommand(uint8_t *sendDdataBlock) noexcept;
 	void TransferSucceeded(const uint8_t *rcvDataBlock) noexcept;
 	void TransferFailed() noexcept;
+#if STM32F4
+	DriversState SetupDriver(bool reset) noexcept;
+	bool inline IsReady() noexcept {return ready;}
+	uint8_t inline GetDriverNumber() const noexcept { return driverNumber; }
 
 private:
+	bool ready;
+	uint8_t driverNumber;
+#else
+private:
+#endif
 	bool SetChopConf(uint32_t newVal) noexcept;
 	void UpdateRegister(size_t regIndex, uint32_t regVal) noexcept;
 	void UpdateChopConfRegister() noexcept;							// calculate the chopper control register and flag it for sending
@@ -354,7 +363,7 @@ private:
 
 	static const uint8_t WriteRegNumbers[NumWriteRegisters];	// the register numbers that we write to
 
-	static constexpr unsigned int NumReadRegisters = 6;		// the number of registers that we read from
+	static constexpr unsigned int NumReadRegisters = 5;		// the number of registers that we read from
 	static const uint8_t ReadRegNumbers[NumReadRegisters];	// the register numbers that we read from
 
 	// Read register numbers, in same order as ReadRegNumbers
@@ -363,7 +372,6 @@ private:
 	static constexpr unsigned int ReadMsCnt = 2;
 	static constexpr unsigned int ReadPwmScale = 3;
 	static constexpr unsigned int ReadPwmAuto = 4;
-	static constexpr unsigned int ReadChopConf = 5;
 
 	static constexpr uint8_t NoRegIndex = 0xFF;				// this means no register updated, or no register requested
 
@@ -416,8 +424,7 @@ const uint8_t TmcDriverState::ReadRegNumbers[NumReadRegisters] =
 	REGNUM_DRV_STATUS,
 	REGNUM_MSCNT,
 	REGNUM_PWM_SCALE,
-	REGNUM_PWM_AUTO,
-	REGNUM_CHOPCONF
+	REGNUM_PWM_AUTO
 };
 
 uint16_t TmcDriverState::numTimeouts = 0;								// how many times a transfer timed out
@@ -426,6 +433,10 @@ uint16_t TmcDriverState::numTimeouts = 0;								// how many times a transfer ti
 void TmcDriverState::Init(uint32_t p_driverNumber) noexcept
 pre(!driversPowered)
 {
+#if STM32F4
+	driverNumber = p_driverNumber;
+	ready = false;
+#endif
 	axisNumber = p_driverNumber;										// axes are mapped straight through to drivers initially
 	driverBit = DriversBitmap::MakeFromBits(p_driverNumber);
 	enabled = false;
@@ -745,6 +756,13 @@ uint32_t TmcDriverState::ReadAccumulatedStatus(uint32_t bitsToKeep) noexcept
 // Append the driver status to a string, and reset the min/max load values
 void TmcDriverState::AppendDriverStatus(const StringRef& reply, bool clearGlobalStats) noexcept
 {
+#if STM32F4
+	if (!ready)
+	{
+		reply.cat("no-driver-detected");
+		return;
+	}
+#endif
 	const uint32_t lastReadStatus = readRegisters[ReadDrvStat];
 	if (lastReadStatus & TMC_RR_OT)
 	{
@@ -790,7 +808,6 @@ void TmcDriverState::AppendDriverStatus(const StringRef& reply, bool clearGlobal
 	{
 		reply.cat("SG min/max not available");
 	}
-	reply.catf(" WChop %x RChop %x base %x def %x", writeRegisters[WriteChopConf], readRegisters[ReadChopConf], configuredChopConfReg, DefaultChopConfReg);
 	ResetLoadRegisters();
 }
 
@@ -942,16 +959,19 @@ void TmcDriverState::TransferFailed() noexcept
 	regIndexRequested = previousRegIndexRequested = NoRegIndex;
 }
 
+#if TMC51xx_VARIABLE_NUM_DRIVERS
+// State structures for all drivers
+static TmcDriverState *driverStates;
+#else
 // State structures for all drivers
 static TmcDriverState driverStates[MaxSmartDrivers];
-
-#if STM32F4
-static SharedSpiClient *spiDevice;
 #endif
 
 // TMC51xx management task
 static Task<TmcTaskStackWords> tmcTask;
 
+
+#if !STM32F4
 // Declare the DMA buffers with the __nocache attribute. Access to these must be aligned.
 static __nocache uint8_t sendData[5 * MaxSmartDrivers];
 static __nocache uint8_t rcvData[5 * MaxSmartDrivers];
@@ -959,9 +979,7 @@ static __nocache uint8_t rcvData[5 * MaxSmartDrivers];
 // Set up the PDC or DMAC to send a register and receive the status, but don't enable it yet
 static void SetupDMA() noexcept
 {
-#if STM32F4
-
-#elif SAME70
+#if SAME70
 	/* From the data sheet:
 	 * Single Block Transfer With Single Microblock
 		1. Read the XDMAC Global Channel Status Register (XDMAC_GS) to select a free channel. [we use fixed channel numbers instead.]
@@ -1062,8 +1080,7 @@ static void SetupDMA() noexcept
 
 static inline void EnableDma() noexcept
 {
-#if STM32F4
-#elif SAME70
+#if SAME70
 	xdmac_channel_enable(XDMAC, DmacChanTmcRx);
 	xdmac_channel_enable(XDMAC, DmacChanTmcTx);
 #elif SAME5x
@@ -1076,8 +1093,7 @@ static inline void EnableDma() noexcept
 
 static inline void DisableDma() noexcept
 {
-#if STM32F4
-#elif SAME70
+#if SAME70
 	xdmac_channel_disable(XDMAC, DmacChanTmcTx);
 	xdmac_channel_disable(XDMAC, DmacChanTmcRx);
 #elif SAME5x
@@ -1090,8 +1106,7 @@ static inline void DisableDma() noexcept
 
 static inline void ResetSpi() noexcept
 {
-#if STM32F4
-#elif TMC51xx_USES_SERCOM
+#if TMC51xx_USES_SERCOM
 	hri_sercomspi_clear_CTRLA_ENABLE_bit(SERCOM_TMC51xx);	// warning: this makes SCLK float!
 #elif TMC51xx_USES_USART
 	USART_TMC51xx->US_CR = US_CR_RSTRX | US_CR_RSTTX;	// reset transmitter and receiver
@@ -1103,8 +1118,7 @@ static inline void ResetSpi() noexcept
 
 static inline void EnableSpi() noexcept
 {
-#if STM32F4
-#elif TMC51xx_USES_SERCOM
+#if TMC51xx_USES_SERCOM
 	hri_sercomspi_set_CTRLB_RXEN_bit(SERCOM_TMC51xx);
 	hri_sercomspi_set_CTRLA_ENABLE_bit(SERCOM_TMC51xx);
 #elif TMC51xx_USES_USART
@@ -1116,8 +1130,7 @@ static inline void EnableSpi() noexcept
 
 static inline void DisableEndOfTransferInterrupt() noexcept
 {
-#if STM32F4
-#elif SAME70
+#if SAME70
 	xdmac_channel_disable_interrupt(XDMAC, DmacChanTmcRx, XDMAC_CIE_BIE);
 #elif TMC51xx_USES_SERCOM
 	DmacManager::DisableCompletedInterrupt(TmcRxDmaChannel);
@@ -1130,8 +1143,7 @@ static inline void DisableEndOfTransferInterrupt() noexcept
 
 static inline void EnableEndOfTransferInterrupt() noexcept
 {
-#if STM32F4
-#elif SAME70
+#if SAME70
 	xdmac_channel_enable_interrupt(XDMAC, DmacChanTmcRx, XDMAC_CIE_BIE);
 #elif TMC51xx_USES_SERCOM
 	DmacManager::EnableCompletedInterrupt(TmcRxDmaChannel);
@@ -1145,14 +1157,11 @@ static inline void EnableEndOfTransferInterrupt() noexcept
 // DMA complete callback
 void RxDmaCompleteCallback(CallbackParameter param) noexcept
 {
-#if STM32F4
-#else
 #if SAME70
 	xdmac_channel_disable_interrupt(XDMAC, DmacChanTmcRx, 0xFFFFFFFF);
 #endif
 	fastDigitalWriteHigh(GlobalTmc51xxCSPin);			// set CS high
 	tmcTask.GiveFromISR();
-#endif
 }
 
 extern "C" [[noreturn]] void TmcLoop(void *) noexcept
@@ -1199,44 +1208,12 @@ extern "C" [[noreturn]] void TmcLoop(void *) noexcept
 
 					if (allInitialised)
 					{
-#if STM32F4
-						for (size_t driver = 0; driver < numTmc51xxDrivers; ++driver)
-						{
-							digitalWrite(ENABLE_PINS[driver], false);
-						}
-#else
 						fastDigitalWriteLow(GlobalTmc51xxEnablePin);
-#endif
 						driversState = DriversState::ready;
 					}
 				}
 			}
 
-#if STM32F4
-			if (!spiDevice->Select(100))
-			{
-				debugPrintf("TMC51xx: Failed to select spi device\n");
-				continue;
-			}		
-			// Set up data to write. We don't use chained SPI but we keep the same order
-			uint8_t *writeBufPtr = sendData + 5 * numTmc51xxDrivers;
-			uint8_t *readBufPtr = rcvData + 5 * numTmc51xxDrivers;
-			for (size_t i = 0; i < numTmc51xxDrivers; ++i)
-			{
-				writeBufPtr -= 5;
-				readBufPtr -= 5;
-				driverStates[i].GetSpiCommand(writeBufPtr);
-				if (TMC_UART_PINS[i] != NoPin)
-				{
-					timedOut = false;
-					fastDigitalWriteLow(TMC_UART_PINS[i]);
-					spiDevice->TransceivePacket(writeBufPtr, readBufPtr, 5);
-					fastDigitalWriteHigh(TMC_UART_PINS[i]);
-				}
-			}
-			spiDevice->Deselect();
-			delay(1);
-#else
 			// Set up data to write. Driver 0 is the first in the SPI chain so we must write them in reverse order.
 			uint8_t *writeBufPtr = sendData + 5 * numTmc51xxDrivers;
 			for (size_t i = 0; i < numTmc51xxDrivers; ++i)
@@ -1282,11 +1259,122 @@ extern "C" [[noreturn]] void TmcLoop(void *) noexcept
 					driverStates[drive].TransferFailed();
 				}
 			}
-#endif
 		}
 	}
 }
+#else
+//STM32F4 code
 
+DriversState TmcDriverState::SetupDriver(bool reset) noexcept
+{
+	if (reset)
+	{
+		accumulatedDriveStatus = 0;
+		if (TMC_UART_PINS[driverNumber] == NoPin)
+			ready = false;
+		else
+		{
+			numReads = 0;
+			ready = true;
+		}
+		return DriversState::initialising;
+	}
+	if (numReads < NumReadRegisters)
+		return 	DriversState::initialising;
+	else
+	{
+		// check for invalid registers
+		if (readRegisters[ReadGStat] == 0xffffffff && readRegisters[ReadMsCnt] == 0xffffffff && readRegisters[ReadPwmScale] == 0xffffffff &&
+		     readRegisters[ReadPwmAuto] == 0xffffffff)
+		{
+			accumulatedDriveStatus = 0;
+			for(size_t i = 0; i < NumReadRegisters; i++)
+				readRegisters[i] = 0;
+			ready = false;
+			return DriversState::notInitialised;
+		}
+		else
+			return DriversState::ready;
+	}
+}
+
+static SharedSpiClient *spiDevice;
+
+// Declare the DMA buffers with the __nocache attribute. Access to these must be aligned.
+static __nocache uint8_t sendData[5];
+static __nocache uint8_t rcvData[5];
+
+extern "C" [[noreturn]] void TmcLoop(void *) noexcept
+{
+	for (;;)
+	{
+		if (driversState == DriversState::noPower)
+		{
+			TaskBase::Take();
+		}
+		else
+		{
+			if (driversState == DriversState::notInitialised)
+			{
+				for (size_t drive = 0; drive < numTmc51xxDrivers; ++drive)
+				{
+					driverStates[drive].SetupDriver(true);
+					driverStates[drive].WriteAll();
+				}
+				driversState = DriversState::initialising;
+			}
+			else
+			{
+				if (driversState == DriversState::initialising)
+				{
+					// If all drivers that share the global enable have been initialised, set the global enable
+					bool allInitialised = true;
+					for (size_t i = 0; i < numTmc51xxDrivers; ++i)
+					{
+						if (driverStates[i].UpdatePending() || driverStates[i].SetupDriver(false) == DriversState::initialising)
+						{
+							allInitialised = false;
+							break;
+						}
+					}
+
+					if (allInitialised)
+					{
+						size_t readyCnt = 0;
+						for (size_t driver = 0; driver < numTmc51xxDrivers; ++driver)
+						{
+							if (driverStates[driver].IsReady())
+							{
+								digitalWrite(ENABLE_PINS[driver], false);
+								readyCnt++;
+							}
+						}
+						driversState = (readyCnt ? DriversState::ready : DriversState::noPower);
+					}
+				}
+			}
+			if (!spiDevice->Select(100))
+			{
+				debugPrintf("TMC51xx: Failed to select spi device\n");
+				continue;
+			}		
+			for (size_t i = 0; i < numTmc51xxDrivers; ++i)
+			{
+				if (driverStates[i].IsReady())
+				{
+					driverStates[i].GetSpiCommand(sendData);
+					fastDigitalWriteLow(TMC_UART_PINS[i]);
+					spiDevice->TransceivePacket(sendData, rcvData, 5);
+					fastDigitalWriteHigh(TMC_UART_PINS[i]);
+					driverStates[i].TransferSucceeded(rcvData);
+				}
+			}
+			spiDevice->Deselect();
+			delay(1);
+		}
+	}
+}
+#endif
 // Members of namespace SmartDrivers
 
 // Initialise the driver interface and the drivers, leaving each drive disabled.
@@ -1295,6 +1383,8 @@ extern "C" [[noreturn]] void TmcLoop(void *) noexcept
 void SmartDrivers::Init(size_t numDrivers) noexcept
 {
 	numTmc51xxDrivers = min<size_t>(numDrivers, MaxSmartDrivers);
+	driverStates = (TmcDriverState *)	Tasks::AllocPermanent(sizeof(TmcDriverState)*numTmc51xxDrivers);
+	memset((void *)driverStates, 0, sizeof(TmcDriverState)*numTmc51xxDrivers);
 #else
 void SmartDrivers::Init() noexcept
 {
