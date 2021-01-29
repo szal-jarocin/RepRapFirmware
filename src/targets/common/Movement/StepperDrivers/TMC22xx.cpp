@@ -9,6 +9,24 @@
  * the driver code which requires an extra 400 bytes of RAM. For now we avoid this by continuing to use
  * Spin to drive the device. We may need to review this at some point.
  */
+
+#if SUPPORT_TMC51xx
+  // We need to support two different drivers, but they both use the same namespace and other names.
+  // We have a horrible hack to avoid the name clash by mapping the TMC51xx symbols to alternates
+#include "TMC51xx.h"
+#undef SmartDrivers
+#undef TmcDriverState
+#undef TMC_RR_SG
+#undef TMC_RR_OT
+#undef TMC_RR_OTPW
+#undef TMC_RR_S2G
+#undef TMC_RR_OLA
+#undef TMC_RR_OLB
+#undef TMC_RR_STST
+#undef TMC_RR_SGRESULT
+#undef SRC_MOVEMENT_STEPPERDRIVERS_TMC51XX_H_
+#endif
+
 #include "RepRapFirmware.h"
 
 #if SUPPORT_TMC22xx
@@ -46,6 +64,8 @@
 # error TMC22xx_HAS_MUX not defined
 #endif
 #endif
+
+constexpr uint32_t TransferTimeout = 10;				// any transfer should complete within 100 ticks @ 1ms/tick
 
 // Important note:
 // The TMC2224 does handle a write request immediately followed by a read request.
@@ -322,7 +342,6 @@ static constexpr uint8_t ReadIfcountCRC = CRCAddByte(InitialSendCRC, REGNUM_IFCO
 
 //----------------------------------------------------------------------------------------------------------------------------------
 // Private types and methods
-
 class TmcDriverState
 {
 public:
@@ -1556,6 +1575,9 @@ DriverMode SmartDrivers::GetDriverMode(size_t driver) noexcept
 // Before the first call to this function with 'powered' true, you must call Init()
 void SmartDrivers::Spin(bool powered) noexcept
 {
+#if SUPPORT_TMC51xx
+	Tmc51xxSmartDrivers::Spin(powered);
+#endif
 #if TMC_SOFT_UART
 	if (TMCSoftUARTCheckComplete())
 	{

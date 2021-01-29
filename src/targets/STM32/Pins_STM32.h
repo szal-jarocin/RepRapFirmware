@@ -117,6 +117,12 @@ constexpr size_t NumDirectDrivers = 11;               // The maximum number of d
     #define TMC22xx_HAS_MUX                 0
     #define SUPPORT_TMC22xx                 1
     #define HAS_STALL_DETECT               1
+# if defined(SUPPORT_TMC51xx)
+    #define SUPPORT_TMC51xx			        1
+    #define TMC51xx_USES_USART		        0
+    #define TMC51xx_VARIABLE_NUM_DRIVERS    1
+
+# endif
 #elif defined(SUPPORT_TMC51xx)
     constexpr size_t MaxSmartDrivers = NumDirectDrivers;            // The maximum number of smart drivers
     constexpr size_t NumTmcDriversSenseChannels = 1;
@@ -178,8 +184,6 @@ extern Pin DriverDiagPins[NumDirectDrivers];
 #if TMC_SOFT_UART
     constexpr Pin GlobalTmc22xxEnablePin = NoPin;			// The pin that drives ENN of all drivers
     constexpr uint32_t DriversBaudRate = 50000;
-    constexpr uint32_t TransferTimeout = 10;				// any transfer should complete within 100 ticks @ 1ms/tick
-
 #endif
 
 extern uint32_t STEP_DRIVER_MASK; // Mask for parallel write to all steppers on port 2 (calculated in after loading board.txt)
@@ -382,8 +386,6 @@ struct BoardEntry
     const BoardDefaults defaults;
 };
 
-// HAS_SMART_DRIVERS is defined in Pins.h, we duplicate it for the board files to use
-#define HAS_SMART_DRIVERS		(SUPPORT_TMC2660 || SUPPORT_TMC22xx || SUPPORT_TMC51xx)
 #include "Boards/BIQU_SKR.h"
 #include "Boards/FLY.h"
 #undef HAS_SMART_DRIVERS
@@ -486,5 +488,18 @@ namespace StepPins
     }
 }
 
-
+#if defined(SRC_MOVEMENT_STEPPERDRIVERS_TMC51XX_H_) && SUPPORT_TMC22xx && SUPPORT_TMC51xx
+// Horrible hack to allow both TMC drivers to be used at the same time with 
+// minimal changes to the Duet3D source
+#define SmartDrivers Tmc51xxSmartDrivers
+#define TmcDriverState Tmc51xxDriverState
+#define TMC_RR_SG TMC51xx_RR_SG
+#define TMC_RR_OT TMC51xx_RR_OT
+#define TMC_RR_OTPW TMC51xx_RR_OTPW
+#define TMC_RR_S2G TMC51xx_RR_S2G
+#define TMC_RR_OLA TMC51xx_RR_OLA
+#define TMC_RR_OLB TMC51xx_RR_OLB
+#define TMC_RR_STST TMC51xx_RR_STST
+#define TMC_RR_SGRESULT TMC51xx_RR_SGRESULT
+#endif
 #endif

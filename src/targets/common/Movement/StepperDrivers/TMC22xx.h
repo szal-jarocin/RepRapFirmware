@@ -11,6 +11,9 @@
 #define TMC22xx_H_
 
 #if SUPPORT_TMC22xx
+#if SUPPORT_TMC51xx
+#define SRC_MOVEMENT_STEPPERDRIVERS_TMC51XX_H_
+#endif
 
 #if !defined(TMC22xx_HAS_MUX) && !defined(TMC_SOFT_UART)
 # error TMC22xx_HAS_MUX/TMC_SOFT_UART not defined

@@ -14,9 +14,9 @@
 #include <Hardware/IoPorts.h>
 #include <General/FreelistManager.h>
 
-#if SUPPORT_TMC22xx && HAS_STALL_DETECT
-# include <Movement/StepperDrivers/TMC22xx.h>
-#endif
+//#if SUPPORT_TMC22xx && HAS_STALL_DETECT
+//# include <Movement/StepperDrivers/TMC22xx.h>
+//#endif
 
 class AxisDriversConfig;
 class CanMessageBuffer;
@@ -74,7 +74,11 @@ inline void EndstopOrZProbe::SetDriversNotStalled(DriversBitmap drivers) noexcep
 // Return which drivers out of the set of interest are stalled
 inline DriversBitmap EndstopOrZProbe::GetStalledDrivers(DriversBitmap driversOfInterest) noexcept
 {
+#if SUPPORT_TMC22xx
+	return (stalledDrivers & driversOfInterest) | SmartDrivers::GetStalledDrivers(driversOfInterest);
+#else
 	return stalledDrivers & driversOfInterest;
+#endif
 }
 
 # elif SUPPORT_TMC22xx
