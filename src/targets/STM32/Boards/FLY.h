@@ -231,29 +231,28 @@ constexpr PinEntry PinTable_FLY_CDYV2[] =
 
 
     //EXP1
-    // {PE_12, PinCapability::rwpwm, "beep"},
-    // {PE_11, PinCapability::rwpwm, "btnenc"},
-    // {PE_10, PinCapability::rwpwm, "btnen1"},
-    // {PE_9, PinCapability::rwpwm, "btnen2"},
-    // {PE_8, PinCapability::rwpwm, "lcdd4"},
-    // {PE_7, PinCapability::rwpwm, "lcdrs"},
-    // {PB_1, PinCapability::rwpwm, "lcden"},
+    {PA_14, PinCapability::rwpwm, "lcdd7"},
+    {PA_13, PinCapability::rwpwm, "lcdd6"},
+    {PE_15, PinCapability::rwpwm, "lcdd4"},
+    {PE_14, PinCapability::rwpwm, "lcdd5"},
+    {PB_1, PinCapability::rwpwm, "lcden"},
+	{PE_13, PinCapability::rwpwm, "tfcd"},
 
 	//SD
-	{PC_9, PinCapability::rwpwm, "SDD1"},
-	{PC_8, PinCapability::rwpwm, "SDD0"},
-	{PC_12, PinCapability::rwpwm, "SDSCK"},
-	{PD_2, PinCapability::rwpwm, "SDCMD"},
-	{PC_11, PinCapability::rwpwm, "SDD3"},
-	{PC_10, PinCapability::rwpwm, "SDD2"},
+//	{PC_9, PinCapability::rwpwm, "SDD1"},
+//	{PC_8, PinCapability::rwpwm, "SDD0"},
+//	{PC_12, PinCapability::rwpwm, "SDSCK"},
+//	{PD_2, PinCapability::rwpwm, "SDCMD"},
+//	{PC_11, PinCapability::rwpwm, "SDD3"},
+//	{PC_10, PinCapability::rwpwm, "SDD2"},
 
 	// UART
-	{PA_9, PinCapability::rwpwm, "TX1"},
-	{PA_10, PinCapability::rwpwm, "RX1"},
+	{PA_9, PinCapability::rwpwm, "TX1,btnenc"},
+	{PA_10, PinCapability::rwpwm, "RX1,lcdrs"},
 
     // WIFI UART	
-	{PD_8, PinCapability::rwpwm, "PD8"},
-	{PD_9, PinCapability::rwpwm, "PD9"},	
+	{PD_8, PinCapability::rwpwm, "PD8,btnen2"},
+	{PD_9, PinCapability::rwpwm, "PD9,btnen1"},	
 	
     //WIFI
     {PE_10, PinCapability::rwpwm, "PE10"},
@@ -261,26 +260,26 @@ constexpr PinEntry PinTable_FLY_CDYV2[] =
     {PE_12, PinCapability::rwpwm, "PE12"},
 
     //spi 1  (SD,MAX311865,MAX6675)
-    {PA_4, PinCapability::rwpwm, "SDCS"},
-    {PA_5, PinCapability::rwpwm, "PA5"},
-    {PA_6, PinCapability::rwpwm, "PA6"},
-    {PA_7, PinCapability::rwpwm, "PA7"},
+    {PA_4, PinCapability::rwpwm, "PA4,SPI1SDCS"},
+    {PA_5, PinCapability::rwpwm, "PA5,SPI1SCK"},
+    {PA_6, PinCapability::rwpwm, "PA6,SPI1MISO"},
+    {PA_7, PinCapability::rwpwm, "PA7,SPI1MOSI"},
     {PE_7, PinCapability::rwpwm, "PE7,SPI1CS1"},  
     {PE_8, PinCapability::rwpwm, "PE8,SPI1CS2"},
 
     //spi 3  (MOT TMC2130 TMC5160)
-    {PB_3, PinCapability::rwpwm, "PB3"},
-    {PB_4, PinCapability::rwpwm, "PB4"},
-    {PB_5, PinCapability::rwpwm, "PB5"},
+    {PB_3, PinCapability::rwpwm, "PB3,MOTSCK"},
+    {PB_4, PinCapability::rwpwm, "PB4,MOTMISO"},
+    {PB_5, PinCapability::rwpwm, "PB5,MOTMOSI"},
 
     //Signal light   Neopixel
-    {PD_15, PinCapability::rwpwm, "PD15"},
+    {PD_15, PinCapability::rwpwm, "Neopixel,LED"},
 
     //Laser 
     {PB_9, PinCapability::rwpwm, "PB9,Laser"},
-
-
-
+	
+	//Power ADC
+	{PC_3, PinCapability::rwpwm, "Power_ADC,PC3"}
 };
 
 constexpr BoardDefaults fly_cdyv2_Defaults = {
@@ -293,7 +292,6 @@ constexpr BoardDefaults fly_cdyv2_Defaults = {
 	 6,                                       	// Smart drivers
 #endif
     0  
-
 };
 
 #endif

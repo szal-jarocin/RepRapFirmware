@@ -272,6 +272,7 @@ constexpr PinEntry PinTable_BIQU_SKR_E3T[] =
     {P0_25, PinCapability::ainrw, "bedtemp,tb"},
     {P0_24, PinCapability::ainrw, "e0temp,t0"},
     {P0_23, PinCapability::ainrw, "e1temp,t1"},
+	{P1_30, PinCapability::ainrw, "mbtemp"},
 
     //Endstops
     {P1_29, PinCapability::rw, "xstop"},
@@ -279,8 +280,8 @@ constexpr PinEntry PinTable_BIQU_SKR_E3T[] =
     {P1_27, PinCapability::rw, "zstop"},
     {P1_26, PinCapability::rw, "e0stop"},
     {P1_25, PinCapability::rw, "e1stop"},
-    {P1_23, PinCapability::rw, "probe0"},
-    {P1_22, PinCapability::rw, "probe1"},
+    {P1_23, PinCapability::rw, "servo"},
+    {P1_22, PinCapability::rw, "probe"},
     {P1_20, PinCapability::rw, "ptdet"},
 
     //Heaters and Fans
@@ -305,6 +306,12 @@ constexpr PinEntry PinTable_BIQU_SKR_E3T[] =
     //EEProm
     {P0_0, PinCapability::rw, "eeprom0,SDA1"},
     {P0_1, PinCapability::rw, "eeprom1,SCL1"},
+	
+	//AUX2
+	{P0_10, PinCapability::rw, "SDA2"},
+    {P0_11, PinCapability::rw, "SCL2"},
+	{P0_27, PinCapability::rw, "SDA0"},
+    {P0_28, PinCapability::rw, "SCL0"},
 
     //Neopixel
     {P1_24, PinCapability::rw, "neopixel"},
@@ -315,6 +322,13 @@ constexpr PinEntry PinTable_BIQU_SKR_E3T[] =
     {P1_18, PinCapability::rw, "-sbyz"},
     {P1_19, PinCapability::rw, "-sbye0"},
     {P2_13, PinCapability::rw, "-sbye1"},
+	
+	//TFT
+	{P0_3, PinCapability::rw, "P0.3"},
+	{P0_2, PinCapability::rw, "P0.2"},
+	
+	//Status
+	{P0_26, PinCapability::rw, "LED,P0.26"},
 };
 
 constexpr BoardDefaults biquskr_E3T_Defaults = {

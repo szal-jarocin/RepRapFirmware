@@ -1,3 +1,14 @@
+Version 3.2_6
+=============
+* Fix Fly CDYV2 board definitions
+* Fix BTT E3-Turbo board definitions
+* Add support for E3-Turbo driver sleep mode
+* Allow use of "+" "-" "^" when defining pins for output high, output low, input pullup
+* Fix bug with board.txt files that contain whitespace before key name
+* Add version information to M122 P200 output
+
+
+
 Version 3.2_4
 =============
 * Added aliases for config names that contain "lpc"
