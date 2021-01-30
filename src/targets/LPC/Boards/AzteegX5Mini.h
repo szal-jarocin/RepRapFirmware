@@ -66,7 +66,7 @@ constexpr BoardDefaults azteegX5Mini1_1Defaults = {
     {P0_10, P0_19, P0_21, P0_4},   //enablePins
     {P2_1,  P2_2,  P2_3,  P2_0},   //stepPins
     {P0_11, P0_20, P0_22, P0_5},   //dirPins
-#if TMC_SOFT_UART
+#if HAS_SMART_DRIVERS
     {NoPin, NoPin, NoPin, NoPin},  //uartPins
     0,                                      // Smart drivers
 #endif
@@ -146,7 +146,7 @@ constexpr BoardDefaults azteegX5Mini2Defaults = {
     {P0_10, P0_19, P0_21, P0_4},   //enablePins
     {P2_1,  P2_2,  P2_3,  P2_0},   //stepPins
     {P0_11, P0_20, P0_22, P0_5},   //dirPins
-#if TMC_SOFT_UART
+#if HAS_SMART_DRIVERS
     {NoPin, NoPin, NoPin, NoPin, NoPin},  //uartPins
     0,                                      // Smart drivers
 #endif
@@ -216,7 +216,7 @@ constexpr BoardDefaults azteegX5Mini3Defaults = {
     {P0_10, P0_19, P0_21, P0_4},   //enablePins
     {P2_1,  P2_2,  P2_3,  P2_0},   //stepPins
     {P0_11, P0_20, P0_22, P0_5},   //dirPins
-#if TMC_SOFT_UART
+#if HAS_SMART_DRIVERS
     {NoPin, NoPin, NoPin, NoPin},  //uartPins
     0,                                      // Smart drivers
 #endif

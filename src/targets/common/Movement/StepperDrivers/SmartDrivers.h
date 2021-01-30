@@ -1,43 +1,37 @@
 /*
- * TMC51xx.h
- *
- *  Created on: 26 Aug 2018
- *      Author: David
+ * This is the public interface to TMC Smart drivers. Currently
+ * We support TMC22xx and TMC51xx devices. 
+ * 
+ * Author: GA
  */
-// Ugly hack to make sure we use the LPC version
-#if __LPC17xx__ || STM32F4
-#include "common/Movement/StepperDrivers/TMC22xx.h"
-#else
 
-#ifndef SRC_MOVEMENT_STEPPERDRIVERS_TMC51XX_H_
-#define SRC_MOVEMENT_STEPPERDRIVERS_TMC51XX_H_
+
+#ifndef SRC_MOVEMENT_STEPPERDRIVERS_SMARTDRIVERS_H_
+#define SRC_MOVEMENT_STEPPERDRIVERS_SMARTDRIVERS_H_
 
 #include "RepRapFirmware.h"
 
-#if SUPPORT_TMC51xx
+#if SUPPORT_TMC51xx || SUPPORT_TMC22xx
 
-#include "DriverMode.h"
+#include "StepperDrivers/DriverMode.h"
 
-// TMC51xx DRV_STATUS register bit assignments
-const uint32_t TMC_RR_SG = 1 << 24;					// stall detected
-const uint32_t TMC_RR_OT = 1 << 25;					// over temperature shutdown
-const uint32_t TMC_RR_OTPW = 1 << 26;				// over temperature warning
-const uint32_t TMC_RR_S2G = (3 << 27) | (3 << 12);	// short to ground indicator (1 bit for each phase) + short to VS indicator
-const uint32_t TMC_RR_OLA = 1 << 29;				// open load A
-const uint32_t TMC_RR_OLB = 1 << 30;				// open load B
-const uint32_t TMC_RR_STST = 1 << 31;				// standstill detected
-const uint32_t TMC_RR_SGRESULT = 0x3FF;				// 10-bit stallGuard2 result
-
+// DRV_STATUS register bit assignments
+// Note: These values are identical to those used by TMC22XX devices.
+// All other devices must convert the return from GetAccumulatedStatus() to match
+const uint32_t TMC_RR_OT = 1u << 1;			// over temperature shutdown
+const uint32_t TMC_RR_OTPW = 1u << 0;		// over temperature warning
+const uint32_t TMC_RR_S2G = 15u << 2;		// short to ground counter (4 bits)
+const uint32_t TMC_RR_OLA = 1u << 6;		// open load A
+const uint32_t TMC_RR_OLB = 1u << 7;		// open load B
+const uint32_t TMC_RR_SG = 1u << 12;		// this is a reserved bit, which we use to signal a stall
+const uint32_t TMC_RR_STST = 1u << 31;      // driver standstill
 namespace SmartDrivers
 {
-#ifdef TMC51xx_VARIABLE_NUM_DRIVERS
-	void Init(size_t numDrivers) noexcept;
-#else
-	void Init() noexcept;
-#endif
+	void Init(size_t numSmartDrivers) noexcept;
 	void Exit() noexcept;
 	void Spin(bool powered) noexcept;
 	void TurnDriversOff() noexcept;
+	bool IsReady() noexcept;
 
 	void SetAxisNumber(size_t driver, uint32_t axisNumber) noexcept;
 	uint32_t GetAxisNumber(size_t drive) noexcept;
@@ -58,9 +52,12 @@ namespace SmartDrivers
 	void SetStandstillCurrentPercent(size_t driver, float percent) noexcept;
 	bool SetRegister(size_t driver, SmartDriverRegister reg, uint32_t regVal) noexcept;
 	uint32_t GetRegister(size_t driver, SmartDriverRegister reg) noexcept;
+	bool IsReady() noexcept;
+#if HAS_STALL_DETECT
+	DriversBitmap GetStalledDrivers(DriversBitmap driversOfInterest) noexcept;
+#endif
 };
 
 #endif
 
-#endif /* SRC_MOVEMENT_STEPPERDRIVERS_TMC51XX_H_ */
-#endif
+#endif /* SRC_MOVEMENT_STEPPERDRIVERS_SMARTDRIVERS_H_ */

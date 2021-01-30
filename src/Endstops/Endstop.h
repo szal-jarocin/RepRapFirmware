@@ -14,9 +14,9 @@
 #include <Hardware/IoPorts.h>
 #include <General/FreelistManager.h>
 
-//#if SUPPORT_TMC22xx && HAS_STALL_DETECT
-//# include <Movement/StepperDrivers/TMC22xx.h>
-//#endif
+#if SUPPORT_TMC22xx && HAS_STALL_DETECT
+# include <TMC22xx.h>
+#endif
 
 class AxisDriversConfig;
 class CanMessageBuffer;

@@ -45,12 +45,13 @@ Pin DiagPin = NoPin;
 Pin ENABLE_PINS[NumDirectDrivers];
 Pin STEP_PINS[NumDirectDrivers];
 Pin DIRECTION_PINS[NumDirectDrivers];
-#if HAS_STALL_DETECT
+#if HAS_SMART_DRIVERS
+#if HAS_STALL_DETECT && SUPPORT_TMC22xx
     Pin DriverDiagPins[NumDirectDrivers];
 #endif
-#if TMC_SOFT_UART
-    Pin TMC_UART_PINS[NumDirectDrivers];
-    size_t lpcSmartDrivers;
+Pin TMC_PINS[NumDirectDrivers];
+size_t totalSmartDrivers;
+size_t num5160SmartDrivers;
 #endif
 uint32_t STEP_DRIVER_MASK = 0;                          //SD: mask of the step pins on Port 2 used for writing to step pins in parallel
 bool hasStepPinsOnDifferentPorts = false;               //for boards that don't have all step pins on port2
@@ -149,8 +150,8 @@ void ClearPinArrays() noexcept
     InitPinArray(ENABLE_PINS, NumDirectDrivers);
     InitPinArray(STEP_PINS, NumDirectDrivers);
     InitPinArray(DIRECTION_PINS, NumDirectDrivers);
-#if TMC_SOFT_UART
-    InitPinArray(TMC_UART_PINS, NumDirectDrivers);
+#if HAS_SMART_DRIVERS
+    InitPinArray(TMC_PINS, NumDirectDrivers);
 #endif
 #if HAS_STALL_DETECT
     InitPinArray(DriverDiagPins, NumDirectDrivers);
@@ -175,9 +176,9 @@ bool SetBoard(const char* bn) noexcept
             SetDefaultPinArray(LPC_Boards[i].defaults.enablePins, ENABLE_PINS, LPC_Boards[i].defaults.numDrivers);
             SetDefaultPinArray(LPC_Boards[i].defaults.stepPins, STEP_PINS, LPC_Boards[i].defaults.numDrivers);
             SetDefaultPinArray(LPC_Boards[i].defaults.dirPins, DIRECTION_PINS, LPC_Boards[i].defaults.numDrivers);
-#if TMC_SOFT_UART
-            SetDefaultPinArray(LPC_Boards[i].defaults.uartPins, TMC_UART_PINS, LPC_Boards[i].defaults.numDrivers);
-            lpcSmartDrivers = LPC_Boards[i].defaults.numSmartDrivers;
+#if HAS_SMART_DRIVERS
+            SetDefaultPinArray(LPC_Boards[i].defaults.uartPins, TMC_PINS, LPC_Boards[i].defaults.numDrivers);
+            totalSmartDrivers = LPC_Boards[i].defaults.numSmartDrivers;
 #endif
 
 

@@ -189,7 +189,7 @@ constexpr BoardDefaults genericDefaults = {
     {NoPin, NoPin, NoPin, NoPin, NoPin},    //enablePins
     {NoPin, NoPin, NoPin, NoPin, NoPin},    //stepPins
     {NoPin, NoPin, NoPin, NoPin, NoPin},    //dirPins
-#if TMC_SOFT_UART
+#if HAS_SMART_DRIVERS
     {NoPin, NoPin, NoPin, NoPin, NoPin},    //uartPins
     0,                                      // Smart drivers
 #endif

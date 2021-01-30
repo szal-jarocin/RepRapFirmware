@@ -67,7 +67,7 @@ constexpr BoardDefaults biquskr_1_1_Defaults = {
     {P4_28, P2_0, P0_19, P2_12, P0_10},     //enablePins
     {P0_4,  P2_1, P0_20, P0_11, P0_1},      //stepPins
     {P0_5,  P2_2, P0_21, P2_13, P0_0},      //dirPins
-#if TMC_SOFT_UART
+#if HAS_SMART_DRIVERS
     {NoPin, NoPin, NoPin, NoPin, NoPin},    //uartPins
     0,                                      // Smart drivers
 #endif
@@ -156,7 +156,7 @@ constexpr BoardDefaults biquskr_1_3_Defaults = {
     {P2_1, P2_8,  P0_21, P2_12,  P0_10, P1_18, P1_23},    //enablePins
     {P2_2, P0_19, P0_22, P2_13,  P0_1, P1_21, P1_20},     //stepPins
     {P2_6, P0_20, P2_11, P0_11,  P0_0, P1_19, P1_22},     //dirPins
-#if TMC_SOFT_UART
+#if HAS_SMART_DRIVERS
     {P1_17, P1_15, P1_10, P1_8, P1_1, P3_25, P3_26},      //uartPins
     5,                                      // Smart drivers
 #endif
@@ -258,7 +258,7 @@ constexpr BoardDefaults biquskr_1_4_Defaults = {
     {P2_1, P2_8,  P0_21, P2_12,  P1_16, P1_18, P1_23},    //enablePins
     {P2_2, P0_19, P0_22, P2_13,  P1_15, P1_21, P1_20},    //stepPins
     {P2_6, P0_20, P2_11, P0_11,  P1_14, P1_19, P1_22},    //dirPins
-#if TMC_SOFT_UART
+#if HAS_SMART_DRIVERS
     {P1_10, P1_9, P1_8, P1_4, P1_1, P3_25, P3_26},        //uartPins
     5,                                      // Smart drivers
 #endif
@@ -322,7 +322,7 @@ constexpr BoardDefaults biquskr_E3T_Defaults = {
     {P1_0,  P1_9, P1_16, P0_4, P0_21},     //enablePins
     {P1_4,  P1_14, P4_29,  P2_6,  P2_11},      //stepPins
     {P1_8,  P1_15, P4_28, P2_7, P2_12},      //dirPins
-#if TMC_SOFT_UART
+#if HAS_SMART_DRIVERS
     {P1_1, P1_10, P1_17, P0_5, P0_22},    //uartPins
     5,                                      // Smart drivers
 #endif

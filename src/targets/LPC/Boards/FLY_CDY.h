@@ -74,7 +74,7 @@ constexpr BoardDefaults FLY_CDY_Defaults = {
     {P1_0,  P1_8, P1_14, P1_17, P0_4,  P2_13},     //enablePins
     {P2_0,  P2_1, P2_2,  P2_3,  P2_4,  P2_5},      //stepPins
     {P1_1,  P1_9, P1_15, P4_29, P2_11, P0_11},      //dirPins
-#if TMC_SOFT_UART
+#if HAS_SMART_DRIVERS
     {P1_4, P1_10, P1_16, P4_28, P2_12, P0_10},    //uartPins
     6,                                      // Smart drivers
 #endif

@@ -157,18 +157,20 @@ constexpr unsigned int MaxTriggers = 16;            // Must be <= 32 because we 
 constexpr size_t MaxSpindles = 2;                    // Maximum number of configurable spindles
 
 //Steppers
+// HAS_SMART_DRIVERS is defined in Pins.h, we duplicate it for the board files to use
+#define HAS_SMART_DRIVERS		(SUPPORT_TMC2660 || SUPPORT_TMC22xx || SUPPORT_TMC51xx)
 extern Pin ENABLE_PINS[NumDirectDrivers];
 extern Pin STEP_PINS[NumDirectDrivers];
 extern Pin DIRECTION_PINS[NumDirectDrivers];
-#if SUPPORT_TMC22xx
+#if HAS_SMART_DRIVERS
 extern Pin DriverDiagPins[NumDirectDrivers];
+extern size_t totalSmartDrivers;
+extern size_t num5160SmartDrivers;
+extern Pin TMC_PINS[NumDirectDrivers];
 #endif
 #if TMC_SOFT_UART
-    extern Pin TMC_UART_PINS[NumDirectDrivers];
     constexpr Pin GlobalTmc22xxEnablePin = NoPin;			// The pin that drives ENN of all drivers
     constexpr uint32_t DriversBaudRate = 50000;
-    constexpr uint32_t TransferTimeout = 10;				// any transfer should complete within 100 ticks @ 1ms/tick
-
 #endif
 
 extern uint32_t STEP_DRIVER_MASK; // Mask for parallel write to all steppers on port 2 (calculated in after loading board.txt)
@@ -360,7 +362,6 @@ void ClearPinArrays() noexcept;
 
 constexpr size_t MaxBoardNameLength = 20;
 extern char lpcBoardName[MaxBoardNameLength];
-extern size_t lpcSmartDrivers;
 
 struct BoardDefaults
 {
@@ -368,7 +369,7 @@ struct BoardDefaults
     const Pin enablePins[NumDirectDrivers];
     const Pin stepPins[NumDirectDrivers];
     const Pin dirPins[NumDirectDrivers];
-#if TMC_SOFT_UART
+#if HAS_SMART_DRIVERS
     const Pin uartPins[NumDirectDrivers];
     const uint32_t numSmartDrivers;
 #endif

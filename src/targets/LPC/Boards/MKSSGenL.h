@@ -76,7 +76,7 @@ constexpr BoardDefaults mkssgenl1_0_Defaults = {
     {P2_1,  P2_8, P0_21, P2_12,  P0_10},   //enablePins
     {P2_2,  P0_19,  P0_22,  P2_13,   P0_1},    //stepPins
     {P2_3,  P0_20, P2_11, P0_11,  P0_0},   //dirPins
-#if TMC_SOFT_UART
+#if HAS_SMART_DRIVERS
     {P1_4, P1_9, P1_14, P1_16, P4_29},    //uartPins
     5,                                      // Smart drivers
 #endif
@@ -157,7 +157,7 @@ constexpr BoardDefaults mkssgenl2_0_Defaults = {
     {P2_1,  P2_8, P0_21, P2_12,  P0_10},   //enablePins
     {P2_2,  P0_19,  P0_22,  P2_13,   P1_9},    //stepPins
     {P2_3,  P0_20, P2_11, P0_11,  P1_14},   //dirPins
-#if TMC_SOFT_UART
+#if HAS_SMART_DRIVERS
     {P1_1, P1_8, P1_10, P1_15, P1_17},    //uartPins
     5,                                      // Smart drivers
 #endif

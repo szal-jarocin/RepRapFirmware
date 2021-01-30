@@ -553,7 +553,7 @@ void Platform::Init() noexcept
 # elif defined(DUET3)
 	numSmartDrivers = MaxSmartDrivers;
 # elif __LPC17xx__ || STM32F4
-	numSmartDrivers = lpcSmartDrivers;
+	numSmartDrivers = totalSmartDrivers;
 # elif defined(DUET3MINI)
 	numSmartDrivers = MaxSmartDrivers;							// support the expansion board, but don't mind if it's missing
 # endif
@@ -722,7 +722,7 @@ void Platform::Init() noexcept
 	SmartDrivers::Init(numSmartDrivers);
 #  else
 	SmartDrivers::Init();
-#endif
+#  endif
 # elif SUPPORT_TMC22xx
 #  if TMC22xx_VARIABLE_NUM_DRIVERS
 	SmartDrivers::Init(numSmartDrivers);

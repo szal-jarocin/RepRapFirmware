@@ -10,42 +10,8 @@
  * Spin to drive the device. We may need to review this at some point.
  */
 
-#if SUPPORT_TMC51xx
-  // We need to support two different drivers, but they both use the same namespace and other names.
-  // We have a horrible hack to avoid the name clash by mapping the TMC51xx symbols to alternates
-#include "TMC51xx.h"
-#undef SmartDrivers
-#undef TmcDriverState
-#undef TMC_RR_SG
-#undef TMC_RR_OT
-#undef TMC_RR_OTPW
-#undef TMC_RR_S2G
-#undef TMC_RR_OLA
-#undef TMC_RR_OLB
-#undef TMC_RR_STST
-#undef TMC_RR_SGRESULT
-#undef SRC_MOVEMENT_STEPPERDRIVERS_TMC51XX_H_
-#endif
-
 #include "RepRapFirmware.h"
-
 #if SUPPORT_TMC22xx
-#ifndef TMC22xx_HAS_ENABLE_PINS
-# error TMC22xx_HAS_ENABLE_PINS not defined
-#endif
-
-#ifndef TMC22xx_HAS_MUX
-# error TMC22xx_HAS_MUX not defined
-#endif
-
-#ifndef TMC22xx_VARIABLE_NUM_DRIVERS
-# error TMC22xx_VARIABLE_NUM_DRIVERS not defined
-#endif
-
-#ifndef TMC22xx_USE_SLAVEADDR
-# error TMC22xx_USE_SLAVEADDR not defined
-#endif
-
 #include "TMC22xx.h"
 #include "RepRap.h"
 #include "Movement/Move.h"
@@ -54,16 +20,27 @@
 #if HAS_STALL_DETECT
 #include "Endstops/Endstop.h"
 #endif
-
-#if TMC_SOFT_UART
+#include "Pins.h"
+#include "MessageType.h"
+#include "TmcDriverState.h"
 #include "TMCSoftUART.h"
-#else
-#include "sam/drivers/pdc/pdc.h"
-#include "sam/drivers/uart/uart.h"
-#ifndef TMC22xx_HAS_MUX
-# error TMC22xx_HAS_MUX not defined
-#endif
-#endif
+#include "Tmc22xxDriver.h"
+
+// TMC22xx DRV_STATUS register bit assignments
+const uint32_t TMC22xx_RR_OT = 1u << 1;			// over temperature shutdown
+const uint32_t TMC22xx_RR_OTPW = 1u << 0;		// over temperature warning
+const uint32_t TMC22xx_RR_S2G = 15u << 2;		// short to ground counter (4 bits)
+const uint32_t TMC22xx_RR_OLA = 1u << 6;		// open load A
+const uint32_t TMC22xx_RR_OLB = 1u << 7;		// open load B
+const uint32_t TMC22xx_RR_STST = 1u << 31;		// standstill detected
+const uint32_t TMC22xx_RR_OPW_120 = 1u << 8;	// temperature threshold exceeded
+const uint32_t TMC22xx_RR_OPW_143 = 1u << 9;	// temperature threshold exceeded
+const uint32_t TMC22xx_RR_OPW_150 = 1u << 10;	// temperature threshold exceeded
+const uint32_t TMC22xx_RR_OPW_157 = 1u << 11;	// temperature threshold exceeded
+const uint32_t TMC22xx_RR_TEMPBITS = 15u << 8;	// all temperature threshold bits
+
+const uint32_t TMC22xx_RR_RESERVED = (15u << 12) | (0x01FF << 21);	// reserved bits
+const uint32_t TMC22xx_RR_SG = 1u << 12;		// this is a reserved bit, which we use to signal a stall
 
 constexpr uint32_t TransferTimeout = 10;				// any transfer should complete within 100 ticks @ 1ms/tick
 
@@ -75,11 +52,8 @@ constexpr uint32_t TransferTimeout = 10;				// any transfer should complete with
 // Full scale current has two ranges (VSENSE 1 or 0) and is given by
 // iMax = 0.32/(RSense + 0.02) (for VSENSE 0) iMax = 0.18/(RSense + 0.02) (for VSENSE = 1)
 // On typical TMC2209 driver boards RSense is 0.11Ohms on the Duet it is 0.082 Ohms
-#if __LPC17xx__ || STM32F4
 constexpr float RSense = 0.11;
-#else
-constexpr float RSense = 0.082;
-#endif
+
 // Which gives iMax values in mA of...
 constexpr int32_t iMax_VS1 = (int32_t)((0.18/(RSense + 0.02))*1000 + 0.5);
 constexpr int32_t iMax_VS0 = (int32_t)((0.32/(RSense + 0.02))*1000 + 0.5);
@@ -97,16 +71,7 @@ const int DefaultStallDetectThreshold = 1;
 const unsigned int DefaultMinimumStepsPerSecond = 200;		// for stall detection: 1 rev per second assuming 1.8deg/step, as per the TMC5160 datasheet
 #endif
 
-#if TMC22xx_VARIABLE_NUM_DRIVERS
-
 static size_t numTmc22xxDrivers;
-static inline size_t GetNumTmcDrivers() { return numTmc22xxDrivers; }
-
-#else
-
-static inline constexpr size_t GetNumTmcDrivers() { return MaxSmartDrivers; }
-
-#endif
 
 enum class DriversState : uint8_t
 {
@@ -342,9 +307,10 @@ static constexpr uint8_t ReadIfcountCRC = CRCAddByte(InitialSendCRC, REGNUM_IFCO
 
 //----------------------------------------------------------------------------------------------------------------------------------
 // Private types and methods
-class TmcDriverState
+class Tmc22xxDriverState: public TmcDriverState
 {
 public:
+	Tmc22xxDriverState() noexcept;
 	void Init(uint32_t p_driverNumber, Pin p_enablePin
 #if HAS_STALL_DETECT
 							, Pin p_diagPin
@@ -362,13 +328,13 @@ public:
 #if HAS_STALL_DETECT
 	void SetStallDetectThreshold(int sgThreshold) noexcept;
 	void SetStallMinimumStepsPerSecond(unsigned int stepsPerSecond) noexcept;
+	void SetStallDetectFilter(bool sgFilter) noexcept {};
 	void AppendStallConfig(const StringRef& reply) const noexcept;
 #endif
 	void AppendDriverStatus(const StringRef& reply) noexcept;
 	uint8_t GetDriverNumber() const noexcept { return driverNumber; }
 	bool UpdatePending() const noexcept;
-	bool UsesGlobalEnable() const noexcept { return enablePin == NoPin; }
-
+	
 	bool SetRegister(SmartDriverRegister reg, uint32_t regVal) noexcept;
 	uint32_t GetRegister(SmartDriverRegister reg) const noexcept;
 
@@ -385,9 +351,9 @@ public:
 	uint32_t ReadAccumulatedStatus(uint32_t bitsToKeep) noexcept;
 
 	DriversState SetupDriver(bool reset) noexcept;
-	static TmcDriverState *GetNextDriver(TmcDriverState *current) noexcept;
+	static Tmc22xxDriverState *GetNextDriver(Tmc22xxDriverState *current) noexcept;
 	// Variables used by the ISR
-	static TmcDriverState * volatile currentDriver;			// volatile because the ISR changes it
+	static Tmc22xxDriverState * volatile currentDriver;			// volatile because the ISR changes it
 	static uint32_t transferStartedTime;
 
 	void UartTmcHandler() noexcept;									// core of the ISR for this driver
@@ -407,14 +373,8 @@ private:
 	}
 #endif
 
-#if TMC22xx_HAS_MUX
-	void SetUartMux() noexcept;
-	static void SetupDMASend(uint8_t regnum, uint32_t outVal, uint8_t crc) noexcept __attribute__ ((hot));	// set up the PDC to send a register
-	static void SetupDMAReceive(uint8_t regnum, uint8_t crc) noexcept __attribute__ ((hot));					// set up the PDC to receive a register
-#else
 	void SetupDMASend(uint8_t regnum, uint32_t outVal, uint8_t crc) noexcept __attribute__ ((hot));			// set up the PDC to send a register
 	void SetupDMAReceive(uint8_t regnum, uint8_t crc) noexcept __attribute__ ((hot));						// set up the PDC to receive a register
-#endif
 
 #if HAS_STALL_DETECT
 	static constexpr unsigned int NumWriteRegisters = 9;		// the number of registers that we write to on a TMC2209
@@ -475,14 +435,6 @@ private:
 	DriversBitmap driverBit;								// bitmap of just this driver number
 #endif
 
-#if TMC_SOFT_UART
-
-#elif TMC22xx_HAS_MUX
-	static Uart * const uart;								// the UART that controls all drivers
-#else
-	Uart *uart;												// the UART that controls this driver
-#endif
-
 	// To write a register, we send one 8-byte packet to write it, then a 4-byte packet to ask for the IFCOUNT register, then we receive an 8-byte packet containing IFCOUNT.
 	// This is the message we send - volatile because we care about when it is written
 	static volatile uint8_t sendData[12];
@@ -512,16 +464,8 @@ private:
 	bool enabled;											// true if driver is enabled
 };
 
-// Static data members of class TmcDriverState
+// Static data members of class Tmc22xxDriverState
 
-#if TMC22xx_HAS_MUX
-Uart * const TmcDriverState::uart = UART_TMC22xx;
-#endif
-
-TmcDriverState * volatile TmcDriverState::currentDriver = nullptr;	// volatile because the ISR changes it
-uint32_t TmcDriverState::transferStartedTime;
-
-#if TMC_SOFT_UART
 // When using a soft UART other interrupts or disabling interrupts for a length of time can easily
 // create errors. Because of this it is likely that we will read corrupt data from time to time. 
 // We add an extra layer of data validation by always checking the CRC of the entire packet as
@@ -543,12 +487,9 @@ uint8_t static calcCRC(volatile uint8_t *datagram, uint8_t len) {
 	return crc;
 }
 
-
-#endif
-
 // To write a register, we send one 8-byte packet to write it, then a 4-byte packet to ask for the IFCOUNT register, then we receive an 8-byte packet containing IFCOUNT.
 // This is the message we send - volatile because we care about when it is written
-volatile uint8_t TmcDriverState::sendData[12] =
+volatile uint8_t Tmc22xxDriverState::sendData[12] =
 {
 	0x05, 0x00,							// sync byte and slave address
 	0x00,								// register address and write flag (filled in)
@@ -560,9 +501,9 @@ volatile uint8_t TmcDriverState::sendData[12] =
 };
 
 // Buffer for the message we receive when reading data. The first 4 or 12 bytes bytes are our own transmitted data.
-volatile uint8_t TmcDriverState::receiveData[20];
+volatile uint8_t Tmc22xxDriverState::receiveData[20];
 
-constexpr uint8_t TmcDriverState::WriteRegNumbers[NumWriteRegisters] =
+constexpr uint8_t Tmc22xxDriverState::WriteRegNumbers[NumWriteRegisters] =
 {
 	REGNUM_GCONF,
 	REGNUM_SLAVECONF,
@@ -578,7 +519,7 @@ constexpr uint8_t TmcDriverState::WriteRegNumbers[NumWriteRegisters] =
 #endif
 };
 
-constexpr uint8_t TmcDriverState::ReadRegNumbers[NumReadRegisters] =
+constexpr uint8_t Tmc22xxDriverState::ReadRegNumbers[NumReadRegisters] =
 {
 	REGNUM_IOIN,						// tells us whether we have a TMC2208/24 or a TMC2209
 	REGNUM_GSTAT,
@@ -591,7 +532,7 @@ constexpr uint8_t TmcDriverState::ReadRegNumbers[NumReadRegisters] =
 #endif
 };
 
-constexpr uint8_t TmcDriverState::ReadRegCRCs[NumReadRegisters] =
+constexpr uint8_t Tmc22xxDriverState::ReadRegCRCs[NumReadRegisters] =
 {
 	CRCAddByte(InitialSendCRC, ReadRegNumbers[0]),
 	CRCAddByte(InitialSendCRC, ReadRegNumbers[1]),
@@ -604,23 +545,23 @@ constexpr uint8_t TmcDriverState::ReadRegCRCs[NumReadRegisters] =
 #endif
 };
 
-// State structures for all drivers
-static TmcDriverState driverStates[MaxSmartDrivers];
+Tmc22xxDriverState::Tmc22xxDriverState() noexcept : TmcDriverState(), configuredChopConfReg(0),registersToUpdate(0), updateMask(0),
+ axisNumber(0), microstepShiftFactor(0), motorCurrent(0), maxOpenLoadStepInterval(0), minSgLoadRegister(0),
+ maxSgLoadRegister(0), failedOp(0)
+{
+}
 
-inline bool TmcDriverState::UpdatePending() const noexcept
+Tmc22xxDriverState * volatile Tmc22xxDriverState::currentDriver = nullptr;	// volatile because the ISR changes it
+uint32_t Tmc22xxDriverState::transferStartedTime;
+
+inline bool Tmc22xxDriverState::UpdatePending() const noexcept
 {
 	return (registersToUpdate & updateMask) != 0 || regnumBeingUpdated != 0xff;
 }
 
 // Set up the PDC or DMAC to send a register
-inline void TmcDriverState::SetupDMASend(uint8_t regNum, uint32_t regVal, uint8_t crc) noexcept
+inline void Tmc22xxDriverState::SetupDMASend(uint8_t regNum, uint32_t regVal, uint8_t crc) noexcept
 {
-#if !TMC_SOFT_UART
-	// Faster code, not using the ASF
-	Pdc * const pdc = uart_get_pdc_base(uart);
-	pdc->PERIPH_PTCR = (PERIPH_PTCR_RXTDIS | PERIPH_PTCR_TXTDIS);	// disable the PDC
-#endif
-
 	sendData[2] = regNum | 0x80;
 	sendData[3] = (uint8_t)(regVal >> 24);
 	sendData[4] = (uint8_t)(regVal >> 16);
@@ -628,52 +569,20 @@ inline void TmcDriverState::SetupDMASend(uint8_t regNum, uint32_t regVal, uint8_
 	sendData[6] = (uint8_t)regVal;
 	sendData[7] = crc;
 
-#if TMC_SOFT_UART
 	TMCSoftUARTStartTransfer(driverNumber, sendData, 12, receiveData + 12, 8);
-#else
-	Cache::FlushBeforeDMASend(sendData, sizeof(sendData));
-	Cache::FlushBeforeDMAReceive(receiveData, sizeof(receiveData));
-
-	pdc->PERIPH_TPR = reinterpret_cast<uint32_t>(sendData);
-	pdc->PERIPH_TCR = 12;											// number of bytes to send: 8 bytes send request + 4 bytes read IFCOUNT request
-
-	pdc->PERIPH_RPR = reinterpret_cast<uint32_t>(receiveData);
-	pdc->PERIPH_RCR = 20;											// number of bytes to receive: the sent data + 8 bytes of received data
-
-	pdc->PERIPH_PTCR = (PERIPH_PTCR_RXTEN | PERIPH_PTCR_TXTEN);		// enable the PDC to transmit and receive
-#endif
 }
 
 // Set up the PDC or DMAC to send a register and receive the status
-inline void TmcDriverState::SetupDMAReceive(uint8_t regNum, uint8_t crc) noexcept
+inline void Tmc22xxDriverState::SetupDMAReceive(uint8_t regNum, uint8_t crc) noexcept
 {
-#if !TMC_SOFT_UART
-	// Faster code, not using the ASF
-	Pdc * const pdc = uart_get_pdc_base(uart);
-	pdc->PERIPH_PTCR = (PERIPH_PTCR_RXTDIS | PERIPH_PTCR_TXTDIS);	// disable the PDC
-#endif
-
 	sendData[2] = regNum;
 	sendData[3] = crc;
 
-#if TMC_SOFT_UART
 	TMCSoftUARTStartTransfer(driverNumber, sendData, 4, receiveData + 4, 8);
-#else
-	Cache::FlushBeforeDMASend(sendData, sizeof(sendData));
-	Cache::FlushBeforeDMAReceive(receiveData, sizeof(receiveData));
-
-	pdc->PERIPH_TPR = reinterpret_cast<uint32_t>(sendData);
-	pdc->PERIPH_TCR = 4;											// send a 4 byte read data request
-
-	pdc->PERIPH_RPR = reinterpret_cast<uint32_t>(receiveData);
-	pdc->PERIPH_RCR = 12;											// receive the 4 bytes we sent + 8 bytes of received data
-
-	pdc->PERIPH_PTCR = (PERIPH_PTCR_RXTEN | PERIPH_PTCR_TXTEN);		// enable the PDC to transmit and receive
-#endif
 }
 
 // Update the maximum step pulse interval at which we consider open load detection to be reliable
-void TmcDriverState::UpdateMaxOpenLoadStepInterval() noexcept
+void Tmc22xxDriverState::UpdateMaxOpenLoadStepInterval() noexcept
 {
 	const uint32_t defaultMaxInterval = StepTimer::StepClockRate/MinimumOpenLoadFullStepsPerSec;
 	if ((writeRegisters[WriteGConf] & GCONF_SPREAD_CYCLE) != 0)
@@ -694,7 +603,7 @@ void TmcDriverState::UpdateMaxOpenLoadStepInterval() noexcept
 }
 
 // Set a register value and flag it for updating
-void TmcDriverState::UpdateRegister(size_t regIndex, uint32_t regVal) noexcept
+void Tmc22xxDriverState::UpdateRegister(size_t regIndex, uint32_t regVal) noexcept
 {
 	registersToUpdate &= ~(1u << regIndex);								// make sure it is not updated while we are changing it
 	uint8_t crc = InitialSendCRC;
@@ -715,13 +624,13 @@ void TmcDriverState::UpdateRegister(size_t regIndex, uint32_t regVal) noexcept
 }
 
 // Calculate the chopper control register and flag it for sending
-void TmcDriverState::UpdateChopConfRegister() noexcept
+void Tmc22xxDriverState::UpdateChopConfRegister() noexcept
 {
 	UpdateRegister(WriteChopConf, (enabled) ? configuredChopConfReg : configuredChopConfReg & ~CHOPCONF_TOFF_MASK);
 }
 
 // Initialise the state of the driver and its CS pin
-void TmcDriverState::Init(uint32_t p_driverNumber, Pin p_enablePin
+void Tmc22xxDriverState::Init(uint32_t p_driverNumber, Pin p_enablePin
 #if HAS_STALL_DETECT
 							, Pin p_diagPin
 #endif
@@ -738,11 +647,6 @@ pre(!driversPowered)
 	diagPin = p_diagPin;
 	IoPort::SetPinMode(p_diagPin, INPUT_PULLUP);
 #endif
-
-#if !TMC22xx_HAS_MUX && !TMC_SOFT_UART
-	uart = TMC22xxUarts[p_driverNumber];
-#endif
-
 
 	enabled = false;
 	registersToUpdate = 0;
@@ -774,10 +678,13 @@ pre(!driversPowered)
 	ResetLoadRegisters();
 #endif
 }
+// State structures for all drivers
+static Tmc22xxDriverState *driverStates;
+static size_t baseDriveNo = 0;
 
 #if HAS_STALL_DETECT
 
-void TmcDriverState::SetStallDetectThreshold(int sgThreshold) noexcept
+void Tmc22xxDriverState::SetStallDetectThreshold(int sgThreshold) noexcept
 {
 	// TMC2209 stall threshold is 0 to 255 with 255 being most sensitive.
 	// RRF is normally -63 to 64 with -63 being most sensitive
@@ -786,12 +693,12 @@ void TmcDriverState::SetStallDetectThreshold(int sgThreshold) noexcept
 	UpdateRegister(WriteSgthrs, sgthrs);
 }
 
-void TmcDriverState::SetStallMinimumStepsPerSecond(unsigned int stepsPerSecond) noexcept
+void Tmc22xxDriverState::SetStallMinimumStepsPerSecond(unsigned int stepsPerSecond) noexcept
 {
 	UpdateRegister(WriteTcoolthrs, (12000000 + (128 * stepsPerSecond))/(256 * stepsPerSecond));
 }
 
-void TmcDriverState::AppendStallConfig(const StringRef& reply) const noexcept
+void Tmc22xxDriverState::AppendStallConfig(const StringRef& reply) const noexcept
 {
 	const int threshold = (int)((255 - writeRegisters[WriteSgthrs]) - 128);
 	reply.catf("stall threshold %d, steps/sec %" PRIu32 ", coolstep %" PRIx32,
@@ -800,30 +707,30 @@ void TmcDriverState::AppendStallConfig(const StringRef& reply) const noexcept
 
 #endif
 
-inline void TmcDriverState::SetAxisNumber(size_t p_axisNumber) noexcept
+inline void Tmc22xxDriverState::SetAxisNumber(size_t p_axisNumber) noexcept
 {
 	axisNumber = p_axisNumber;
 }
 
 // Write all registers. This is called when the drivers are known to be powered up.
-inline void TmcDriverState::WriteAll() noexcept
+inline void Tmc22xxDriverState::WriteAll() noexcept
 {
 	registersToUpdate = (1 << NumWriteRegisters) - 1;
 }
 
-float TmcDriverState::GetStandstillCurrentPercent() const noexcept
+float Tmc22xxDriverState::GetStandstillCurrentPercent() const noexcept
 {
 	return (float)(standstillCurrentFraction * 100)/256;
 }
 
-void TmcDriverState::SetStandstillCurrentPercent(float percent) noexcept
+void Tmc22xxDriverState::SetStandstillCurrentPercent(float percent) noexcept
 {
 	standstillCurrentFraction = (uint8_t)constrain<long>(lrintf((percent * 256)/100), 0, 255);
 	UpdateCurrent();
 }
 
 // Set the microstepping and microstep interpolation. The desired microstepping is (1 << shift).
-bool TmcDriverState::SetMicrostepping(uint32_t shift, bool interpolate) noexcept
+bool Tmc22xxDriverState::SetMicrostepping(uint32_t shift, bool interpolate) noexcept
 {
 	microstepShiftFactor = shift;
 	configuredChopConfReg = (configuredChopConfReg & ~(CHOPCONF_MRES_MASK | CHOPCONF_INTPOL)) | ((8 - shift) << CHOPCONF_MRES_SHIFT);
@@ -836,13 +743,13 @@ bool TmcDriverState::SetMicrostepping(uint32_t shift, bool interpolate) noexcept
 }
 
 // Get microstepping or chopper control register
-unsigned int TmcDriverState::GetMicrostepping(bool& interpolation) const noexcept
+unsigned int Tmc22xxDriverState::GetMicrostepping(bool& interpolation) const noexcept
 {
 	interpolation = (writeRegisters[WriteChopConf] & CHOPCONF_INTPOL) != 0;
 	return 1u << microstepShiftFactor;
 }
 
-bool TmcDriverState::SetRegister(SmartDriverRegister reg, uint32_t regVal) noexcept
+bool Tmc22xxDriverState::SetRegister(SmartDriverRegister reg, uint32_t regVal) noexcept
 {
 	switch(reg)
 	{
@@ -877,7 +784,7 @@ bool TmcDriverState::SetRegister(SmartDriverRegister reg, uint32_t regVal) noexc
 	}
 }
 
-uint32_t TmcDriverState::GetRegister(SmartDriverRegister reg) const noexcept
+uint32_t Tmc22xxDriverState::GetRegister(SmartDriverRegister reg) const noexcept
 {
 	switch(reg)
 	{
@@ -916,7 +823,7 @@ uint32_t TmcDriverState::GetRegister(SmartDriverRegister reg) const noexcept
 }
 
 // Set the chopper control register to the settings provided by the user. We allow only the lowest 17 bits to be set.
-bool TmcDriverState::SetChopConf(uint32_t newVal) noexcept
+bool Tmc22xxDriverState::SetChopConf(uint32_t newVal) noexcept
 {
 	const uint32_t offTime = (newVal & CHOPCONF_TOFF_MASK) >> CHOPCONF_TOFF_SHIFT;
 	if (offTime == 0 || (offTime == 1 && (newVal & CHOPCONF_TBL_MASK) < (2 << CHOPCONF_TBL_SHIFT)))
@@ -936,7 +843,7 @@ bool TmcDriverState::SetChopConf(uint32_t newVal) noexcept
 }
 
 // Set the driver mode
-bool TmcDriverState::SetDriverMode(unsigned int mode) noexcept
+bool Tmc22xxDriverState::SetDriverMode(unsigned int mode) noexcept
 {
 	switch (mode)
 	{
@@ -954,19 +861,19 @@ bool TmcDriverState::SetDriverMode(unsigned int mode) noexcept
 }
 
 // Get the driver mode
-DriverMode TmcDriverState::GetDriverMode() const noexcept
+DriverMode Tmc22xxDriverState::GetDriverMode() const noexcept
 {
 	return ((writeRegisters[WriteGConf] & GCONF_SPREAD_CYCLE) != 0) ? DriverMode::spreadCycle : DriverMode::stealthChop;
 }
 
 // Set the motor current
-void TmcDriverState::SetCurrent(float current) noexcept
+void Tmc22xxDriverState::SetCurrent(float current) noexcept
 {
 	motorCurrent = static_cast<uint32_t>(constrain<float>(current, 50.0, MaximumMotorCurrent));
 	UpdateCurrent();
 }
 
-void TmcDriverState::UpdateCurrent() noexcept
+void Tmc22xxDriverState::UpdateCurrent() noexcept
 {
 	// Set run and hold currents, adjust vsense as needed to keep bits in range.
 	uint32_t vsense;
@@ -996,7 +903,7 @@ void TmcDriverState::UpdateCurrent() noexcept
 }
 
 // Enable or disable the driver
-void TmcDriverState::Enable(bool en) noexcept
+void Tmc22xxDriverState::Enable(bool en) noexcept
 {
 	if (enabled != en)
 	{
@@ -1010,110 +917,115 @@ void TmcDriverState::Enable(bool en) noexcept
 }
 
 // Read the status
-uint32_t TmcDriverState::ReadLiveStatus() const noexcept
+uint32_t Tmc22xxDriverState::ReadLiveStatus() const noexcept
 {
-	uint32_t ret = readRegisters[ReadDrvStat] & (TMC_RR_OT | TMC_RR_OTPW | TMC_RR_S2G | TMC_RR_OLA | TMC_RR_OLB | TMC_RR_STST | TMC_RR_TEMPBITS);
+	uint32_t ret = readRegisters[ReadDrvStat] & (TMC22xx_RR_OT | TMC22xx_RR_OTPW | TMC22xx_RR_S2G | TMC22xx_RR_OLA | TMC22xx_RR_OLB | TMC22xx_RR_STST | TMC22xx_RR_TEMPBITS);
 	if (!enabled)
 	{
-		ret &= ~(TMC_RR_OLA | TMC_RR_OLB);
+		ret &= ~(TMC22xx_RR_OLA | TMC22xx_RR_OLB);
 	}
 #if HAS_STALL_DETECT
 	if (IoPort::ReadPin(diagPin))
 	{
-		ret |= TMC_RR_SG;
+		ret |= TMC22xx_RR_SG;
 	}
 #endif
 	return ret;
 }
 
 // Read the status
-uint32_t TmcDriverState::ReadAccumulatedStatus(uint32_t bitsToKeep) noexcept
+uint32_t Tmc22xxDriverState::ReadAccumulatedStatus(uint32_t bitsToKeep) noexcept
 {
-	const uint32_t mask = (enabled) ? 0xFFFFFFFF : ~(TMC_RR_OLA | TMC_RR_OLB);
+	const uint32_t mask = (enabled) ? 0xFFFFFFFF : ~(TMC22xx_RR_OLA | TMC22xx_RR_OLB);
 	bitsToKeep &= mask;
 	const irqflags_t flags = cpu_irq_save();
 	uint32_t status = accumulatedReadRegisters[ReadDrvStat];
 	accumulatedReadRegisters[ReadDrvStat] = (status & bitsToKeep) | readRegisters[ReadDrvStat];		// so that the next call to ReadAccumulatedStatus isn't missing some bits
 	cpu_irq_restore(flags);
-	status &= (TMC_RR_OT | TMC_RR_OTPW | TMC_RR_S2G | TMC_RR_OLA | TMC_RR_OLB | TMC_RR_STST | TMC_RR_TEMPBITS) & mask;
+	status &= (TMC22xx_RR_OT | TMC22xx_RR_OTPW | TMC22xx_RR_S2G | TMC22xx_RR_OLA | TMC22xx_RR_OLB | TMC22xx_RR_STST | TMC22xx_RR_TEMPBITS) & mask;
 #if HAS_STALL_DETECT
 	if (IoPort::ReadPin(diagPin))
 	{
-		status |= TMC_RR_SG;
+		status |= TMC22xx_RR_SG;
 	}
 #endif
 	return status;
 }
 
 // Append the driver status to a string, and reset the min/max load values
-void TmcDriverState::AppendDriverStatus(const StringRef& reply) noexcept
+void Tmc22xxDriverState::AppendDriverStatus(const StringRef& reply) noexcept
 {
 	if (maxReadCount == 0)
 	{
 		reply.cat("no-driver-detected");
 		return;
 	}
+	if (IsTmc2209())
+		reply.cat("2209 ");
+	else
+		reply.cat("2208 ");
 	const uint32_t lastReadStatus = readRegisters[ReadDrvStat];
-	if (lastReadStatus & TMC_RR_OT)
+	if (lastReadStatus & TMC22xx_RR_OT)
 	{
 		reply.cat("temperature-shutdown! ");
 	}
-	else if (lastReadStatus & TMC_RR_OTPW)
+	else if (lastReadStatus & TMC22xx_RR_OTPW)
 	{
 		reply.cat("temperature-warning, ");
 	}
-	if (lastReadStatus & TMC_RR_S2G)
+	if (lastReadStatus & TMC22xx_RR_S2G)
 	{
 		reply.cat("short-to-ground, ");
 	}
-	if (lastReadStatus & TMC_RR_OLA)
+	if (lastReadStatus & TMC22xx_RR_OLA)
 	{
 		reply.cat("open-load-A, ");
 	}
-	if (lastReadStatus & TMC_RR_OLB)
+	if (lastReadStatus & TMC22xx_RR_OLB)
 	{
 		reply.cat("open-load-B, ");
 	}
-	if (lastReadStatus & TMC_RR_STST)
+	if (lastReadStatus & TMC22xx_RR_STST)
 	{
 		reply.cat("standstill, ");
 	}
-	else if ((lastReadStatus & (TMC_RR_OT | TMC_RR_OTPW | TMC_RR_S2G | TMC_RR_OLA | TMC_RR_OLB)) == 0)
+	else if ((lastReadStatus & (TMC22xx_RR_OT | TMC22xx_RR_OTPW | TMC22xx_RR_S2G | TMC22xx_RR_OLA | TMC22xx_RR_OLB)) == 0)
 	{
 		reply.cat("ok, ");
 	}
-
+	reply.catf("reads %u, writes %u, ", numReads, numWrites);
+	if(readErrors != 0 || writeErrors != 0 || numTimeouts != 0)
+		reply.catf("error r/w %u/%u, ifcnt %u, timeout %u, ",
+						readErrors, writeErrors, lastIfCount, numTimeouts);
+	if (failedOp != 0xff)
+		reply.catf("failedOp 0x%02x, ", failedOp);
 #if HAS_STALL_DETECT
-	if (minSgLoadRegister <= maxSgLoadRegister)
+	if (IsTmc2209())
 	{
-		reply.catf("SG min/max %" PRIu32 "/%" PRIu32, minSgLoadRegister, maxSgLoadRegister);
-	}
-	else
-	{
-		reply.cat("SG min/max N/A");
+		if (maxSgLoadRegister != 0 && minSgLoadRegister <= maxSgLoadRegister)
+		{
+			reply.catf("SG min/max %" PRIu32 "/%" PRIu32, minSgLoadRegister, maxSgLoadRegister);
+		}
+		else
+		{
+			reply.cat("SG min/max not available");
+		}
 	}
 	ResetLoadRegisters();
 #endif
 
-	reply.catf(", error r/w %u/%u, ifcnt %u, cnt r/w %u/%u, timeout %u, failedOp 0x%02x",
-					readErrors, writeErrors, lastIfCount, numReads, numWrites, numTimeouts, failedOp);
 	readErrors = writeErrors = numReads = numWrites = numTimeouts = numDmaErrors = 0;
 	failedOp = 0xFF;
 }
 
 // This is called by the ISR when the SPI transfer has completed
-inline void TmcDriverState::TransferDone() noexcept
+inline void Tmc22xxDriverState::TransferDone() noexcept
 {
 	if (sendData[2] & 0x80)								// if we were writing a register
 	{
 		const uint8_t currentIfCount = receiveData[18];
-#if TMC_SOFT_UART
 		if (regnumBeingUpdated < NumWriteRegisters && currentIfCount == (uint8_t)(lastIfCount + 1) && (sendData[2] & 0x7F) == WriteRegNumbers[regnumBeingUpdated]
 				&& calcCRC(receiveData+12, 7) == receiveData[19])
-
-#else
-		if (regnumBeingUpdated < NumWriteRegisters && currentIfCount == (uint8_t)(lastIfCount + 1) && (sendData[2] & 0x7F) == WriteRegNumbers[regnumBeingUpdated])
-#endif
 		{
 			++numWrites;
 		}
@@ -1128,11 +1040,7 @@ inline void TmcDriverState::TransferDone() noexcept
 	}
 	else if (driversState != DriversState::noPower)		// we don't check the CRC, so only accept the result if power is still good
 	{
-#if TMC_SOFT_UART
 		if (sendData[2] == ReadRegNumbers[registerToRead] && ReadRegNumbers[registerToRead] == receiveData[6] && receiveData[4] == 0x05 && receiveData[5] == 0xFF && calcCRC(receiveData+4, 7) == receiveData[11])
-#else
-		if (sendData[2] == ReadRegNumbers[registerToRead] && ReadRegNumbers[registerToRead] == receiveData[6] && receiveData[4] == 0x05 && receiveData[5] == 0xFF)
-#endif
 		{
 			// We asked to read the scheduled read register, and the sync byte, slave address and register number in the received message match
 			//TODO here we could check the CRC of the received message, but for now we assume that we won't get any corruption in the 32-bit received data
@@ -1141,13 +1049,13 @@ inline void TmcDriverState::TransferDone() noexcept
 			if (registerToRead == ReadDrvStat)
 			{
 				uint32_t interval;
-				if (   (regVal & TMC_RR_STST) != 0
+				if (   (regVal & TMC22xx_RR_STST) != 0
 					|| (interval = reprap.GetMove().GetStepInterval(axisNumber, microstepShiftFactor)) == 0		// get the full step interval
 					|| interval > maxOpenLoadStepInterval
 					|| motorCurrent < MinimumOpenLoadMotorCurrent
 				   )
 				{
-					regVal &= ~(TMC_RR_OLA | TMC_RR_OLB);				// open load bits are unreliable at standstill and low speeds
+					regVal &= ~(TMC22xx_RR_OLA | TMC22xx_RR_OLB);				// open load bits are unreliable at standstill and low speeds
 				}
 			}
 #if HAS_STALL_DETECT
@@ -1181,15 +1089,9 @@ inline void TmcDriverState::TransferDone() noexcept
 }
 
 // This is called to abandon the current transfer, if any
-void TmcDriverState::AbortTransfer() noexcept
+void Tmc22xxDriverState::AbortTransfer() noexcept
 {
-#if TMC_SOFT_UART
 	TMCSoftUARTAbort();
-#else
-	uart->UART_IDR = UART_IDR_ENDRX;				// disable end-of-receive interrupt
-	uart_get_pdc_base(uart)->PERIPH_PTCR = (PERIPH_PTCR_RXTDIS | PERIPH_PTCR_TXTDIS);	// disable the PDC
-	uart->UART_CR = UART_CR_RSTRX | UART_CR_RSTTX | UART_CR_RXDIS | UART_CR_TXDIS | UART_CR_RSTSTA;
-#endif
 	if (regnumBeingUpdated != 0xff)
 	{
 		// mark this to retry
@@ -1199,47 +1101,11 @@ void TmcDriverState::AbortTransfer() noexcept
 	failedOp = sendData[2];
 }
 
-#if TMC22xx_HAS_MUX
-
-// Set up the UART multiplexer to address the selected driver
-inline void TmcDriverState::SetUartMux() noexcept
-{
-	if ((driverNumber & 0x01) != 0)
-	{
-		fastDigitalWriteHigh(TMC22xxMuxPins[0]);
-	}
-	else
-	{
-		fastDigitalWriteLow(TMC22xxMuxPins[0]);
-	}
-	if ((driverNumber & 0x02) != 0)
-	{
-		fastDigitalWriteHigh(TMC22xxMuxPins[1]);
-	}
-	else
-	{
-		fastDigitalWriteLow(TMC22xxMuxPins[1]);
-	}
-	if ((driverNumber & 0x04) != 0)
-	{
-		fastDigitalWriteHigh(TMC22xxMuxPins[2]);
-	}
-	else
-	{
-		fastDigitalWriteLow(TMC22xxMuxPins[2]);
-	}
-}
-
-#endif
 
 // This is called from the ISR or elsewhere to start a new SPI transfer. Inlined for ISR speed.
-inline void TmcDriverState::StartTransfer() noexcept
+inline void Tmc22xxDriverState::StartTransfer() noexcept
 {
 	currentDriver = this;
-
-#if TMC22xx_HAS_MUX
-	SetUartMux();
-#endif
 
 	// Find which register to send. The common case is when no registers need to be updated.
 	if ((registersToUpdate & updateMask) != 0)
@@ -1248,52 +1114,31 @@ inline void TmcDriverState::StartTransfer() noexcept
 		const size_t regNum = LowestSetBit(registersToUpdate & updateMask);
 
 		// Kick off a transfer for the register to write
-#if TMC_SOFT_UART
 		regnumBeingUpdated = regNum;
 		registersToUpdate &= ~(1 << regNum);
 		SetupDMASend(WriteRegNumbers[regNum], writeRegisters[regNum], writeRegCRCs[regNum]);	// set up the PDC
 		transferStartedTime = millis();
-#else
-		const irqflags_t flags = cpu_irq_save();		// avoid race condition
-		regnumBeingUpdated = regNum;
-		uart->UART_CR = UART_CR_RSTRX | UART_CR_RSTTX;	// reset transmitter and receiver
-		SetupDMASend(WriteRegNumbers[regNum], writeRegisters[regNum], writeRegCRCs[regNum]);	// set up the PDC
-		uart->UART_IER = UART_IER_ENDRX;				// enable end-of-transfer interrupt
-		uart->UART_CR = UART_CR_RXEN | UART_CR_TXEN;	// enable transmitter and receiver
-		transferStartedTime = millis();
-		cpu_irq_restore(flags);
-#endif
 	}
 	else
 	{
 		// Read a register
 		regnumBeingUpdated = 0xFF;
-#if TMC_SOFT_UART
 		SetupDMAReceive(ReadRegNumbers[registerToRead], ReadRegCRCs[registerToRead]);	// set up the PDC
-		transferStartedTime = millis();
-#else
-		const irqflags_t flags = cpu_irq_save();		// avoid race condition
-		uart->UART_CR = UART_CR_RSTRX | UART_CR_RSTTX;	// reset transmitter and receiver
-		SetupDMAReceive(ReadRegNumbers[registerToRead], ReadRegCRCs[registerToRead]);	// set up the PDC
-		uart->UART_IER = UART_IER_ENDRX;				// enable end-of-receive interrupt
-		uart->UART_CR = UART_CR_RXEN | UART_CR_TXEN;	// enable transmitter and receiver
-		transferStartedTime = millis();
-		cpu_irq_restore(flags);
-#endif
 		transferStartedTime = millis();
 	}
 }
 
-TmcDriverState *TmcDriverState::GetNextDriver(TmcDriverState *current) noexcept
+Tmc22xxDriverState *Tmc22xxDriverState::GetNextDriver(Tmc22xxDriverState *current) noexcept
 {
-	if (GetNumTmcDrivers() == 0)
+
+	if (numTmc22xxDrivers == 0)
 		return nullptr;
 	if (current == nullptr)
-		current = driverStates + GetNumTmcDrivers() - 1;
+		current = driverStates + numTmc22xxDrivers - 1;
 	TmcDriverState *start = current;
 	do {
 		current++;
-		if (current >= driverStates + GetNumTmcDrivers())
+		if (current >= driverStates + numTmc22xxDrivers)
 			current = driverStates;
 		if (current->maxReadCount != 0)
 			return current;
@@ -1303,13 +1148,10 @@ TmcDriverState *TmcDriverState::GetNextDriver(TmcDriverState *current) noexcept
 
 // ISR(s) for the UART(s)
 
-inline void TmcDriverState::UartTmcHandler() noexcept
+inline void Tmc22xxDriverState::UartTmcHandler() noexcept
 {
-#if !TMC_SOFT_UART
-	uart->UART_IDR = UART_IDR_ENDRX;					// disable the PDC interrupt
-#endif
 	TransferDone();										// tidy up after the transfer we just completed
-	TmcDriverState *driver = GetNextDriver(this);
+	Tmc22xxDriverState *driver = GetNextDriver(this);
 	if (driver && driversState != DriversState::noPower)
 	{
 		// Power is still good, so send/receive again
@@ -1321,7 +1163,7 @@ inline void TmcDriverState::UartTmcHandler() noexcept
 	}
 }
 
-DriversState TmcDriverState::SetupDriver(bool reset) noexcept
+DriversState Tmc22xxDriverState::SetupDriver(bool reset) noexcept
 {
 	// Step the driver through the setup process and report current state
 	//debugPrintf("Setup driver %d cnt %d/%d", GetDriverNumber(), numReads, numWrites);
@@ -1376,225 +1218,70 @@ DriversState TmcDriverState::SetupDriver(bool reset) noexcept
 	return DriversState::initialising;
 }
 
-#if TMC22xx_HAS_MUX
-
-// ISR for the single UART
-extern "C" void TMC22xx_UART_Handler() __attribute__ ((hot));
-
-void TMC22xx_UART_Handler()
-{
-	UART_TMC22xx->UART_IDR = UART_IDR_ENDRX;				// disable the interrupt
-	TmcDriverState * const driver = TmcDriverState::currentDriver;	// capture volatile variable
-	if (driver != nullptr)
-	{
-		driver->UartTmcHandler();
-	}
-}
-
-#elif !TMC_SOFT_UART
-
-// ISRs for the individual UARTs
-extern "C" void UART_TMC_DRV0_Handler() __attribute__ ((hot));
-void UART_TMC_DRV0_Handler()
-{
-	driverStates[0].UartTmcHandler();
-}
-
-extern "C" void UART_TMC_DRV1_Handler() __attribute__ ((hot));
-void UART_TMC_DRV1_Handler()
-{
-	driverStates[1].UartTmcHandler();
-}
-
-#endif
-
 //--------------------------- Public interface ---------------------------------
 // Initialise the driver interface and the drivers, leaving each drive disabled.
 // It is assumed that the drivers are not powered, so driversPowered(true) must be called after calling this before the motors can be moved.
-#if TMC22xx_VARIABLE_NUM_DRIVERS
-void SmartDrivers::Init(size_t numTmcDrivers) noexcept
-#else
-void SmartDrivers::Init() noexcept
-#endif
+void Tmc22xxDriver::Init(size_t firstDrive, size_t numDrivers) noexcept
 {
-#if TMC22xx_VARIABLE_NUM_DRIVERS
-	numTmc22xxDrivers = min<size_t>(numTmcDrivers, MaxSmartDrivers);
-#endif
-	// Make sure the ENN pins are high
-#if TMC_SOFT_UART
+	numTmc22xxDrivers = min<size_t>(numDrivers, MaxSmartDrivers);
+	baseDriveNo = firstDrive;
+	if (numTmc22xxDrivers == 0)
+	{
+		driversState = DriversState::ready;
+		return;
+	}		
+	driverStates = (Tmc22xxDriverState *)	Tasks::AllocPermanent(sizeof(Tmc22xxDriverState)*numTmc22xxDrivers);
+	memset((void *)driverStates, 0, sizeof(Tmc22xxDriverState)*numTmc22xxDrivers);
+	
 	TMCSoftUARTInit();
-#elif TMC22xx_HAS_MUX
-	// Set up- the single UART that communicates with all TMC22xx drivers
-	ConfigurePin(TMC22xx_UART_PINS);									// the pins are already set up for UART use in the pins table
-
-	// Enable the clock to the UART
-	pmc_enable_periph_clk(ID_TMC22xx_UART);
-
-	// Set the UART baud rate, 8 bits, 2 stop bits, no parity
-	UART_TMC22xx->UART_IDR = ~0u;
-	UART_TMC22xx->UART_CR = UART_CR_RSTRX | UART_CR_RSTTX | UART_CR_RXDIS | UART_CR_TXDIS;
-	UART_TMC22xx->UART_MR = UART_MR_CHMODE_NORMAL | UART_MR_PAR_NO;
-	UART_TMC22xx->UART_BRGR = VARIANT_MCK/(16 * DriversBaudRate);		// set baud rate
-	UART_TMC22xx->UART_CR = UART_CR_RSTRX | UART_CR_RSTTX | UART_CR_RXDIS | UART_CR_TXDIS | UART_CR_RSTSTA;
-	NVIC_EnableIRQ(TMC22xx_UART_IRQn);
-
-	// Set up the multiplexer control pins as outputs
-	pinMode(TMC22xxMuxPins[0], OUTPUT_LOW);
-	pinMode(TMC22xxMuxPins[1], OUTPUT_LOW);
-	pinMode(TMC22xxMuxPins[2], OUTPUT_LOW);
-#endif
 
 	driversState = DriversState::noPower;
-	for (size_t drive = 0; drive < GetNumTmcDrivers(); ++drive)
+	for (size_t drive = 0; drive < numTmc22xxDrivers; ++drive)
 	{
-#if !TMC22xx_HAS_MUX && !TMC_SOFT_UART
-		// Initialise the UART that controls this driver
-		// The pins are already set up for UART use in the pins table
-		ConfigurePin(TMC22xxUartPins[drive]);
-
-		// Enable the clock to the UART
-		pmc_enable_periph_clk(TMC22xxUartIds[drive]);
-
-		// Set the UART baud rate, 8 bits, 2 stop bits, no parity
-		Uart * const uart = TMC22xxUarts[drive];
-		uart->UART_IDR = ~0u;
-		uart->UART_CR = UART_CR_RSTRX | UART_CR_RSTTX | UART_CR_RXDIS | UART_CR_TXDIS;
-		uart->UART_MR = UART_MR_CHMODE_NORMAL | UART_MR_PAR_NO;
-		uart->UART_BRGR = VARIANT_MCK/(16 * DriversBaudRate);		// set baud rate
-		uart->UART_CR = UART_CR_RSTRX | UART_CR_RSTTX | UART_CR_RXDIS | UART_CR_TXDIS | UART_CR_RSTSTA;
-		NVIC_EnableIRQ(TMC22xxUartIRQns[drive]);
-#endif
-		driverStates[drive].Init(drive
+		new(&driverStates[drive]) Tmc22xxDriverState();
+		driverStates[drive].Init(drive+baseDriveNo
 #if TMC22xx_HAS_ENABLE_PINS
-								, ENABLE_PINS[drive]
+								, ENABLE_PINS[drive+baseDriveNo]
 #endif
 #if HAS_STALL_DETECT
-								, DriverDiagPins[drive]
+								, DriverDiagPins[drive+baseDriveNo]
 #endif
 								);
 	}
 }
 
 // Shut down the drivers and stop any related interrupts. Don't call Spin() again after calling this as it may re-enable them.
-void SmartDrivers::Exit() noexcept
+void Tmc22xxDriver::Exit() noexcept
 {
-	if (GlobalTmc22xxEnablePin != NoPin)
-		pinMode(GlobalTmc22xxEnablePin, OUTPUT_HIGH);
-#if TMC_SOFT_UART
-	TMCSoftUARTShutdown();
-#elif TMC22xx_HAS_MUX
-	NVIC_DisableIRQ(TMC22xx_UART_IRQn);
-#else
-	for (size_t drive = 0; drive < GetNumTmcDrivers(); ++drive)
+	if (numTmc22xxDrivers > 0)
 	{
-		NVIC_DisableIRQ(TMC22xxUartIRQns[drive]);
+		TurnDriversOff();
+		TMCSoftUARTShutdown();
 	}
-#endif
 	driversState = DriversState::noPower;
-}
-
-void SmartDrivers::SetAxisNumber(size_t drive, uint32_t axisNumber) noexcept
-{
-	if (drive < GetNumTmcDrivers())
-	{
-		driverStates[drive].SetAxisNumber(axisNumber);
-	}
-}
-
-uint32_t SmartDrivers::GetAxisNumber(size_t drive) noexcept
-{
-	return (drive < GetNumTmcDrivers()) ? driverStates[drive].GetAxisNumber() : 0;
-}
-
-void SmartDrivers::SetCurrent(size_t drive, float current) noexcept
-{
-	if (drive < GetNumTmcDrivers())
-	{
-		driverStates[drive].SetCurrent(current);
-	}
-}
-
-void SmartDrivers::EnableDrive(size_t drive, bool en) noexcept
-{
-	if (drive < GetNumTmcDrivers())
-	{
-		driverStates[drive].Enable(en);
-	}
-}
-
-uint32_t SmartDrivers::GetLiveStatus(size_t drive) noexcept
-{
-	return (drive < GetNumTmcDrivers()) ? driverStates[drive].ReadLiveStatus() : 0;
-}
-
-uint32_t SmartDrivers::GetAccumulatedStatus(size_t drive, uint32_t bitsToKeep) noexcept
-{
-	return (drive < GetNumTmcDrivers()) ? driverStates[drive].ReadAccumulatedStatus(bitsToKeep) : 0;
-}
-
-// Set microstepping or chopper control register
-bool SmartDrivers::SetMicrostepping(size_t drive, unsigned int microsteps, bool interpolate) noexcept
-{
-	if (drive < GetNumTmcDrivers() && microsteps > 0)
-	{
-		// Set the microstepping. We need to determine how many bits right to shift the desired microstepping to reach 1.
-		unsigned int shift = 0;
-		unsigned int uSteps = (unsigned int)microsteps;
-		while ((uSteps & 1) == 0)
-		{
-			uSteps >>= 1;
-			++shift;
-		}
-		if (uSteps == 1 && shift <= 8)
-		{
-			driverStates[drive].SetMicrostepping(shift, interpolate);
-			return true;
-		}
-	}
-	return false;
-}
-
-// Get microstepping or chopper control register
-unsigned int SmartDrivers::GetMicrostepping(size_t drive, bool& interpolation) noexcept
-{
-	return (drive < GetNumTmcDrivers()) ? driverStates[drive].GetMicrostepping(interpolation) : 1;
-}
-
-bool SmartDrivers::SetDriverMode(size_t driver, unsigned int mode) noexcept
-{
-	return driver < GetNumTmcDrivers() && driverStates[driver].SetDriverMode(mode);
-}
-
-DriverMode SmartDrivers::GetDriverMode(size_t driver) noexcept
-{
-	return (driver < GetNumTmcDrivers()) ? driverStates[driver].GetDriverMode() : DriverMode::unknown;
 }
 
 
 // Flag that the the drivers have been powered up or down and handle any timeouts
 // Before the first call to this function with 'powered' true, you must call Init()
-void SmartDrivers::Spin(bool powered) noexcept
+void Tmc22xxDriver::Spin(bool powered) noexcept
 {
-#if SUPPORT_TMC51xx
-	Tmc51xxSmartDrivers::Spin(powered);
-#endif
-#if TMC_SOFT_UART
+	if (numTmc22xxDrivers == 0) return;
 	if (TMCSoftUARTCheckComplete())
 	{
-		TmcDriverState *driver = TmcDriverState::currentDriver;	// capture volatile variable
+		Tmc22xxDriverState *driver = Tmc22xxDriverState::currentDriver;	// capture volatile variable
 		if (driver != nullptr)
 		{
 			driver->UartTmcHandler();
 		}
 
 	}
-#endif
 	if (driversState == DriversState::noPower)
 	{
 		if (powered)
 		{
 			// Power to the drivers has been provided or restored, so we need to enable and re-initialise them
-			for (size_t drive = 0; drive < GetNumTmcDrivers(); ++drive)
+			for (size_t drive = 0; drive < numTmc22xxDrivers; ++drive)
 			{
 				driverStates[drive].SetupDriver(true);
 			}
@@ -1605,22 +1292,22 @@ void SmartDrivers::Spin(bool powered) noexcept
 	{
 		// If no transfer is in progress, kick one off.
 		// If a transfer has timed out, abort it.
-		if (TmcDriverState::currentDriver == nullptr)
+		if (Tmc22xxDriverState::currentDriver == nullptr)
 		{
 			// No transfer in progress, so start one
-			TmcDriverState *driver = TmcDriverState::GetNextDriver(nullptr);
+			Tmc22xxDriverState *driver = Tmc22xxDriverState::GetNextDriver(nullptr);
 			if (driver != nullptr)
 			{
 				// Kick off the first transfer
 				driver->StartTransfer();
 			}
 		}
-		else if (millis() - TmcDriverState::transferStartedTime > TransferTimeout)
+		else if (millis() - Tmc22xxDriverState::transferStartedTime > TransferTimeout)
 		{
 			// A UART transfer was started but has timed out
-			TmcDriverState::currentDriver->TransferTimedOut();
-			TmcDriverState *driver = TmcDriverState::GetNextDriver(TmcDriverState::currentDriver);
-			TmcDriverState::currentDriver = nullptr;
+			Tmc22xxDriverState::currentDriver->TransferTimedOut();
+			Tmc22xxDriverState *driver = Tmc22xxDriverState::GetNextDriver(Tmc22xxDriverState::currentDriver);
+			Tmc22xxDriverState::currentDriver = nullptr;
 
 			if (driver != nullptr)
 			{
@@ -1633,7 +1320,7 @@ void SmartDrivers::Spin(bool powered) noexcept
 		{
 			// If all drivers that share the global enable have been initialised, set the global enable
 			bool allInitialised = true;
-			for (size_t i = 0; i < GetNumTmcDrivers(); ++i)
+			for (size_t i = 0; i < numTmc22xxDrivers; ++i)
 			{
 				if (driverStates[i].SetupDriver(false) == DriversState::initialising)
 				{
@@ -1645,7 +1332,7 @@ void SmartDrivers::Spin(bool powered) noexcept
 			{
 				driversState = DriversState::ready;
 				// report drive status
-				for (size_t i = 0; i < GetNumTmcDrivers(); ++i)
+				for (size_t i = 0; i < numTmc22xxDrivers; ++i)
 				{
 					if (driverStates[i].SetupDriver(false) == DriversState::ready)
 						reprap.GetPlatform().MessageF(UsbMessage, "Driver %d ready\n", i);
@@ -1658,102 +1345,38 @@ void SmartDrivers::Spin(bool powered) noexcept
 	else
 	{
 		// We had power but we lost it
-		if (GlobalTmc22xxEnablePin != NoPin)
-			digitalWrite(GlobalTmc22xxEnablePin, HIGH);			// disable the drivers
-		if (TmcDriverState::currentDriver != nullptr)
+		if (Tmc22xxDriverState::currentDriver != nullptr)
 		{
-			TmcDriverState::currentDriver->AbortTransfer();
-			TmcDriverState::currentDriver = nullptr;
+			Tmc22xxDriverState::currentDriver->AbortTransfer();
+			Tmc22xxDriverState::currentDriver = nullptr;
 		}
 		driversState = DriversState::noPower;
 	}
 }
 
-bool SmartDrivers::IsReady() noexcept
+bool Tmc22xxDriver::IsReady() noexcept
 {
 	return driversState == DriversState::ready;
 }
 
 // This is called from the tick ISR, possibly while Spin (with powered either true or false) is being executed
-void SmartDrivers::TurnDriversOff() noexcept
+void Tmc22xxDriver::TurnDriversOff() noexcept
 {
-	// When using TMC2660 drivers, this is called when an over-voltage event occurs, so that we can try to protect the drivers by disabling them.
-	// We don't use it with TMC22xx drivers.
-}
-
-void SmartDrivers::SetStallThreshold(size_t driver, int sgThreshold) noexcept
-{
-#if HAS_STALL_DETECT
-	if (driver < GetNumTmcDrivers())
+	for (size_t driver = 0; driver < numTmc22xxDrivers; ++driver)
 	{
-		driverStates[driver].SetStallDetectThreshold(sgThreshold);
+		digitalWrite(ENABLE_PINS[driver + baseDriveNo], true);
 	}
-#endif
+	driversState = DriversState::noPower;
 }
 
-void SmartDrivers::SetStallFilter(size_t driver, bool sgFilter) noexcept
+TmcDriverState* Tmc22xxDriver::GetDrive(size_t driveNo) noexcept
 {
-	// Not a supported on TMC2209
-}
-
-void SmartDrivers::SetStallMinimumStepsPerSecond(size_t driver, unsigned int stepsPerSecond) noexcept
-{
-#if HAS_STALL_DETECT
-	if (driver < GetNumTmcDrivers())
-	{
-		driverStates[driver].SetStallMinimumStepsPerSecond(stepsPerSecond);
-	}
-#endif
-}
-
-void SmartDrivers::AppendStallConfig(size_t driver, const StringRef& reply) noexcept
-{
-#if HAS_STALL_DETECT
-	if (driver < GetNumTmcDrivers())
-	{
-		driverStates[driver].AppendStallConfig(reply);
-	}
-	else
-	{
-		reply.cat("no such driver");
-	}
-#endif
-}
-
-void SmartDrivers::AppendDriverStatus(size_t drive, const StringRef& reply) noexcept
-{
-	if (drive < GetNumTmcDrivers())
-	{
-		driverStates[drive].AppendDriverStatus(reply);
-	}
-}
-
-float SmartDrivers::GetStandstillCurrentPercent(size_t drive) noexcept
-{
-	return (drive < GetNumTmcDrivers()) ? driverStates[drive].GetStandstillCurrentPercent() : 0.0;
-}
-
-void SmartDrivers::SetStandstillCurrentPercent(size_t drive, float percent) noexcept
-{
-	if (drive < GetNumTmcDrivers())
-	{
-		driverStates[drive].SetStandstillCurrentPercent(percent);
-	}
-}
-
-bool SmartDrivers::SetRegister(size_t driver, SmartDriverRegister reg, uint32_t regVal) noexcept
-{
-	return (driver < GetNumTmcDrivers()) && driverStates[driver].SetRegister(reg, regVal);
-}
-
-uint32_t SmartDrivers::GetRegister(size_t driver, SmartDriverRegister reg) noexcept
-{
-	return (driver < GetNumTmcDrivers()) ? driverStates[driver].GetRegister(reg) : 0;
+	return &(driverStates[driveNo]);
 }
 
 #if HAS_STALL_DETECT
 
-DriversBitmap SmartDrivers::GetStalledDrivers(DriversBitmap driversOfInterest) noexcept
+DriversBitmap Tmc22xxDriver::GetStalledDrivers(DriversBitmap driversOfInterest) noexcept
 {
 	DriversBitmap rslt;
 	driversOfInterest.Iterate([&rslt](unsigned int driverNumber, unsigned int count)

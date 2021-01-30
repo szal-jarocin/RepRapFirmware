@@ -116,7 +116,7 @@ constexpr size_t NumDirectDrivers = 11;               // The maximum number of d
     #define TMC22xx_USE_SLAVEADDR           0
     #define TMC22xx_HAS_MUX                 0
     #define SUPPORT_TMC22xx                 1
-    #define HAS_STALL_DETECT               1
+    #define HAS_STALL_DETECT                1
 # if defined(SUPPORT_TMC51xx)
     #define SUPPORT_TMC51xx			        1
     #define TMC51xx_USES_USART		        0
@@ -172,14 +172,18 @@ constexpr unsigned int MaxTriggers = 16;            // Must be <= 32 because we 
 constexpr size_t MaxSpindles = 4;                    // Maximum number of configurable spindles
 
 //Steppers
+// HAS_SMART_DRIVERS is defined in Pins.h, we duplicate it for the board files to use
+#define HAS_SMART_DRIVERS		(SUPPORT_TMC2660 || SUPPORT_TMC22xx || SUPPORT_TMC51xx)
 extern Pin ENABLE_PINS[NumDirectDrivers];
 extern Pin STEP_PINS[NumDirectDrivers];
 extern Pin DIRECTION_PINS[NumDirectDrivers];
 #if SUPPORT_TMC22xx || SUPPORT_TMC51xx
-extern Pin TMC_UART_PINS[NumDirectDrivers];
+extern Pin TMC_PINS[NumDirectDrivers];
 #endif
-#if HAS_STALL_DETECT && SUPPORT_TMC22xx
+#if HAS_SMART_DRIVERS
 extern Pin DriverDiagPins[NumDirectDrivers];
+extern size_t totalSmartDrivers;
+extern size_t num5160SmartDrivers;
 #endif
 #if TMC_SOFT_UART
     constexpr Pin GlobalTmc22xxEnablePin = NoPin;			// The pin that drives ENN of all drivers
@@ -360,10 +364,8 @@ void ClearPinArrays() noexcept;
 
 constexpr size_t MaxBoardNameLength = 20;
 extern char lpcBoardName[MaxBoardNameLength];
-extern size_t lpcSmartDrivers;
-
-// HAS_SMART_DRIVERS is defined in Pins.h, we duplicate it for the board files to use
-#define HAS_SMART_DRIVERS		(SUPPORT_TMC2660 || SUPPORT_TMC22xx || SUPPORT_TMC51xx)
+extern size_t totalSmartDrivers;
+extern size_t num5160SmartDrivers;
 
 struct BoardDefaults
 {
@@ -488,18 +490,4 @@ namespace StepPins
     }
 }
 
-#if defined(SRC_MOVEMENT_STEPPERDRIVERS_TMC51XX_H_) && SUPPORT_TMC22xx && SUPPORT_TMC51xx
-// Horrible hack to allow both TMC drivers to be used at the same time with 
-// minimal changes to the Duet3D source
-#define SmartDrivers Tmc51xxSmartDrivers
-#define TmcDriverState Tmc51xxDriverState
-#define TMC_RR_SG TMC51xx_RR_SG
-#define TMC_RR_OT TMC51xx_RR_OT
-#define TMC_RR_OTPW TMC51xx_RR_OTPW
-#define TMC_RR_S2G TMC51xx_RR_S2G
-#define TMC_RR_OLA TMC51xx_RR_OLA
-#define TMC_RR_OLB TMC51xx_RR_OLB
-#define TMC_RR_STST TMC51xx_RR_STST
-#define TMC_RR_SGRESULT TMC51xx_RR_SGRESULT
-#endif
 #endif

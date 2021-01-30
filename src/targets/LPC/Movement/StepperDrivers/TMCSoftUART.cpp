@@ -324,7 +324,7 @@ void TMCSoftUARTAbort() noexcept
 
 void TMCSoftUARTStartTransfer(uint8_t driver, volatile uint8_t *WritePtr, uint32_t WriteCnt, volatile uint8_t *ReadPtr, uint32_t ReadCnt) noexcept
 {
-	SUPin = TMC_UART_PINS[driver];
+	SUPin = TMC_PINS[driver];
 	if (SUPin != NoPin)
 	{
         SetupPins();
@@ -372,8 +372,8 @@ void TMCSoftUARTInit() noexcept
     LPC_TIMER3->TCR  = (1 <<SBIT_CNTEN); //Start Timer
 
 	for(size_t i = 0; i < NumDirectDrivers; i++)
-		if (TMC_UART_PINS[i] != NoPin)
-			pinMode(TMC_UART_PINS[i], OUTPUT_HIGH);
+		if (TMC_PINS[i] != NoPin)
+			pinMode(TMC_PINS[i], OUTPUT_HIGH);
 
 	SUPin = NoPin;
 	SUState = SUStates::idle;
