@@ -10,7 +10,7 @@
 
 Pin TEMP_SENSE_PINS[NumThermistorInputs];
 Pin SpiTempSensorCsPins[MaxSpiTempSensors] = { NoPin, NoPin };
-SSPChannel TempSensorSSPChannel = SSP1;   //default SPI Temp sensor on SSP1
+SSPChannel TempSensorSSPChannel = SSPNONE;   //default SPI Temp sensor on SSP1
 
 Pin ATX_POWER_PIN = NoPin;                  // Pin to use to control external power
 bool ATX_POWER_INVERTED = false;            // Should the state of this pin be inverted
@@ -24,7 +24,7 @@ uint32_t ExternalSDCardFrequency = 4000000;             //default to 4MHz
 #if HAS_LINUX_INTERFACE || HAS_WIFI_NETWORKING
     SSPChannel ExternalSDCardSSPChannel = SSPNONE;          // SSP0 used for network
 #else
-    SSPChannel ExternalSDCardSSPChannel = SSP2;             //default to SSP2
+    SSPChannel ExternalSDCardSSPChannel = SSPNONE;             //default to SSP2
 #endif
 uint32_t InternalSDCardFrequency = 25000000;            //default to 25MHz
 
@@ -36,7 +36,7 @@ Pin EncoderPinA = NoPin;
 Pin EncoderPinB = NoPin;
 Pin EncoderPinSw = NoPin;           //click
 Pin PanelButtonPin = NoPin;         //Extra button on Viki and RRD Panels (reset/back etc)
-SSPChannel LcdSpiChannel = SWSPI0;
+SSPChannel LcdSpiChannel = SSPNONE;
 
 Pin DiagPin = NoPin;
 
@@ -50,7 +50,8 @@ Pin DIRECTION_PINS[NumDirectDrivers];
 #endif
 Pin TMC_PINS[NumDirectDrivers];
 size_t totalSmartDrivers;
-size_t num5160SmartDrivers;
+size_t num5160SmartDrivers = 0;
+SSPChannel SmartDriversSpiChannel = SSPNONE;
 #endif
 
 uint32_t STEP_DRIVER_MASK = 0;                          //SD: mask of the step pins on Port 2 used for writing to step pins in parallel

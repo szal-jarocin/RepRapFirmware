@@ -47,12 +47,12 @@ static const boardConfigEntry_t boardConfigs[]=
     {"stepper.numSmartDrivers", &totalSmartDrivers, nullptr, cvUint32Type},
 #if SUPPORT_TMC51xx
     {"stepper.num5160Drivers", &num5160SmartDrivers, nullptr, cvUint32Type},
-#endif
+    {"stepper.spiChannel", &SmartDriversSpiChannel, nullptr, cvUint32Type},
 #endif
 #if HAS_STALL_DETECT && SUPPORT_TMC22xx
     {"stepper.TmcDiagPins", DriverDiagPins, &MaxTotalDrivers, cvPinType},
 #endif
-
+#endif
     //Heater sensors
     {"heat.tempSensePins", TEMP_SENSE_PINS, &NumThermistorInputs, cvPinType},
     {"heat.spiTempSensorCSPins", SpiTempSensorCsPins, &MaxSpiTempSensors, cvPinType},

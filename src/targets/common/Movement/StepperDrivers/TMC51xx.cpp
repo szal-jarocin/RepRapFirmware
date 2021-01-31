@@ -1093,7 +1093,7 @@ void Tmc51xxDriver::Init(size_t firstDrive, size_t numDrivers) noexcept
 			pinMode(TMC_PINS[driver+baseDriveNo], OUTPUT_HIGH);
 		driverStates[driver].Init(driver+baseDriveNo);
 	}
-	spiDevice = new SharedSpiClient(SharedSpiDevice::GetSharedSpiDevice(SSPChannel::SWSPI2), DriversSpiClockFrequency, SPI_MODE_3, NoPin, false);
+	spiDevice = new SharedSpiClient(SharedSpiDevice::GetSharedSpiDevice(SmartDriversSpiChannel), DriversSpiClockFrequency, SPI_MODE_3, NoPin, false);
 	tmcTask.Create(TmcLoop, "TMC", nullptr, TaskPriority::TmcPriority);
 }
 
