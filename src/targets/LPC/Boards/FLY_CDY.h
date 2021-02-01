@@ -23,7 +23,7 @@ constexpr PinEntry PinTable_FLY_CDY[] =
     {P1_27, PinCapability::rw, "ymin,ystop"},
     {P1_25, PinCapability::rw, "ymax,ystopmax"},
     {P1_22, PinCapability::rw, "zmin,zstop"},
-    {P1_19, PinCapability::rw, "zmax,zstopmax"},
+    {P0_27, PinCapability::rw, "zmax,zstopmax"},
 
     //Heaters and Fans
     {P3_26,  PinCapability::wpwm, "bed" },
