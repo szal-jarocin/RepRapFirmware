@@ -94,6 +94,7 @@ static const boardConfigEntry_t boardConfigs[]=
 #if HAS_LINUX_INTERFACE
     {"sbc.lpcTfrReadyPin", &SbcTfrReadyPin, nullptr, cvPinType},
     {"sbc.TfrReadyPin", &SbcTfrReadyPin, nullptr, cvPinType},
+    {"sbc.csPin", &SbcCsPin, nullptr, cvPinType},
 #endif
 
 #if defined(SERIAL_AUX_DEVICE)

@@ -739,8 +739,12 @@ bool DataTransfer::IsReady() noexcept
 {
 	if (dataReceived)
 	{
-#if !__LPC17xx__ && !STM32F4
-#if SAME5x
+#if __LPC17xx__ || STM32F4
+		if (!digitalRead(SbcCsPin))			// transfer is complete if SS is high
+		{
+			return false;
+		}
+#elif SAME5x
 		if (!digitalRead(SbcSSPin))			// transfer is complete if SS is high
 		{
 			return false;
@@ -758,7 +762,6 @@ bool DataTransfer::IsReady() noexcept
 		{
 			return false;
 		}
-#endif
 #endif
 
 		// Transfer has finished

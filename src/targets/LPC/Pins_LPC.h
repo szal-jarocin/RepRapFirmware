@@ -203,6 +203,7 @@ extern SSPChannel TempSensorSSPChannel;
 
 #if HAS_LINUX_INTERFACE
     extern Pin SbcTfrReadyPin;
+    extern Pin SbcCsPin;
 #endif
 
 // Power control
