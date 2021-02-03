@@ -10,13 +10,14 @@ There are a couple of features which sets it aside from Marlin, Smoothieware etc
   - Although it supports USB control through software such as Pronterface or Octoprint, the Duet Web Control (DWC) is the best way to control and configure the software
   - Native network control through Wifi, Ethernet or an SBC
 
-The boards which are currently supported are detailed in the wiki [here](https://github.com/gloomyandy/RepRapFirmware/wiki)
+The boards which are currently supported are detailed in the wiki [here](https://teamgloomy.github.io/supported_boards.html)
 
 ### Main Differences to the Duet RRF
-The main differences are detailed within the wiki [here](https://github.com/gloomyandy/RepRapFirmware/wiki/Differences)
+The main differences for the LPC Port are detailed within the wiki [here](https://teamgloomy.github.io/lpc_differences.html)
+The main differences for the STM32F4 Port are detailed within the wiki [here](https://teamgloomy.github.io/stm32_differences.html)
 
 ## Getting Started
-Information to support using this firmware can be found on the [wiki](https://github.com/gloomyandy/RepRapFirmware/wiki/Getting-Started---RRF3)  
+Information to support using this firmware can be found on the [wiki](https://teamgloomy.github.io/getting_started.html)  
 The wiki also details different methods of connecting for different boards.
 
 ## Support

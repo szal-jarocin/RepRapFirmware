@@ -1,3 +1,12 @@
+Version 3.2_7
+=============
+* Fix Fly CDY pin definition
+* Allow use of SPI<n>.pins to configure SPI device pins in board.txt
+* Preliminary support for the BTT RRF E3 (board name "biquskr_rrf_e3_1.0")
+
+
+
+
 Version 3.2_6
 =============
 * Fix Fly CDYV2 board definitions

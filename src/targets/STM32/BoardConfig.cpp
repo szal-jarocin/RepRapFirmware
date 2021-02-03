@@ -82,9 +82,9 @@ static const boardConfigEntry_t boardConfigs[]=
 #endif
     
     {"softwareSPI.pins", SoftwareSPIPins[0], &NumSoftwareSPIPins, cvPinType}, //SCK, MISO, MOSI
-    {"softwareSPI1.pins", SoftwareSPIPins[1], &NumSoftwareSPIPins, cvPinType}, //SCK, MISO, MOSI
-    {"softwareSPI2.pins", SoftwareSPIPins[2], &NumSoftwareSPIPins, cvPinType}, //SCK, MISO, MOSI
-    //{"SSP0.pins", SSP0Pins, &NumSSP0Pins, cvPinType}, // SCK, MISO, MOSI, CS
+    {"SPI3.pins", SoftwareSPIPins[0], &NumSoftwareSPIPins, cvPinType}, //SCK, MISO, MOSI
+    {"SPI4.pins", SoftwareSPIPins[1], &NumSoftwareSPIPins, cvPinType}, //SCK, MISO, MOSI
+    {"SPI5.pins", SoftwareSPIPins[2], &NumSoftwareSPIPins, cvPinType}, //SCK, MISO, MOSI
     
 #if HAS_WIFI_NETWORKING
     {"8266wifi.espDataReadyPin", &EspDataReadyPin, nullptr, cvPinType},

@@ -79,7 +79,9 @@ static const boardConfigEntry_t boardConfigs[]=
 #endif
     
     {"softwareSPI.pins", SoftwareSPIPins, &NumSoftwareSPIPins, cvPinType}, //SCK, MISO, MOSI
+    {"SPI3.pins", SoftwareSPIPins, &NumSoftwareSPIPins, cvPinType}, //SCK, MISO, MOSI
     {"SSP0.pins", SSP0Pins, &NumSSP0Pins, cvPinType}, // SCK, MISO, MOSI, CS
+    {"SPI0.pins", SSP0Pins, &NumSSP0Pins, cvPinType}, // SCK, MISO, MOSI, CS
     
 #if HAS_WIFI_NETWORKING
     {"8266wifi.espDataReadyPin", &EspDataReadyPin, nullptr, cvPinType},
@@ -92,6 +94,7 @@ static const boardConfigEntry_t boardConfigs[]=
 #if HAS_LINUX_INTERFACE
     {"sbc.lpcTfrReadyPin", &SbcTfrReadyPin, nullptr, cvPinType},
     {"sbc.TfrReadyPin", &SbcTfrReadyPin, nullptr, cvPinType},
+    {"sbc.csPin", &SbcCsPin, nullptr, cvPinType},
 #endif
 
 #if defined(SERIAL_AUX_DEVICE)
