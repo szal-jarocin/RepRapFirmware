@@ -23,9 +23,9 @@ void SmartDrivers::Init(size_t numSmartDrivers) noexcept
     size_t first = 0;
 #if SUPPORT_TMC51xx
     Tmc51xxDriver::Init(first, num5160SmartDrivers);
-    first += num5160SmartDrivers;
     for(; drive < num5160SmartDrivers; drive++)
         driverStates[drive] = Tmc51xxDriver::GetDrive(drive);
+    first = drive;
 #endif
 #if SUPPORT_TMC22xx
     Tmc22xxDriver::Init(first, numDrivers-first);

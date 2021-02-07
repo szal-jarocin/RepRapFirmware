@@ -262,6 +262,7 @@ enum class DriversState : uint8_t
 {
 	shutDown = 0,
 	noPower,				// no VIN power
+	noDrivers,
 	notInitialised,			// have VIN power but not started initialising drivers
 	initialising,			// in the process of initialising the drivers
 	ready					// drivers are initialised and ready
@@ -1002,7 +1003,7 @@ extern "C" [[noreturn]] void TmcLoop(void *) noexcept
 {
 	for (;;)
 	{
-		if (driversState == DriversState::noPower)
+		if (driversState <= DriversState::noDrivers)
 		{
 			TaskBase::Take();
 		}
@@ -1043,7 +1044,7 @@ extern "C" [[noreturn]] void TmcLoop(void *) noexcept
 								readyCnt++;
 							}
 						}
-						driversState = (readyCnt ? DriversState::ready : DriversState::noPower);
+						driversState = (readyCnt ? DriversState::ready : DriversState::noDrivers);
 					}
 				}
 			}
@@ -1142,7 +1143,7 @@ void Tmc51xxDriver::TurnDriversOff() noexcept
 
 bool Tmc51xxDriver::IsReady() noexcept
 {
-	return driversState == DriversState::ready;
+	return driversState == DriversState::ready || driversState == DriversState::noDrivers;
 }
 
 
