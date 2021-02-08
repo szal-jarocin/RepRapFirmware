@@ -300,6 +300,8 @@ void BoardConfig::Init() noexcept
     
     NVIC_SetPriority(DMA1_Stream3_IRQn, NvicPrioritySpi);
     NVIC_SetPriority(DMA1_Stream4_IRQn, NvicPrioritySpi);
+    NVIC_SetPriority(DMA1_Stream0_IRQn, NvicPrioritySpi);
+    NVIC_SetPriority(DMA1_Stream5_IRQn, NvicPrioritySpi);
 #if STARTUP_DELAY
     delay(STARTUP_DELAY);
 #endif
@@ -381,6 +383,7 @@ void BoardConfig::Init() noexcept
             SPI::getSSPDevice((SSPChannel)(SWSPI0+i))->initPins(SoftwareSPIPins[i][0], SoftwareSPIPins[i][1], SoftwareSPIPins[i][2]);
         //Setup the pins for SPI
         SPI::getSSPDevice(SSP2)->initPins(PB_13, PB_14, PB_15, NoPin, DMA1_Stream3, DMA_CHANNEL_0, DMA1_Stream3_IRQn, DMA1_Stream4, DMA_CHANNEL_0, DMA1_Stream4_IRQn);
+        SPI::getSSPDevice(SSP3)->initPins(PC_10, PC_11, PC_12, NoPin, DMA1_Stream0, DMA_CHANNEL_0, DMA1_Stream0_IRQn, DMA1_Stream5, DMA_CHANNEL_0, DMA1_Stream5_IRQn);
 // FIXME
 #if 0
         //Internal SDCard SPI Frequency

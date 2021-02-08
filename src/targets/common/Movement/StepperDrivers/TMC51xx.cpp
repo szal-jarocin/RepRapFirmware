@@ -1065,7 +1065,8 @@ extern "C" [[noreturn]] void TmcLoop(void *) noexcept
 				}
 			}
 			spiDevice->Deselect();
-			delay(1);
+			// If we are using software SPI, give other tasks a chance to run.
+			if (SmartDriversSpiChannel >= SWSPI0) delay(1);
 		}
 	}
 }
