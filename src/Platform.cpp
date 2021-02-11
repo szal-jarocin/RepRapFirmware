@@ -172,42 +172,6 @@ int debugLine = 0;
 
 // Global functions
 
-<<<<<<< HEAD
-// Urgent initialisation function
-// This is called before general init has been done, and before constructors for C++ static data have been called.
-// Therefore, be very careful what you do here!
-extern "C" void UrgentInit()
-{
-#if STM32F4
-	InitResetCause();
-#endif
-#if defined(DUET_NG)
-	// When the reset button is pressed on pre-production Duet WiFi boards, if the TMC2660 drivers were previously enabled then we get
-	// uncommanded motor movements if the STEP lines pick up any noise. Try to reduce that by initialising the pins that control the drivers early here.
-	// On the production boards the ENN line is pulled high by an external pullup resistor and that prevents motor movements.
-	for (size_t drive = 0; drive < MaxSmartDrivers; ++drive)
-	{
-		pinMode(STEP_PINS[drive], OUTPUT_LOW);
-		pinMode(DIRECTION_PINS[drive], OUTPUT_LOW);
-		pinMode(ENABLE_PINS[drive], OUTPUT_HIGH);
-	}
-#endif
-
-#if defined(DUET_M)
-	// The prototype boards don't have a pulldown on LCD_BEEP, which causes a hissing sound from the beeper on the 12864 display until the pin is initialised
-	pinMode(LcdBeepPin, OUTPUT_LOW);
-
-	// Set the 12864 display CS pin low to prevent it from receiving garbage due to other SPI traffic
-	pinMode(LcdCSPin, OUTPUT_LOW);
-
-	// On the prototype boards the stepper driver expansion ports don't have external pullup resistors on their enable pins
-	pinMode(ENABLE_PINS[5], OUTPUT_HIGH);
-	pinMode(ENABLE_PINS[6], OUTPUT_HIGH);
-#endif
-}
-
-=======
->>>>>>> upstream/3.3-dev
 DriversBitmap AxisDriversConfig::GetDriversBitmap() const noexcept
 {
 	DriversBitmap rslt;
