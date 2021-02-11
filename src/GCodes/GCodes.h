@@ -253,7 +253,12 @@ public:
 # endif
 #endif
 
-	static constexpr const char *AllowedAxisLetters = "XYZUVWABCD";
+#if SUPPORT_REMOTE_COMMANDS
+	void SwitchToExpansionMode() noexcept;
+	void SetRemotePrinting(bool isPrinting) noexcept { isRemotePrinting = isPrinting; }
+#endif
+
+	static constexpr const char *AllowedAxisLetters = "XYZUVWABCDabcdefghijkl";
 
 	// Standard macro filenames
 #define DEPLOYPROBE		"deployprobe"
@@ -539,13 +544,14 @@ private:
 	float firstSegmentFractionToSkip;
 
 	float restartMoveFractionDone;				// how much of the next move was printed before the pause or power failure (from M26)
-	float restartInitialUserX;					// if the print was paused during an arc move, the user X coordinate at the start of that move (from M26)
-	float restartInitialUserY;					// if the print was paused during an arc move, the user X coordinate at the start of that move (from M26)
+	float restartInitialUserC0;					// if the print was paused during an arc move, the user X coordinate at the start of that move (from M26)
+	float restartInitialUserC1;					// if the print was paused during an arc move, the user Y coordinate at the start of that move (from M26)
 
 	float arcCentre[MaxAxes];
 	float arcRadius;
 	float arcCurrentAngle;
 	float arcAngleIncrement;
+	unsigned int arcAxis0, arcAxis1;
 	bool doingArcMove;
 
 	enum class SegmentedMoveState : uint8_t
@@ -672,6 +678,10 @@ private:
 	uint32_t timingBytesRequested;				// how many bytes we were asked to write
 	uint32_t timingBytesWritten;				// how many timing bytes we have written so far
 	uint32_t timingStartMillis;
+#endif
+
+#if SUPPORT_REMOTE_COMMANDS
+	bool isRemotePrinting;
 #endif
 
 	int8_t lastAuxStatusReportType;				// The type of the last status report requested by PanelDue

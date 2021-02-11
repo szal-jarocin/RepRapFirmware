@@ -505,7 +505,7 @@ bool ValueMenuItem::Adjust_SelectHelper() noexcept
 	{
 		const unsigned int itemNumber = GetReferencedToolNumber();
 
-		bool error = false;
+		bool err = false;
 		switch (valIndex/100)
 		{
 		case 1: // heater active temperature
@@ -557,17 +557,17 @@ bool ValueMenuItem::Adjust_SelectHelper() noexcept
 				break;
 
 			default:
-				error = true;
+				err = true;
 				break;
 			}
 			break;
 
 		default:
-			error = true;
+			err = true;
 			break;
 		}
 
-		if (error)
+		if (err)
 		{
 			reprap.GetDisplay().ErrorBeep();
 		}

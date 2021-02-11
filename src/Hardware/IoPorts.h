@@ -10,9 +10,8 @@
 
 #include <RepRapFirmware.h>
 
-#if SAME5x
-# include <Interrupts.h>
-#endif
+#include <Interrupts.h>
+#include <AnalogIn.h>
 
 // Class to represent a port
 class IoPort
@@ -40,6 +39,9 @@ public:
 	bool ReadDigital() const noexcept;
 	bool AttachInterrupt(StandardCallbackFunction callback, InterruptMode mode, CallbackParameter param) const noexcept;
 	void DetachInterrupt() const noexcept;
+#if SAME5x
+	bool SetAnalogCallback(AnalogInCallbackFunction fn, CallbackParameter cbp, uint32_t ticksPerCall) noexcept;
+#endif
 
 	uint16_t ReadAnalog() const noexcept;
 
@@ -75,12 +77,12 @@ protected:
 	// Get the physical pin without checking the validity of the logical pin
 	Pin GetPinNoCheck() const noexcept
 	{
-#if SAME5x
+	#if __LPC17xx__ || STM32F4
+		return PinTable[logicalPin].pin;
+	#else
 		// New-style pin table is indexed by pin number
 		return logicalPin;
-#else
-		return PinTable[logicalPin].pin;
-#endif
+	#endif
 	}
 
 	static const char* TranslatePinAccess(PinAccess access) noexcept;

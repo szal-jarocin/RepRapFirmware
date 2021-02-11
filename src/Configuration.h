@@ -222,7 +222,11 @@ constexpr size_t StringLength256 = 256;
 constexpr size_t MaxHeaterNameLength = StringLength20;	// Maximum number of characters in a heater name
 constexpr size_t MaxFanNameLength = StringLength20;		// Maximum number of characters in a fan name
 constexpr size_t FormatStringLength = StringLength256;
+#ifdef DUET3_ATE
+constexpr size_t GCodeReplyLength = StringLength500;	// Maximum number of characters in a GCode reply that doesn't use an OutputBuffer (ATE codes can generate long replies)
+#else
 constexpr size_t GCodeReplyLength = StringLength256;	// Maximum number of characters in a GCode reply that doesn't use an OutputBuffer
+#endif
 constexpr size_t MachineNameLength = StringLength50;
 constexpr size_t RepRapPasswordLength = StringLength20;
 constexpr size_t MediumStringLength = MaxFilenameLength;
@@ -267,7 +271,7 @@ constexpr size_t maxQueuedCodes = 16;					// How many codes can be queued?
 
 // These two definitions are only used if TRACK_OBJECT_NAMES is defined, however that definition isn't available in this file
 #if SAME70 || SAME5x
-constexpr size_t MaxTrackedObjects = 32;				// How many build plate objects we track. Each one needs 16 bytes of storage, in addition to the string space.
+constexpr size_t MaxTrackedObjects = 40;				// How many build plate objects we track. Each one needs 16 bytes of storage, in addition to the string space.
 constexpr size_t ObjectNamesStringSpace = 1000;			// How much space we reserve for the names of objects on the build plate
 #else
 constexpr size_t MaxTrackedObjects = 20;				// How many build plate objects we track. Each one needs 16 bytes of storage, in addition to the string space.

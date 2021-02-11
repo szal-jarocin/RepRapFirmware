@@ -42,16 +42,22 @@ uint32_t HeaderCRCErrors, DataCRCErrors;
 #endif
 
 #if USE_DMAC
-# include "dmac/dmac.h"
-# include "matrix/matrix.h"
+# include <dmac/dmac.h>
+# include <matrix/matrix.h>
+# include <pmc/pmc.h>
+# include <spi/spi.h>
 #endif
 
 #if USE_XDMAC
-# include "xdmac/xdmac.h"
+# include <xdmac/xdmac.h>
 #endif
 
 #if USE_DMAC_MANAGER || SAME70
 # include <DmacManager.h>
+#endif
+
+#if SAME70
+# include <spi/spi.h>
 #endif
 
 #include "RepRapFirmware.h"
@@ -460,10 +466,10 @@ void DataTransfer::Init() noexcept
 # endif
 #else
 	// Initialize SPI
-	ConfigurePin(APIN_SBC_SPI_MOSI);
-	ConfigurePin(APIN_SBC_SPI_MISO);
-	ConfigurePin(APIN_SBC_SPI_SCK);
-	ConfigurePin(APIN_SBC_SPI_SS0);
+	SetPinFunction(APIN_SBC_SPI_MOSI, SBCPinPeriphMode);
+	SetPinFunction(APIN_SBC_SPI_MISO, SBCPinPeriphMode);
+	SetPinFunction(APIN_SBC_SPI_SCK, SBCPinPeriphMode);
+	SetPinFunction(APIN_SBC_SPI_SS0, SBCPinPeriphMode);
 
 	spi_enable_clock(SBC_SPI);
 	spi_disable(SBC_SPI);

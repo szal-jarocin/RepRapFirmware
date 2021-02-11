@@ -30,7 +30,7 @@
 #define _FLASHER_H
 
 #include "Device.h"
-#include "Flash.h"
+#include "BossaFlash.h"
 #include "Samba.h"
 
 #include "GCodes/GCodeException.h"
@@ -64,7 +64,7 @@ public:
 
 private:
     Samba& _samba;
-    Flash* _flash;
+    BossaFlash* _flash;
     FlasherObserver& _observer;
 
     uint32_t pageNum;

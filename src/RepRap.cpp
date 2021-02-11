@@ -49,11 +49,15 @@
 # include "Linux/LinuxInterface.h"
 #endif
 
+#ifdef DUET3_ATE
+# include <Duet3Ate.h>
+#endif
+
 #if HAS_HIGH_SPEED_SD
 
-# if !SAME5x	// if not using CoreN2G
-#  include "sam/drivers/hsmci/hsmci.h"
-#  include "conf_sd_mmc.h"
+# if !SAME5x
+#  include <hsmci/hsmci.h>
+#  include <conf_sd_mmc.h>
 # endif
 
 # if SAME70
@@ -73,6 +77,10 @@ static_assert(CONF_HSMCI_XDMAC_CHANNEL == DmacChanHsmci, "mismatched DMA channel
 
 #if SAME70
 # include <DmacManager.h>
+#endif
+
+#if SAM4S
+# include <wdt/wdt.h>
 #endif
 
 // We call vTaskNotifyGiveFromISR from various interrupts, so the following must be true
@@ -98,7 +106,7 @@ extern "C" void HSMCI_Handler() noexcept
 #if SAME70
 
 // HSMCI DMA complete callback
-void HsmciDmaCallback(CallbackParameter cp) noexcept
+void HsmciDmaCallback(CallbackParameter cb, DmaCallbackReason reason) noexcept
 {
 	HSMCI->HSMCI_IDR = 0xFFFFFFFF;										// disable all HSMCI interrupts
 	XDMAC->XDMAC_CHID[DmacChanHsmci].XDMAC_CID = 0xFFFFFFFF;			// disable all DMA interrupts for this channel
@@ -505,6 +513,9 @@ void RepRap::Init() noexcept
 #if SUPPORT_12864_LCD
 	display->Init();
 #endif
+#ifdef DUET3_ATE
+	Duet3Ate::Init();
+#endif
 	// linuxInterface is not initialised until we know we are using it, to prevent a disconnected SBC interface generating interrupts and DMA
 
 	// Set up the timeout of the regular watchdog, and set up the backup watchdog if there is one.
@@ -826,6 +837,7 @@ void RepRap::Diagnostics(MessageType mtype) noexcept
 {
 	platform->Message(mtype, "=== Diagnostics ===\n");
 
+// DEBUG print the module addresses
 //	platform->MessageF(mtype, "platform %" PRIx32 ", network %" PRIx32 ", move %" PRIx32 ", heat %" PRIx32 ", gcodes %" PRIx32 ", scanner %"  PRIx32 ", pm %" PRIx32 ", portc %" PRIx32 "\n",
 //						(uint32_t)platform, (uint32_t)network, (uint32_t)move, (uint32_t)heat, (uint32_t)gCodes, (uint32_t)scanner, (uint32_t)printMonitor, (uint32_t)portControl);
 
@@ -844,7 +856,11 @@ void RepRap::Diagnostics(MessageType mtype) noexcept
 	platform->MessageF(mtype, "%s (%s) version %s running on %s at %dMhz\n", FIRMWARE_NAME, lpcBoardName, VERSION, platform->GetElectronicsString(), (int)SystemCoreClock/1000000);
 #elif HAS_LINUX_INTERFACE
 	platform->MessageF(mtype, "%s version %s running on %s (%s mode)\n", FIRMWARE_NAME, VERSION, platform->GetElectronicsString(),
-						(UsingLinuxInterface()) ? "SBC" : "standalone");
+# if SUPPORT_REMOTE_COMMANDS
+						(CanInterface::InExpansionMode()) ? "expansion" :
+# endif
+						(UsingLinuxInterface()) ? "SBC" : "standalone"
+					);
 #else
 	platform->MessageF(mtype, "%s version %s running on %s\n", FIRMWARE_NAME, VERSION, platform->GetElectronicsString());
 #endif
@@ -865,12 +881,6 @@ void RepRap::Diagnostics(MessageType mtype) noexcept
 	move->Diagnostics(mtype);
 	heat->Diagnostics(mtype);
 	gCodes->Diagnostics(mtype);
-#if HAS_LINUX_INTERFACE
-	if (!usingLinuxInterface)
-#endif
-	{
-		network->Diagnostics(mtype);
-	}
 	FilamentMonitor::Diagnostics(mtype);
 #ifdef DUET_NG
 	DuetExpansion::Diagnostics(mtype);
@@ -883,7 +893,12 @@ void RepRap::Diagnostics(MessageType mtype) noexcept
 	{
 		linuxInterface->Diagnostics(mtype);
 	}
+	else
 #endif
+	{
+		network->Diagnostics(mtype);
+	}
+
 	justSentDiagnostics = true;
 }
 
@@ -1202,16 +1217,22 @@ GCodeResult RepRap::SetAllToolsFirmwareRetraction(GCodeBuffer& gb, const StringR
 	return rslt;
 }
 
-// Get the current axes used as X axes
+// Get the current axes used as X axis
 AxesBitmap RepRap::GetCurrentXAxes() const noexcept
 {
 	return Tool::GetXAxes(currentTool);
 }
 
-// Get the current axes used as Y axes
+// Get the current axes used as Y axis
 AxesBitmap RepRap::GetCurrentYAxes() const noexcept
 {
 	return Tool::GetYAxes(currentTool);
+}
+
+// Get the current axes used as the specified axis
+AxesBitmap RepRap::GetCurrentAxisMapping(unsigned int axis) const noexcept
+{
+	return Tool::GetAxisMapping(currentTool, axis);
 }
 
 // Set the previous tool number. Inline because it is only called from one place.
@@ -1226,8 +1247,9 @@ void RepRap::Tick() noexcept
 	if (active)
 	{
 		WatchdogReset();														// kick the watchdog
+
 #if SAM4E || SAME70
-		RSWDT->RSWDT_CR = RSWDT_CR_KEY_PASSWD | RSWDT_CR_WDRSTT;				// kick the secondary watchdog
+		WatchdogResetSecondary();												// kick the secondary watchdog
 #endif
 
 		if (!stopped)
@@ -2768,9 +2790,7 @@ void RepRap::PrepareToLoadIap() noexcept
 #ifdef DUET_NG
 	DuetExpansion::Exit();					// stop the DueX polling task
 #endif
-#if SAME5x	// CoreNG uses a separate analog input task, so stop that
 	StopAnalogTask();
-#endif
 
 	Cache::Disable();						// disable the cache because it interferes with flash memory access
 
@@ -2845,7 +2865,7 @@ void RepRap::StartIap() noexcept
 	WatchdogReset();								// kick the watchdog one last time
 
 #if SAM4E || SAME70
-	rswdt_restart(RSWDT);							// kick the secondary watchdog
+	WatchdogResetSecondary();						// kick the secondary watchdog
 #endif
 
 	// Modify vector table location

@@ -185,12 +185,13 @@ enum class DiagnosticTestType : unsigned int
 #ifdef DUET_NG
 	PrintExpanderStatus = 101,		// print DueXn expander status
 #endif
-	TimeSquareRoot = 102,			// do a timing test on the square root function
-	TimeSinCos = 103,				// do a timing test on the trig functions
+	TimeCalculations = 102,			// do a timing test on the square root function and sine/cosine
+	unused1 = 103,					// was TimeSinCos
 	TimeSDWrite = 104,				// do a write timing test on the SD card
 	PrintObjectSizes = 105,			// print the sizes of various objects
 	PrintObjectAddresses = 106,		// print the addresses and sizes of various objects
 	TimeCRC32 = 107,				// time how long it takes to calculate CRC32
+	TimeGetTimerTicks = 108,		// time now long it takes to read the step clock
 
 #if __LPC17xx__ || STM32F4
 	PrintBoardConfiguration = 200,	// Prints out all pin/values loaded from SDCard to configure board
@@ -481,6 +482,7 @@ public:
 	float AxisMinimum(size_t axis) const noexcept;
 	void SetAxisMinimum(size_t axis, float value, bool byProbing) noexcept;
 	float AxisTotalLength(size_t axis) const noexcept;
+
 	float GetPressureAdvance(size_t extruder) const noexcept;
 	GCodeResult SetPressureAdvance(float advance, GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeException);
 
@@ -587,6 +589,7 @@ public:
 #if HAS_12V_MONITOR
 	// 12V rail voltage
 	MinMaxCurrent GetV12Voltages() const noexcept;
+	float GetCurrentV12Voltage() const noexcept;
 #endif
 
 #if HAS_SMART_DRIVERS
@@ -645,6 +648,17 @@ public:
 	GCodeResult UpdateRemoteStepsPerMmAndMicrostepping(AxesBitmap axesAndExtruders, const StringRef& reply) noexcept;
 #endif
 
+#if SUPPORT_REMOTE_COMMANDS
+	GCodeResult EutHandleM950Gpio(const CanMessageGeneric& msg, const StringRef& reply) noexcept;
+	GCodeResult EutHandleGpioWrite(const CanMessageWriteGpio& msg, const StringRef& reply) noexcept;
+	GCodeResult EutSetMotorCurrents(const CanMessageMultipleDrivesRequest<float>& msg, size_t dataLength, const StringRef& reply) noexcept;
+	GCodeResult EutSetStepsPerMmAndMicrostepping(const CanMessageMultipleDrivesRequest<StepsPerUnitAndMicrostepping>& msg, size_t dataLength, const StringRef& reply) noexcept;
+	GCodeResult EutHandleSetDriverStates(const CanMessageMultipleDrivesRequest<DriverStateControl>& msg, const StringRef& reply) noexcept;
+	float EutGetRemotePressureAdvance(size_t driver) const noexcept;
+	GCodeResult EutSetRemotePressureAdvance(const CanMessageMultipleDrivesRequest<float>& msg, size_t dataLength, const StringRef& reply) noexcept;
+	GCodeResult EutProcessM569(const CanMessageGeneric& msg, const StringRef& reply) noexcept;
+#endif
+
 #if VARIABLE_NUM_DRIVERS
 	void AdjustNumDrivers(size_t numDriversNotAvailable) noexcept;
 #endif
@@ -668,6 +682,10 @@ private:
 #else
 	void IterateDrivers(size_t axisOrExtruder, std::function<void(uint8_t) /*noexcept*/ > localFunc) noexcept;
 	void IterateLocalDrivers(size_t axisOrExtruder, std::function<void(uint8_t) /*noexcept*/ > func) noexcept { IterateDrivers(axisOrExtruder, func); }
+#endif
+
+#if SUPPORT_REMOTE_COMMANDS
+	float remotePressureAdvance[NumDirectDrivers];
 #endif
 
 #if HAS_SMART_DRIVERS
@@ -767,19 +785,7 @@ private:
 	DriversBitmap stalledDrivers, stalledDriversToLog, stalledDriversToPause, stalledDriversToRehome;
 #endif
 
-#if defined(DUET_06_085)
-	// Digipots
-	MCP4461 mcpDuet;
-	MCP4461 mcpExpansion;
-	uint8_t potWipes[8];											// we have only 8 digipots, on the Duet 0.8.5 we use the DAC for the 9th
-	float senseResistor;
-	float maxStepperDigipotVoltage;
-	float stepperDacVoltageRange, stepperDacVoltageOffset;
-#elif defined(__ALLIGATOR__)
-	Pin spiDacCS[MaxSpiDac];
-	DAC084S085 dacAlligator;
-	DAC084S085 dacPiggy;
-#elif __LPC17xx__
+#if __LPC17xx__
 	MCP4461 mcp4451;// works for 5561 (only volatile setting commands)
 #endif
 

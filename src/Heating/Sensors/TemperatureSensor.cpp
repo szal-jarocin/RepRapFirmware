@@ -9,6 +9,10 @@
 #include "RemoteSensor.h"
 #include "GCodes/GCodeBuffer/GCodeBuffer.h"
 
+#if SUPPORT_REMOTE_COMMANDS
+# include <CanMessageGenericParser.h>
+#endif
+
 #if HAS_CPU_TEMP_SENSOR
 # include "CpuTemperatureSensor.h"
 #endif
@@ -100,6 +104,21 @@ GCodeResult TemperatureSensor::Configure(GCodeBuffer& gb, const StringRef& reply
 	return GCodeResult::ok;
 }
 
+#if SUPPORT_REMOTE_COMMANDS
+
+// Default implementation of Configure, for sensors that have no configurable parameters
+GCodeResult TemperatureSensor::Configure(const CanMessageGenericParser& parser, const StringRef& reply) noexcept
+{
+	if (!parser.HasParameter('Y'))
+	{
+		// No parameters were provided, so report the current configuration
+		CopyBasicDetails(reply);
+	}
+	return GCodeResult::ok;
+}
+
+#endif
+
 void TemperatureSensor::CopyBasicDetails(const StringRef& reply) const noexcept
 {
 	reply.printf("Sensor %u", sensorNumber);
@@ -167,7 +186,7 @@ TemperatureSensor *TemperatureSensor::Create(unsigned int sensorNum, const char 
 {
 	TemperatureSensor *ts;
 #if SUPPORT_CAN_EXPANSION
-	if (boardAddress != 0)
+	if (boardAddress != CanInterface::GetCanAddress())
 	{
 		ts = new RemoteSensor(sensorNum, boardAddress);
 	}

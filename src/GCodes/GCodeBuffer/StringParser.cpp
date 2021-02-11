@@ -749,7 +749,7 @@ void StringParser::DecodeCommand() noexcept
 			}
 		}
 
-		// Find where the end of the command is. We assume that a G or M not inside quotes or { } is the start of a new command.
+		// Find where the end of the command is. We assume that a G or M not inside quotes or { } and not preceded by ' is the start of a new command.
 		bool inQuotes = false;
 		unsigned int localBraceCount = 0;
 		for (commandEnd = parameterStart; commandEnd < gcodeLineEnd; ++commandEnd)
@@ -761,7 +761,6 @@ void StringParser::DecodeCommand() noexcept
 			}
 			else if (!inQuotes)
 			{
-				char c2;
 				if (c == '{')
 				{
 					++localBraceCount;
@@ -773,9 +772,13 @@ void StringParser::DecodeCommand() noexcept
 						--localBraceCount;
 					}
 				}
-				else if ((c2 = toupper(c)) == 'G' || c2 == 'M')
+				else
 				{
-					break;
+					char c2;
+					if (((c2 = toupper(c)) == 'G' || c2 == 'M') && gb.buffer[commandEnd - 1] != '\'')
+					{
+						break;
+					}
 				}
 			}
 		}
@@ -905,6 +908,13 @@ bool StringParser::IsLastCommand() const noexcept
 bool StringParser::Seen(char c) noexcept
 {
 	bool inQuotes = false;
+	bool escaped = false;
+	bool wantLowerCase = (c >= 'a');
+	if (wantLowerCase)
+	{
+		c = toupper(c);
+	}
+
 	unsigned int inBrackets = 0;
 	for (readPointer = parameterStart; (unsigned int)readPointer < commandEnd; ++readPointer)
 	{
@@ -915,18 +925,30 @@ bool StringParser::Seen(char c) noexcept
 		}
 		else if (!inQuotes)
 		{
-			if (inBrackets == 0 && toupper(b) == c && (c != 'E' || (unsigned int)readPointer == parameterStart || !isdigit(gb.buffer[readPointer - 1])))
+			if (b == '\'' && !escaped)
 			{
-				++readPointer;
-				return true;
+				escaped = true;
 			}
-			if (b == '{')
+			else
 			{
-				++inBrackets;
-			}
-			else if (b == '}' && inBrackets != 0)
-			{
-				--inBrackets;
+				if (   inBrackets == 0
+					&& toupper(b) == c
+					&& escaped == wantLowerCase
+					&& (c != 'E' || (unsigned int)readPointer == parameterStart || !isdigit(gb.buffer[readPointer - 1]))
+				   )
+				{
+					++readPointer;
+					return true;
+				}
+				escaped = false;
+				if (b == '{')
+				{
+					++inBrackets;
+				}
+				else if (b == '}' && inBrackets != 0)
+				{
+					--inBrackets;
+				}
 			}
 		}
 	}
@@ -1649,7 +1671,7 @@ DriverId StringParser::ReadDriverIdValue() THROWS(GCodeException)
 	else
 	{
 		result.localDriver = v1;
-		result.boardAddress = 0;
+		result.boardAddress = CanInterface::GetCanAddress();
 	}
 #else
 	// We now allow driver names of the form "0.x" on boards without CAN expansion
