@@ -808,8 +808,8 @@ void Platform::Init() noexcept
 	AnalogIn::EnableTemperatureSensor(1, tcFilter.CallbackFeedIntoFilter, &tcFilter, 1, 0);
 	TemperatureCalibrationInit();
 # elif STM32F4
-	filteredAdcChannels[VrefFilterIndex] = GetVREFAdcChannel();
-	filteredAdcChannels[CpuTempFilterIndex] = GetTemperatureAdcChannel();
+	filteredAdcChannels[VrefFilterIndex] = LegacyAnalogIn::GetVREFAdcChannel();
+	filteredAdcChannels[CpuTempFilterIndex] = LegacyAnalogIn::GetTemperatureAdcChannel();
 #else
 	filteredAdcChannels[CpuTempFilterIndex] =
 #if SAM4E || SAM4S || SAME70
@@ -1619,7 +1619,7 @@ float Platform::GetCpuTemperature() const noexcept
 	result = (divisor == 0) ? 0 : result/divisor;
 	return (float)result/16 + mcuTemperatureAdjust;
 #else
-	const float voltage = (float)adcFilters[CpuTempFilterIndex].GetSum() * (3.3/(float)((1u << AdcBits) * ThermistorAverageReadings));
+	const float voltage = (float)adcFilters[CpuTempFilterIndex].GetSum() * (3.3/(float)((1u << AnalogIn::AdcBits) * ThermistorAverageReadings));
 # if SAM4E || SAM4S
 	return (voltage - 1.44) * (1000.0/4.7) + 27.0 + mcuTemperatureAdjust;			// accuracy at 27C is +/-13C
 # elif SAM3XA
@@ -1631,7 +1631,7 @@ float Platform::GetCpuTemperature() const noexcept
 	// See: http://www.efton.sk/STM32/STM32_VREF.pdf and https://www.st.com/resource/en/datasheet/dm00037051.pdf
 	// We get current VRef to compensate reading.
 	// VRef = 3.3*VREFIN_CAL*VREFINT
-	const float vref = 3.3f*((float)(*(uint16_t *)0x1FFF7A2A))/((float)(adcFilters[VrefFilterIndex].GetSum() >> (AdcBits - 12))/ThermistorAverageReadings);
+	const float vref = 3.3f*((float)(*(uint16_t *)0x1FFF7A2A))/((float)(adcFilters[VrefFilterIndex].GetSum() >> (AnalogIn::AdcBits - 12))/ThermistorAverageReadings);
 	// VSENSE_CORRECTED = VSENSE*VRef/3.3
 	// TMCU = ((TSCAL2_TEMP - TSCAL1_TEMP)/(TSCAL2 - TSCAL1))*(VSENSE_CORRECTED - TSCAL1) + TSCAL1_TEMP
 	return ((110.0f - 30.0f)/(((float)(*(uint16_t *)0x1FFF7A2E)) - ((float)(*(uint16_t *)0x1FFF7A2C)))) * ((voltage*((float)(1u << 12))/3.3f)*vref/3.3f - ((float)(*(uint16_t *)0x1FFF7A2C))) + 30.0f; 

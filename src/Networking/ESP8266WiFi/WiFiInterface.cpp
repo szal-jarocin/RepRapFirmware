@@ -2095,7 +2095,7 @@ void WiFiInterface::ResetWiFiForUpload(bool external) noexcept
 	{
 #if __LPC17xx__ || STM32F4
         SERIAL_WIFI_DEVICE.Configure(WifiSerialRxTxPins[0], WifiSerialRxTxPins[1]);
-#if !SAME5x
+#elif !SAME5x
 		SetPinFunction(APIN_Serial1_TXD, Serial1PeriphMode);				// connect the pins to the UART
 		SetPinFunction(APIN_Serial1_RXD, Serial1PeriphMode);				// connect the pins to the UART
 #endif

@@ -20,7 +20,7 @@
 	cpu_irq_disable();							// disable interrupts before we call any flash functions. We don't enable them again.
 	WatchdogReset();							// kick the watchdog
 #if STM32F4
-	WatchdogDisable();
+	//WatchdogDisable();
 #endif
 
 #if SAME70 || SAM4E
@@ -34,6 +34,8 @@
 	{
 #if SAME5x
 		//TODO invalidate flash so the USB bootloader runs
+#elif STM32F4
+		// Nothing to do
 #else
 		EraseAndReset();
 #endif

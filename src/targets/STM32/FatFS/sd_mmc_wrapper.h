@@ -2,7 +2,7 @@
 #define SD_MMC_WRAPPER_H
 
 #include "Core.h"
-
+#include "SPI.h"
 
 //#define _DRIVES 2 // Support 2 cards (one on each SSP slot)
 constexpr size_t _DRIVES = 2;

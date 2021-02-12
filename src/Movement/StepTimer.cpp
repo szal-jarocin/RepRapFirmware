@@ -21,6 +21,7 @@
 int lateTimers = 0;
 # endif
 #elif STM32F4
+#include <HardwareTimer.h>
 HardwareTimer STimer(STEP_TC);
 TIM_HandleTypeDef *STHandle;
 extern "C" void STEP_TC_HANDLER(HardwareTimer *) noexcept __attribute__ ((hot));

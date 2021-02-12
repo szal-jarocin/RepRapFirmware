@@ -55,7 +55,7 @@ void WiFiInterface::SpiInterrupt() noexcept
 {
     if (transferPending)
     {
-        digitalWrite(SamTfrReadyPin, LOW);
+        digitalWrite(SamTfrReadyPin, 0);
 
         transferPending = false;
         TaskBase::GiveFromISR(espWaitingTask);
@@ -74,7 +74,7 @@ static void SpiCSInterrupt(CallbackParameter) noexcept
 // Set up the SPI system
 void WiFiInterface::SetupSpi() noexcept
 {
-    attachInterrupt(SamCsPin, SpiCSInterrupt, INTERRUPT_MODE_RISING, nullptr);
+    attachInterrupt(SamCsPin, SpiCSInterrupt, InterruptMode::rising, nullptr);
     spiDevice = &HardwareSPI::SSP2;
     spiDevice->configureDevice(SPI_MODE_SLAVE, 8, (uint8_t)SPI_MODE_1, 100000000, false);
 }

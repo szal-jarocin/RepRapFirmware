@@ -447,9 +447,6 @@ void BoardConfig::Init() noexcept
     #endif
 
         ConfigureGPIOPins();
-        // Set ADC output resolution
-        analogReadResolution(12);
-        AnalogInInit();
     }
 }
 
@@ -643,18 +640,18 @@ void BoardConfig::Diagnostics(MessageType mtype) noexcept
     reprap.GetPlatform().MessageF(mtype, "TS_CAL1 (30C) = %d\n", (int) (*(uint16_t *)0x1FFF7A2C));
     reprap.GetPlatform().MessageF(mtype, "TS_CAL2 (110C) = %d\n", (int) (*(uint16_t *)0x1FFF7A2E));
     reprap.GetPlatform().MessageF(mtype, "V_REFINCAL (30C 3.3V) = %d\n\n", (int) (*(uint16_t *)0x1FFF7A2A));
-    uint32_t vrefintraw = AnalogInReadChannel(GetVREFAdcChannel());
-    float vref = 3.3f*((float)(*(uint16_t *)0x1FFF7A2A))/(float)(vrefintraw >> (AdcBits - 12));
+    uint32_t vrefintraw = AnalogInReadChannel(LegacyAnalogIn::GetVREFAdcChannel());
+    float vref = 3.3f*((float)(*(uint16_t *)0x1FFF7A2A))/(float)(vrefintraw >> (AnalogIn::AdcBits - 12));
     reprap.GetPlatform().MessageF(mtype, "V_REFINT raw %d\n", (int) vrefintraw);
     reprap.GetPlatform().MessageF(mtype, "V_REF  %f\n\n", (double)vref);
-    float tmcuraw = (float)AnalogInReadChannel(GetTemperatureAdcChannel());
+    float tmcuraw = (float)AnalogInReadChannel(LegacyAnalogIn::GetTemperatureAdcChannel());
     reprap.GetPlatform().MessageF(mtype, "T_MCU raw %d\n", (int) tmcuraw);
-    reprap.GetPlatform().MessageF(mtype, "T_MCU cal %f\n", (double)(((110.0f - 30.0f)/(((float)(*(uint16_t *)0x1FFF7A2E)) - ((float)(*(uint16_t *)0x1FFF7A2C)))) * ((float)(tmcuraw / (float) (1 << (AdcBits - 12))) - ((float)(*(uint16_t *)0x1FFF7A2C))) + 30.0f)); 
-    reprap.GetPlatform().MessageF(mtype, "T_MCU calc %f\n\n", (double)(((tmcuraw*3.3f)/(float)((1 << AdcBits) - 1) - 0.76f)/0.0025f + 25.0f));
+    reprap.GetPlatform().MessageF(mtype, "T_MCU cal %f\n", (double)(((110.0f - 30.0f)/(((float)(*(uint16_t *)0x1FFF7A2E)) - ((float)(*(uint16_t *)0x1FFF7A2C)))) * ((float)(tmcuraw / (float) (1 << (AnalogIn::AdcBits - 12))) - ((float)(*(uint16_t *)0x1FFF7A2C))) + 30.0f)); 
+    reprap.GetPlatform().MessageF(mtype, "T_MCU calc %f\n\n", (double)(((tmcuraw*3.3f)/(float)((1 << AnalogIn::AdcBits) - 1) - 0.76f)/0.0025f + 25.0f));
     tmcuraw = tmcuraw*vref/3.3f; 
     reprap.GetPlatform().MessageF(mtype, "T_MCU raw (corrected) %d\n", (int) tmcuraw);
-    reprap.GetPlatform().MessageF(mtype, "T_MCU cal (corrected) %f\n", (double)(((110.0f - 30.0f)/(((float)(*(uint16_t *)0x1FFF7A2E)) - ((float)(*(uint16_t *)0x1FFF7A2C)))) * ((float)(tmcuraw / (float) (1 << (AdcBits - 12))) - ((float)(*(uint16_t *)0x1FFF7A2C))) + 30.0f)); 
-    reprap.GetPlatform().MessageF(mtype, "T_MCU calc (corrected) %f\n", (double)(((tmcuraw*3.3f)/(float)((1 << AdcBits) - 1) - 0.76f)/0.0025f + 25.0f));
+    reprap.GetPlatform().MessageF(mtype, "T_MCU cal (corrected) %f\n", (double)(((110.0f - 30.0f)/(((float)(*(uint16_t *)0x1FFF7A2E)) - ((float)(*(uint16_t *)0x1FFF7A2C)))) * ((float)(tmcuraw / (float) (1 << (AnalogIn::AdcBits - 12))) - ((float)(*(uint16_t *)0x1FFF7A2C))) + 30.0f)); 
+    reprap.GetPlatform().MessageF(mtype, "T_MCU calc (corrected) %f\n", (double)(((tmcuraw*3.3f)/(float)((1 << AnalogIn::AdcBits) - 1) - 0.76f)/0.0025f + 25.0f));
 
 }
 

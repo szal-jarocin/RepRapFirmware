@@ -169,7 +169,7 @@ void IoPort::Release() noexcept
 #elif STM32F4
 		if (logicalPinModes[logicalPin] == OUTPUT_PWM_HIGH || logicalPinModes[logicalPin] == OUTPUT_PWM_LOW)
 		{
-			ReleasePWMPin(GetPinNoCheck());
+			AnalogOut::ReleasePWMPin(GetPinNoCheck());
 		}
 #endif
 		detachInterrupt(GetPinNoCheck());

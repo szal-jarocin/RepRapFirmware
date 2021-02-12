@@ -19,6 +19,7 @@
 #include "TMCSoftUART.h"
 #include "TMC22xx.h"
 #include "RepRap.h"
+#include "HardwareTimer.h"
 #include "Movement/Move.h"
 #include "Movement/StepTimer.h"
 #include "Cache.h"

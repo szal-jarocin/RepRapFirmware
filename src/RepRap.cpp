@@ -528,7 +528,7 @@ void RepRap::Init() noexcept
 	WatchdogEnable(1000);															// set wdt to 1 second. reset the processor on a watchdog fault
 #elif STM32F4
 	NVIC_SetPriority(WWDG_IRQn, NvicPriorityWatchdog);								// set priority for watchdog interrupts
-	WatchdogEnable(1000);
+	WatchdogInit();
 #else
 	{
 		// The clock frequency for both watchdogs is about 32768/128 = 256Hz
