@@ -795,7 +795,6 @@ bool DataTransfer::IsReady() noexcept
 			{
 #if __LPC17xx__ || STM32F4
 				HeaderCRCErrors++;
-				debugPrintf("Header CRC error\n");
 #endif
 				if (reprap.Debug(moduleLinuxInterface))
 				{
@@ -848,7 +847,6 @@ bool DataTransfer::IsReady() noexcept
 			}
 			else if (rxResponse == TransferResponse::BadResponse)
 			{
-				debugPrintf("Bad response\n");
 				// Linux wants to restart the transfer
 				ResetTransfer(false);
 			}
@@ -859,7 +857,6 @@ bool DataTransfer::IsReady() noexcept
 			}
 			else
 			{
-				debugPrintf("unknown response\n");
 				// Received invalid response code
 				ResetTransfer(true);
 			}
@@ -915,7 +912,6 @@ bool DataTransfer::IsReady() noexcept
 
 			if (rxResponse == TransferResponse::BadResponse)
 			{
-				debugPrintf("Bad response 2\n");
 				// Linux wants to restart the transfer
 				ResetTransfer(false);
 			}
@@ -926,7 +922,6 @@ bool DataTransfer::IsReady() noexcept
 			}
 			else
 			{
-				debugPrintf("unknown response 2\n");
 				// Received invalid response, reset the SPI transfer
 				ResetTransfer(true);
 			}
@@ -934,7 +929,6 @@ bool DataTransfer::IsReady() noexcept
 
 		case SpiState::Resetting:
 			// Transmitted bad response, attempt to start a new transfer
-			debugPrintf("restting\n");
 			ExchangeHeader();
 			break;
 
@@ -947,7 +941,6 @@ bool DataTransfer::IsReady() noexcept
 	}
 	else if (state != SpiState::ExchangingHeader && millis() - lastTransferTime > SpiTransferTimeout)
 	{
-		debugPrintf("timeout 1\n");
 		// Reset failed transfers automatically after a certain period of time
 		transferReadyHigh = false;
 		disable_spi();
@@ -955,7 +948,6 @@ bool DataTransfer::IsReady() noexcept
 	}
 	else if (!IsConnected() && (lastTransferNumber != 0 || (millis() - lastTransferTime > SpiConnectionTimeout*2)))
 	{
-		debugPrintf("timeout 2\n");
 		// The Linux interface is no longer connected...
 		disable_spi();
 
