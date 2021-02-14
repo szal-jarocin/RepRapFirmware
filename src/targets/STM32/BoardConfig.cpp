@@ -496,7 +496,7 @@ Pin BoardConfig::LookupPin(char *strvalue) noexcept
     
     if(LookupPinName(strvalue, lp, hwInverted))
     {
-        return PinTable[lp].pin; //lookup succeeded, return the Pin
+        return (Pin)lp; //lookup succeeded, return the Pin
     }
                      
     //pin may not be in the pintable so check if the format is a correct pin (returns NoPin if not)

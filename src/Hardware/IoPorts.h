@@ -77,12 +77,8 @@ protected:
 	// Get the physical pin without checking the validity of the logical pin
 	Pin GetPinNoCheck() const noexcept
 	{
-	#if __LPC17xx__ || STM32F4
-		return PinTable[logicalPin].pin;
-	#else
 		// New-style pin table is indexed by pin number
-		return logicalPin;
-	#endif
+		return (Pin)logicalPin;
 	}
 
 	static const char* TranslatePinAccess(PinAccess access) noexcept;

@@ -8,74 +8,74 @@
 constexpr PinEntry PinTable_FLY_F407ZG[] =
 {
     //Thermistors
-    {PA_0, PinCapability::ainrw, "e0temp,t0"},
-    {PC_1, PinCapability::ainrw, "e1temp,t1"},
-    {PC_0, PinCapability::ainrw, "e2temp,t2"},
-    {PF_10, PinCapability::ainrw, "e3temp,t3"},
-    {PF_5, PinCapability::ainrw, "e4temp,t4"},
-    {PF_4, PinCapability::ainrw, "e5temp,t5"},
-    {PF_3, PinCapability::ainrw, "bedtemp,tb"},
+    {PA_0, "e0temp,t0"},
+    {PC_1, "e1temp,t1"},
+    {PC_0, "e2temp,t2"},
+    {PF_10, "e3temp,t3"},
+    {PF_5, "e4temp,t4"},
+    {PF_4, "e5temp,t5"},
+    {PF_3, "bedtemp,tb"},
 
     //Endstops
-    {PC_3, PinCapability::rw, "xmin,xstop"},
-    {PC_2, PinCapability::rw, "xmax,xstopmax"},
-    {PF_2, PinCapability::rw, "ymin,ystop"},
-    {PF_3, PinCapability::rw, "ymax,ystopmax"},
-    {PF_0, PinCapability::rw, "zmin,zstop"},
-    {PC_15, PinCapability::rw, "zmax,zstopmax"},
-    {PC_14, PinCapability::rwpwm, "z3"},
-    {PA_3, PinCapability::rwpwm, "dljc"},
+    {PC_3, "xmin,xstop"},
+    {PC_2, "xmax,xstopmax"},
+    {PF_2, "ymin,ystop"},
+    {PF_3, "ymax,ystopmax"},
+    {PF_0, "zmin,zstop"},
+    {PC_15, "zmax,zstopmax"},
+    {PC_14, "z3"},
+    {PA_3, "dljc"},
 	
     //Heaters and Fans (Big and Small Mosfets}
-    {PE_2,  PinCapability::wpwm, "bed,hbed" },
-    {PF_7,  PinCapability::wpwm, "e0heat,he0" },
-    {PF_6,  PinCapability::wpwm, "e1heat,he1" },
-    {PE_6,  PinCapability::wpwm, "e2heat,he2" },
-    {PE_5,  PinCapability::wpwm, "e3heat,he3" },
-    {PE_4,  PinCapability::wpwm, "e4heat,he4" },
-    {PE_3,  PinCapability::wpwm, "e5heat,he5" },
+    {PE_2,  "bed,hbed" },
+    {PF_7,  "e0heat,he0" },
+    {PF_6,  "e1heat,he1" },
+    {PE_6,  "e2heat,he2" },
+    {PE_5,  "e3heat,he3" },
+    {PE_4,  "e4heat,he4" },
+    {PE_3,  "e5heat,he5" },
     
-    {PE_8,  PinCapability::wpwm, "fan0,fan" },
-    {PF_9,  PinCapability::wpwm, "fan1" },
-    {PA_2,  PinCapability::wpwm, "fan2" },
-    {PA_1,  PinCapability::wpwm, "fan3" },
-    {PE_13,  PinCapability::wpwm, "fan4" },
-    {PB_11,  PinCapability::wpwm, "fan5" },
+    {PE_8,  "fan0,fan" },
+    {PF_9,  "fan1" },
+    {PA_2,  "fan2" },
+    {PA_1,  "fan3" },
+    {PE_13,  "fan4" },
+    {PB_11,  "fan5" },
 
     // Servo
-    {PE_11,  PinCapability::wpwm, "servo0" },
+    {PE_11,  "servo0" },
 
     //EXP1
-    {PB_10, PinCapability::rwpwm, "PB10"},
-    {PE_14, PinCapability::rwpwm, "PE14"},
-    {PE_10, PinCapability::rwpwm, "PE10"},
-    {PE_8, PinCapability::rwpwm, "PE8"},
-    {PE_15, PinCapability::rwpwm, "PE15"},
-    {PE_12, PinCapability::rwpwm, "PE12"},
-    {PE_9, PinCapability::rwpwm, "PE9"},
-    {PE_7, PinCapability::rwpwm, "PE7"},
+    {PB_10, "PB10"},
+    {PE_14, "PE14"},
+    {PE_10, "PE10"},
+    {PE_8, "PE8"},
+    {PE_15, "PE15"},
+    {PE_12, "PE12"},
+    {PE_9, "PE9"},
+    {PE_7, "PE7"},
 
     //EXP2
-    {PB_14, PinCapability::rwpwm, "PB14"},
-    {PB_13, PinCapability::rwpwm, "PB13"},
-    {PC_5, PinCapability::rwpwm, "PC5"},
-    {PC_4, PinCapability::rwpwm, "PC4"},
-    {PF_11, PinCapability::rwpwm, "PF11"},
-    {PB_15, PinCapability::rwpwm, "PB15"},
-    {PB_2, PinCapability::rwpwm, "PB2"},
+    {PB_14, "PB14"},
+    {PB_13, "PB13"},
+    {PC_5, "PC5"},
+    {PC_4, "PC4"},
+    {PF_11, "PF11"},
+    {PB_15, "PB15"},
+    {PB_2, "PB2"},
 
 	//SD
-	{PC_13, PinCapability::rwpwm, "SDCD"},
-	{PC_9, PinCapability::rwpwm, "SDD1"},
-	{PC_8, PinCapability::rwpwm, "SDD0"},
-	{PC_12, PinCapability::rwpwm, "SDSCK"},
-	{PD_2, PinCapability::rwpwm, "SDCMD"},
-	{PC_11, PinCapability::rwpwm, "SDD3"},
-	{PC_10, PinCapability::rwpwm, "SDD2"},
+	{PC_13, "SDCD"},
+	{PC_9, "SDD1"},
+	{PC_8, "SDD0"},
+	{PC_12, "SDSCK"},
+	{PD_2, "SDCMD"},
+	{PC_11, "SDD3"},
+	{PC_10, "SDD2"},
 
 	// UART
-	{PA_9, PinCapability::rwpwm, "TX1"},
-	{PA_10, PinCapability::rwpwm, "RX1"},
+	{PA_9, "TX1"},
+	{PA_10, "RX1"},
 };
 
 constexpr BoardDefaults fly_f407zg_Defaults = {
@@ -103,81 +103,81 @@ constexpr PinEntry PinTable_FLY_E3[] =
 
 
     //Thermistors
-    {PA_4, PinCapability::ainrw, "e0temp,t0"},
-    {PA_3, PinCapability::ainrw, "bedtemp,tb"},
+    {PA_4, "e0temp,t0"},
+    {PA_3, "bedtemp,tb"},
 
     //Endstops
-    {PA_2, PinCapability::rw, "xmin,xstop"},
-    {PA_1, PinCapability::rw, "ymin,ystop"},
-    {PC_5, PinCapability::rw, "zmin,zstop"},
+    {PA_2, "xmin,xstop"},
+    {PA_1, "ymin,ystop"},
+    {PC_5, "zmin,zstop"},
 
 	// Servo
-    {PB_0,  PinCapability::wpwm, "servo0" },
+    {PB_0,  "servo0" },
 
    // Porbe
-    {PC_4, PinCapability::rwpwm, "probe"},
+    {PC_4, "probe"},
 	
     //Heaters and Fans (Big and Small Mosfets}
-    {PA_0,  PinCapability::wpwm, "bed,hbed" },
-    {PA_5,  PinCapability::wpwm, "e0heat,he0" },
-    {PA_7,  PinCapability::wpwm, "fan0,fan" },
-    {PA_6,  PinCapability::wpwm, "fan1" },
+    {PA_0,  "bed,hbed" },
+    {PA_5,  "e0heat,he0" },
+    {PA_7,  "fan0,fan" },
+    {PA_6,  "fan1" },
 
 
 
     //EXP1
-    {PE_12, PinCapability::rwpwm, "beep"},
-    {PE_11, PinCapability::rwpwm, "btnenc"},
-    {PE_10, PinCapability::rwpwm, "btnen1"},
-    {PE_9, PinCapability::rwpwm, "btnen2"},
-    {PE_8, PinCapability::rwpwm, "lcdd4"},
-    {PE_7, PinCapability::rwpwm, "lcdrs"},
-    {PB_1, PinCapability::rwpwm, "lcden"},
+    {PE_12, "beep"},
+    {PE_11, "btnenc"},
+    {PE_10, "btnen1"},
+    {PE_9, "btnen2"},
+    {PE_8, "lcdd4"},
+    {PE_7, "lcdrs"},
+    {PB_1, "lcden"},
 
 	//SD
-	{PA_15, PinCapability::rwpwm, "SDCD"},
-	{PC_9, PinCapability::rwpwm, "SDD1"},
-	{PC_8, PinCapability::rwpwm, "SDD0"},
-	{PC_12, PinCapability::rwpwm, "SDSCK"},
-	{PD_2, PinCapability::rwpwm, "SDCMD"},
-	{PC_11, PinCapability::rwpwm, "SDD3"},
-	{PC_10, PinCapability::rwpwm, "SDD2"},
+	{PA_15, "SDCD"},
+	{PC_9, "SDD1"},
+	{PC_8, "SDD0"},
+	{PC_12, "SDSCK"},
+	{PD_2, "SDCMD"},
+	{PC_11, "SDD3"},
+	{PC_10, "SDD2"},
 
 	// UART
-	{PA_9, PinCapability::rwpwm, "TX1"},
-	{PA_10, PinCapability::rwpwm, "RX1"},
+	{PA_9, "TX1"},
+	{PA_10, "RX1"},
 
     // WIFI UART	
-	{PD_8, PinCapability::rwpwm, "PD8"},
-	{PD_9, PinCapability::rwpwm, "PD9"},	
+	{PD_8, "PD8"},
+	{PD_9, "PD9"},	
 	
     //WIFI
-    {PE_13, PinCapability::rwpwm, "PE13"},
-    {PE_14, PinCapability::rwpwm, "PE14"},
-    {PE_15, PinCapability::rwpwm, "PE15"},
+    {PE_13, "PE13"},
+    {PE_14, "PE14"},
+    {PE_15, "PE15"},
 
     //soft spi 
-    {PC_0, PinCapability::rwpwm, "PC0"},
-    {PC_1, PinCapability::rwpwm, "PC1"},
-    {PC_2, PinCapability::rwpwm, "PC2"},
-    {PC_3, PinCapability::rwpwm, "PC3"},
-    {PC_7, PinCapability::rwpwm, "PC7"},
+    {PC_0, "PC0"},
+    {PC_1, "PC1"},
+    {PC_2, "PC2"},
+    {PC_3, "PC3"},
+    {PC_7, "PC7"},
 
     //Signal light
-     {PA_8, PinCapability::rwpwm, "PA8"},
+     {PA_8, "PA8"},
 
     //FPC
-    {PB_10, PinCapability::rwpwm, "FPC1"},
-    {PB_11, PinCapability::rwpwm, "FPC2"},
-    {PD_10, PinCapability::rwpwm, "FPC3"},
-    {PD_11, PinCapability::rwpwm, "FPC4"},
-    {PD_12, PinCapability::rwpwm, "FPC5"},
-    {PD_13, PinCapability::rwpwm, "FPC6"},
-    {PD_14, PinCapability::rwpwm, "FPC7"},
-    {PD_15, PinCapability::rwpwm, "FPC8"},
-    {PC_6, PinCapability::rwpwm, "FPC9"},
-    {PD_0, PinCapability::rwpwm, "FPC10"},
-    {PD_1, PinCapability::rwpwm, "FPC11"},
+    {PB_10, "FPC1"},
+    {PB_11, "FPC2"},
+    {PD_10, "FPC3"},
+    {PD_11, "FPC4"},
+    {PD_12, "FPC5"},
+    {PD_13, "FPC6"},
+    {PD_14, "FPC7"},
+    {PD_15, "FPC8"},
+    {PC_6, "FPC9"},
+    {PD_0, "FPC10"},
+    {PD_1, "FPC11"},
 
 
 };
@@ -201,85 +201,85 @@ constexpr PinEntry PinTable_FLY_CDYV2[] =
 
 
     //Thermistors
-    {PA_3, PinCapability::ainrw, "e0temp,t0"},
-    {PC_4, PinCapability::ainrw, "e1temp,t1"},
-    {PC_5, PinCapability::ainrw, "e2temp,t2"},
-    {PB_1, PinCapability::ainrw, "bedtemp,tb"},
+    {PA_3, "e0temp,t0"},
+    {PC_4, "e1temp,t1"},
+    {PC_5, "e2temp,t2"},
+    {PB_1, "bedtemp,tb"},
 
     //Endstops
-    {PC_7, PinCapability::rw, "xmin,xstop"},
-    {PC_6, PinCapability::rw, "xmax,xstopmax"},
-    {PD_11, PinCapability::rw, "ymin,ystop"},
-    {PD_10, PinCapability::rw, "ymax,ystopmax"},
-    {PB_10, PinCapability::rw, "zmin,zstop"},
-    {PB_11, PinCapability::rw, "zmax,zstopmax"},
+    {PC_7, "xmin,xstop"},
+    {PC_6, "xmax,xstopmax"},
+    {PD_11, "ymin,ystop"},
+    {PD_10, "ymax,ystopmax"},
+    {PB_10, "zmin,zstop"},
+    {PB_11, "zmax,zstopmax"},
 
 	// Servo
-    {PE_6,  PinCapability::wpwm, "servo0" },
+    {PE_6,  "servo0" },
 
    // Probe
-    {PC_2, PinCapability::rwpwm, "probe"},
+    {PC_2, "probe"},
 	
     //Heaters and Fans (Big and Small Mosfets}
-    {PB_0,  PinCapability::wpwm, "bed,hbed" },
-    {PD_12,  PinCapability::wpwm, "e0heat,he0" },
-    {PD_13,  PinCapability::wpwm, "e1heat,he1" },
-    {PD_14,  PinCapability::wpwm, "e2heat,he2" },
-    {PA_0,  PinCapability::wpwm, "fan0,fan" },
-    {PA_1,  PinCapability::wpwm, "fan1" },
-    {PA_2,  PinCapability::wpwm, "fan2" },
+    {PB_0,  "bed,hbed" },
+    {PD_12,  "e0heat,he0" },
+    {PD_13,  "e1heat,he1" },
+    {PD_14,  "e2heat,he2" },
+    {PA_0,  "fan0,fan" },
+    {PA_1,  "fan1" },
+    {PA_2,  "fan2" },
 
 
     //EXP1
-    {PA_14, PinCapability::rwpwm, "lcdd7"},
-    {PA_13, PinCapability::rwpwm, "lcdd6"},
-    {PE_15, PinCapability::rwpwm, "lcdd4"},
-    {PE_14, PinCapability::rwpwm, "lcdd5"},
-    {PB_1, PinCapability::rwpwm, "lcden"},
-	{PE_13, PinCapability::rwpwm, "tfcd"},
+    {PA_14, "lcdd7"},
+    {PA_13, "lcdd6"},
+    {PE_15, "lcdd4"},
+    {PE_14, "lcdd5"},
+    {PB_1, "lcden"},
+	{PE_13, "tfcd"},
 
 	//SD
-//	{PC_9, PinCapability::rwpwm, "SDD1"},
-//	{PC_8, PinCapability::rwpwm, "SDD0"},
-//	{PC_12, PinCapability::rwpwm, "SDSCK"},
-//	{PD_2, PinCapability::rwpwm, "SDCMD"},
-//	{PC_11, PinCapability::rwpwm, "SDD3"},
-//	{PC_10, PinCapability::rwpwm, "SDD2"},
+//	{PC_9, "SDD1"},
+//	{PC_8, "SDD0"},
+//	{PC_12, "SDSCK"},
+//	{PD_2, "SDCMD"},
+//	{PC_11, "SDD3"},
+//	{PC_10, "SDD2"},
 
 	// UART
-	{PA_9, PinCapability::rwpwm, "TX1,btnenc"},
-	{PA_10, PinCapability::rwpwm, "RX1,lcdrs"},
+	{PA_9, "TX1,btnenc"},
+	{PA_10, "RX1,lcdrs"},
 
     // WIFI UART	
-	{PD_8, PinCapability::rwpwm, "PD8,btnen2"},
-	{PD_9, PinCapability::rwpwm, "PD9,btnen1"},	
+	{PD_8, "PD8,btnen2"},
+	{PD_9, "PD9,btnen1"},	
 	
     //WIFI
-    {PE_10, PinCapability::rwpwm, "PE10"},
-    {PE_11, PinCapability::rwpwm, "PE11"},
-    {PE_12, PinCapability::rwpwm, "PE12"},
+    {PE_10, "PE10"},
+    {PE_11, "PE11"},
+    {PE_12, "PE12"},
 
     //spi 1  (SD,MAX311865,MAX6675)
-    {PA_4, PinCapability::rwpwm, "PA4,SPI1SDCS"},
-    {PA_5, PinCapability::rwpwm, "PA5,SPI1SCK"},
-    {PA_6, PinCapability::rwpwm, "PA6,SPI1MISO"},
-    {PA_7, PinCapability::rwpwm, "PA7,SPI1MOSI"},
-    {PE_7, PinCapability::rwpwm, "PE7,SPI1CS1"},  
-    {PE_8, PinCapability::rwpwm, "PE8,SPI1CS2"},
+    {PA_4, "PA4,SPI1SDCS"},
+    {PA_5, "PA5,SPI1SCK"},
+    {PA_6, "PA6,SPI1MISO"},
+    {PA_7, "PA7,SPI1MOSI"},
+    {PE_7, "PE7,SPI1CS1"},
+    {PE_8, "PE8,SPI1CS2"},
 
     //spi 3  (MOT TMC2130 TMC5160)
-    {PB_3, PinCapability::rwpwm, "PB3,MOTSCK"},
-    {PB_4, PinCapability::rwpwm, "PB4,MOTMISO"},
-    {PB_5, PinCapability::rwpwm, "PB5,MOTMOSI"},
+    {PB_3, "PB3,MOTSCK"},
+    {PB_4, "PB4,MOTMISO"},
+    {PB_5, "PB5,MOTMOSI"},
 
     //Signal light   Neopixel
-    {PD_15, PinCapability::rwpwm, "Neopixel,LED"},
+    {PD_15, "Neopixel,LED"},
 
     //Laser 
-    {PB_9, PinCapability::rwpwm, "PB9,Laser"},
+    {PB_9, "PB9,Laser"},
 	
 	//Power ADC
-	{PC_3, PinCapability::rwpwm, "Power_ADC,PC3"}
+	{PC_3, "Power_ADC,PC3"}
 };
 
 constexpr BoardDefaults fly_cdyv2_Defaults = {

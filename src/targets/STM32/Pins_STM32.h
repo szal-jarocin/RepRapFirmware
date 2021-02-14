@@ -306,41 +306,12 @@ extern Pin NeopixelOutPin;
 
 extern volatile uint32_t BrownoutEvents;
 
-
-
-// Enum to represent allowed types of pin access
-// We don't have a separate bit for servo, because Duet PWM-capable ports can be used for servos if they are on the Duet main board
-enum class PinCapability: uint8_t
-{
-    // Individual capabilities
-    read = 1,
-    ain = 2,
-    write = 4,
-    pwm = 8,
-    
-    // Combinations
-    ainr = 1|2,
-    rw = 1|4,
-    wpwm = 4|8,
-    rwpwm = 1|4|8,
-    ainrw = 1|2|4,
-    ainrwpwm = 1|2|4|8
-};
-
-constexpr inline PinCapability operator|(PinCapability a, PinCapability b)
-{
-    return (PinCapability)((uint8_t)a | (uint8_t)b);
-}
-
 struct PinEntry
 {
-    bool CanDo(PinAccess access) const noexcept;
     Pin GetPin() const  noexcept{ return pin; }
-    PinCapability GetCapability() const  noexcept{ return cap; }
     const char* GetNames() const  noexcept{ return names; }
     
     Pin pin;
-    PinCapability cap;
     const char *names;
 };
 
@@ -349,6 +320,7 @@ extern size_t NumNamedLPCPins;
 
 
 bool LookupPinName(const char *pn, LogicalPin& lpin, bool& hardwareInverted) noexcept;
+const char *GetPinNames(LogicalPin lp) noexcept;
 
 #if ALLOCATE_LOCAL_PORTS
 constexpr const char *DefaultEndstopPinNames[] = { "nil", "nil", "nil" };
@@ -408,9 +380,7 @@ constexpr BoardEntry LPC_Boards[] =
 
 
 //This needs to be const as its used in other places to create arrays
-//Use the largest size which is the "generic" pintable
-//constexpr unsigned int NumNamedPins = ARRAY_SIZE(PinTable_Generic);
-constexpr unsigned int NumNamedPins = 144;
+constexpr unsigned int NumNamedPins = P_END;
 
 extern "C" void debugPrintf(const char* fmt, ...) noexcept __attribute__ ((format (printf, 1, 2)));
 

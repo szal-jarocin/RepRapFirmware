@@ -436,7 +436,11 @@ void IoPort::AppendPinName(const StringRef& str) const noexcept
 			str.cat('!');
 		}
 		const size_t insertPoint = str.strlen();
+#if __LPC17xx__ || STM32F4
+		const char *pn = GetPinNames(logicalPin);
+#else
 		const char *pn = PinTable[logicalPin].GetNames();
+#endif
 		unsigned int numPrinted = 0;
 		do
 		{
