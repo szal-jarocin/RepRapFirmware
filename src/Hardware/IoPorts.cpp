@@ -490,7 +490,7 @@ void IoPort::AppendPinName(const StringRef& str) const noexcept
 	}
 }
 
-/*static*/ void IoPort::AppendPinNames(const StringRef& str, size_t numPorts, IoPort * const ports[]) noexcept
+/*static*/ void IoPort::AppendPinNames(const StringRef& str, size_t numPorts, const IoPort * const ports[]) noexcept
 {
 	for (size_t i = 0; i < numPorts; ++i)
 	{
