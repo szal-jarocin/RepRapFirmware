@@ -634,20 +634,20 @@ void BoardConfig::Diagnostics(MessageType mtype) noexcept
 	}
 
     reprap.GetPlatform().MessageF(mtype, "\n== MCU ==\n");
-    reprap.GetPlatform().MessageF(mtype, "TS_CAL1 (30C) = %d\n", (int) (*(uint16_t *)0x1FFF7A2C));
-    reprap.GetPlatform().MessageF(mtype, "TS_CAL2 (110C) = %d\n", (int) (*(uint16_t *)0x1FFF7A2E));
-    reprap.GetPlatform().MessageF(mtype, "V_REFINCAL (30C 3.3V) = %d\n\n", (int) (*(uint16_t *)0x1FFF7A2A));
+    reprap.GetPlatform().MessageF(mtype, "TS_CAL1 (30C) = %d\n", (int) (*TEMPSENSOR_CAL1_ADDR));
+    reprap.GetPlatform().MessageF(mtype, "TS_CAL2 (110C) = %d\n", (int) (*TEMPSENSOR_CAL2_ADDR));
+    reprap.GetPlatform().MessageF(mtype, "V_REFINCAL (30C 3.3V) = %d\n\n", (int) (*VREFINT_CAL_ADDR));
     uint32_t vrefintraw = AnalogInReadChannel(GetVREFAdcChannel());
-    float vref = 3.3f*((float)(*(uint16_t *)0x1FFF7A2A))/(float)(vrefintraw >> (AdcBits - 12));
+    float vref = 3.3f*((float)(GET_ADC_CAL(VREFINT_CAL_ADDR, VREFINT_CAL_DEF)))/(float)(vrefintraw >> (AdcBits - 12));
     reprap.GetPlatform().MessageF(mtype, "V_REFINT raw %d\n", (int) vrefintraw);
     reprap.GetPlatform().MessageF(mtype, "V_REF  %f\n\n", (double)vref);
     float tmcuraw = (float)AnalogInReadChannel(GetTemperatureAdcChannel());
     reprap.GetPlatform().MessageF(mtype, "T_MCU raw %d\n", (int) tmcuraw);
-    reprap.GetPlatform().MessageF(mtype, "T_MCU cal %f\n", (double)(((110.0f - 30.0f)/(((float)(*(uint16_t *)0x1FFF7A2E)) - ((float)(*(uint16_t *)0x1FFF7A2C)))) * ((float)(tmcuraw / (float) (1 << (AdcBits - 12))) - ((float)(*(uint16_t *)0x1FFF7A2C))) + 30.0f)); 
+    reprap.GetPlatform().MessageF(mtype, "T_MCU cal %f\n", (double)(((110.0f - 30.0f)/(((float)(GET_ADC_CAL(TEMPSENSOR_CAL2_ADDR, TEMPSENSOR_CAL2_DEF))) - ((float)(GET_ADC_CAL(TEMPSENSOR_CAL1_ADDR, TEMPSENSOR_CAL1_DEF))))) * ((float)(tmcuraw / (float) (1 << (AdcBits - 12))) - ((float)(GET_ADC_CAL(TEMPSENSOR_CAL1_ADDR, TEMPSENSOR_CAL1_DEF)))) + 30.0f)); 
     reprap.GetPlatform().MessageF(mtype, "T_MCU calc %f\n\n", (double)(((tmcuraw*3.3f)/(float)((1 << AdcBits) - 1) - 0.76f)/0.0025f + 25.0f));
     tmcuraw = tmcuraw*vref/3.3f; 
     reprap.GetPlatform().MessageF(mtype, "T_MCU raw (corrected) %d\n", (int) tmcuraw);
-    reprap.GetPlatform().MessageF(mtype, "T_MCU cal (corrected) %f\n", (double)(((110.0f - 30.0f)/(((float)(*(uint16_t *)0x1FFF7A2E)) - ((float)(*(uint16_t *)0x1FFF7A2C)))) * ((float)(tmcuraw / (float) (1 << (AdcBits - 12))) - ((float)(*(uint16_t *)0x1FFF7A2C))) + 30.0f)); 
+    reprap.GetPlatform().MessageF(mtype, "T_MCU cal (corrected) %f\n", (double)(((110.0f - 30.0f)/(((float)(GET_ADC_CAL(TEMPSENSOR_CAL2_ADDR, TEMPSENSOR_CAL2_DEF))) - ((float)(GET_ADC_CAL(TEMPSENSOR_CAL1_ADDR, TEMPSENSOR_CAL1_DEF))))) * ((float)(tmcuraw / (float) (1 << (AdcBits - 12))) - ((float)(GET_ADC_CAL(TEMPSENSOR_CAL1_ADDR, TEMPSENSOR_CAL1_DEF)))) + 30.0f)); 
     reprap.GetPlatform().MessageF(mtype, "T_MCU calc (corrected) %f\n", (double)(((tmcuraw*3.3f)/(float)((1 << AdcBits) - 1) - 0.76f)/0.0025f + 25.0f));
 
 }

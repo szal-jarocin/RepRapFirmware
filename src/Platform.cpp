@@ -1620,14 +1620,13 @@ float Platform::GetCpuTemperature() const noexcept
 # elif SAME70
 	return (voltage - 0.72) * (1000.0/2.33) + 25.0 + mcuTemperatureAdjust;			// accuracy at 25C is +/-34C
 # elif STM32F4
-	// Magic numbers are the location of STM32 calibration constants
 	// See: http://www.efton.sk/STM32/STM32_VREF.pdf and https://www.st.com/resource/en/datasheet/dm00037051.pdf
 	// We get current VRef to compensate reading.
-	// VRef = 3.3*VREFIN_CAL*VREFINT
-	const float vref = 3.3f*((float)(*(uint16_t *)0x1FFF7A2A))/((float)(adcFilters[VrefFilterIndex].GetSum() >> (AdcBits - 12))/ThermistorAverageReadings);
+	// VRef = (3.3*VREFIN_CAL)/VREFINT
+	const float vref = 3.3f*((float)(GET_ADC_CAL(VREFINT_CAL_ADDR, VREFINT_CAL_DEF)))/((float)(adcFilters[VrefFilterIndex].GetSum() >> (AdcBits - 12))/ThermistorAverageReadings);
 	// VSENSE_CORRECTED = VSENSE*VRef/3.3
 	// TMCU = ((TSCAL2_TEMP - TSCAL1_TEMP)/(TSCAL2 - TSCAL1))*(VSENSE_CORRECTED - TSCAL1) + TSCAL1_TEMP
-	return ((110.0f - 30.0f)/(((float)(*(uint16_t *)0x1FFF7A2E)) - ((float)(*(uint16_t *)0x1FFF7A2C)))) * ((voltage*((float)(1u << 12))/3.3f)*vref/3.3f - ((float)(*(uint16_t *)0x1FFF7A2C))) + 30.0f; 
+	return ((110.0f - 30.0f)/(((float)(GET_ADC_CAL(TEMPSENSOR_CAL2_ADDR, TEMPSENSOR_CAL2_DEF))) - ((float)(GET_ADC_CAL(TEMPSENSOR_CAL1_ADDR, TEMPSENSOR_CAL1_DEF))))) * ((voltage*((float)(1u << 12))/3.3f)*vref/3.3f - ((float)(GET_ADC_CAL(TEMPSENSOR_CAL1_ADDR, TEMPSENSOR_CAL1_DEF)))) + 30.0f; 
 # else
 #  error undefined CPU temp conversion
 # endif
