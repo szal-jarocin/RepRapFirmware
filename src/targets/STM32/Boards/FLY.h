@@ -20,7 +20,7 @@ constexpr PinEntry PinTable_FLY_F407ZG[] =
     {PC_3, "xmin,xstop"},
     {PC_2, "xmax,xstopmax"},
     {PF_2, "ymin,ystop"},
-    {PF_3, "ymax,ystopmax"},
+    {PF_1, "ymax,ystopmax"},
     {PF_0, "zmin,zstop"},
     {PC_15, "zmax,zstopmax"},
     {PC_14, "z3"},
