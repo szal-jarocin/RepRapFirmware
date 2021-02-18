@@ -428,7 +428,7 @@ constexpr BoardEntry LPC_Boards[] =
 
 //This needs to be const as its used in other places to create arrays
 //Use the largest size which is the "generic" pintable
-constexpr unsigned int NumNamedPins = ARRAY_SIZE(PinTable_Generic);
+constexpr unsigned int NumNamedPins = P_END;
 
 
 
