@@ -21,7 +21,7 @@ constexpr uint8_t InvalidFormatCode = 0xC9;			// must be different from any othe
 
 constexpr uint16_t LinuxProtocolVersion = 4;
 
-#if !__LPC17xx__
+#if !LPC17xx
 constexpr size_t LinuxTransferBufferSize = 8192;	// maximum length of a data transfer. Must be a multiple of 4 and kept in sync with Duet Control Server!
 #else
 constexpr size_t LinuxTransferBufferSize = 3072;    // maximum length of a data transfer. Must be a multiple of 4 and kept in sync with Duet Control Server!
@@ -29,7 +29,7 @@ constexpr size_t LinuxTransferBufferSize = 3072;    // maximum length of a data 
 
 static_assert(LinuxTransferBufferSize % sizeof(uint32_t) == 0, "LinuxTransferBufferSize must be a whole number of dwords");
 
-#if !__LPC17xx__
+#if !LPC17xx
 constexpr size_t MaxCodeBufferSize = 256;			// maximum length of a G/M/T-code in binary encoding
 #else
 constexpr size_t MaxCodeBufferSize = 256;           // maximum length of a G/M/T-code in binary encoding
@@ -42,7 +42,7 @@ constexpr uint32_t SpiMacroRequestTimeout = 3000;	// maximum time to wait a macr
 constexpr uint32_t SpiTransferTimeout = 500;		// maximum allowed delay between data exchanges during a full transfer (in ms)
 constexpr uint32_t SpiConnectionTimeout = 4000;		// maximum time to wait for the next transfer (in ms)
 
-#if !__LPC17xx__
+#if !LPC17xx
 constexpr uint16_t SpiCodeBufferSize = 4096;		// number of bytes available for G-code caching
 #else
 constexpr uint16_t SpiCodeBufferSize = 2048;        // number of bytes available for G-code caching

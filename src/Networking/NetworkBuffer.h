@@ -11,7 +11,7 @@
 #include "RepRapFirmware.h"
 #include "NetworkDefs.h"
 
-#if __LPC17xx__ && HAS_RTOSPLUSTCP_NETWORKING
+#if LPC17xx && HAS_RTOSPLUSTCP_NETWORKING
 # include "RTOSPlusTCPEthernetInterface.h"
 #endif
 
@@ -79,7 +79,7 @@ public:
 	// Count how many buffers there are in a chain
 	static unsigned int Count(NetworkBuffer*& ptr) noexcept;
 
-#if defined(__LPC17xx__)
+#if LPC17xx
 
 # if HAS_RTOSPLUSTCP_NETWORKING
 	static const size_t bufferSize = 1 * ipconfigTCP_MSS;

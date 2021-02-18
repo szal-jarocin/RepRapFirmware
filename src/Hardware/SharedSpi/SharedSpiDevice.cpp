@@ -4,13 +4,12 @@
  *  Created on: 16 Jun 2020
  *      Author: David
  */
-#if __LPC17xx__
+#include "SharedSpiDevice.h"
+#if LPC17xx
 	#include "LPC/Hardware/SharedSpi/SharedSpiDevice.hpp"
 #elif STM32F4
 	#include "STM32/Hardware/SharedSpi/SharedSpiDevice.hpp"
 #else
-
-#include "SharedSpiDevice.h"
 
 #include <Hardware/IoPorts.h>
 

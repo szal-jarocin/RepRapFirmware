@@ -73,7 +73,7 @@
         mem.EnsureWritten();
 	}
 
-#if __LPC17xx__
+#if LPC17xx
     LPC_SYSCTL->RSID = 0x3F;					// Clear bits in reset reasons stored in RSID
 #elif STM32F4
 	// FIXME add any STM specific code here
@@ -147,7 +147,7 @@ extern "C" [[noreturn]] void wdtFaultDispatcher(const uint32_t *pulFaultStackAdd
 }
 
 
-#if __LPC17xx__
+#if LPC17xx
 extern "C" void WDT_IRQHandler() noexcept __attribute__((naked));
 void WDT_IRQHandler() noexcept
 {
@@ -256,7 +256,7 @@ void vAssertCalled(uint32_t line, const char *file) noexcept
 	);
 }
 
-#if __LPC17xx__
+#if LPC17xx
 extern "C" [[noreturn]] void applicationMallocFailedCalledDispatcher(const uint32_t *pulFaultStackAddress) noexcept
 {
 	SoftwareReset(SoftwareResetReason::outOfMemory, pulFaultStackAddress);

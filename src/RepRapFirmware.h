@@ -528,7 +528,7 @@ const NvicPriority NvicPrioritySpi = 6;				// SPI is used for network transfers 
 const NvicPriority NvicPriorityWatchdog = 0;		// the secondary watchdog has the highest priority
 # endif
 
-# if __LPC17xx__
+# if LPC17xx
 const NvicPriority NvicPriorityWatchdog = 0;		// the secondary watchdog has the highest priority
 const NvicPriority NvicPriorityDriversSerialTMC = 1;// LPC uses a software UART, make this a very high priority
 const NvicPriority NvicPriorityTimerPWM = 2;		// Run PWM timing as high as we can to avoid jitter

@@ -86,7 +86,7 @@ GCodes::GCodes(Platform& p) noexcept :
 # else
 	httpGCode = nullptr;
 # endif // SUPPORT_HTTP || HAS_LINUX_INTERFACE
-# if SUPPORT_TELNET || (HAS_LINUX_INTERFACE && !__LPC17xx__)
+# if SUPPORT_TELNET || (HAS_LINUX_INTERFACE && !LPC17xx)
 	telnetInput = new NetworkGCodeInput();
 	telnetGCode = new GCodeBuffer(GCodeChannel::Telnet, telnetInput, fileInput, TelnetMessage, Compatibility::Marlin);
 # else
@@ -94,7 +94,7 @@ GCodes::GCodes(Platform& p) noexcept :
 # endif // SUPPORT_TELNET || HAS_LINUX_INTERFACE
 
 #if defined(SERIAL_MAIN_DEVICE)
-# if SAME5x || __LPC17xx__
+# if SAME5x || LPC17xx
 	// SAME5x USB driver already uses an efficient buffer for receiving data from USB
 	StreamGCodeInput * const usbInput = new StreamGCodeInput(SERIAL_MAIN_DEVICE);
 # else
@@ -122,7 +122,7 @@ GCodes::GCodes(Platform& p) noexcept :
 	codeQueue = new GCodeQueue();
 	queuedGCode = new GCodeBuffer(GCodeChannel::Queue, codeQueue, fileInput, GenericMessage);
 
-#if SUPPORT_12864_LCD || (HAS_LINUX_INTERFACE && !defined(__LPC17xx__))
+#if SUPPORT_12864_LCD || (HAS_LINUX_INTERFACE && !LPC17xx)
 	lcdGCode = new GCodeBuffer(GCodeChannel::LCD, nullptr, fileInput, LcdMessage);
 #else
 	lcdGCode = nullptr;
@@ -137,7 +137,7 @@ GCodes::GCodes(Platform& p) noexcept :
 #if defined(SERIAL_AUX2_DEVICE)
 	StreamGCodeInput * const aux2Input = new StreamGCodeInput(SERIAL_AUX2_DEVICE);
 	aux2GCode = new GCodeBuffer(GCodeChannel::Aux2, aux2Input, fileInput, Aux2Message);
-#elif HAS_LINUX_INTERFACE && !defined(__LPC17xx__)
+#elif HAS_LINUX_INTERFACE && !LPC17xx
 	aux2GCode = new GCodeBuffer(GCodeChannel::Aux2, nullptr, fileInput, Aux2Message);
 #else
 	aux2GCode = nullptr;
@@ -198,7 +198,7 @@ void GCodes::Init() noexcept
 	LedStripDriver::Init();
 #endif
 
-#if HAS_AUX_DEVICES && !__LPC17xx__ && !STM32F4
+#if HAS_AUX_DEVICES && !LPC17xx && !STM32F4
 	// FIXME why don't we have this?
 	SERIAL_AUX_DEVICE.SetInterruptCallback(GCodes::CommandEmergencyStop);
 #endif

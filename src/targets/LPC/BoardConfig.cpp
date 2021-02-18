@@ -24,7 +24,7 @@
 #include "ff.h"
 #include "SoftwareReset.h"
 #include "ExceptionHandlers.h"
-
+extern void ConfigureADCPreFilter(bool enable) noexcept;
 //Single entry for Board name
 static const boardConfigEntry_t boardEntryConfig[]=
 {
@@ -412,7 +412,7 @@ Pin BoardConfig::LookupPin(char *strvalue) noexcept
     
     if(LookupPinName(strvalue, lp, hwInverted))
     {
-        return PinTable[lp].pin; //lookup succeeded, return the Pin
+        return (Pin)lp; //lookup succeeded, return the Pin
     }
                      
     //pin may not be in the pintable so check if the format is a correct pin (returns NoPin if not)
@@ -475,7 +475,7 @@ void BoardConfig::Diagnostics(MessageType mtype) noexcept
 # endif
 	const char* const expansionName = DuetExpansion::GetExpansionBoardName();
 	reprap.GetPlatform().MessageF(mtype, (expansionName == nullptr) ? "\n" : " + %s\n", expansionName);
-#elif __LPC17xx__
+#elif LPC17xx
 	reprap.GetPlatform().MessageF(mtype, "%s (%s) version %s running on %s at %dMhz\n", FIRMWARE_NAME, lpcBoardName, VERSION, reprap.GetPlatform().GetElectronicsString(), (int)SystemCoreClock/1000000);
 #elif HAS_LINUX_INTERFACE
 	reprap.GetPlatform().MessageF(mtype, "%s version %s running on %s (%s mode)\n", FIRMWARE_NAME, VERSION, reprap.GetPlatform().GetElectronicsString(),

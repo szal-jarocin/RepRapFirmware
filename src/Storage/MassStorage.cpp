@@ -4,7 +4,7 @@
 #include <ObjectModel/ObjectModel.h>
 #include <Libraries/Fatfs/diskio.h>
 
-#if !__LPC17xx__ && !STM32F4 
+#if !LPC17xx && !STM32F4 
 #include <Libraries/sd_mmc/sd_mmc.h>
 #endif 
 
@@ -16,7 +16,7 @@
 static_assert(FF_MAX_LFN >= MaxFilenameLength, "FF_MAX_LFN too small");
 
 // Check that the correct number of SD cards is configured in the library
-#if !__LPC17xx__ && !STM32F4 
+#if !LPC17xx && !STM32F4 
 #include <Libraries/sd_mmc/conf_sd_mmc.h>
 static_assert(SD_MMC_MEM_CNT == NumSdCards);
 #endif

@@ -16,7 +16,8 @@
 # include <CAN/CanInterface.h>
 #endif
 
-#if __LPC17xx__
+#if LPC17xx
+#include "timer.h"
 # ifdef LPC_DEBUG
 int lateTimers = 0;
 # endif
@@ -85,7 +86,7 @@ void StepTimer::Init() noexcept
 	NVIC_SetPriority(StepTcIRQn, NvicPriorityStep);			    // Set the priority for this IRQ
 	NVIC_ClearPendingIRQ(StepTcIRQn);
 	NVIC_EnableIRQ(StepTcIRQn);
-#elif __LPC17xx__
+#elif LPC17xx
 	//LPC has 32bit timers with 32bit prescalers
 	//Start a free running Timer using Match Registers to generate interrupts
 
@@ -209,7 +210,7 @@ bool StepTimer::ScheduleTimerInterrupt(uint32_t tim) noexcept
 	while (StepTc->SYNCBUSY.reg & TC_SYNCBUSY_CC0) { }
 	StepTc->INTFLAG.reg = TC_INTFLAG_MC0;							// clear any existing compare match
 	StepTc->INTENSET.reg = TC_INTFLAG_MC0;
-#elif __LPC17xx__
+#elif LPC17xx
 	STEP_TC->MR[0] = tim;											// set MR0 compare register
 	STEP_TC->MCR |= (1u<<SBIT_MR0I);									// enable interrupt on MR0 match
 # ifdef LPC_DEBUG
@@ -232,7 +233,7 @@ void StepTimer::DisableTimerInterrupt() noexcept
 {
 #if SAME5x
 	StepTc->INTENCLR.reg = TC_INTFLAG_MC0;
-#elif __LPC17xx__
+#elif LPC17xx
 	STEP_TC->MCR &= ~(1u<<SBIT_MR0I);								 // disable Int on MR1
 #elif STM32F4
 	__HAL_TIM_DISABLE_IT(STHandle, TIM_IT_CC1);STimer.setCaptureCompare(1, 1000, TICK_COMPARE_FORMAT);
@@ -379,7 +380,7 @@ void STEP_TC_HANDLER() noexcept
 	if ((tcsr & TC_INTFLAG_MC0) != 0)								// the step interrupt uses MC0 compare
 	{
 		StepTc->INTENCLR.reg = TC_INTFLAG_MC0;						// disable the interrupt (no need to clear it, we do that before we re-enable it)
-#elif __LPC17xx__
+#elif LPC17xx
 	uint32_t regval = STEP_TC->IR;
 	//find which Match Register triggered the interrupt
 	if (regval & (1u << SBIT_MRI0_IFM))								// Interrupt flag for match channel 1.

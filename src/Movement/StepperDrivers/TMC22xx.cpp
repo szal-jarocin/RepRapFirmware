@@ -4,9 +4,9 @@
  *  Created on: 23 Jan 2016
  *      Author: David
  */
-// On the LPC17xx platform we have a replacement for this
-#if !__LPC17xx__ && !STM32F4
 #include "TMC22xx.h"
+// On the LPC17xx platform we have a replacement for this
+#if !LPC17xx && !STM32F4
 
 #if SUPPORT_TMC22xx
 

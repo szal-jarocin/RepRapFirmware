@@ -7,7 +7,7 @@
 
 #include <Fans/LedStripDriver.h>
 
-#if SUPPORT_LED_STRIPS && !__LPC17xx__ && !STM32F4
+#if SUPPORT_LED_STRIPS && !LPC17xx && !STM32F4
 
 #include <GCodes/GCodeBuffer/GCodeBuffer.h>
 #include <Movement/StepTimer.h>

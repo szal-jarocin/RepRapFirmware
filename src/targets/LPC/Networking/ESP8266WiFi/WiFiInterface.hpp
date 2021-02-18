@@ -75,7 +75,7 @@ static void SpiCSInterrupt(CallbackParameter) noexcept
 // Set up the SPI system
 void WiFiInterface::SetupSpi() noexcept
 {
-    attachInterrupt(SPI0_SSEL, SpiCSInterrupt, INTERRUPT_MODE_RISING, nullptr);
+    attachInterrupt(SPI0_SSEL, SpiCSInterrupt, InterruptMode::rising, nullptr);
 
     spiDevice = &HardwareSPI::SSP0;
     //In Slave mode, the SSP clock rate provided by the master must not exceed 1/12 of the

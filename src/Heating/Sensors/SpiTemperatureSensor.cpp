@@ -11,7 +11,7 @@
 
 SpiTemperatureSensor::SpiTemperatureSensor(unsigned int sensorNum, const char *name, SpiMode spiMode, uint32_t clockFrequency) noexcept
 	: SensorWithPort(sensorNum, name), 
-#if __LPC17xx__ || STM32F4
+#if LPC17xx || STM32F4
 	device(SharedSpiDevice::GetSharedSpiDevice(TempSensorSSPChannel),
 #else
 	device(SharedSpiDevice::GetMainSharedSpiDevice(),

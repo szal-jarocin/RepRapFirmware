@@ -18,7 +18,7 @@ class TelnetResponder;
 class RTOSPlusTCPEthernetSocket;
 
 
-#if __LPC17xx__
+#if LPC17xx
 const size_t NumHttpSockets = 2;				// sockets 0-3 are for HTTP
 #else
 const size_t NumHttpSockets = 4;                // sockets 0-3 are for HTTP

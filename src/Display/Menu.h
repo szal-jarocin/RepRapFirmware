@@ -54,7 +54,7 @@ private:
 	static char *SkipWhitespace(char *s) noexcept;
 	static bool CheckVisibility(MenuItem::Visibility vis) noexcept;
 
-#if __LPC17xx__
+#if LPC17xx
     static const size_t CommandBufferSize = 1024;
 #else
     static const size_t CommandBufferSize = 2500;

@@ -5,7 +5,7 @@
  *      Author: David
  */
 // Ugly hack to make sure we use the LPC version
-#if __LPC17xx__ || STM32F4
+#if LPC17xx || STM32F4
 #include "common/Movement/StepperDrivers/TMC51xx.h"
 #else
 #ifndef SRC_MOVEMENT_STEPPERDRIVERS_TMC51XX_H_

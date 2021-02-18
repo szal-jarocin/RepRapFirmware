@@ -20,6 +20,7 @@
 #include "Movement/Move.h"
 #include "Movement/StepTimer.h"
 #include "Cache.h"
+#include "timer.h"
 
 #include "DMA.h"
 

@@ -64,7 +64,7 @@ public:
 #if SAME70 || SAME5x
 	// All Duet 3 boards use a common step clock rate of 750kHz so that we can sync the clocks over CAN
 	static constexpr uint32_t StepClockRate = 48000000/64;						// 750kHz
-#elif __LPC17xx__
+#elif LPC17xx
 	static constexpr uint32_t StepClockRate = 1000000;                          // 1MHz
 #elif STM32F4
 	static constexpr uint32_t StepClockRate = 1000000;                          // 1MHz
@@ -128,7 +128,7 @@ inline __attribute__((always_inline)) StepTimer::Ticks StepTimer::GetTimerTicks(
 	while (StepTc->CTRLBSET.bit.CMD != 0) { }
 	while (StepTc->SYNCBUSY.bit.COUNT) { }
 	return StepTc->COUNT.reg;
-# elif __LPC17xx__
+# elif LPC17xx
 	return STEP_TC->TC;
 # elif STM32F4
 	return __HAL_TIM_GET_COUNTER(STHandle);
@@ -144,7 +144,7 @@ inline __attribute__((always_inline)) uint16_t StepTimer::GetTimerTicks16() noex
 {
 #if SAME5x
 	return (uint16_t)GetTimerTicks();
-#elif __LPC17xx__
+#elif LPC17xx
 	return (uint16_t)STEP_TC->TC;
 #elif STM32F4
 	return (uint16_t)__HAL_TIM_GET_COUNTER(STHandle);

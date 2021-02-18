@@ -31,8 +31,12 @@ const uint8_t memPattern = 0xA5;		// this must be the same pattern as FreeRTOS b
 extern char _end;						// defined in linker script
 extern char _estack;					// defined in linker script
 
+#if LPC17xx
+extern void *CoreAllocPermanent(size_t sz, std::align_val_t align) noexcept;
+#else
 // Define replacement standard library functions
 #include <syscalls.h>
+#endif
 
 #ifndef DEBUG
 extern uint32_t _firmware_crc;			// defined in linker script
@@ -44,7 +48,7 @@ extern uint32_t _firmware_crc;			// defined in linker script
 // The timer and idle tasks currently never do I/O, so they can be much smaller.
 #if SAME70
 constexpr unsigned int MainTaskStackWords = 1800;			// on the SAME70 we use matrices of doubles
-#elif __LPC17xx__
+#elif LPC17xx
 constexpr unsigned int MainTaskStackWords = 1110-(16*9);	// LPC builds only support 16 calibration points, so less space needed
 #else
 constexpr unsigned int MainTaskStackWords = 1110;			// on other processors we use matrixes of floats
@@ -107,7 +111,7 @@ extern "C" void ReleaseMallocMutex() noexcept
 	irqflags_t flags = cpu_irq_save();
 	pinMode(DiagPin, (DiagOnPolarity) ? OUTPUT_LOW : OUTPUT_HIGH);	// set up diag LED for debugging and turn it off
 
-#if !defined(DEBUG) && !defined(__LPC17xx__) && !defined(STM32F4)	// don't check the CRC of a debug build because debugger breakpoints mess up the CRC
+#if !defined(DEBUG) && !LPC17xx && !STM32F4	// don't check the CRC of a debug build because debugger breakpoints mess up the CRC
 	// Check the integrity of the firmware by checking the firmware CRC
 	{
 		const char *firmwareStart = reinterpret_cast<const char*>(SCB->VTOR & 0xFFFFFF80);
@@ -127,7 +131,7 @@ extern "C" void ReleaseMallocMutex() noexcept
 			}
 		}
 	}
-#endif	// !defined(DEBUG) && !defined(__LPC17xx__)
+#endif	// !defined(DEBUG) && !LPC17xx && !STM32F4
 
 	// Fill the free memory with a pattern so that we can check for stack usage and memory corruption
 	char* heapend = heapTop;
@@ -168,7 +172,7 @@ extern "C" void ReleaseMallocMutex() noexcept
 	// We could also trap unaligned memory access, if we change the gcc options to not generate code that uses unaligned memory access.
 	SCB->CCR |= SCB_CCR_DIV_0_TRP_Msk;
 
-#if !__LPC17xx__ && !SAME5x && !STM32F4
+#if !LPC17xx && !SAME5x && !STM32F4
 	// When doing a software reset, we disable the NRST input (User reset) to prevent the negative-going pulse that gets generated on it being held
 	// in the capacitor and changing the reset reason from Software to User. So enable it again here. We hope that the reset signal will have gone away by now.
 # ifndef RSTC_MR_KEY_PASSWD
@@ -212,7 +216,7 @@ extern "C" [[noreturn]] void MainTask(void *pvParameters) noexcept
 	}
 }
 
-#if __LPC17xx__
+#if LPC17xx
 	extern "C" size_t xPortGetTotalHeapSize( void );
 #endif
 
@@ -263,7 +267,7 @@ void Tasks::Diagnostics(MessageType mtype) noexcept
 #endif
 		p.MessageF(mtype, "Static ram: %d\n", &_end - ramstart);
 
-#if __LPC17xx__
+#if LPC17xx
 		p.MessageF(mtype, "Dynamic Memory (RTOS Heap 5): %d free, %d never used\n", xPortGetFreeHeapSize(), xPortGetMinimumEverFreeHeapSize() );
 		{
 			HeapStats_t stats;

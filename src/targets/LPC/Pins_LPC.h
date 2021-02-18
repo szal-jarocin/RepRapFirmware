@@ -347,6 +347,7 @@ extern size_t NumNamedLPCPins;
 
 
 bool LookupPinName(const char *pn, LogicalPin& lpin, bool& hardwareInverted) noexcept;
+const char *GetPinNames(LogicalPin lp) noexcept;
 
 #if ALLOCATE_DEFAULT_PORTS
 constexpr const char *DefaultEndstopPinNames[] = { "nil", "nil", "nil" };

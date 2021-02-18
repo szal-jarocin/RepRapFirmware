@@ -33,7 +33,7 @@
 constexpr IRQn SBC_SPI_IRQn = SbcSpiSercomIRQn;
 #define USE_32BIT_TRANSFERS		1
 
-#elif __LPC17xx__ || STM32F4
+#elif LPC17xx || STM32F4
 # define USE_DMAC           0
 # define USE_XDMAC          0
 uint32_t HeaderCRCErrors, DataCRCErrors;
@@ -73,7 +73,7 @@ uint32_t HeaderCRCErrors, DataCRCErrors;
 #include <General/IP4String.h>
 static TaskHandle linuxTaskHandle = nullptr;
 
-#if !__LPC17xx__ && !STM32F4
+#if !LPC17xx && !STM32F4
 
 #if USE_DMAC
 
@@ -393,7 +393,7 @@ extern "C" void SBC_SPI_HANDLER() noexcept
 }
 
 #else
-#if __LPC17xx__
+#if LPC17xx
 # include "LPC/Linux/DataTransfer.hpp"
 #elif STM32F4
 # include "STM32/Linux/DataTransfer.hpp"
@@ -442,7 +442,7 @@ void DataTransfer::Init() noexcept
 	txBuffer = (char *)new uint32_t[(LinuxTransferBufferSize + 3)/4];
 #endif
 
-#if __LPC17xx__ || STM32F4
+#if LPC17xx || STM32F4
     InitSpi();
 #elif SAME5x
 	// Initialize SPI
@@ -516,7 +516,7 @@ void DataTransfer::Diagnostics(MessageType mtype) noexcept
 	reprap.GetPlatform().MessageF(mtype, "Last transfer: %" PRIu32 "ms ago\n", millis() - lastTransferTime);
 	reprap.GetPlatform().MessageF(mtype, "RX/TX seq numbers: %d/%d\n", (int)rxHeader.sequenceNumber, (int)txHeader.sequenceNumber);
 	reprap.GetPlatform().MessageF(mtype, "SPI underruns %u, overruns %u\n", spiTxUnderruns, spiRxOverruns);
-#if __LPC17xx__ || STM32F4
+#if LPC17xx || STM32F4
 	reprap.GetPlatform().MessageF(mtype, "CRC errors header %u, data %u\n", (unsigned)HeaderCRCErrors, (unsigned)DataCRCErrors);
 #endif
 }
@@ -745,7 +745,7 @@ bool DataTransfer::IsReady() noexcept
 {
 	if (dataReceived)
 	{
-#if __LPC17xx__ || STM32F4
+#if LPC17xx || STM32F4
 		if (!digitalRead(SbcCsPin))			// transfer is complete if SS is high
 		{
 			return false;
@@ -793,7 +793,7 @@ bool DataTransfer::IsReady() noexcept
 			const uint32_t checksum = CalcCRC32(reinterpret_cast<const char *>(&rxHeader), sizeof(TransferHeader) - sizeof(uint32_t));
 			if (rxHeader.crcHeader != checksum)
 			{
-#if __LPC17xx__ || STM32F4
+#if LPC17xx || STM32F4
 				HeaderCRCErrors++;
 #endif
 				if (reprap.Debug(moduleLinuxInterface))
@@ -881,7 +881,7 @@ bool DataTransfer::IsReady() noexcept
 			const uint32_t checksum = CalcCRC32(rxBuffer, rxHeader.dataLength);
 			if (rxHeader.crcData != checksum)
 			{
-#if __LPC17xx__ || STM32F4
+#if LPC17xx || STM32F4
 				DataCRCErrors++;
 #endif
 				if (reprap.Debug(moduleLinuxInterface))
@@ -1447,7 +1447,7 @@ uint32_t DataTransfer::CalcCRC32(const char *buffer, size_t length) const noexce
 }
 
 
-#if __LPC17xx__ || STM32F4
+#if LPC17xx || STM32F4
 
 // Additional methods to emulate the Duet3 IAP. This allows us to
 // use the standard firmware update routines from the DSF for updating

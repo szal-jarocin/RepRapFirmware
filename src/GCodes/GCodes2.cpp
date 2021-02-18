@@ -17,7 +17,7 @@
 # include "Linux/LinuxInterface.h"
 #endif
 #include "Movement/Move.h"
-#if __LPC17xx__
+#if LPC17xx
 # include "Network.h"
 #else
 # include "Networking/Network.h"
@@ -55,7 +55,7 @@
 # include <CAN/ExpansionManager.h>
 #endif
 
-#if __LPC17xx__ || STM32F4
+#if LPC17xx || STM32F4
 #include "BoardConfig.h"
 #endif
 
@@ -1832,7 +1832,7 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeEx
 				{
 					reprap.Diagnostics(mt);
 				}
-#if __LPC17xx__ || STM32F4
+#if LPC17xx || STM32F4
 				else if (type == (unsigned int)DiagnosticTestType::PrintBoardConfiguration)
 					BoardConfig::Diagnostics(mt);
 #endif

@@ -227,7 +227,7 @@ bool LookupPinName(const char*pn, LogicalPin& lpin, bool& hardwareInverted) noex
             if (*p == 0 && (*q == 0 || *q == ','))
             {
                 // Found a match
-                lpin = (LogicalPin)lp;
+                lpin = (LogicalPin)PinTable[lp].pin;
                 hardwareInverted = hwInverted;
                 return true;
             }
@@ -249,15 +249,37 @@ bool LookupPinName(const char*pn, LogicalPin& lpin, bool& hardwareInverted) noex
     //Note: only pins in the selected board lookup table are suported.
     const Pin lpcPin = BoardConfig::StringToPin(pn);
     if(lpcPin != NoPin){
-        //find pin in lookup table
-        for (size_t lp = 0; lp < NumNamedLPCPins; ++lp){
-            if(lpcPin == PinTable[lp].pin){
-                lpin = (LogicalPin)lp;
-                hardwareInverted = false;
-                return true;
-            }
-        }
+        lpin = (LogicalPin)lpcPin;
+        hardwareInverted = false;
+        return true;
     }
     return false;
+}
+
+// Return the string names associated with a pin
+const char *GetPinNames(LogicalPin lp) noexcept
+{
+    for (size_t i = 0; i < NumNamedLPCPins; ++i)
+    {
+        if ((LogicalPin)(PinTable[i].pin) == lp)
+            return PinTable[i].names;
+    }
+    // not found manufascture a name
+    static char name[5];
+    name[0] = '0' + (lp >> 5);
+    name[1] = '.';
+    if ((lp & 0xf) > 9)
+    {
+        name[2] = '1';
+        name[3] = '0' + (lp & 0x1f) - 10;
+        name[4] = '\0';
+    }
+    else
+    {
+        name[2] = '0' + (lp & 0x1f);
+        name[4] = '\0';
+    }
+    // Next is very, very iffy, but ok for current usage!
+    return (const char *)name;
 }
 

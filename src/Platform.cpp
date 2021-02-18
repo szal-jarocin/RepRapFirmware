@@ -41,13 +41,17 @@
 #include <Hardware/I2C.h>
 #include <Hardware/NonVolatileMemory.h>
 #include <Storage/CRC32.h>
-#if __LPC17xx__
+#if LPC17xx
 # include "LPC/BoardConfig.h"
 # ifdef LPC_DEBUG
 #  include "SoftwarePWMTimer.h"
   extern int lateTimers;
+  extern uint32_t ADCNotReadyCnt;
+  extern uint32_t ADCInitCnt;
+  extern uint32_t ADCErrorThreshold;
 # endif
 # include <sd_mmc.h>
+# include "ResetCause.h"
 #elif STM32F4
 # include "STM32/BoardConfig.h"
 # include <sd_mmc.h>
@@ -246,7 +250,7 @@ constexpr ObjectModelTableEntry Platform::objectModelTable[] =
 # ifdef DUET_NG
 	{ "name",				OBJECT_MODEL_FUNC(self->GetBoardName()),															ObjectModelEntryFlags::none },
 	{ "shortName",			OBJECT_MODEL_FUNC(self->GetBoardShortName()),														ObjectModelEntryFlags::none },
-#elif __LPC17xx__ || STM32F4
+#elif LPC17xx || STM32F4
     { "name",               OBJECT_MODEL_FUNC_NOSELF(lpcBoardName),                                                             ObjectModelEntryFlags::none },
     { "shortName",          OBJECT_MODEL_FUNC_NOSELF(BOARD_SHORT_NAME),                                                         ObjectModelEntryFlags::none },
 # else
@@ -445,7 +449,7 @@ void Platform::Init() noexcept
 	usbMutex.Create("USB");
 #if SAME5x
     SERIAL_MAIN_DEVICE.Start();
-#elif __LPC17xx__ || STM32F4
+#elif LPC17xx || STM32F4
 	SERIAL_MAIN_DEVICE.begin(baudRates[0]);
 #else
     SERIAL_MAIN_DEVICE.Start(UsbVBusPin);
@@ -478,7 +482,7 @@ void Platform::Init() noexcept
 	MassStorage::Init();
 #endif
 
-#if __LPC17xx__ || STM32F4
+#if LPC17xx || STM32F4
 	// Load HW pin assignments from sdcard
 	BoardConfig::Init();
 #if HAS_NETWORKING
@@ -528,7 +532,7 @@ void Platform::Init() noexcept
 	numSmartDrivers = MaxSmartDrivers;
 # elif defined(DUET3)
 	numSmartDrivers = MaxSmartDrivers;
-# elif __LPC17xx__ || STM32F4
+# elif LPC17xx || STM32F4
 	numSmartDrivers = totalSmartDrivers;
 # elif defined(DUET3MINI)
 	numSmartDrivers = MaxSmartDrivers;							// support the expansion board, but don't mind if it's missing
@@ -569,7 +573,7 @@ void Platform::Init() noexcept
 	pinMode(SpiFLASHcsPin,OUTPUT_HIGH);														// Init Spi FLASH Cs pin, not implemented, default unselected
 #endif
 
-#if __LPC17xx__
+#if LPC17xx
 	if (hasDriverCurrentControl)
 	{
 		mcp4451.begin();
@@ -762,7 +766,7 @@ void Platform::Init() noexcept
 	// Enable the pullup resistor, with luck this will make it float high instead.
 #if SAM3XA
 	pinMode(APIN_SHARED_SPI_MISO, INPUT_PULLUP);
-#elif __LPC17xx__ || SAME5x || STM32F4
+#elif LPC17xx || SAME5x || STM32F4
 	// nothing to do here
 #else
 	pinMode(APIN_USART_SSPI_MISO, INPUT_PULLUP);
@@ -778,14 +782,14 @@ void Platform::Init() noexcept
 
 	for (size_t thermistor = 0; thermistor < NumThermistorInputs; thermistor++)
 	{
-#ifdef __LPC17xx__
+#ifdef LPC17xx
 		if (TEMP_SENSE_PINS[thermistor] != NoPin)
 		{
 #endif
 		// TODO use ports for these?
 		pinMode(TEMP_SENSE_PINS[thermistor], AIN);
 		filteredAdcChannels[thermistor] = PinToAdcChannel(TEMP_SENSE_PINS[thermistor]);	// translate the pin number to the SAM ADC channel number;
-#ifdef __LPC17xx__
+#ifdef LPC17xx
 		}
 		else
 			filteredAdcChannels[thermistor] = NO_ADC;
@@ -857,7 +861,7 @@ void Platform::Init() noexcept
 	numV12UnderVoltageEvents = previousV12UnderVoltageEvents = 0;
 #endif
 
-#if __LPC17xx__ || STM32F4
+#if LPC17xx || STM32F4
 	if (ATX_INITIAL_POWER_ON)
 		AtxPowerOn();
 	else
@@ -1097,7 +1101,7 @@ void Platform::Spin() noexcept
 		return;
 	}
 
-#if defined(DUET3) || defined(DUET3MINI) || defined(__LPC17xx__) || defined(STM32F4)
+#if defined(DUET3) || defined(DUET3MINI) || LPC17xx || STM32F4
 # if SUPPORT_REMOTE_COMMANDS
 	if (CanInterface::InExpansionMode())
 	{
@@ -1627,14 +1631,13 @@ float Platform::GetCpuTemperature() const noexcept
 # elif SAME70
 	return (voltage - 0.72) * (1000.0/2.33) + 25.0 + mcuTemperatureAdjust;			// accuracy at 25C is +/-34C
 # elif STM32F4
-	// Magic numbers are the location of STM32 calibration constants
 	// See: http://www.efton.sk/STM32/STM32_VREF.pdf and https://www.st.com/resource/en/datasheet/dm00037051.pdf
 	// We get current VRef to compensate reading.
-	// VRef = 3.3*VREFIN_CAL*VREFINT
-	const float vref = 3.3f*((float)(*(uint16_t *)0x1FFF7A2A))/((float)(adcFilters[VrefFilterIndex].GetSum() >> (AnalogIn::AdcBits - 12))/ThermistorAverageReadings);
+	// VRef = (3.3*VREFIN_CAL)/VREFINT
+	const float vref = 3.3f*((float)(GET_ADC_CAL(VREFINT_CAL_ADDR, VREFINT_CAL_DEF)))/((float)(adcFilters[VrefFilterIndex].GetSum() >> (LegacyAnalogIn::AdcBits - 12))/ThermistorAverageReadings);
 	// VSENSE_CORRECTED = VSENSE*VRef/3.3
 	// TMCU = ((TSCAL2_TEMP - TSCAL1_TEMP)/(TSCAL2 - TSCAL1))*(VSENSE_CORRECTED - TSCAL1) + TSCAL1_TEMP
-	return ((110.0f - 30.0f)/(((float)(*(uint16_t *)0x1FFF7A2E)) - ((float)(*(uint16_t *)0x1FFF7A2C)))) * ((voltage*((float)(1u << 12))/3.3f)*vref/3.3f - ((float)(*(uint16_t *)0x1FFF7A2C))) + 30.0f; 
+	return ((110.0f - 30.0f)/(((float)(GET_ADC_CAL(TEMPSENSOR_CAL2_ADDR, TEMPSENSOR_CAL2_DEF))) - ((float)(GET_ADC_CAL(TEMPSENSOR_CAL1_ADDR, TEMPSENSOR_CAL1_DEF))))) * ((voltage*((float)(1u << 12))/3.3f)*vref/3.3f - ((float)(GET_ADC_CAL(TEMPSENSOR_CAL1_ADDR, TEMPSENSOR_CAL1_DEF)))) + 30.0f; 
 # else
 #  error undefined CPU temp conversion
 # endif
@@ -1703,7 +1706,7 @@ void Platform::InitialiseInterrupts() noexcept
 	NVIC_SetPriority(XDMAC_IRQn, NvicPriorityDMA);
 #endif
 
-#if __LPC17xx__
+#if LPC17xx
 	// Interrupt for GPIO pins. Only port 0 and 2 support interrupts and both share EINT3
 	NVIC_SetPriority(EINT3_IRQn, NvicPriorityPins);
 #elif STM32F4
@@ -1737,7 +1740,7 @@ void Platform::InitialiseInterrupts() noexcept
 	NVIC_SetPriority(UDP_IRQn, NvicPriorityUSB);
 #elif SAM3XA
 	NVIC_SetPriority(UOTGHS_IRQn, NvicPriorityUSB);
-#elif __LPC17xx__
+#elif LPC17xx
 	NVIC_SetPriority(USB_IRQn, NvicPriorityUSB);
 #elif STM32F4
 	NVIC_SetPriority(OTG_FS_IRQn, NvicPriorityUSB);
@@ -1747,7 +1750,7 @@ void Platform::InitialiseInterrupts() noexcept
 
 #if defined(DUET_NG) || defined(DUET_M) || defined(DUET_06_085)
 	NVIC_SetPriority(I2C_IRQn, NvicPriorityTwi);
-#elif defined(__LPC17xx__)
+#elif LPC17xx
 	NVIC_SetPriority(I2C0_IRQn, NvicPriorityTwi);
 	NVIC_SetPriority(I2C1_IRQn, NvicPriorityTwi);
 #endif
@@ -1762,7 +1765,7 @@ void Platform::InitialiseInterrupts() noexcept
 # endif
 #endif
 
-#if __LPC17xx__
+#if LPC17xx
 	// set rest of the Timer Interrupt priorities
 	// Timer 0 is used for step generation (set elsewhere)
 	// DMA and SPI priorites are defined in BoardConfig as they are needed for File I/O
@@ -1824,7 +1827,7 @@ void Platform::Diagnostics(MessageType mtype) noexcept
 		resetString.cat('\n');
 		Message(mtype, resetString.c_str());
 	}
-#elif !__LPC17xx__ && !STM32F4
+#elif !LPC17xx && !STM32F4
 	const char* resetReasons[8] = { "power up", "backup", "watchdog", "software",
 # ifdef DUET_NG
 	// On the SAM4E a watchdog reset may be reported as a user reset because of the capacitor on the NRST pin.
@@ -1838,12 +1841,12 @@ void Platform::Diagnostics(MessageType mtype) noexcept
 			(unsigned int)(now/3600), (unsigned int)((now % 3600)/60), (unsigned int)(now % 60),
 			resetReasons[(REG_RSTC_SR & RSTC_SR_RSTTYP_Msk) >> RSTC_SR_RSTTYP_Pos]);
 #endif
-#if __LPC17xx__ || STM32F4
+#if LPC17xx || STM32F4
 		// Reset Reason
 	MessageF(mtype, "Last reset %02d:%02d:%02d ago, cause: ",
 				 (unsigned int)(now/3600), (unsigned int)((now % 3600)/60), (unsigned int)(now % 60));
 
-# if __LPC17xx__
+# if LPC17xx
 	if (LPC_SYSCTL->RSID & RSID_POR) { MessageF(mtype, "[power up]"); }
 	if (LPC_SYSCTL->RSID & RSID_EXTR) { MessageF(mtype, "[reset button]"); }
 	if (LPC_SYSCTL->RSID & RSID_WDTR) { MessageF(mtype, "[watchdog]"); }
@@ -1900,7 +1903,7 @@ void Platform::Diagnostics(MessageType mtype) noexcept
 	lowestVin = highestVin = currentVin;
 #endif
 
-#if defined(__LPC17xx__)
+#if LPC17xx
     MessageF(mtype, "Supply voltage: under voltage events: %" PRIu32 "\n", BrownoutEvents);
 #endif
 
@@ -1963,7 +1966,7 @@ void Platform::Diagnostics(MessageType mtype) noexcept
 #endif
 
 #ifdef LPC_DEBUG
-    softwarePWMTimer.Diagnostics(mtype);
+//    softwarePWMTimer.Diagnostics(mtype);
 #endif
 #ifdef LPC_DEBUG_HM
 	reprap.GetMove().AccessHeightMap().Diagnostics(mtype);
@@ -2474,7 +2477,7 @@ GCodeResult Platform::DiagnosticTest(GCodeBuffer& gb, const StringRef& reply, Ou
 		break;
 #endif
 
-#ifdef __LPC17xx__
+#ifdef LPC17xx
 	// This code is now called directly from the gcode module to allow it to have access to the
 	// I/O stream with a push modifier (used for standard M122). Without this the output in DSF
 	// is split into multiple responses. 
@@ -2976,7 +2979,7 @@ void Platform::UpdateMotorCurrent(size_t driver, float current) noexcept
 		{
 			dacPiggy.setChannel(7-driver, current * 0.102);
 		}
-#elif __LPC17xx__
+#elif LPC17xx
 		if (hasDriverCurrentControl)
 		{
 			//Has digipots to set current control for drivers
@@ -3079,7 +3082,7 @@ bool Platform::SetDriverMicrostepping(size_t driver, unsigned int microsteps, in
 		}
 #elif defined(__ALLIGATOR__)
 		return Microstepping::Set(driver, microsteps); // no mode in Alligator board
-#elif __LPC17xx__
+#elif LPC17xx
 		return Microstepping::Set(driver, microsteps);
 #else
 		// Assume only x16 microstepping supported
@@ -3737,7 +3740,7 @@ void Platform::StopLogging() noexcept
 
 bool Platform::AtxPower() const noexcept
 {
-#if __LPC17xx__ || STM32F4
+#if LPC17xx || STM32F4
 	return ATX_POWER_STATE;
 #else
 	return IoPort::ReadPin(ATX_POWER_PIN);
@@ -3747,7 +3750,7 @@ bool Platform::AtxPower() const noexcept
 void Platform::AtxPowerOn() noexcept
 {
 	deferredPowerDown = false;
-#if __LPC17xx__ || STM32F4
+#if LPC17xx || STM32F4
 	IoPort::WriteDigital(ATX_POWER_PIN, !ATX_POWER_INVERTED);
 	ATX_POWER_STATE = true;
 #else
@@ -3768,7 +3771,7 @@ void Platform::AtxPowerOff(bool defer) noexcept
 			// We don't call logger->Stop() here because we don't know whether turning off the power will work
 		}
 #endif
-#if __LPC17xx__ || STM32F4
+#if LPC17xx || STM32F4
 		IoPort::WriteDigital(ATX_POWER_PIN, ATX_POWER_INVERTED);
 		ATX_POWER_STATE = false;
 #else
@@ -3905,7 +3908,7 @@ void Platform::ResetChannel(size_t chan) noexcept
 		SERIAL_MAIN_DEVICE.end();
 #if SAME5x
         SERIAL_MAIN_DEVICE.Start();
-#elif __LPC17xx__ || STM32F4
+#elif LPC17xx || STM32F4
 		SERIAL_MAIN_DEVICE.begin(baudRates[0]);
 #else
         SERIAL_MAIN_DEVICE.Start(UsbVBusPin);
@@ -3999,7 +4002,7 @@ void Platform::SetBoardType(BoardType bt) noexcept
 		board = BoardType::PCCB_v08;
 #elif defined(__LPC17xx__)
 		board = BoardType::Lpc;
-#elif defined(STM32F4)
+#elif defined(__STM32F4__)
 		board = BoardType::Stm32F4;
 #else
 # error Undefined board type
@@ -4048,7 +4051,7 @@ const char* Platform::GetElectronicsString() const noexcept
 	case BoardType::PCCB_v08:				return "PCCB 0.8";
 #elif defined(__LPC17xx__)
 	case BoardType::Lpc:					return LPC_ELECTRONICS_STRING;
-#elif defined(STM32F4)
+#elif defined(__STM32F4__)
 	case BoardType::Stm32F4:				return STM_ELECTRONICS_STRING;
 
 #else
@@ -4095,7 +4098,7 @@ const char* Platform::GetBoardString() const noexcept
 	case BoardType::PCCB_v08:				return "pccb08";
 #elif defined(__LPC17xx__)
 	case BoardType::Lpc:					return LPC_BOARD_STRING;
-#elif defined(STM32F4)
+#elif defined(__STM32F4__)
 	case BoardType::Stm32F4:				return STM_BOARD_STRING;
 #else
 # error Undefined board type
@@ -4418,7 +4421,7 @@ float Platform::GetTmcDriversTemperature(unsigned int boardNumber) const noexcep
 	const DriversBitmap mask = DriversBitmap::MakeLowestNBits(5);						// all drivers (0-4) are on the DueX, no further expansion supported
 #elif defined(PCCB_08)
 	const DriversBitmap mask = DriversBitmap::MakeLowestNBits(2);						// drivers 0, 1 are on-board, no expansion supported
-#elif defined(__LPC17xx__) || defined(STM32F4)
+#elif LPC17xx || STM32F4
 	const DriversBitmap mask = DriversBitmap::MakeLowestNBits(MaxSmartDrivers);			// All drivers
 #else
 # error Undefined board
@@ -5264,7 +5267,7 @@ void Platform::Tick() noexcept
 	case 3:
 		{
 #if !SAME70
-#if __LPC17xx__ || STM32F4
+#if LPC17xx || STM32F4
 			if(filteredAdcChannels[currentFilterNumber] != NO_ADC)
 			{
 #endif
@@ -5272,7 +5275,7 @@ void Platform::Tick() noexcept
 			// Because we are in the tick ISR and no other ISR reads the averaging filter, we can cast away 'volatile' here.
 			ThermistorAveragingFilter& currentFilter = const_cast<ThermistorAveragingFilter&>(adcFilters[currentFilterNumber]);		// cast away 'volatile'
 			currentFilter.ProcessReading(AnalogInReadChannel(filteredAdcChannels[currentFilterNumber]));
-#if __LPC17xx__ || STM32F4
+#if LPC17xx || STM32F4
 			}
 #endif
 			++currentFilterNumber;

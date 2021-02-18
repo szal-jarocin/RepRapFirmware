@@ -46,7 +46,7 @@
 #include <Movement/StepTimer.h>
 #include <TaskPriorities.h>
 
-#if __LPC17xx__
+#if LPC17xx
 constexpr size_t NetworkStackWords = 575;
 #elif defined(DEBUG)
 constexpr size_t NetworkStackWords = 1000;				// needs to be enough to support rr_model
@@ -92,7 +92,7 @@ Network::Network(Platform& p) noexcept : platform(p)
 	interfaces[0] = nullptr;			// we set this up in Init()
 #elif defined(DUET_M)
 	interfaces[0] = new W5500Interface(p);
-#elif __LPC17xx__ || STM32F4
+#elif LPC17xx || STM32F4
 # if HAS_WIFI_NETWORKING
 	interfaces[0] = new WiFiInterface(p);
  #else

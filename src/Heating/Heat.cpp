@@ -49,7 +49,7 @@ Licence: GPL
 # include <Duet3Ate.h>
 #endif
 
-#if __LPC17xx__
+#if LPC17xx
 constexpr uint32_t HeaterTaskStackWords = 300;			// task stack size in dwords, must be large enough for auto tuning
 #else
 #if SUPPORT_CAN_EXPANSION

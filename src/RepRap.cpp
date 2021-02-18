@@ -524,8 +524,8 @@ void RepRap::Init() noexcept
 	NVIC_SetPriority(WDT_IRQn, NvicPriorityWatchdog);								// set priority for watchdog interrupts
 	NVIC_ClearPendingIRQ(WDT_IRQn);
 	NVIC_EnableIRQ(WDT_IRQn);														// enable the watchdog early warning interrupt
-#elif __LPC17xx__
-	WatchdogEnable(1000);															// set wdt to 1 second. reset the processor on a watchdog fault
+#elif LPC17xx
+	WatchdogInit();															// set wdt to 1 second. reset the processor on a watchdog fault
 #elif STM32F4
 	NVIC_SetPriority(WWDG_IRQn, NvicPriorityWatchdog);								// set priority for watchdog interrupts
 	WatchdogInit();
@@ -563,7 +563,7 @@ void RepRap::Init() noexcept
 #endif
 
 	active = true;										// must do this before we start the network or call Spin(), else the watchdog may time out
-#if (__LPC17xx__ || STM32F4) && SUPPORT_TMC22xx
+#if (LPC17xx || STM32F4) && SUPPORT_TMC22xx
 	if (platform->AtxPower())
 	{
 		// ensure smart drivers are up and running
@@ -852,7 +852,7 @@ void RepRap::Diagnostics(MessageType mtype) noexcept
 # endif
 	const char* const expansionName = DuetExpansion::GetExpansionBoardName();
 	platform->MessageF(mtype, (expansionName == nullptr) ? "\n" : " + %s\n", expansionName);
-#elif __LPC17xx__
+#elif LPC17xx
 	platform->MessageF(mtype, "%s (%s) version %s running on %s at %dMhz\n", FIRMWARE_NAME, lpcBoardName, VERSION, platform->GetElectronicsString(), (int)SystemCoreClock/1000000);
 #elif HAS_LINUX_INTERFACE
 	platform->MessageF(mtype, "%s version %s running on %s (%s mode)\n", FIRMWARE_NAME, VERSION, platform->GetElectronicsString(),
@@ -2686,7 +2686,7 @@ bool RepRap::WriteToolParameters(FileStore *f, const bool forceWriteOffsets) noe
 
 // Firmware update operations
 
-#if __LPC17xx__
+#if LPC17xx
     #include "LPC/FirmwareUpdate.hpp"
 #elif STM32F4
     #include "STM32/FirmwareUpdate.hpp"
@@ -2907,7 +2907,7 @@ void RepRap::StartIap() noexcept
 	(void)*(reinterpret_cast<const volatile char*>(0x20800000));
 #elif SAM3XA
 	(void)*(reinterpret_cast<const volatile char*>(0x20200000));
-#elif __LPC17xx__
+#elif LPC17xx
 	// The LPC176x/5x generates Bus Fault exception when accessing a reserved memory address
 	(void)*(reinterpret_cast<const volatile char*>(0x00080000));
 #elif STM32F4

@@ -50,7 +50,7 @@ Licence: GPL
 # include "DAC/DAC084S085.h"       // SPI DAC for motor current vref
 # include "EUI48/EUI48EEPROM.h"    // SPI EUI48 mac address EEPROM
 # include "Microstepping.h"
-#elif defined(__LPC17xx__)
+#elif LPC17xx
 # include "MCP4461/MCP4461.h"
 #endif
 
@@ -156,7 +156,7 @@ enum class BoardType : uint8_t
 	Duet_5LC = 1
 #elif defined(__LPC17xx__)
 	Lpc = 1
-#elif defined (STM32F4)
+#elif defined (__STM32F4__)
 	Stm32F4 = 1
 #else
 # error Unknown board
@@ -193,7 +193,7 @@ enum class DiagnosticTestType : unsigned int
 	TimeCRC32 = 107,				// time how long it takes to calculate CRC32
 	TimeGetTimerTicks = 108,		// time now long it takes to read the step clock
 
-#if __LPC17xx__ || STM32F4
+#if LPC17xx || STM32F4
 	PrintBoardConfiguration = 200,	// Prints out all pin/values loaded from SDCard to configure board
 #endif
 
@@ -565,7 +565,7 @@ public:
 	MinMaxCurrent GetMcuTemperatures() const noexcept;
 	void SetMcuTemperatureAdjust(float v) noexcept { mcuTemperatureAdjust = v; }
 	float GetMcuTemperatureAdjust() const noexcept { return mcuTemperatureAdjust; }
-#elif __LPC17xx__
+#elif LPC17xx
 // FIXME is this still needed
     //Temporary to keep object model happy (return 0's) when no CPU temp is supported
     MinMaxCurrent GetMcuTemperatures() const noexcept {MinMaxCurrent m={0.0}; return m;}
@@ -579,7 +579,7 @@ public:
 	void DisableAutoSave() noexcept;
 	void EnableAutoSave(float saveVoltage, float resumeVoltage) noexcept;
 	bool GetAutoSaveSettings(float& saveVoltage, float&resumeVoltage) noexcept;
-#elif __LPC17xx__
+#elif LPC17xx
 // FIXME is this still needed
     //Temporary to keep object model happy (return 0's) when no voltage monitor supported
     MinMaxCurrent GetPowerVoltages() const noexcept {MinMaxCurrent m={0.0}; return m;}
@@ -785,7 +785,7 @@ private:
 	DriversBitmap stalledDrivers, stalledDriversToLog, stalledDriversToPause, stalledDriversToRehome;
 #endif
 
-#if __LPC17xx__
+#if LPC17xx
 	MCP4461 mcp4451;// works for 5561 (only volatile setting commands)
 #endif
 
