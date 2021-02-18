@@ -14,47 +14,41 @@ constexpr PinEntry PinTable_AZSMZ[] =
 
     //Thermistors
     //TODO:: need confirmation on the term assignments and names???
-    {P0_23, PinCapability::ainrw, "bedtemp,t0"},
-    {P0_24, PinCapability::ainrw, "e0temp,t1"},
-    {P0_25, PinCapability::ainrw, "e1temp,t2"},
+    {P0_23, "bedtemp,t0"},
+    {P0_24, "e0temp,t1"},
+    {P0_25, "e1temp,t2"},
 
     //Endstops
-    {P1_24, PinCapability::rw, "x,xstop"},
-    {P1_26, PinCapability::rw, "y,ystop"},
-    {P1_28, PinCapability::rw, "z,zstop"},
-    {P1_29, PinCapability::rw, "probe"},
+    {P1_24, "x,xstop"},
+    {P1_26, "y,ystop"},
+    {P1_28, "z,zstop"},
+    {P1_29, "probe"},
     
     //Heaters and Fans
-    {P2_5, PinCapability::rwpwm, "bed,d8"  },
-    {P2_7,  PinCapability::rwpwm, "e0heat,d9" },
-    {P2_4,  PinCapability::rwpwm, "e1heat,d10" },
-    {P0_26,  PinCapability::rwpwm, "Fan0,Fan1" },
+    {P2_5, "bed,d8"  },
+    {P2_7, "e0heat,d9" },
+    {P2_4, "e1heat,d10" },
+    {P0_26, "Fan0,Fan1" },
     
     //servo
-    {P1_23, PinCapability::rwpwm, "P1.23,servo0"},
+    {P1_23, "P1.23,servo0"},
     
     //Aux-2
-    {P1_27, PinCapability::rw, "P1.27"},
-    {P1_25, PinCapability::rw, "P1.25"},
-    {P4_28, PinCapability::rw, "P4.28"},
-    {P1_30, PinCapability::rw, "P1.30"},
-    {P0_26, PinCapability::rw, "P0.26"},
-    {P2_6,  PinCapability::rw, "P2.6"},
-    {P1_22, PinCapability::rw, "P1.22"},
-    {P3_26, PinCapability::rw, "P3.26"},
+    {P1_27, "P1.27"},
+    {P1_25, "P1.25"},
+    {P4_28, "P4.28"},
+    {P1_30, "P1.30"},
+    {P0_26, "P0.26"},
+    {P2_6, "P2.6"},
+    {P1_22, "P1.22"},
+    {P3_26, "P3.26"},
     
     //Aux-3
-    {P0_27, PinCapability::rw, "sda,P0.27"},
-    {P0_28, PinCapability::rw, "scl,P0.28"},
-    //"sck1"}, //used by SSP
-    {P0_16, PinCapability::rw, "ssel1,P0.16"},
-    //"miso1"}, //used by SSP
-    //"mosi1"}, //Used by SSP
-    {P1_31, PinCapability::rw, "P1.31"},
-    {P3_25, PinCapability::rw, "P3.25"},
-    //{P0_3, PinCapability::rw, "rx"}, // USed by AUX Serial
-    //{P0_2, PinCapability::rw, "tx"}, // USed by AUX Serial
- 
+    {P0_27, "sda,P0.27"},
+    {P0_28, "scl,P0.28"},
+    {P0_16, "ssel1,P0.16"},
+    {P1_31, "P1.31"},
+    {P3_25, "P3.25"}, 
 };
 
 constexpr BoardDefaults azsmzDefaults = {

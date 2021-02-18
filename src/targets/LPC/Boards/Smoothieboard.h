@@ -14,42 +14,42 @@ constexpr PinEntry PinTable_Smoothieboard[] =
 {
 
     //Thermistors
-    {P0_23, PinCapability::ainrw, "e0temp,t0"},
-    {P0_24, PinCapability::ainrw, "bedtemp,t1"},
-    {P0_25, PinCapability::ainrw, "e1temp,t2"},
-    {P0_26, PinCapability::ainrw, "t3,P0.26"},
+    {P0_23, "e0temp,t0"},
+    {P0_24, "bedtemp,t1"},
+    {P0_25, "e1temp,t2"},
+    {P0_26, "t3,P0.26"},
 
     //Endstops
-    {P1_24, PinCapability::rwpwm, "xstop,xmin"},
-    {P1_25, PinCapability::rwpwm, "xstopmax,xmax"},
-    {P1_26, PinCapability::rwpwm, "ystop,ymin"},
-    {P1_27, PinCapability::rwpwm, "ystopmax,ymax"},
-    {P1_28, PinCapability::rwpwm, "zstop,zmin"},
-    {P1_29, PinCapability::rwpwm, "zstopmax,zmax"},
+    {P1_24, "xstop,xmin"},
+    {P1_25, "xstopmax,xmax"},
+    {P1_26, "ystop,ymin"},
+    {P1_27, "ystopmax,ymax"},
+    {P1_28, "zstop,zmin"},
+    {P1_29, "zstopmax,zmax"},
 
     //Heaters and Fans (Big and Small Mosfets}
-    {P1_23, PinCapability::rwpwm, "e1heat,q5"  }, //(Big Mosfet)
-    {P2_5,  PinCapability::rwpwm, "bed,q6" },  //(Big Mosfet)
-    {P2_7,  PinCapability::rwpwm, "e0heat,q7" },  //(Big Mosfet)
-    {P1_22, PinCapability::rwpwm, "q4,P1.22" },  //(Small Mosfet)
-    {P2_4,  PinCapability::rwpwm, "q8,P2.4" },  //(Small Mosfet)
-    {P2_6,  PinCapability::rwpwm, "fan0,q9" },  //(Small Mosfet)
+    {P1_23, "e1heat,q5"  }, //(Big Mosfet)
+    {P2_5, "bed,q6" },  //(Big Mosfet)
+    {P2_7, "e0heat,q7" },  //(Big Mosfet)
+    {P1_22, "q4,P1.22" },  //(Small Mosfet)
+    {P2_4, "q8,P2.4" },  //(Small Mosfet)
+    {P2_6, "fan0,q9" },  //(Small Mosfet)
 
     //Spare pins (also as LEDs)
-    {P1_21, PinCapability::rwpwm, "led1,P1.21"},
-    {P1_20, PinCapability::rwpwm, "led2,P1.20"},
-    {P1_19, PinCapability::rwpwm, "led3,P1.19"},
-    {P1_18, PinCapability::rwpwm, "led4,P1.18"},
+    {P1_21, "led1,P1.21"},
+    {P1_20, "led2,P1.20"},
+    {P1_19, "led3,P1.19"},
+    {P1_18, "led4,P1.18"},
 
     //Spare pins (or used for LCD)
-    {P1_22, PinCapability::rwpwm, "P1.22"},
-    {P1_23, PinCapability::rwpwm, "P1.23"},
-    {P1_31, PinCapability::rwpwm, "P1.31"},
-    {P1_30, PinCapability::rwpwm, "P1.30"},
-    {P3_25, PinCapability::rwpwm, "P3.25"},
-    {P3_26, PinCapability::rwpwm, "P3.26"},
-    {P2_11, PinCapability::rwpwm, "P2.11"},
-	{P2_12, PinCapability::rwpwm, "P2.12"},
+    {P1_22, "P1.22"},
+    {P1_23, "P1.23"},
+    {P1_31, "P1.31"},
+    {P1_30, "P1.30"},
+    {P3_25, "P3.25"},
+    {P3_26, "P3.26"},
+    {P2_11, "P2.11"},
+	{P2_12, "P2.12"},
 
 };
 

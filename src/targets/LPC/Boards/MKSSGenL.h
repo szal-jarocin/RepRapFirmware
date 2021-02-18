@@ -13,61 +13,61 @@
 constexpr PinEntry PinTable_MKSSGenL1_0[] =
 {
     //Thermistors
-    {P0_23, PinCapability::ainrw, "e0temp,th1"},
-    {P0_24, PinCapability::ainrw, "bedtemp,TB"},
-    {P0_25, PinCapability::ainrw, "e1temp,th2"},
+    {P0_23, "e0temp,th1"},
+    {P0_24, "bedtemp,TB"},
+    {P0_25, "e1temp,th2"},
 
     //Endstops (although they are labeled x- and x+ on the - and + get stripped out in RRF so we will use i.e. xmin/xmax
-    {P1_24, PinCapability::rwpwm, "zstopmax,Z+"},
-    {P1_25, PinCapability::rwpwm, "zstop,Z-"},
-    {P1_26, PinCapability::rwpwm, "ystopmax,Y+"},
-    {P1_27, PinCapability::rwpwm, "ystop,Y-"},
-    {P1_28, PinCapability::rwpwm, "xstopmax,X+"},
-    {P1_29, PinCapability::rwpwm, "xstop,X-"},
+    {P1_24, "zstopmax,Z+"},
+    {P1_25, "zstop,Z-"},
+    {P1_26, "ystopmax,Y+"},
+    {P1_27, "ystop,Y-"},
+    {P1_28, "xstopmax,X+"},
+    {P1_29, "xstop,X-"},
 
     //Heaters and Fans
-    {P2_5, PinCapability::rwpwm, "bed"},
-    {P2_7, PinCapability::rwpwm, "e0heat,e1"},
-    {P2_6, PinCapability::rwpwm, "e1heat,e2"},
-    {P2_4, PinCapability::rwpwm, "fan0,fan"},
+    {P2_5, "bed"},
+    {P2_7, "e0heat,e1"},
+    {P2_6, "e1heat,e2"},
+    {P2_4, "fan0,fan"},
 	
 	//servo
-	{P1_23,  PinCapability::rwpwm, "servo0,P1.23" },
-	{P2_0,  PinCapability::rwpwm, "servo1,P2.0" },
+	{P1_23, "servo0,P1.23" },
+	{P2_0, "servo1,P2.0" },
  
     //Spare pins (also as LEDs)
-    {P1_21, PinCapability::rwpwm, "led1,P1.21"},
-    {P1_20, PinCapability::rwpwm, "led2,P1.20"},
-    {P1_19, PinCapability::rwpwm, "led3,P1.19"},
-    {P1_18, PinCapability::rwpwm, "led4,P1.18"},
+    {P1_21, "led1,P1.21"},
+    {P1_20, "led2,P1.20"},
+    {P1_19, "led3,P1.19"},
+    {P1_18, "led4,P1.18"},
     
     //Exp1
-    {P1_31, PinCapability::rwpwm, "P1.31"},
-	{P1_30, PinCapability::rwpwm, "P1.30"},
-    {P0_18, PinCapability::rwpwm, "P0.18"},
-	{P0_16, PinCapability::rwpwm, "P0.16"},
-    {P0_15, PinCapability::rwpwm, "P0.15"},    
-    {P0_17, PinCapability::rwpwm, "P0.17"},
-	{P1_0, PinCapability::rwpwm, "P1.0"},
-	{P1_22, PinCapability::rwpwm, "P1.22"},
+    {P1_31, "P1.31"},
+	{P1_30, "P1.30"},
+    {P0_18, "P0.18"},
+	{P0_16, "P0.16"},
+    {P0_15, "P0.15"},    
+    {P0_17, "P0.17"},
+	{P1_0, "P1.0"},
+	{P1_22, "P1.22"},
     
     //Exp2
-    {P0_8,  PinCapability::rwpwm, "P0.8"},
-	{P0_7,  PinCapability::rwpwm, "P0.7"},
-    {P3_25, PinCapability::rwpwm, "P3.25"},
-	{P0_28, PinCapability::rwpwm, "P0.28"},
-    {P3_26, PinCapability::rwpwm, "P3.26"},
-	{P0_9,  PinCapability::rwpwm, "P0.9"},
-    {P0_27, PinCapability::rwpwm, "P0.27"}, 
+    {P0_8, "P0.8"},
+	{P0_7, "P0.7"},
+    {P3_25, "P3.25"},
+	{P0_28, "P0.28"},
+    {P3_26, "P3.26"},
+	{P0_9, "P0.9"},
+    {P0_27, "P0.27"}, 
 
 	//TMC-SPI Pins
-	{P4_28,  PinCapability::rwpwm, "P4.28"},
-	{P0_4,  PinCapability::rwpwm, "P0.4"},
-	{P0_5,  PinCapability::rwpwm, "P0.5"},
+	{P4_28, "P4.28"},
+	{P0_4, "P0.4"},
+	{P0_5, "P0.5"},
 
 	//aux-1
-	{P0_2,  PinCapability::rwpwm, "P0.2"},
-	{P0_3,  PinCapability::rwpwm, "P0.3"},	
+	{P0_2, "P0.2"},
+	{P0_3, "P0.3"},	
     
 };
 
@@ -86,69 +86,69 @@ constexpr BoardDefaults mkssgenl1_0_Defaults = {
 constexpr PinEntry PinTable_MKSSGenL2_0[] =
 {
     //Thermistors
-    {P0_23, PinCapability::ainrw, "e0temp,th1"},
-    {P0_24, PinCapability::ainrw, "bedtemp,TB"},
-    {P0_25, PinCapability::ainrw, "e1temp,th2"},
+    {P0_23, "e0temp,th1"},
+    {P0_24, "bedtemp,TB"},
+    {P0_25, "e1temp,th2"},
 
     //Endstops (although they are labeled x- and x+ on the - and + get stripped out in RRF so we will use i.e. xmin/xmax
-    {P1_24, PinCapability::rwpwm, "zstopmax,Z+"},
-    {P1_25, PinCapability::rwpwm, "zstop,Z-"},
-    {P1_26, PinCapability::rwpwm, "ystopmax,Y+"},
-    {P1_27, PinCapability::rwpwm, "ystop,Y-"},
-    {P1_28, PinCapability::rwpwm, "xstopmax,X+"},
-    {P1_29, PinCapability::rwpwm, "xstop,X-"},
+    {P1_24, "zstopmax,Z+"},
+    {P1_25, "zstop,Z-"},
+    {P1_26, "ystopmax,Y+"},
+    {P1_27, "ystop,Y-"},
+    {P1_28, "xstopmax,X+"},
+    {P1_29, "xstop,X-"},
 
     //Heaters and Fans
-    {P2_5, PinCapability::rwpwm, "bed"},
-    {P2_7, PinCapability::rwpwm, "e0heat,e1"},
-    {P2_6, PinCapability::rwpwm, "e1heat,e2"},
-    {P2_4, PinCapability::rwpwm, "fan0,P2.4"},
-	{P1_4, PinCapability::rwpwm, "fan1,P1.4"},
+    {P2_5, "bed"},
+    {P2_7, "e0heat,e1"},
+    {P2_6, "e1heat,e2"},
+    {P2_4, "fan0,P2.4"},
+	{P1_4, "fan1,P1.4"},
 	
 	//servo
-	{P1_23,  PinCapability::rwpwm, "servo0,P1.23" },
-	{P2_0,  PinCapability::rwpwm, "servo1,P2.0" },
+	{P1_23, "servo0,P1.23" },
+	{P2_0, "servo1,P2.0" },
  
     //Spare pins (also as LEDs)
-    {P1_21, PinCapability::rwpwm, "led4,P1.21"},
-    {P1_20, PinCapability::rwpwm, "led3,P1.20"},
-    {P1_19, PinCapability::rwpwm, "led2,P1.19"},
-    {P1_18, PinCapability::rwpwm, "led1,P1.18"},
+    {P1_21, "led4,P1.21"},
+    {P1_20, "led3,P1.20"},
+    {P1_19, "led2,P1.19"},
+    {P1_18, "led1,P1.18"},
     
     //Exp1
-    {P1_31, PinCapability::rwpwm, "P1.31"},
-	{P1_30, PinCapability::rwpwm, "P1.30"},
-    {P0_18, PinCapability::rwpwm, "P0.18"},
-	{P0_16, PinCapability::rwpwm, "P0.16"},
-    {P0_15, PinCapability::rwpwm, "P0.15"},    
-    {P0_17, PinCapability::rwpwm, "P0.17"},
-	{P1_0, PinCapability::rwpwm, "P1.0"},
-	{P1_22, PinCapability::rwpwm, "P1.22"},
+    {P1_31, "P1.31"},
+	{P1_30, "P1.30"},
+    {P0_18, "P0.18"},
+	{P0_16, "P0.16"},
+    {P0_15, "P0.15"},    
+    {P0_17, "P0.17"},
+	{P1_0, "P1.0"},
+	{P1_22, "P1.22"},
     
     //Exp2
-    {P0_8,  PinCapability::rwpwm, "P0.8"},
-	{P0_7,  PinCapability::rwpwm, "P0.7"},
-    {P3_25, PinCapability::rwpwm, "P3.25"},
-	{P0_28, PinCapability::rwpwm, "P0.28"},
-    {P3_26, PinCapability::rwpwm, "P3.26"},
-	{P0_9,  PinCapability::rwpwm, "P0.9"},
-    {P0_27, PinCapability::rwpwm, "P0.27"},   
+    {P0_8, "P0.8"},
+	{P0_7, "P0.7"},
+    {P3_25, "P3.25"},
+	{P0_28, "P0.28"},
+    {P3_26, "P3.26"},
+	{P0_9, "P0.9"},
+    {P0_27, "P0.27"},   
 	
 	//TMC-SPI Pins
-	{P1_16,  PinCapability::rwpwm, "P1.16"},
-	{P0_4,  PinCapability::rwpwm, "P0.4"},
-	{P0_5,  PinCapability::rwpwm, "P0.5"},
+	{P1_16, "P1.16"},
+	{P0_4, "P0.4"},
+	{P0_5, "P0.5"},
 	
 	//other
-	{P0_26,  PinCapability::rwpwm, "P0.26"},
+	{P0_26, "P0.26"},
 	
 	//aux-1
-	{P0_2,  PinCapability::rwpwm, "P0.2"},
-	{P0_3,  PinCapability::rwpwm, "P0.3"},
+	{P0_2, "P0.2"},
+	{P0_3, "P0.3"},
 	
 	//wifi
-	{P4_28,  PinCapability::rwpwm, "P4.28"},
-	{P4_29,  PinCapability::rwpwm, "P4.29"},
+	{P4_28, "P4.28"},
+	{P4_29, "P4.29"},
     
 };
 

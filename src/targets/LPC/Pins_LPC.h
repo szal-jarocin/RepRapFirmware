@@ -303,41 +303,12 @@ extern Pin NeopixelOutPin;
 
 extern volatile uint32_t BrownoutEvents;
 
-
-
-// Enum to represent allowed types of pin access
-// We don't have a separate bit for servo, because Duet PWM-capable ports can be used for servos if they are on the Duet main board
-enum class PinCapability: uint8_t
-{
-    // Individual capabilities
-    read = 1,
-    ain = 2,
-    write = 4,
-    pwm = 8,
-    
-    // Combinations
-    ainr = 1|2,
-    rw = 1|4,
-    wpwm = 4|8,
-    rwpwm = 1|4|8,
-    ainrw = 1|2|4,
-    ainrwpwm = 1|2|4|8
-};
-
-constexpr inline PinCapability operator|(PinCapability a, PinCapability b)
-{
-    return (PinCapability)((uint8_t)a | (uint8_t)b);
-}
-
 struct PinEntry
 {
-    bool CanDo(PinAccess access) const noexcept;
     Pin GetPin() const  noexcept{ return pin; }
-    PinCapability GetCapability() const  noexcept{ return cap; }
     const char* GetNames() const  noexcept{ return names; }
     
     Pin pin;
-    PinCapability cap;
     const char *names;
 };
 

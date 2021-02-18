@@ -12,60 +12,60 @@
 constexpr PinEntry PinTable_FLY_CDY[] =
 {
     //Thermistors
-    {P0_23, PinCapability::ainrw, "bedtemp,tb"},
-    {P0_26, PinCapability::ainrw, "e0temp,t0"},
-    {P0_25, PinCapability::ainrw, "e1temp,t1"},
-    {P0_24, PinCapability::ainrw, "e2temp,t2"},
+    {P0_23, "bedtemp,tb"},
+    {P0_26, "e0temp,t0"},
+    {P0_25, "e1temp,t1"},
+    {P0_24, "e2temp,t2"},
 
     //Endstops
-    {P1_29, PinCapability::rw, "xmin,xstop"},
-    {P1_28, PinCapability::rw, "xmax,xstopmax"},
-    {P1_27, PinCapability::rw, "ymin,ystop"},
-    {P1_25, PinCapability::rw, "ymax,ystopmax"},
-    {P1_22, PinCapability::rw, "zmin,zstop"},
-    {P0_27, PinCapability::rw, "zmax,zstopmax"},
+    {P1_29, "xmin,xstop"},
+    {P1_28, "xmax,xstopmax"},
+    {P1_27, "ymin,ystop"},
+    {P1_25, "ymax,ystopmax"},
+    {P1_22, "zmin,zstop"},
+    {P0_27, "zmax,zstopmax"},
 
     //Heaters and Fans
-    {P3_26,  PinCapability::wpwm, "bed" },
-    {P3_25,  PinCapability::wpwm, "e0heat" },
-    {P1_20,  PinCapability::wpwm, "e1heat" },
-    {P1_23,  PinCapability::wpwm, "e2heat" },
-    {P1_18,  PinCapability::wpwm, "fan0" },
-    {P1_21,  PinCapability::wpwm, "fan1" },
-    {P1_24,  PinCapability::wpwm, "fan2" },
+    {P3_26, "bed" },
+    {P3_25, "e0heat" },
+    {P1_20, "e1heat" },
+    {P1_23, "e2heat" },
+    {P1_18, "fan0" },
+    {P1_21, "fan1" },
+    {P1_24, "fan2" },
 
     //Exp1
-    {P2_7, PinCapability::rwpwm, "P2.7"}, 
-    {P2_8, PinCapability::rwpwm, "P2.8"},
-    {P0_22, PinCapability::rwpwm, "P0.22"}, 
-    {P2_10, PinCapability::rwpwm, "P2.10"},
-    {P1_19, PinCapability::rwpwm, "P1.19"},
-    {P0_28, PinCapability::rwpwm, "P0.28"},
-    {P1_30, PinCapability::rwpwm, "P1.30"},
-    {P1_31, PinCapability::rwpwm, "P1.31"},
+    {P2_7, "P2.7"}, 
+    {P2_8, "P2.8"},
+    {P0_22, "P0.22"}, 
+    {P2_10, "P2.10"},
+    {P1_19, "P1.19"},
+    {P0_28, "P0.28"},
+    {P1_30, "P1.30"},
+    {P1_31, "P1.31"},
 
     //Exp2
-    {P0_17, PinCapability::rwpwm, "P0.17"},
-    {P0_15, PinCapability::rwpwm, "P0.15"},
-    {P0_16, PinCapability::rwpwm, "P0.16"},
-    {P0_18, PinCapability::rwpwm, "P0.18"},
-    {P2_6, PinCapability::rwpwm,  "P2.6"},
+    {P0_17, "P0.17"},
+    {P0_15, "P0.15"},
+    {P0_16, "P0.16"},
+    {P0_18, "P0.18"},
+    {P2_6, "P2.6"},
 
     //Servos
-    {P1_26,  PinCapability::rwpwm, "servo0" },
+    {P1_26, "servo0" },
 
 	//Wifi
-	{P0_1, PinCapability::rwpwm, "wifi1"},
-	{P0_0, PinCapability::rwpwm, "wifi2"},
+	{P0_1, "wifi1"},
+	{P0_0, "wifi2"},
 
 	//screen
-	{P0_2,  PinCapability::rwpwm, "P0.2"},
-	{P0_3,  PinCapability::rwpwm, "P0.3"},
+	{P0_2, "P0.2"},
+	{P0_3, "P0.3"},
 
 	//TMC-SPI Pins
-	{P0_19,  PinCapability::rwpwm, "P0.19"},  //SOFT MISO
-	{P0_20,  PinCapability::rwpwm, "P0.20"},  //SOFT MOSI
-	{P0_21,  PinCapability::rwpwm, "P0.21"},  //SCK
+	{P0_19, "P0.19"},  //SOFT MISO
+	{P0_20, "P0.20"},  //SOFT MOSI
+	{P0_21, "P0.21"},  //SCK
 
 };
 

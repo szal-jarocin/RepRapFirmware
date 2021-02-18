@@ -13,50 +13,50 @@
 constexpr PinEntry PinTable_AzteegX5MiniV1_1[] =
 {
     //LEDs
-    {P1_18, PinCapability::wpwm, "led1"},
-    {P1_19, PinCapability::wpwm, "led2"},
-    {P1_20, PinCapability::wpwm, "led3"},
-    {P1_21, PinCapability::wpwm, "led4"},
-    {P4_28, PinCapability::wpwm, "play"},
+    {P1_18, "led1"},
+    {P1_19, "led2"},
+    {P1_20, "led3"},
+    {P1_21, "led4"},
+    {P4_28, "play"},
     
     //Thermistors
-    {P0_23, PinCapability::ainrw, "bendtemp,th0"},
-    {P0_24, PinCapability::ainrw, "eotemp,th1"},
+    {P0_23, "bendtemp,th0"},
+    {P0_24, "eotemp,th1"},
 
     //Endstops
-    {P1_24, PinCapability::read, "xstop"},
-    {P1_26, PinCapability::read, "ystop"},
-    {P1_28, PinCapability::read, "zstop"},
-    {P1_29, PinCapability::read, "e0stop,estop"},
+    {P1_24, "xstop"},
+    {P1_26, "ystop"},
+    {P1_28, "zstop"},
+    {P1_29, "e0stop,estop"},
 
     //Heaters and Fans
-    {P2_5, PinCapability::wpwm, "bed,hend" },
-    {P2_7, PinCapability::wpwm, "e0heat,hbed" },
-    {P2_4, PinCapability::wpwm, "fan0,fan" },
+    {P2_5, "bed,hend" },
+    {P2_7, "e0heat,hbed" },
+    {P2_4, "fan0,fan" },
         
     //EXP1 Pins
-    {P1_30, PinCapability::rwpwm, "P1.30"},
-    {P1_22, PinCapability::rwpwm, "P1.22"},
-    {P0_26, PinCapability::rwpwm, "P0.26"},
-    {P0_25, PinCapability::rwpwm, "P0.25"},
-    {P0_27, PinCapability::rwpwm, "sda,P0.27"},
-    {P4_29, PinCapability::rwpwm, "P4.29"},
-    {P0_28, PinCapability::rwpwm, "scl,P0.28"},
-    {P2_8,  PinCapability::rwpwm, "P2.8"},
+    {P1_30, "P1.30"},
+    {P1_22, "P1.22"},
+    {P0_26, "P0.26"},
+    {P0_25, "P0.25"},
+    {P0_27, "sda,P0.27"},
+    {P4_29, "P4.29"},
+    {P0_28, "scl,P0.28"},
+    {P2_8, "P2.8"},
     //3.3v
     //GND
     
     //EXP2 Pins
-    {P1_31, PinCapability::rwpwm, "P1.31"},
-    {P3_26, PinCapability::rwpwm, "P3.26"},
-    {P2_11, PinCapability::rwpwm, "P2.11"},
-    {P3_25, PinCapability::rwpwm, "P3.25"},
-    {P1_23, PinCapability::rwpwm, "P1.23"},
-    {P0_17, PinCapability::rwpwm, "P0.17"},
-    {P0_16, PinCapability::rwpwm, "P0.16"},
-    {P2_6,  PinCapability::rwpwm, "P2.6"},
-    {P0_15, PinCapability::rwpwm, "P0.15"},
-    {P0_18, PinCapability::rwpwm, "P0.18"},
+    {P1_31, "P1.31"},
+    {P3_26, "P3.26"},
+    {P2_11, "P2.11"},
+    {P3_25, "P3.25"},
+    {P1_23, "P1.23"},
+    {P0_17, "P0.17"},
+    {P0_16, "P0.16"},
+    {P2_6, "P2.6"},
+    {P0_15, "P0.15"},
+    {P0_18, "P0.18"},
     //GND
     //5V
 };
@@ -76,67 +76,67 @@ constexpr BoardDefaults azteegX5Mini1_1Defaults = {
 constexpr PinEntry PinTable_AzteegX5MiniV2[] =
 {
     //LEDs
-    {P1_18, PinCapability::wpwm, "led1"},
-    {P1_19, PinCapability::wpwm, "led2"},
-    {P1_20, PinCapability::wpwm, "led3"},
-    {P1_21, PinCapability::wpwm, "led4"},
-    {P4_28, PinCapability::wpwm, "play"},
+    {P1_18, "led1"},
+    {P1_19, "led2"},
+    {P1_20, "led3"},
+    {P1_21, "led4"},
+    {P4_28, "play"},
     
     //Thermistors
-    {P0_23, PinCapability::ainrw, "bendtemp,th0"},
-    {P0_24, PinCapability::ainrw, "eotemp,th1"},
+    {P0_23, "bendtemp,th0"},
+    {P0_24, "eotemp,th1"},
 
     //Endstops
-    {P1_24, PinCapability::read, "xstop"},
-    {P1_26, PinCapability::read, "ystop"},
-    {P1_28, PinCapability::read, "zstop"},
-    {P1_29, PinCapability::read, "e0stop,estop"},
+    {P1_24, "xstop"},
+    {P1_26, "ystop"},
+    {P1_28, "zstop"},
+    {P1_29, "e0stop,estop"},
 
     //Heaters and Fans
-    {P2_7, PinCapability::wpwm, "bed,hend" },
-    {P2_5, PinCapability::wpwm, "e0heat,hbed" },
-    {P1_25, PinCapability::wpwm, "fan0" },
-    {P2_4, PinCapability::wpwm, "fan1" },
+    {P2_7, "bed,hend" },
+    {P2_5, "e0heat,hbed" },
+    {P1_25, "fan0" },
+    {P2_4, "fan1" },
         
     //EXP1 Pins
-    {P1_30, PinCapability::rwpwm, "P1.30"},
-    {P1_22, PinCapability::rwpwm, "P1.22"},
-    {P0_26, PinCapability::rwpwm, "P0.26"},
-    {P0_25, PinCapability::rwpwm, "P0.25"},
-    {P0_27, PinCapability::rwpwm, "sda,P0.27"},
-    {P4_29, PinCapability::rwpwm, "P4.29"},
-    {P0_28, PinCapability::rwpwm, "scl,P0.28"},
-    {P2_8,  PinCapability::rwpwm, "P2.8"},
+    {P1_30, "P1.30"},
+    {P1_22, "P1.22"},
+    {P0_26, "P0.26"},
+    {P0_25, "P0.25"},
+    {P0_27, "sda,P0.27"},
+    {P4_29, "P4.29"},
+    {P0_28, "scl,P0.28"},
+    {P2_8, "P2.8"},
     //3.3v
     //GND
     
     //EXP2 Pins
-    {P1_31, PinCapability::rwpwm, "P1.31"},
-    {P3_26, PinCapability::rwpwm, "P3.26"},
-    {P2_11, PinCapability::rwpwm, "P2.11"},
-    {P3_25, PinCapability::rwpwm, "P3.25"},
-    {P1_23, PinCapability::rwpwm, "P1.23"},
-    {P0_17, PinCapability::rwpwm, "P0.17"},
-    {P0_16, PinCapability::rwpwm, "P0.16"},
-    {P2_6,  PinCapability::rwpwm, "P2.6"},
-    {P0_15, PinCapability::rwpwm, "P0.15"},
-    {P0_18, PinCapability::rwpwm, "P0.18"},
+    {P1_31, "P1.31"},
+    {P3_26, "P3.26"},
+    {P2_11, "P2.11"},
+    {P3_25, "P3.25"},
+    {P1_23, "P1.23"},
+    {P0_17, "P0.17"},
+    {P0_16, "P0.16"},
+    {P2_6, "P2.6"},
+    {P0_15, "P0.15"},
+    {P0_18, "P0.18"},
     //GND
     //5V
 	
 	//J7 Pins
-    {P1_16, PinCapability::rwpwm, "P1.16"},
-	{P1_17, PinCapability::rwpwm, "P1.17"},
-	{P1_15, PinCapability::rwpwm, "P1.15"},
-	{P0_14, PinCapability::rwpwm, "P0.14"},
-	{P1_9, PinCapability::rwpwm, "P1.9"},
-	{P1_10, PinCapability::rwpwm, "P1.10"},
-	{P1_8, PinCapability::rwpwm, "P1.8"},
-	{P1_4, PinCapability::rwpwm, "P1.4"},
-	{P1_0, PinCapability::rwpwm, "P1.0"},
-	{P1_1, PinCapability::rwpwm, "P1.1"},
+    {P1_16, "P1.16"},
+	{P1_17, "P1.17"},
+	{P1_15, "P1.15"},
+	{P0_14, "P0.14"},
+	{P1_9, "P1.9"},
+	{P1_10, "P1.10"},
+	{P1_8, "P1.8"},
+	{P1_4, "P1.4"},
+	{P1_0, "P1.0"},
+	{P1_1, "P1.1"},
     //Misc
-    //{P4_12,  PinCapability::rwpwm, "Halt","P4.12"},
+    //{P4_12, "Halt","P4.12"},
 
 
 };
@@ -157,56 +157,56 @@ constexpr BoardDefaults azteegX5Mini2Defaults = {
 constexpr PinEntry PinTable_AzteegX5MiniV3[] =
 {
     //LEDs
-    {P1_18, PinCapability::wpwm, "led1"},
-    {P1_19, PinCapability::wpwm, "led2"},
-    {P1_20, PinCapability::wpwm, "led3"},
-    {P1_21, PinCapability::wpwm, "led4"},
-    {P4_28, PinCapability::wpwm, "play"},
+    {P1_18, "led1"},
+    {P1_19, "led2"},
+    {P1_20, "led3"},
+    {P1_21, "led4"},
+    {P4_28, "play"},
     
     //Thermistors
-    {P0_23, PinCapability::ainrw, "bendtemp,th0"},
-    {P0_24, PinCapability::ainrw, "eotemp,th1"},
+    {P0_23, "bendtemp,th0"},
+    {P0_24, "eotemp,th1"},
 
     //Endstops
-    {P1_24, PinCapability::read, "xstop"},
-    {P1_26, PinCapability::read, "ystop"},
-    {P1_28, PinCapability::read, "zstop"},
-    {P1_29, PinCapability::read, "e0stop,estop"},
+    {P1_24, "xstop"},
+    {P1_26, "ystop"},
+    {P1_28, "zstop"},
+    {P1_29, "e0stop,estop"},
 
     //Heaters and Fans
-    {P2_7, PinCapability::wpwm, "bed,hend" },
-    {P2_5, PinCapability::wpwm, "e0heat,hbed" },
-    {P1_25, PinCapability::wpwm, "fan0" },
-    {P0_26, PinCapability::wpwm, "fan1" },
+    {P2_7, "bed,hend" },
+    {P2_5, "e0heat,hbed" },
+    {P1_25, "fan0" },
+    {P0_26, "fan1" },
         
     //EXP1 Pins
-    {P1_30, PinCapability::rwpwm, "P1.30"},
-    {P1_22, PinCapability::rwpwm, "P1.22"},
-    {P2_4, PinCapability::rwpwm, "P2.4"},
-    {P0_25, PinCapability::rwpwm, "P0.25"},
-    {P0_27, PinCapability::rwpwm, "sda,P0.27"},
-    {P4_29, PinCapability::rwpwm, "P4.29"},
-    {P0_28, PinCapability::rwpwm, "scl,P0.28"},
-    {P2_8,  PinCapability::rwpwm, "P2.8"},
+    {P1_30, "P1.30"},
+    {P1_22, "P1.22"},
+    {P2_4, "P2.4"},
+    {P0_25, "P0.25"},
+    {P0_27, "sda,P0.27"},
+    {P4_29, "P4.29"},
+    {P0_28, "scl,P0.28"},
+    {P2_8, "P2.8"},
     //3.3v
     //GND
     
     //EXP2 Pins
-    {P1_31, PinCapability::rwpwm, "P1.31"},
-    {P3_26, PinCapability::rwpwm, "P3.26"},
-    {P2_11, PinCapability::rwpwm, "P2.11"},
-    {P3_25, PinCapability::rwpwm, "P3.25"},
-    {P1_23, PinCapability::rwpwm, "P1.23"},
-    {P0_17, PinCapability::rwpwm, "P0.17"},
-    {P0_16, PinCapability::rwpwm, "P0.16"},
-    {P2_6,  PinCapability::rwpwm, "P2.6"},
-    {P0_15, PinCapability::rwpwm, "P0.15"},
-    {P0_18, PinCapability::rwpwm, "P0.18"},
+    {P1_31, "P1.31"},
+    {P3_26, "P3.26"},
+    {P2_11, "P2.11"},
+    {P3_25, "P3.25"},
+    {P1_23, "P1.23"},
+    {P0_17, "P0.17"},
+    {P0_16, "P0.16"},
+    {P2_6, "P2.6"},
+    {P0_15, "P0.15"},
+    {P0_18, "P0.18"},
     //GND
     //5V
     
     //Misc
-    //{P4_12,  PinCapability::rwpwm, "Halt","P4.12"},
+    //{P4_12, "Halt","P4.12"},
 
 
 };
