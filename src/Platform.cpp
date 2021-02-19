@@ -53,6 +53,7 @@
 # include <sd_mmc.h>
 # include "ResetCause.h"
 #elif STM32F4
+using LegacyAnalogIn::AdcBits;
 # include "STM32/BoardConfig.h"
 # include <sd_mmc.h>
 # include "ResetCause.h"

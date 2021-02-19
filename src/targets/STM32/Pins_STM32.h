@@ -40,7 +40,7 @@
 #define SUPPORT_OBJECT_MODEL             1
 #define HAS_CPU_TEMP_SENSOR		         1	// enabling the CPU temperature sensor disables Due pin 13 due to bug in SAM3X
 #define HAS_HIGH_SPEED_SD		         0
-#define HAS_VOLTAGE_MONITOR		         0
+#define HAS_VOLTAGE_MONITOR		         1
 #define ACTIVE_LOW_HEAT_ON		         0
 #define HAS_VREF_MONITOR                 0
 
@@ -231,6 +231,9 @@ extern Pin ATX_POWER_PIN;// Digital pin number that controls the ATX power on/of
 extern bool ATX_POWER_INVERTED;
 extern bool ATX_INITIAL_POWER_ON;
 extern bool ATX_POWER_STATE;
+
+constexpr Pin PowerMonitorVinDetectPin = PC_3;
+constexpr float PowerMonitorVoltageRange = 11.0 * 3.3;						// We use an 11:1 voltage divider
 
 // SD cards
 constexpr size_t NumSdCards = _DRIVES; //_DRIVES is defined in CoreLPC (and used by FatFS) allow one internal and one external
