@@ -1,3 +1,10 @@
+Version 3.2.2_2
+===============
+* Added Duet3D V3.2.2 changes
+* Small fixes to board defintions
+* STM32F4 fix bad calibration data with some mcus
+
+
 Version 3.2_7
 =============
 * Fix Fly CDY pin definition
