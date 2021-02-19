@@ -283,13 +283,9 @@ constexpr PinEntry PinTable_BTT_RRF_E3_v1_0[] =
 	//Neopixel
 	{PB_7, PinCapability::rwpwm, "Neopixel,PB7"},
 
-	//UART
-	{PA_9, PinCapability::rwpwm, "TX1"},
-	{PA_10, PinCapability::rwpwm, "RX1"},
-
 	//TFT
-	{PA_2, PinCapability::rwpwm, "TX2,tft-tx"},
-	{PA_3, PinCapability::rwpwm, "RX2,tft-rx"},
+	{PA_9, PinCapability::rwpwm, "TX1,tft-tx"},
+	{PA_10, PinCapability::rwpwm, "RX1,tft-rx"},
 
     //WIFI UART
 	{PD_8, PinCapability::rwpwm, "PD8"},
@@ -300,10 +296,10 @@ constexpr PinEntry PinTable_BTT_RRF_E3_v1_0[] =
 	{PB_9, PinCapability::rwpwm, "SCL1,PB9"},	
 
     //WIFI
-    {PD_13, PinCapability::rwpwm, "PD13"}, //RST
-    {PD_12, PinCapability::rwpwm, "PD12"}, //EN
-    {PD_11, PinCapability::rwpwm, "PD11"}, //IO0
-    {PD_10, PinCapability::rwpwm, "PD10"}, //IO2
+    {PA_4, PinCapability::rwpwm, "PA4"}, //RST
+    {PA_5, PinCapability::rwpwm, "PA5"}, //EN
+    {PA_6, PinCapability::rwpwm, "PA6"}, //IO0
+    {PA_7, PinCapability::rwpwm, "PA7"}, //IO4
     {PB_12, PinCapability::rwpwm, "PB12"}, //CS
     {PB_13, PinCapability::rwpwm, "PB13"}, //CLK
     {PB_14, PinCapability::rwpwm, "PB14"}, //MISO
@@ -327,8 +323,8 @@ constexpr PinEntry PinTable_BTT_RRF_E3_v1_0[] =
 	{PC_14, PinCapability::rwpwm, "PC14"},
 	{PC_15, PinCapability::rwpwm, "PC15"},
 	{PA_8, PinCapability::rwpwm, "PA8"},
-	{PC_9, PinCapability::rwpwm, "PC9"},
-	{PC_8, PinCapability::rwpwm, "PC8"},
+	{PA_2, PinCapability::rwpwm, "PA2"},
+	{PA_3, PinCapability::rwpwm, "PA3"},
 	{PE_12, PinCapability::rwpwm, "PE12"},
 	{PE_13, PinCapability::rwpwm, "PE13"},
 	{PE_14, PinCapability::rwpwm, "PE14"},
@@ -339,11 +335,11 @@ constexpr PinEntry PinTable_BTT_RRF_E3_v1_0[] =
 
 constexpr BoardDefaults btt_rrf_e3_1_0_Defaults = {
 	4,							// Number of drivers
-	{PD_7, PD_3, PC_12, PD_14}, // enablePins
-	{PD_5, PD_1, PC_10, PC_6},  // stepPins
-	{PD_4, PD_0, PA_15, PC_7},	// dirPins
+	{PD_7, PD_3, PD_14, PD_10}, // enablePins
+	{PD_5, PD_0, PC_6, PD_12},  // stepPins
+	{PD_4, PA_15, PC_7, PD_13},	// dirPins
 #if TMC_SOFT_UART
-	{PD_6, PD_2, PC_11, PD_15},	// uartpins
+	{PD_6, PD_1, PD_15, PD_11},	// uartpins
     4,							// Smart drivers
 #endif
     0							// digiPot Factor
