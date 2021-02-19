@@ -283,13 +283,9 @@ constexpr PinEntry PinTable_BTT_RRF_E3_v1_0[] =
 	//Neopixel
 	{PB_7, "Neopixel,PB7"},
 
-	//UART
-	{PA_9, "TX1"},
-	{PA_10, "RX1"},
-
 	//TFT
-	{PA_2, "TX2,tft-tx"},
-	{PA_3, "RX2,tft-rx"},
+	{PA_9, "TX1,tft-tx"},
+	{PA_10, "RX1,tft-rx"},
 
     //WIFI UART
 	{PD_8, "PD8"},
@@ -304,6 +300,10 @@ constexpr PinEntry PinTable_BTT_RRF_E3_v1_0[] =
     {PD_12, "PD12"},//EN
     {PD_11, "PD11"},//IO0
     {PD_10, "PD10"},//IO2
+    {PA_4, "PA4"}, //RST
+    {PA_5, "PA5"}, //EN
+    {PA_6, "PA6"}, //IO0
+    {PA_7, "PA7"}, //IO4
     {PB_12, "PB12"},//CS
     {PB_13, "PB13"},//CLK
     {PB_14, "PB14"},//MISO
@@ -327,8 +327,8 @@ constexpr PinEntry PinTable_BTT_RRF_E3_v1_0[] =
 	{PC_14, "PC14"},
 	{PC_15, "PC15"},
 	{PA_8, "PA8"},
-	{PC_9, "PC9"},
-	{PC_8, "PC8"},
+	{PA_2, "PA2"},
+	{PA_3, "PA3"},
 	{PE_12, "PE12"},
 	{PE_13, "PE13"},
 	{PE_14, "PE14"},
@@ -339,11 +339,11 @@ constexpr PinEntry PinTable_BTT_RRF_E3_v1_0[] =
 
 constexpr BoardDefaults btt_rrf_e3_1_0_Defaults = {
 	4,							// Number of drivers
-	{PD_7, PD_3, PC_12, PD_14}, // enablePins
-	{PD_5, PD_1, PC_10, PC_6},  // stepPins
-	{PD_4, PD_0, PA_15, PC_7},	// dirPins
-#if TMC_SOFT_UART
-	{PD_6, PD_2, PC_11, PD_15},	// uartpins
+	{PD_7, PD_3, PD_14, PD_10}, // enablePins
+	{PD_5, PD_0, PC_6, PD_12},  // stepPins
+	{PD_4, PA_15, PC_7, PD_13},	// dirPins
+#if TMC_SOFT_UART	#if TMC_SOFT_UART
+	{PD_6, PD_1, PD_15, PD_11},	// uartpins
     4,							// Smart drivers
 #endif
     0							// digiPot Factor
