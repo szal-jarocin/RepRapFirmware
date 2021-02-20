@@ -261,11 +261,8 @@ constexpr bool DiagOnPolarity = true;
 
 extern bool ADCEnablePreFilter;
 
-constexpr size_t NumSoftwareSPIPins = 3;
-extern Pin SoftwareSPIPins[NumSoftwareSPIDevices][NumSoftwareSPIPins]; //GPIO pins for softwareSPI (used with SharedSPI)
-constexpr size_t NumSSP0Pins = 4;
-extern Pin SSP0Pins[];         //GPIO pins for SSP0 (used with SharedSPI)
-
+constexpr size_t NumSPIPins = 3;
+extern Pin SPIPins[NumSPIDevices][NumSPIPins]; //GPIO pins for softwareSPI (used with SharedSPI)
 
 #define SERIAL_AUX_DEVICE   UART_Slot0
 #define SERIAL_WIFI_DEVICE  UART_Slot1
@@ -345,6 +342,7 @@ extern size_t num5160SmartDrivers;
 
 struct BoardDefaults
 {
+    const Pin spiPins[NumSPIDevices][NumSPIPins];
     const uint32_t numDrivers;
     const Pin enablePins[NumDirectDrivers];
     const Pin stepPins[NumDirectDrivers];

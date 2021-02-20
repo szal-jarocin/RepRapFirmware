@@ -60,7 +60,7 @@ bool hasDriverCurrentControl = false;                   //Supports digipots to s
 float digipotFactor = 0.0;                              //defualt factor for converting current to digipot value
 
 
-Pin SoftwareSPIPins[NumSoftwareSPIDevices][NumSoftwareSPIPins]; //GPIO pins for softwareSPI (used with SharedSPI)
+Pin SPIPins[NumSPIDevices][NumSPIPins];                 //GPIO pins for hardware/software SPI (used with SharedSPI)
 
 
 #if HAS_WIFI_NETWORKING
@@ -157,8 +157,8 @@ void ClearPinArrays() noexcept
     InitPinArray(DriverDiagPins, NumDirectDrivers);
 #endif
     InitPinArray(TEMP_SENSE_PINS, NumThermistorInputs);
-    for(size_t i = 0; i < ARRAY_SIZE(SoftwareSPIPins); i++)
-        InitPinArray(SoftwareSPIPins[i], NumSoftwareSPIPins);
+    for(size_t i = 0; i < ARRAY_SIZE(SPIPins); i++)
+        InitPinArray(SPIPins[i], NumSPIPins);
 
 }
 
@@ -174,7 +174,9 @@ bool SetBoard(const char* bn) noexcept
             PinTable = (PinEntry *)LPC_Boards[i].boardPinTable;
             NumNamedLPCPins = LPC_Boards[i].numNamedEntries;
 
-            //copy default settings (if not set in board.txt)
+            //copy default settings
+            for(size_t j = 0; j < ARRAY_SIZE(SPIPins); j++)
+                SetDefaultPinArray(LPC_Boards[i].defaults.spiPins[j], SPIPins[j], NumSPIPins);
             SetDefaultPinArray(LPC_Boards[i].defaults.enablePins, ENABLE_PINS, LPC_Boards[i].defaults.numDrivers);
             SetDefaultPinArray(LPC_Boards[i].defaults.stepPins, STEP_PINS, LPC_Boards[i].defaults.numDrivers);
             SetDefaultPinArray(LPC_Boards[i].defaults.dirPins, DIRECTION_PINS, LPC_Boards[i].defaults.numDrivers);

@@ -81,10 +81,13 @@ static const boardConfigEntry_t boardConfigs[]=
     {"lcd.spiChannel", &LcdSpiChannel, nullptr, cvUint8Type},
 #endif
     
-    {"softwareSPI.pins", SoftwareSPIPins[0], &NumSoftwareSPIPins, cvPinType}, //SCK, MISO, MOSI
-    {"SPI3.pins", SoftwareSPIPins[0], &NumSoftwareSPIPins, cvPinType}, //SCK, MISO, MOSI
-    {"SPI4.pins", SoftwareSPIPins[1], &NumSoftwareSPIPins, cvPinType}, //SCK, MISO, MOSI
-    {"SPI5.pins", SoftwareSPIPins[2], &NumSoftwareSPIPins, cvPinType}, //SCK, MISO, MOSI
+    {"softwareSPI.pins", SPIPins[3], &NumSPIPins, cvPinType}, //SCK, MISO, MOSI
+    {"SPI0.pins", SPIPins[0], &NumSPIPins, cvPinType}, //SCK, MISO, MOSI
+    {"SPI1.pins", SPIPins[1], &NumSPIPins, cvPinType}, //SCK, MISO, MOSI
+    {"SPI2.pins", SPIPins[2], &NumSPIPins, cvPinType}, //SCK, MISO, MOSI
+    {"SPI3.pins", SPIPins[3], &NumSPIPins, cvPinType}, //SCK, MISO, MOSI
+    {"SPI4.pins", SPIPins[4], &NumSPIPins, cvPinType}, //SCK, MISO, MOSI
+    {"SPI5.pins", SPIPins[5], &NumSPIPins, cvPinType}, //SCK, MISO, MOSI
     
 #if HAS_WIFI_NETWORKING
     {"8266wifi.espDataReadyPin", &EspDataReadyPin, nullptr, cvPinType},
@@ -240,7 +243,7 @@ static constexpr SDCardConfig SDCardConfigs[] = {
 };
 
 
-FRESULT InitSDCard(uint32_t boardSig, FATFS *fs)
+SSPChannel InitSDCard(uint32_t boardSig, FATFS *fs)
 {
     FRESULT rslt;
     int conf = 0;
@@ -259,7 +262,7 @@ FRESULT InitSDCard(uint32_t boardSig, FATFS *fs)
         debugPrintf("InitSDCard try config %d type %d\n", conf, SDCardConfigs[conf].device);
         if (SDCardConfigs[conf].device != SSPSDIO)
         {
-            SPI::getSSPDevice(SDCardConfigs[conf].device)->initPins(SDCardConfigs[conf].pins[0], SDCardConfigs[conf].pins[1], SDCardConfigs[conf].pins[2], SDCardConfigs[conf].pins[3]);
+            SPI::getSSPDevice(SDCardConfigs[conf].device)->initPins(SDCardConfigs[conf].pins[0], SDCardConfigs[conf].pins[1], SDCardConfigs[conf].pins[2], NoPin);
             sd_mmc_setSSPChannel(0, SDCardConfigs[conf].device, SDCardConfigs[conf].pins[3]);
         }
         else
@@ -268,14 +271,14 @@ FRESULT InitSDCard(uint32_t boardSig, FATFS *fs)
         if (rslt == FR_OK)
         {
             debugPrintf("Config %d selected\n", conf);
-            return FR_OK;
+            return SDCardConfigs[conf].device;
         }
         if (SDCardConfigs[conf].device != SSPSDIO)
             ((HardwareSPI *)(SPI::getSSPDevice(SSP1)))->disable();
         sd_mmc_setSSPChannel(0, SSPNONE, NoPin);
         conf = (conf + 1) % ARRAY_SIZE(SDCardConfigs);
     }
-    return rslt;
+    return SSPNONE;
 }
 
 void BoardConfig::Init() noexcept
@@ -285,15 +288,12 @@ void BoardConfig::Init() noexcept
     FIL configFile;
     FATFS fs;
     FRESULT rslt;
+    SSPChannel sdChannel;
 
     signature = crc32((char *)0x8000000, 8192);
     // We need to setup DMA and SPI devices before we can use File I/O
     // Using DMA2 for both TMC UART and the SD card causes corruption problems (see STM errata) so for now we use
     // polled I/O for the disk.
-    //SPI::getSSPDevice(SSP1)->initPins(PA_5, PA_6, PB_5, PA_4);
-    //SPI::getSSPDevice(SSP1)->initPins(PA_5, PA_6, PB_5, PA_4, DMA2_Stream2, DMA_CHANNEL_3, DMA2_Stream2_IRQn, DMA2_Stream3, DMA_CHANNEL_3, DMA2_Stream3_IRQn);
-    //FIXME need to sort out int priorities
-    //NVIC_SetPriority(DMA_IRQn, NvicPriorityDMA);
     NVIC_SetPriority(DMA2_Stream6_IRQn, NvicPrioritySpi);
     NVIC_SetPriority(DMA2_Stream3_IRQn, NvicPrioritySpi);
     NVIC_SetPriority(SDIO_IRQn, NvicPrioritySDIO);
@@ -310,8 +310,8 @@ void BoardConfig::Init() noexcept
     sd_mmc_init(SdWriteProtectPins, SdSpiCSPins);
 #endif
     // Mount the internal SD card
-    rslt = InitSDCard(signature, &fs);
-    if (rslt == FR_OK)
+    sdChannel = InitSDCard(signature, &fs);
+    if (sdChannel != SSPNONE)
     {
         //Open File
         rslt = f_open (&configFile, boardConfigPath, FA_READ);
@@ -379,11 +379,15 @@ void BoardConfig::Init() noexcept
         }
         
         //Setup the Software SPI Pins
-        for(size_t i = 0; i < ARRAY_SIZE(SoftwareSPIPins); i++)
-            SPI::getSSPDevice((SSPChannel)(SWSPI0+i))->initPins(SoftwareSPIPins[i][0], SoftwareSPIPins[i][1], SoftwareSPIPins[i][2]);
-        //Setup the pins for SPI
-        SPI::getSSPDevice(SSP2)->initPins(PB_13, PB_14, PB_15, NoPin, DMA1_Stream3, DMA_CHANNEL_0, DMA1_Stream3_IRQn, DMA1_Stream4, DMA_CHANNEL_0, DMA1_Stream4_IRQn);
-        SPI::getSSPDevice(SSP3)->initPins(PC_10, PC_11, PC_12, NoPin, DMA1_Stream0, DMA_CHANNEL_0, DMA1_Stream0_IRQn, DMA1_Stream5, DMA_CHANNEL_0, DMA1_Stream5_IRQn);
+        for(size_t i = 3; i < ARRAY_SIZE(SPIPins); i++)
+            SPI::getSSPDevice((SSPChannel)(i))->initPins(SPIPins[i][0], SPIPins[i][1], SPIPins[i][2]);
+        //Setup the pins for Hardware SPI
+        if (SPIPins[0][0] != NoPin && sdChannel != SSP1)
+            SPI::getSSPDevice(SSP1)->initPins(SPIPins[0][0], SPIPins[0][1], SPIPins[0][2], NoPin);
+        if (SPIPins[1][0] != NoPin && sdChannel != SSP2)
+            SPI::getSSPDevice(SSP2)->initPins(SPIPins[1][0], SPIPins[1][1], SPIPins[1][2], NoPin, DMA1_Stream3, DMA_CHANNEL_0, DMA1_Stream3_IRQn, DMA1_Stream4, DMA_CHANNEL_0, DMA1_Stream4_IRQn);
+        if (SPIPins[2][0] != NoPin && sdChannel != SSP3)
+            SPI::getSSPDevice(SSP3)->initPins(SPIPins[2][0], SPIPins[2][1], SPIPins[2][2], NoPin, DMA1_Stream0, DMA_CHANNEL_0, DMA1_Stream0_IRQn, DMA1_Stream5, DMA_CHANNEL_0, DMA1_Stream5_IRQn);
 // FIXME
 #if 0
         //Internal SDCard SPI Frequency

@@ -79,6 +79,14 @@ constexpr PinEntry PinTable_FLY_F407ZG[] =
 };
 
 constexpr BoardDefaults fly_f407zg_Defaults = {
+    {   //CLK, MISO, MOSI
+        {PA_5, PA_6, PA_7},                     //SPI0
+        {PB_13, PB_14, PB_15},                  //SPI1
+        {NoPin, NoPin, NoPin},                  //SPI2
+        {PE_10, NoPin, PE_14},                  //SPI3
+        {NoPin, NoPin, NoPin},                  //SPI4
+        {NoPin, NoPin, NoPin},                  //SPI5
+    },
 	9,											// Number of drivers
     {PE_1, PG_12,  PD_7, PD_4,  PD_0, PG_8, PG_5, PG_2, PD_9},   	//enablePins
     {PB_9, PB_8, PA_8, PC_7,  PC_6, PD_15, PD_14, PD_13, PD_12},	//stepPins
@@ -100,8 +108,6 @@ constexpr BoardDefaults fly_f407zg_Defaults = {
 
 constexpr PinEntry PinTable_FLY_E3[] =
 {
-
-
     //Thermistors
     {PA_4, "e0temp,t0"},
     {PA_3, "bedtemp,tb"},
@@ -183,13 +189,21 @@ constexpr PinEntry PinTable_FLY_E3[] =
 };
 
 constexpr BoardDefaults fly_e3_Defaults = {
+    {   //CLK, MISO, MOSI
+        {PA_5, PA_6, PA_7},                     //SPI0
+        {PB_13, PB_14, PB_15},                  //SPI1
+        {NoPin, NoPin, NoPin},                  //SPI2
+        {PC_2, PC_0, PC_1},                     //SPI3
+        {PE_8, NoPin, PB_1},                      //SPI4
+        {PD_6, PD_5, PD_4},                     //SPI5
+    },
 	4,											// Number of drivers
-    {PC_15, PE_5, PE_1, PB_5},   	//enablePins
-    {PC_13, PE_3, PB_9, PB_3},	    //stepPins
-    {PC_14, PE_4, PE_0, PB_4},    	//dirPins
+    {PC_15, PE_5, PE_1, PB_5},   	            //enablePins
+    {PC_13, PE_3, PB_9, PB_3},	                //stepPins
+    {PC_14, PE_4, PE_0, PB_4},    	            //dirPins
 #if HAS_SMART_DRIVERS
-    {PE_6, PE_2, PB_8, PD_7},             
-	 4, 			                         //uartPins                                          	// Smart drivers
+    {PE_6, PE_2, PB_8, PD_7},                   //uartPins            
+	4,                                          // Smart drivers
 #endif
     0  
 
@@ -283,6 +297,14 @@ constexpr PinEntry PinTable_FLY_CDYV2[] =
 };
 
 constexpr BoardDefaults fly_cdyv2_Defaults = {
+    {   //CLK, MISO, MOSI
+        {PA_5, PA_6, PA_7},                     //SPI0
+        {PB_13, PB_14, PB_15},                  //SPI1
+        {PB_3, PB_4, PB_5},                     //SPI2
+        {PE_15, NoPin, PB_2},                   //SPI3
+        {NoPin, NoPin, NoPin},                  //SPI4
+        {NoPin, NoPin, NoPin},                  //SPI5
+    },
 	6,											// Number of drivers
     {PC_1, PC_14, PB_8, PD_7, PD_4, PD_0},   	//enablePins
     {PE_5, PE_4, PE_3, PE_2, PE_1, PE_0},	    //stepPins

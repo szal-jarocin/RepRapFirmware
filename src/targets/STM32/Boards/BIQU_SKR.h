@@ -110,6 +110,14 @@ constexpr PinEntry PinTable_BIQU_SKR_PRO_v1_1[] =
 };
 
 constexpr BoardDefaults biquskr_pro_1_1_Defaults = {
+    {   //CLK, MISO, MOSI
+        {PA_5, PA_6, PB_5},                     //SPI0
+        {PB_13, PB_14, PB_15},                  //SPI1
+        {PC_10, PC_11, PC_12},                  //SPI2
+        {NoPin, NoPin, NoPin},                  //SPI3
+        {NoPin, NoPin, NoPin},                  //SPI4
+        {NoPin, NoPin, NoPin},                  //SPI5
+    },
 	8,											// Number of drivers
     {PF_2, PD_7,  PC_0, PC_3,  PA_3, PF_0, PD_11, PG_7},   	//enablePins
     {PE_9, PE_11, PE_13, PE_14,  PD_15, PD_13, PG_3, PG_2},	//stepPins
@@ -236,6 +244,14 @@ constexpr PinEntry PinTable_BIQU_GTR_v1_0[] =
 };
 
 constexpr BoardDefaults biqu_gtr_1_0_Defaults = {
+    {   //CLK, MISO, MOSI
+        {PA_5, PA_6, PA_7},                     //SPI0
+        {PB_13, PB_14, PB_15},                  //SPI1
+        {NoPin, NoPin, NoPin},                  //SPI2
+        {NoPin, NoPin, NoPin},                  //SPI3
+        {NoPin, NoPin, NoPin},                  //SPI4
+        {NoPin, NoPin, NoPin},                  //SPI5
+    },
 	6+5,										// Number of drivers GTR + M5
 	{PF_1, PE_4,  PB_9, PG_13,  PD_7, PD_2,PF_8,PG_2,PF_4,PE_8,PI_0},    //enablePins including M5
 	{PC_15, PE_3, PB_8, PG_12,  PD_6, PD_1,PF_3,PD_14,PE_12,PG_0,PH_12},    //stepPins Including M5
@@ -338,11 +354,19 @@ constexpr PinEntry PinTable_BTT_RRF_E3_v1_0[] =
 };
 
 constexpr BoardDefaults btt_rrf_e3_1_0_Defaults = {
+    {   //CLK, MISO, MOSI
+        {PA_5, PA_6, PA_7},                     //SPI0
+        {PB_13, PB_14, PB_15},                  //SPI1
+        {NoPin, NoPin, NoPin},                  //SPI2
+        {NoPin, NoPin, NoPin},                  //SPI3
+        {NoPin, NoPin, NoPin},                  //SPI4
+        {NoPin, NoPin, NoPin},                  //SPI5
+    },
 	4,							// Number of drivers
 	{PD_7, PD_3, PD_14, PD_10}, // enablePins
 	{PD_5, PD_0, PC_6, PD_12},  // stepPins
 	{PD_4, PA_15, PC_7, PD_13},	// dirPins
-#if TMC_SOFT_UART	#if TMC_SOFT_UART
+#if TMC_SOFT_UART
 	{PD_6, PD_1, PD_15, PD_11},	// uartpins
     4,							// Smart drivers
 #endif
