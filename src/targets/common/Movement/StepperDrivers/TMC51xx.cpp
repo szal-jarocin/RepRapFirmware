@@ -262,6 +262,7 @@ enum class DriversState : uint8_t
 {
 	shutDown = 0,
 	noPower,				// no VIN power
+	powerWait,
 	noDrivers,
 	notInitialised,			// have VIN power but not started initialising drivers
 	initialising,			// in the process of initialising the drivers
@@ -1005,6 +1006,7 @@ extern "C" [[noreturn]] void TmcLoop(void *) noexcept
 	{
 		if (driversState <= DriversState::noDrivers)
 		{
+			if (driversState != DriversState::noDrivers) driversState = DriversState::powerWait;
 			TaskBase::Take();
 		}
 		else
@@ -1065,8 +1067,8 @@ extern "C" [[noreturn]] void TmcLoop(void *) noexcept
 				}
 			}
 			spiDevice->Deselect();
-			// If we are using software SPI, give other tasks a chance to run.
-			if (SmartDriversSpiChannel >= SWSPI0) delay(1);
+			// Give other tasks a chance to run.
+			delay(1);
 		}
 	}
 }
@@ -1119,13 +1121,13 @@ void Tmc51xxDriver::Spin(bool powered) noexcept
 
 	if (powered)
 	{
-		if (driversState == DriversState::noPower)
+		if (driversState == DriversState::powerWait)
 		{
 			driversState = DriversState::notInitialised;
 			tmcTask.Give();									// wake up the TMC task because the drivers need to be initialised
 		}
 	}
-	else if (driversState != DriversState::shutDown)
+	else if (driversState > DriversState::powerWait)
 	{
 		TurnDriversOff();
 	}
@@ -1139,7 +1141,7 @@ void Tmc51xxDriver::TurnDriversOff() noexcept
 		digitalWrite(ENABLE_PINS[driver + baseDriveNo], true);
 	}
 
-	driversState = DriversState::noPower;
+	driversState = (driversState == DriversState::noDrivers ? DriversState::powerWait : DriversState::noPower);
 }
 
 bool Tmc51xxDriver::IsReady() noexcept
