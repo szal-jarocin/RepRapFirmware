@@ -9,7 +9,7 @@
 bool RepRap::CheckFirmwareUpdatePrerequisites(const StringRef& reply) noexcept
 {
     #if HAS_MASS_STORAGE && (defined(LPC_NETWORKING) || HAS_WIFI_NETWORKING)
-        FileStore * const firmwareFile = platform->OpenFile(DEFAULT_SYS_DIR, FIRMWARE_FILE, OpenMode::read);
+        FileStore * const firmwareFile = platform->OpenFile(FIRMWARE_DIRECTORY, FIRMWARE_FILE, OpenMode::read);
         if (firmwareFile == nullptr)
         {
             reply.printf("Firmware binary \"%s\" not found", FIRMWARE_FILE);
@@ -42,7 +42,7 @@ void RepRap::UpdateFirmware() noexcept
     //DWC will upload firmware to 0:/sys/ we need to move to 0:/firmware.bin and reboot
     
     String<MaxFilenameLength> location;
-    MassStorage::CombineName(location.GetRef(), DEFAULT_SYS_DIR, FIRMWARE_FILE);
+    MassStorage::CombineName(location.GetRef(), FIRMWARE_DIRECTORY, FIRMWARE_FILE);
     
     if(!MassStorage::Rename(location.c_str(), "0:/firmware.bin", false))
     {
