@@ -102,7 +102,10 @@ constexpr BoardDefaults fly_f407zg_Defaults = {
      PG_6, PG_3, PD_10, PB_12},                 //uartPins
     9,                                      	// Smart drivers
 #endif
-    0                                       	//digiPot Factor
+    0,                                       	//digiPot Factor
+#if HAS_VOLTAGE_MONITOR
+    NoPin,
+#endif
 };
 
 
@@ -205,8 +208,10 @@ constexpr BoardDefaults fly_e3_Defaults = {
     {PE_6, PE_2, PB_8, PD_7},                   //uartPins            
 	4,                                          // Smart drivers
 #endif
-    0  
-
+    0, 
+#if HAS_VOLTAGE_MONITOR
+    NoPin,
+#endif
 };
 
 
@@ -313,7 +318,10 @@ constexpr BoardDefaults fly_cdyv2_Defaults = {
     {PC_15, PA_8, PB_6, PD_5, PD_1, PE_9},      //uartPins      
 	 6,                                       	// Smart drivers
 #endif
-    0  
+    0,
+#if HAS_VOLTAGE_MONITOR
+    PC_3
+#endif
 };
 
 #endif

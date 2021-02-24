@@ -850,6 +850,9 @@ void Platform::Init() noexcept
 	currentVin = highestVin = 0;
 	lowestVin = 9999;
 	numVinUnderVoltageEvents = previousVinUnderVoltageEvents = numVinOverVoltageEvents = previousVinOverVoltageEvents = 0;
+# if STM32F4
+	dummyVoltageAdcReading = PowerVoltageToAdcReading(VInDummyReading);		// voltages above this cause driver shutdown
+# endif
 #endif
 
 #if HAS_12V_MONITOR
@@ -1179,6 +1182,13 @@ void Platform::Spin() noexcept
 		}
 # endif
 		else
+#elif HAS_ATX_POWER_MONITOR
+		if (!AtxPower())
+		{
+			driversPowered = false;
+			reprap.GetGCodes().SetAllAxesNotHomed();
+		}
+		else
 #endif
 
 #if HAS_12V_MONITOR
@@ -1187,15 +1197,6 @@ void Platform::Spin() noexcept
 			driversPowered = false;
 			++numV12UnderVoltageEvents;
 			lastV12UnderVoltageValue = currentV12;					// save this because the voltage may have changed by the time we report it
-			reprap.GetGCodes().SetAllAxesNotHomed();
-		}
-		else
-#endif
-
-#if HAS_ATX_POWER_MONITOR
-		if (!AtxPower())
-		{
-			driversPowered = false;
 			reprap.GetGCodes().SetAllAxesNotHomed();
 		}
 		else
@@ -1635,7 +1636,7 @@ float Platform::GetCpuTemperature() const noexcept
 	// See: http://www.efton.sk/STM32/STM32_VREF.pdf and https://www.st.com/resource/en/datasheet/dm00037051.pdf
 	// We get current VRef to compensate reading.
 	// VRef = (3.3*VREFIN_CAL)/VREFINT
-	const float vref = 3.3f*((float)(GET_ADC_CAL(VREFINT_CAL_ADDR, VREFINT_CAL_DEF)))/((float)(adcFilters[VrefFilterIndex].GetSum() >> (LegacyAnalogIn::AdcBits - 12))/ThermistorAverageReadings);
+	const float vref = 3.3f*((float)(GET_ADC_CAL(VREFINT_CAL_ADDR, VREFINT_CAL_DEF)))/((float)(adcFilters[VrefFilterIndex].GetSum() >> (AdcBits - 12))/ThermistorAverageReadings);
 	// VSENSE_CORRECTED = VSENSE*VRef/3.3
 	// TMCU = ((TSCAL2_TEMP - TSCAL1_TEMP)/(TSCAL2 - TSCAL1))*(VSENSE_CORRECTED - TSCAL1) + TSCAL1_TEMP
 	return ((110.0f - 30.0f)/(((float)(GET_ADC_CAL(TEMPSENSOR_CAL2_ADDR, TEMPSENSOR_CAL2_DEF))) - ((float)(GET_ADC_CAL(TEMPSENSOR_CAL1_ADDR, TEMPSENSOR_CAL1_DEF))))) * ((voltage*((float)(1u << 12))/3.3f)*vref/3.3f - ((float)(GET_ADC_CAL(TEMPSENSOR_CAL1_ADDR, TEMPSENSOR_CAL1_DEF)))) + 30.0f; 
@@ -5204,7 +5205,29 @@ void Platform::Tick() noexcept
 	{
 # if HAS_VOLTAGE_MONITOR
 		// Read the power input voltage
+#  if STM32F4
+		if (PowerMonitorVinDetectPin != NoPin)
+		{
+			// we can read the Vin value
+			currentVin = AnalogInReadChannel(vInMonitorAdcChannel);
+#   if HAS_ATX_POWER_MONITOR
+			// Allow voltage to be turned "off" by "virtual ATX control"
+			if (!ATX_POWER_STATE && ATX_POWER_PIN == NoPin)
+				currentVin = 0;
+#   endif
+		}
+		else
+		{
+#   if HAS_ATX_POWER_MONITOR
+			if (!ATX_POWER_STATE)
+				currentVin = 0;
+			else
+#   endif
+				currentVin = dummyVoltageAdcReading;
+		}
+#  else
 		currentVin = AnalogInReadChannel(vInMonitorAdcChannel);
+#  endif
 		if (currentVin > highestVin)
 		{
 			highestVin = currentVin;

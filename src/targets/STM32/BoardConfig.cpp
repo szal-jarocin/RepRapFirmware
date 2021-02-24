@@ -116,6 +116,11 @@ static const boardConfigEntry_t boardConfigs[]=
 #if SUPPORT_LED_STRIPS
     {"led.neopixelPin", &NeopixelOutPin, nullptr, cvPinType},
 #endif
+
+#if HAS_VOLTAGE_MONITOR
+    {"power.VInDetectPin", &PowerMonitorVinDetectPin, nullptr, cvPinType},
+    {"power.voltage", &VInDummyReading, nullptr, cvUint32Type},
+#endif    
 };
 
 uint32_t crc32_for_byte(uint32_t r) 

@@ -866,6 +866,9 @@ private:
 	uint32_t numVinUnderVoltageEvents, previousVinUnderVoltageEvents;
 	volatile uint32_t numVinOverVoltageEvents, previousVinOverVoltageEvents;
 	bool autoSaveEnabled;
+# if STM32F4
+	uint16_t dummyVoltageAdcReading;
+# endif
 
 	enum class AutoSaveState : uint8_t
 	{

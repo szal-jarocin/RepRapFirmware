@@ -98,6 +98,11 @@ bool ADCEnablePreFilter = true;
 Pin NeopixelOutPin = NoPin;
 #endif
 
+#if HAS_VOLTAGE_MONITOR
+Pin PowerMonitorVinDetectPin = NoPin;
+uint32_t VInDummyReading = 24;
+#endif
+
 //BrownOut Detection
 //The brownout interrupt is triggered when the supply voltage drops below approx 2.2V
 //If the voltage falls below approx 1.8V the BOD will reset the CPU (and Brownout will be
@@ -185,6 +190,9 @@ bool SetBoard(const char* bn) noexcept
             totalSmartDrivers = LPC_Boards[i].defaults.numSmartDrivers;
 #endif
             digipotFactor = LPC_Boards[i].defaults.digipotFactor;
+#if HAS_VOLTAGE_MONITOR
+            PowerMonitorVinDetectPin = LPC_Boards[i].defaults.vinDetectPin;
+#endif
                         
             return true;
         }

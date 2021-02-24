@@ -232,9 +232,6 @@ extern bool ATX_POWER_INVERTED;
 extern bool ATX_INITIAL_POWER_ON;
 extern bool ATX_POWER_STATE;
 
-constexpr Pin PowerMonitorVinDetectPin = PC_3;
-constexpr float PowerMonitorVoltageRange = 11.0 * 3.3;						// We use an 11:1 voltage divider
-
 // SD cards
 constexpr size_t NumSdCards = _DRIVES; //_DRIVES is defined in CoreLPC (and used by FatFS) allow one internal and one external
 extern Pin SdCardDetectPins[NumSdCards];
@@ -299,6 +296,12 @@ extern Pin AuxSerialRxTxPins[NumberSerialPins];
 extern Pin NeopixelOutPin;
 #endif
 
+#if HAS_VOLTAGE_MONITOR
+extern Pin PowerMonitorVinDetectPin;
+constexpr float PowerMonitorVoltageRange = 11.0 * 3.3;						// We use an 11:1 voltage divider
+extern uint32_t VInDummyReading;
+#endif
+
 //Timer 5 is used for Step Generation
 #define STEP_TC             (TIM5)
 #define STEP_TC_IRQN        TIM5_IRQn
@@ -351,7 +354,10 @@ struct BoardDefaults
     const Pin uartPins[NumDirectDrivers];
     const uint32_t numSmartDrivers;
 #endif
-    const float digipotFactor;    
+    const float digipotFactor;
+#if HAS_VOLTAGE_MONITOR
+    const Pin vinDetectPin;
+#endif    
 };
 
 struct BoardEntry

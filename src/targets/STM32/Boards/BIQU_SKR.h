@@ -126,7 +126,10 @@ constexpr BoardDefaults biquskr_pro_1_1_Defaults = {
     {PC_13, PE_3, PE_1, PD_4, PD_1, PD_6, PF_11, PG_10},      //uartPins
     6,                                      	// Smart drivers
 #endif
-    0                                       	//digiPot Factor
+    0,                                       	//digiPot Factor
+#if HAS_VOLTAGE_MONITOR
+    NoPin,
+#endif
 };
 
 
@@ -260,7 +263,10 @@ constexpr BoardDefaults biqu_gtr_1_0_Defaults = {
 	{PC_14, PE_1, PB_5, PG_10, PD_4, PC_12,PG_4,PE_15,PE_7,PF_15,PH_14},  //uartpins including M5
     6,                                      // Smart drivers or 11 with M5
 #endif
-    0                                       //digiPot Factor
+    0,                                       //digiPot Factor
+#if HAS_VOLTAGE_MONITOR
+    NoPin,
+#endif
 };
 
 constexpr PinEntry PinTable_BTT_RRF_E3_v1_0[] =
@@ -370,6 +376,9 @@ constexpr BoardDefaults btt_rrf_e3_1_0_Defaults = {
 	{PD_6, PD_1, PD_15, PD_11},	// uartpins
     4,							// Smart drivers
 #endif
-    0							// digiPot Factor
+    0,							// digiPot Factor
+#if HAS_VOLTAGE_MONITOR
+    NoPin,
+#endif
 };
 #endif
