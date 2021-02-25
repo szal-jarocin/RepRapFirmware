@@ -110,6 +110,8 @@ constexpr PinEntry PinTable_BIQU_SKR_PRO_v1_1[] =
 };
 
 constexpr BoardDefaults biquskr_pro_1_1_Defaults = {
+    {0x768a39d6},                 				// Signatures
+    SD_SPI1_A,                                  // SD Card access
     {   //CLK, MISO, MOSI
         {PA_5, PA_6, PB_5},                     //SPI0
         {PB_13, PB_14, PB_15},                  //SPI1
@@ -247,6 +249,8 @@ constexpr PinEntry PinTable_BIQU_GTR_v1_0[] =
 };
 
 constexpr BoardDefaults biqu_gtr_1_0_Defaults = {
+    {0x94a2cc03},                 				// Signatures
+    SD_SPI1_B,                                  // SD Card access
     {   //CLK, MISO, MOSI
         {PA_5, PA_6, PA_7},                     //SPI0
         {PB_13, PB_14, PB_15},                  //SPI1
@@ -360,6 +364,8 @@ constexpr PinEntry PinTable_BTT_RRF_E3_v1_0[] =
 };
 
 constexpr BoardDefaults btt_rrf_e3_1_0_Defaults = {
+    {0x94a2cc03},                 				// Signatures
+    SD_SPI1_B,                                  // SD Card access
     {   //CLK, MISO, MOSI
         {PA_5, PA_6, PA_7},                     //SPI0
         {PB_13, PB_14, PB_15},                  //SPI1

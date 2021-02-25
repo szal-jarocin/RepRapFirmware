@@ -220,6 +220,25 @@ static void ConfigureGPIOPins() noexcept
         pinMode(ATX_POWER_PIN, (ATX_INITIAL_POWER_ON ^ ATX_POWER_INVERTED ? OUTPUT_HIGH : OUTPUT_LOW));
 }
 
+static void ConfigureSPIPins(SSPChannel dev, Pin clk, Pin miso, Pin mosi)
+{
+    if (clk == NoPin) return;
+    // Configure a single SPI device, we use DMA on SPI2 and SPI3
+    switch(dev)
+    {
+    case SSP2:
+        SPI::getSSPDevice(dev)->initPins(clk, miso, mosi, NoPin, DMA1_Stream3, DMA_CHANNEL_0, DMA1_Stream3_IRQn, DMA1_Stream4, DMA_CHANNEL_0, DMA1_Stream4_IRQn);
+        break;
+    case SSP3:
+        SPI::getSSPDevice(dev)->initPins(clk, miso, mosi, NoPin, DMA1_Stream0, DMA_CHANNEL_0, DMA1_Stream0_IRQn, DMA1_Stream5, DMA_CHANNEL_0, DMA1_Stream5_IRQn);
+        break;
+    default:
+        SPI::getSSPDevice(dev)->initPins(clk, miso, mosi, NoPin);
+        break;
+    }
+}
+
+
 
 static void FatalError(const char* fmt, ...)
 {
@@ -233,41 +252,44 @@ static void FatalError(const char* fmt, ...)
     }
 }
 
+
+// Determine how to access the SD card
 static uint32_t signature;
 
 typedef struct {
-    uint32_t sigs[5];
     SSPChannel device;
     Pin pins[4];    
 } SDCardConfig;
 
 static constexpr SDCardConfig SDCardConfigs[] = {
-    {{0x768a39d6}, SSP1, {PA_5, PA_6, PB_5, PA_4}}, // SKR Pro
-    {{0x94a2cc03}, SSP1, {PA_5, PA_6, PA_7, PA_4}}, // GTR
-    {{0x8a5f5551, 0xd0c680ae}, SSPSDIO, {NoPin, NoPin, NoPin, NoPin}}, // Fly/SDIO
+    {SSP1, {PA_5, PA_6, PB_5, PA_4}}, // SKR Pro
+    {SSP1, {PA_5, PA_6, PA_7, PA_4}}, // GTR
+    {SSPSDIO, {NoPin, NoPin, NoPin, NoPin}}, // Fly/SDIO
+    {SSP3, {PC_10, PC_11, PC_12, PC_9}}, // MKS?
 };
 
 
 SSPChannel InitSDCard(uint32_t boardSig, FATFS *fs)
 {
     FRESULT rslt;
-    int conf = 0;
+    int conf = SD_NONE;
     // First try to find a matching board
     debugPrintf("Searching for board signature 0x%x\n", (unsigned) boardSig);
-    for(uint32_t i = 0; i < ARRAY_SIZE(SDCardConfigs); i++)
-        for(uint32_t j = 0; j < ARRAY_SIZE(SDCardConfigs[0].sigs); j++)
-            if (SDCardConfigs[i].sigs[j] == boardSig)
+    for(uint32_t i = 0; i < ARRAY_SIZE(LPC_Boards) && conf == SD_NONE; i++)
+        for(uint32_t j = 0; j < MaxSignatures && conf == SD_NONE; j++)
+            if (LPC_Boards[i].defaults.signatures[j] == boardSig)
             {
-                debugPrintf("Found matching board entry %d\n", (int)i);
-                conf = i;
-                break;
+                conf = LPC_Boards[i].defaults.SDConfig;
+                debugPrintf("Found matching board entry %d board %s SDConfig %d\n", (int)i, LPC_Boards[i].boardName, conf);
             }
+    if (conf == SD_NONE) conf = 0;
+    // Now try each config in turn, starting with the detected board (if any)
     for(uint32_t i = 0; i < ARRAY_SIZE(SDCardConfigs); i++)
     {
-        debugPrintf("InitSDCard try config %d type %d\n", conf, SDCardConfigs[conf].device);
+        debugPrintf("InitSDCard try config %d type %x\n", conf, (unsigned)SDCardConfigs[conf].device);
         if (SDCardConfigs[conf].device != SSPSDIO)
         {
-            SPI::getSSPDevice(SDCardConfigs[conf].device)->initPins(SDCardConfigs[conf].pins[0], SDCardConfigs[conf].pins[1], SDCardConfigs[conf].pins[2], NoPin);
+            ConfigureSPIPins(SDCardConfigs[conf].device, SDCardConfigs[conf].pins[0], SDCardConfigs[conf].pins[1], SDCardConfigs[conf].pins[2]);
             sd_mmc_setSSPChannel(0, SDCardConfigs[conf].device, SDCardConfigs[conf].pins[3]);
         }
         else
@@ -279,7 +301,7 @@ SSPChannel InitSDCard(uint32_t boardSig, FATFS *fs)
             return SDCardConfigs[conf].device;
         }
         if (SDCardConfigs[conf].device != SSPSDIO)
-            ((HardwareSPI *)(SPI::getSSPDevice(SSP1)))->disable();
+            ((HardwareSPI *)(SPI::getSSPDevice(SDCardConfigs[conf].device)))->disable();
         sd_mmc_setSSPChannel(0, SSPNONE, NoPin);
         conf = (conf + 1) % ARRAY_SIZE(SDCardConfigs);
     }
@@ -343,7 +365,6 @@ void BoardConfig::Init() noexcept
         if(!SetBoard(lpcBoardName)) // load the Correct PinTable for the defined Board (RRF3)
         {
             //Failed to find string in known boards array
-            FatalError("Unknown board: %s\n", lpcBoardName );
             SafeStrncpy(lpcBoardName, "generic", 8); //replace the string in lpcBoardName to "generic"
         }
 
@@ -383,16 +404,10 @@ void BoardConfig::Init() noexcept
             hasDriverCurrentControl = true;
         }
         
-        //Setup the Software SPI Pins
-        for(size_t i = 3; i < ARRAY_SIZE(SPIPins); i++)
-            SPI::getSSPDevice((SSPChannel)(i))->initPins(SPIPins[i][0], SPIPins[i][1], SPIPins[i][2]);
-        //Setup the pins for Hardware SPI
-        if (SPIPins[0][0] != NoPin && sdChannel != SSP1)
-            SPI::getSSPDevice(SSP1)->initPins(SPIPins[0][0], SPIPins[0][1], SPIPins[0][2], NoPin);
-        if (SPIPins[1][0] != NoPin && sdChannel != SSP2)
-            SPI::getSSPDevice(SSP2)->initPins(SPIPins[1][0], SPIPins[1][1], SPIPins[1][2], NoPin, DMA1_Stream3, DMA_CHANNEL_0, DMA1_Stream3_IRQn, DMA1_Stream4, DMA_CHANNEL_0, DMA1_Stream4_IRQn);
-        if (SPIPins[2][0] != NoPin && sdChannel != SSP3)
-            SPI::getSSPDevice(SSP3)->initPins(SPIPins[2][0], SPIPins[2][1], SPIPins[2][2], NoPin, DMA1_Stream0, DMA_CHANNEL_0, DMA1_Stream0_IRQn, DMA1_Stream5, DMA_CHANNEL_0, DMA1_Stream5_IRQn);
+        //Setup the SPI Pins, note that the SD SPI device may already have been configured
+        for(size_t i = 0; i < ARRAY_SIZE(SPIPins); i++)
+            if (sdChannel != (SSPChannel)i)
+                ConfigureSPIPins((SSPChannel)i, SPIPins[i][0], SPIPins[i][1], SPIPins[i][2]);
 // FIXME
 #if 0
         //Internal SDCard SPI Frequency

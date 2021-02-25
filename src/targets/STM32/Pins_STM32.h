@@ -342,9 +342,19 @@ constexpr size_t MaxBoardNameLength = 20;
 extern char lpcBoardName[MaxBoardNameLength];
 extern size_t totalSmartDrivers;
 extern size_t num5160SmartDrivers;
+constexpr size_t MaxSignatures = 3;
+typedef enum {
+    SD_SPI1_A,
+    SD_SPI1_B,
+    SD_SDIO,
+    SD_SPI3_A,
+    SD_NONE = 0xff
+} SDConfigs;
 
 struct BoardDefaults
 {
+    const uint32_t signatures[MaxSignatures];
+    const SDConfigs SDConfig;
     const Pin spiPins[NumSPIDevices][NumSPIPins];
     const uint32_t numDrivers;
     const Pin enablePins[NumDirectDrivers];
@@ -370,6 +380,7 @@ struct BoardEntry
 
 #include "Boards/BIQU_SKR.h"
 #include "Boards/FLY.h"
+#include "Boards/Generic.h"
 #undef HAS_SMART_DRIVERS
 
 
@@ -382,7 +393,7 @@ constexpr BoardEntry LPC_Boards[] =
     {"fly_e3",      PinTable_FLY_E3,    ARRAY_SIZE(PinTable_FLY_E3),    fly_e3_Defaults},
     {"fly_cdyv2",      PinTable_FLY_CDYV2,    ARRAY_SIZE(PinTable_FLY_CDYV2),    fly_cdyv2_Defaults},
     {"biquskr_rrf_e3_1.0",      PinTable_BTT_RRF_E3_v1_0,    ARRAY_SIZE(PinTable_BTT_RRF_E3_v1_0),    btt_rrf_e3_1_0_Defaults},
-    
+    {"generic",      PinTable_Generic,    ARRAY_SIZE(PinTable_Generic),    Generic_Defaults},    
 };
 
 

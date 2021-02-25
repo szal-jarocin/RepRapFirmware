@@ -79,6 +79,8 @@ constexpr PinEntry PinTable_FLY_F407ZG[] =
 };
 
 constexpr BoardDefaults fly_f407zg_Defaults = {
+    {0x8a5f5551, 0xd0c680ae},                   // Signatures
+    SD_SDIO,                                    // SD Card access
     {   //CLK, MISO, MOSI
         {PA_5, PA_6, PA_7},                     //SPI0
         {PB_13, PB_14, PB_15},                  //SPI1
@@ -192,6 +194,8 @@ constexpr PinEntry PinTable_FLY_E3[] =
 };
 
 constexpr BoardDefaults fly_e3_Defaults = {
+    {0xd0c680ae},                               // Signatures
+    SD_SDIO,                                    // SD Card access
     {   //CLK, MISO, MOSI
         {PA_5, PA_6, PA_7},                     //SPI0
         {PB_13, PB_14, PB_15},                  //SPI1
@@ -302,6 +306,8 @@ constexpr PinEntry PinTable_FLY_CDYV2[] =
 };
 
 constexpr BoardDefaults fly_cdyv2_Defaults = {
+    {0x8a5f5551, 0xd0c680ae},                   // Signatures
+    SD_SDIO,                                    // SD Card access
     {   //CLK, MISO, MOSI
         {PA_5, PA_6, PA_7},                     //SPI0
         {PB_13, PB_14, PB_15},                  //SPI1
