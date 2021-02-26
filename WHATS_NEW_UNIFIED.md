@@ -1,3 +1,18 @@
+Version 3.3-beta1_1
+===================
+* Duet3D V3.3-beta1 support
+* Switched mcu interface to CoreN2G
+* Switch PinTable to 1:1 mapping. Allows all pins to be accessed using pin notation
+* Updated board definitions for Fly/BTT
+* STM32F4: Support for TMC5160 drivers
+* STM32F4: Support for mixed TMC22xx/TMC5160
+* STM32F4: Allow alternate pins for hardware SPI devices (via SPI0.Pins, SPI1.Pins, SPI2.Pins)
+* STM32F4: Allow use of SPI3
+* STM32F4: Add support for voltage monitor
+* STM32F4: Added "generic" board config
+* STM32F4: Allow use of SPI3 for SD card access
+
+
 Version 3.2_7
 =============
 * Fix Fly CDY pin definition
