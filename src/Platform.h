@@ -907,6 +907,9 @@ private:
 
 	// Misc
 	static bool deliberateError;						// true if we deliberately caused an exception for testing purposes. Must be static in case of exception during startup.
+#if STM32F4
+	uint32_t vRefCorrection;
+#endif
 };
 
 #if HAS_MASS_STORAGE

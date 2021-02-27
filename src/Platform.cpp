@@ -172,6 +172,9 @@ constexpr uint16_t driverV12OffAdcReading = V12VoltageToAdcReading(9.5);				// v
 
 const float MinStepPulseTiming = 0.2;				// we assume that we always generate step high and low times at least this wide without special action
 
+#if STM32F4
+constexpr uint32_t VRefCorrectionScale = 1 << 8;
+#endif
 // Global variable for debugging in tricky situations e.g. within ISRs
 int debugLine = 0;
 
@@ -815,6 +818,7 @@ void Platform::Init() noexcept
 # elif STM32F4
 	filteredAdcChannels[VrefFilterIndex] = LegacyAnalogIn::GetVREFAdcChannel();
 	filteredAdcChannels[CpuTempFilterIndex] = LegacyAnalogIn::GetTemperatureAdcChannel();
+	vRefCorrection = 1*VRefCorrectionScale;
 #else
 	filteredAdcChannels[CpuTempFilterIndex] =
 #if SAM4E || SAM4S || SAME70
@@ -1133,6 +1137,17 @@ void Platform::Spin() noexcept
 
 	// Try to flush messages to serial ports
 	(void)FlushMessages();
+
+#if STM32F4
+	// Update the VRef reference correction
+	// See: http://www.efton.sk/STM32/STM32_VREF.pdf and https://www.st.com/resource/en/datasheet/dm00037051.pdf
+	// We get current VRef to compensate reading.
+	// VRef = (3.3*VREFIN_CAL)/VREFINT
+	if (adcFilters[VrefFilterIndex].IsValid())
+	{
+		vRefCorrection = (GET_ADC_CAL(VREFINT_CAL_ADDR, VREFINT_CAL_DEF)*VRefCorrectionScale)/((adcFilters[VrefFilterIndex].GetSum() >> (AdcBits - 12))/ThermistorAverageReadings);
+	}
+#endif
 
 	// Check the MCU max and min temperatures
 #if HAS_CPU_TEMP_SENSOR
@@ -1633,13 +1648,9 @@ float Platform::GetCpuTemperature() const noexcept
 # elif SAME70
 	return (voltage - 0.72) * (1000.0/2.33) + 25.0 + mcuTemperatureAdjust;			// accuracy at 25C is +/-34C
 # elif STM32F4
-	// See: http://www.efton.sk/STM32/STM32_VREF.pdf and https://www.st.com/resource/en/datasheet/dm00037051.pdf
-	// We get current VRef to compensate reading.
-	// VRef = (3.3*VREFIN_CAL)/VREFINT
-	const float vref = 3.3f*((float)(GET_ADC_CAL(VREFINT_CAL_ADDR, VREFINT_CAL_DEF)))/((float)(adcFilters[VrefFilterIndex].GetSum() >> (AdcBits - 12))/ThermistorAverageReadings);
 	// VSENSE_CORRECTED = VSENSE*VRef/3.3
 	// TMCU = ((TSCAL2_TEMP - TSCAL1_TEMP)/(TSCAL2 - TSCAL1))*(VSENSE_CORRECTED - TSCAL1) + TSCAL1_TEMP
-	return ((110.0f - 30.0f)/(((float)(GET_ADC_CAL(TEMPSENSOR_CAL2_ADDR, TEMPSENSOR_CAL2_DEF))) - ((float)(GET_ADC_CAL(TEMPSENSOR_CAL1_ADDR, TEMPSENSOR_CAL1_DEF))))) * ((voltage*((float)(1u << 12))/3.3f)*vref/3.3f - ((float)(GET_ADC_CAL(TEMPSENSOR_CAL1_ADDR, TEMPSENSOR_CAL1_DEF)))) + 30.0f; 
+	return ((110.0f - 30.0f)/(((float)(GET_ADC_CAL(TEMPSENSOR_CAL2_ADDR, TEMPSENSOR_CAL2_DEF))) - ((float)(GET_ADC_CAL(TEMPSENSOR_CAL1_ADDR, TEMPSENSOR_CAL1_DEF))))) * ((voltage*((float)(1u << 12))/3.3f)*vRefCorrection/VRefCorrectionScale - ((float)(GET_ADC_CAL(TEMPSENSOR_CAL1_ADDR, TEMPSENSOR_CAL1_DEF)))) + 30.0f; 
 # else
 #  error undefined CPU temp conversion
 # endif
@@ -5209,7 +5220,7 @@ void Platform::Tick() noexcept
 		if (PowerMonitorVinDetectPin != NoPin)
 		{
 			// we can read the Vin value
-			currentVin = AnalogInReadChannel(vInMonitorAdcChannel);
+			currentVin = AnalogInReadChannel(vInMonitorAdcChannel)*vRefCorrection/VRefCorrectionScale;
 #   if HAS_ATX_POWER_MONITOR
 			// Allow voltage to be turned "off" by "virtual ATX control"
 			if (!ATX_POWER_STATE && ATX_POWER_PIN == NoPin)
