@@ -250,7 +250,7 @@ bool TMCSoftUARTCheckComplete() noexcept
 void TMCSoftUARTInit() noexcept
 {
     uint32_t period = SUTimer.getTimerClkFreq()/(SU_BAUD_RATE*SU_OVERSAMPLE);
-	debugPrintf("SU base freq %d setting period %d\n", static_cast<int>(SUTimer.getTimerClkFreq()), static_cast<int>(period));
+	//debugPrintf("SU base freq %d setting period %d\n", static_cast<int>(SUTimer.getTimerClkFreq()), static_cast<int>(period));
     SUPeriod = period;
 	SUTimer.setOverflow(period*SU_OVERSAMPLE, TICK_FORMAT);
     SUTimer.setCount(0, TICK_FORMAT);

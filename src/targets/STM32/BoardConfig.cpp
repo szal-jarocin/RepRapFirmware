@@ -274,19 +274,21 @@ SSPChannel InitSDCard(uint32_t boardSig, FATFS *fs)
     FRESULT rslt;
     int conf = SD_NONE;
     // First try to find a matching board
-    debugPrintf("Searching for board signature 0x%x\n", (unsigned) boardSig);
     for(uint32_t i = 0; i < ARRAY_SIZE(LPC_Boards) && conf == SD_NONE; i++)
         for(uint32_t j = 0; j < MaxSignatures && conf == SD_NONE; j++)
             if (LPC_Boards[i].defaults.signatures[j] == boardSig)
             {
                 conf = LPC_Boards[i].defaults.SDConfig;
-                debugPrintf("Found matching board entry %d board %s SDConfig %d\n", (int)i, LPC_Boards[i].boardName, conf);
+                debugPrintf("Sig 0x%x %d board %s SDConfig %d\n", (unsigned) boardSig, (int)i, LPC_Boards[i].boardName, conf);
             }
-    if (conf == SD_NONE) conf = 0;
+    if (conf == SD_NONE)
+    {
+        debugPrintf("Sig 0x%x not found\n", (unsigned) boardSig);
+        conf = 0;
+    }
     // Now try each config in turn, starting with the detected board (if any)
     for(uint32_t i = 0; i < ARRAY_SIZE(SDCardConfigs); i++)
     {
-        debugPrintf("InitSDCard try config %d type %x\n", conf, (unsigned)SDCardConfigs[conf].device);
         if (SDCardConfigs[conf].device != SSPSDIO)
         {
             ConfigureSPIPins(SDCardConfigs[conf].device, SDCardConfigs[conf].pins[0], SDCardConfigs[conf].pins[1], SDCardConfigs[conf].pins[2]);
@@ -305,6 +307,7 @@ SSPChannel InitSDCard(uint32_t boardSig, FATFS *fs)
         sd_mmc_setSSPChannel(0, SSPNONE, NoPin);
         conf = (conf + 1) % ARRAY_SIZE(SDCardConfigs);
     }
+    debugPrintf("Failed to init SD card\n");
     return SSPNONE;
 }
 

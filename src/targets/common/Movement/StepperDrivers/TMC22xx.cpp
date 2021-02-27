@@ -1331,6 +1331,7 @@ void Tmc22xxDriver::Spin(bool powered) noexcept
 			if (allInitialised)
 			{
 				driversState = DriversState::ready;
+#if 0
 				// report drive status
 				for (size_t i = 0; i < numTmc22xxDrivers; ++i)
 				{
@@ -1339,6 +1340,7 @@ void Tmc22xxDriver::Spin(bool powered) noexcept
 					else
 						reprap.GetPlatform().MessageF(UsbMessage, "Warning driver %d not detected check configuration\n", i);
 				}
+#endif
 			}
 		}
 	}

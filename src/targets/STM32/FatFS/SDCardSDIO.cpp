@@ -65,7 +65,9 @@ uint8_t SDCardSDIO::disk_initialize () noexcept
         {
             HAL_SD_CardInfoTypeDef cardInfo;
             sdio->GetCardInfo(&cardInfo);
+#ifdef SD_DEBUG
             debugPrintf("Card type %x ver %d class %x sectors %d\n", (unsigned int)cardInfo.CardType, (int)cardInfo.CardVersion, (unsigned int)cardInfo.Class, (int)cardInfo.LogBlockNbr);
+#endif
             frequency = 20000000;
             cardtype = cardInfo.CardType;
             sdcardBlockSize = cardInfo.LogBlockSize;
