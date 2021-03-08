@@ -25,6 +25,7 @@
 #include "SoftwareReset.h"
 #include "ExceptionHandlers.h"
 
+#include "pinmap.h"
 //Single entry for Board name
 static const boardConfigEntry_t boardEntryConfig[]=
 {
@@ -247,6 +248,7 @@ static char *ReadTerminal()
         int ch = SERIAL_MAIN_DEVICE.read();
         if ((ch == '\n' || ch == '\r') && pos > 0)
         {
+            line[pos] = '\0';
             pos = 0;
             return line;
         }
@@ -265,12 +267,6 @@ static void FatalError(const char* fmt, ...)
         reprap.GetPlatform().DebugMessage(fmt, vargs);
         va_end(vargs);
         delay(2000);
-        for(int i = 0; i < 2000; i++)
-        {
-            delay(1);
-            if (StringEqualsIgnoreCase(ReadTerminal(), "TeamGloomy"))
-                return;
-        }
     }
 }
 
@@ -280,8 +276,9 @@ static void UnknownHardware(uint32_t sig)
     {
         debugPrintf("\nRRF has been unable to identify the current hardware.\n");
         debugPrintf("This may be because it is a new board or has a new bootloader installed.\n");
-        debugPrintf("To register the hardware configuration please contact TeamGloomy and supply\n");
-        debugPrintf("details of the board and the board signature(0x%x).\n", (unsigned)sig);
+        debugPrintf("To register the hardware configuration please contact TeamGloomy via our\n");
+        debugPrintf("discord server (https://discord.gg/uS97Qs7) and supply details of\n");
+        debugPrintf("the board and the board signature(0x%x).\n", (unsigned)sig);
         debugPrintf("\nRRF can try and discover how to mount the SD card, but doing this may\n");
         debugPrintf("turn on heaters or other devices. If you wish to continue with this automatic\n");
         debugPrintf("search please ensure there is a valid SD card inserted in\n");
@@ -290,8 +287,17 @@ static void UnknownHardware(uint32_t sig)
         for(int i = 0; i < 10000; i++)
         {
             delay(1);
-            if (StringEqualsIgnoreCase(ReadTerminal(), "yes"))
+            char *line = ReadTerminal();
+            if (StringEqualsIgnoreCase(line, "yes"))
                 return;
+            if (StringEqualsIgnoreCase(line, "pins"))
+            {
+                for (int p = 0; p < P_END; p++)
+                {
+                    uint32_t mode = pin_get_function((Pin)p);
+                    debugPrintf("Pin %c.%d fmode 0x%x (mode %x afnum %x)\n", (p >> 4) + 'A', (p & 0xf), (unsigned)mode, (unsigned)STM_PIN_FUNCTION(mode), (unsigned)STM_PIN_AFNUM(mode));
+                }
+            }
         }
         debugPrintf("\n\n");
     }
@@ -303,16 +309,18 @@ static uint32_t signature;
 typedef struct {
     SSPChannel device;
     Pin pins[6];
+    uint32_t mode[6];
 } SDCardConfig;
 
+// These are our known SD card configurations
 static constexpr SDCardConfig SDCardConfigs[] = {
-    {SSP1, {PA_5, PA_6, PB_5, PA_4, NoPin, NoPin}}, // SKR Pro
-    {SSP1, {PA_5, PA_6, PA_7, PA_4, NoPin, NoPin}}, // GTR
-    {SSPSDIO, {PC_8, PC_9, PC_10, PC_11, PC_12, PD_2}}, // Fly/SDIO
-    {SSP3, {PC_10, PC_11, PC_12, PC_9, NoPin, NoPin}}, // MKS?
+    {SSP1, {PA_5, PA_6, PB_5, PA_4, NoPin, NoPin}, {0x502, 0x502, 0x502, 0x1}}, // SKR Pro
+    {SSP1, {PA_5, PA_6, PA_7, PA_4, NoPin, NoPin}, {0x502, 0x502, 0x502, 0x1}}, // GTR
+    {SSPSDIO, {PC_8, PC_9, PC_10, PC_11, PC_12, PD_2}, {0xc02, 0xc02, 0xc02, 0xc02, 0xc02, 0xc02}}, // Fly/SDIO
+    {SSP3, {PC_10, PC_11, PC_12, PC_9, NoPin, NoPin}, {0x602, 0x602, 0x602, 0x1}}, // MKS?
 };
 
-bool TryConfig(uint32_t config, FATFS *fs)
+static bool TryConfig(uint32_t config, FATFS *fs)
 {
     const SDCardConfig *conf = &SDCardConfigs[config];
     if (conf->device != SSPSDIO)
@@ -330,13 +338,26 @@ bool TryConfig(uint32_t config, FATFS *fs)
     // mount failed reset I/O pins to inputs
     if (conf->device != SSPSDIO)
         ((HardwareSPI *)(SPI::getSSPDevice(conf->device)))->disable();
-    for (int i = 0; i < 6; i++)
+    for (size_t i = 0; i < ARRAY_SIZE(conf->pins); i++)
         pinMode(conf->pins[i], INPUT);    
     sd_mmc_setSSPChannel(0, SSPNONE, NoPin);
     return false;
 }    
 
-SSPChannel InitSDCard(uint32_t boardSig, FATFS *fs)
+static bool CheckPinConfig(uint32_t config)
+{
+    // check to see if the pins are currently set in the expected state
+    // The bootloader on many boards will leave the pins configured after
+    // accessing the SD card.
+    const SDCardConfig *conf = &SDCardConfigs[config];
+    for(size_t i = 0; i < ARRAY_SIZE(conf->pins); i++)
+        if (conf->pins[i] != NoPin && pin_get_function(conf->pins[i]) != conf->mode[i])
+            return false;
+    return true;
+}
+
+
+static SSPChannel InitSDCard(uint32_t boardSig, FATFS *fs)
 {
     int conf = SD_NONE;
     // First try to find a matching board
@@ -345,8 +366,20 @@ SSPChannel InitSDCard(uint32_t boardSig, FATFS *fs)
             if (LPC_Boards[i].defaults.signatures[j] == boardSig)
             {
                 conf = LPC_Boards[i].defaults.SDConfig;
-                debugPrintf("Sig 0x%x %d board %s SDConfig %d\n", (unsigned) boardSig, (int)i, LPC_Boards[i].boardName, conf);
+                debugPrintf("Sig match 0x%x %d board %s SDConfig %d\n", (unsigned) boardSig, (int)i, LPC_Boards[i].boardName, conf);
             }
+            
+    if (conf == SD_NONE)
+    {
+        // failed to find matching signature, see if the bootloader has left things configured
+        for(uint32_t i = 0; i < ARRAY_SIZE(SDCardConfigs); i++)
+            if (CheckPinConfig(i))
+            {
+                conf = i;
+                debugPrintf("loader match %d\n", (int)i);
+            }
+    }
+
     if (conf == SD_NONE)
     {
         UnknownHardware(boardSig);
@@ -363,7 +396,7 @@ SSPChannel InitSDCard(uint32_t boardSig, FATFS *fs)
         FatalError("Unable to mount SD card, board signature is 0x%x.\n", (unsigned)boardSig);
     }
 
-    // Now try each config in turn, starting with the detected board (if any)
+    // Now try each config in turn
     for(uint32_t i = 0; i < ARRAY_SIZE(SDCardConfigs); i++)
     {
         if (TryConfig(i, fs))
