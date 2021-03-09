@@ -11,6 +11,7 @@ Version 3.3-beta1_1
 * STM32F4: Add support for voltage monitor
 * STM32F4: Added "generic" board config
 * STM32F4: Allow use of SPI3 for SD card access
+* STM32F4: Do not make potentially changes to unrecognised hardware (during attempts to mount the SD card)
 
 
 Version 3.2_7
