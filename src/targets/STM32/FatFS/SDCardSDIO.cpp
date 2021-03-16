@@ -69,7 +69,7 @@ uint8_t SDCardSDIO::disk_initialize () noexcept
             debugPrintf("Card type %x ver %d class %x sectors %d\n", (unsigned int)cardInfo.CardType, (int)cardInfo.CardVersion, (unsigned int)cardInfo.Class, (int)cardInfo.LogBlockNbr);
 #endif
             frequency = 20000000;
-            cardtype = cardInfo.CardType;
+            cardtype = (cardInfo.CardType == CARD_SDHC_SDXC ? CT_SD2|CT_BLOCK : (cardInfo.CardType == CARD_SDSC ? CT_SD2 : CT_SD1));
             sdcardBlockSize = cardInfo.LogBlockSize;
             sdcardSectors = cardInfo.LogBlockNbr;
             status &= ~STA_NOINIT;
