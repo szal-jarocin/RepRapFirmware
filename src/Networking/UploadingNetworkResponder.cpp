@@ -78,6 +78,7 @@ bool UploadingNetworkResponder::StartUpload(const char* folder, const char *file
 // Finish a file upload. Set variable uploadError if anything goes wrong.
 void UploadingNetworkResponder::FinishUpload(uint32_t fileLength, time_t fileLastModified, bool gotCrc, uint32_t expectedCrc) noexcept
 {
+	skt->SetResponder(nullptr);
 	if (!dummyUpload)
 	{
 		// Flush remaining data for FSO

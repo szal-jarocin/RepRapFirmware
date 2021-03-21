@@ -17,7 +17,7 @@ const uint32_t MaxWriteTime = 2000;				// how long we wait for a write operation
 
 
 class NetworkInterface;
-
+class NetworkResponder;
 // Abstract socket structure that we use to track TCP connections
 class Socket
 {
@@ -43,6 +43,7 @@ public:
 	virtual bool CanSend() const noexcept = 0;
 	virtual size_t Send(const uint8_t *data, size_t length) noexcept = 0;
 	virtual void Send() noexcept = 0;
+	void SetResponder(NetworkResponder *resp) noexcept {responder = resp;}
 
 protected:
 	enum class SocketState : uint8_t
@@ -61,6 +62,7 @@ protected:
 	NetworkProtocol protocol;							// What protocol this socket is for
 	IPAddress remoteIPAddress;							// The remote IP address
 	SocketState state;
+	NetworkResponder *responder;
 };
 
 #endif /* SRC_NETWORKING_SOCKET_H_ */

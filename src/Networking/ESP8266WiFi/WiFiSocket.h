@@ -35,7 +35,6 @@ public:
 	void Send() noexcept;
 	void SetNeedsPolling() noexcept { needsPolling = true; }
 	bool NeedsPolling() const noexcept;
-
 private:
 	enum class SocketState : uint8_t
 	{
@@ -48,7 +47,7 @@ private:
 	};
 
 	WiFiInterface *GetInterface() const noexcept;
-	void ReceiveData(uint16_t bytesAvailable) noexcept;
+	uint16_t ReceiveData(uint16_t bytesAvailable) noexcept;
 	void DiscardReceivedData() noexcept;
 
 	NetworkBuffer *receivedData;						// List of buffers holding received data

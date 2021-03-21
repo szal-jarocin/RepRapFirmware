@@ -1238,6 +1238,8 @@ void HttpResponder::ProcessRequest() noexcept
 							break;
 						}
 					}
+					// Allow us to be called directly during the upload
+					skt->SetResponder(this);
 					return;
 				}
 			}
