@@ -10,7 +10,6 @@
 
 #include <RepRapFirmware.h>
 #include "EndstopDefs.h"
-#include <GCodes/GCodeResult.h>
 #include <ObjectModel/ObjectModel.h>
 #include <RTOSIface/RTOSIface.h>
 
@@ -40,7 +39,7 @@ public:
 	bool EnableExtruderEndstops(ExtrudersBitmap extruders) noexcept;
 
 	// Get the first endstop that has triggered and remove it from the active list if appropriate
-	EndstopHitDetails CheckEndstops(bool goingSlow) noexcept;
+	EndstopHitDetails CheckEndstops() noexcept;
 
 	// Configure the endstops in response to M574
 	GCodeResult HandleM574(GCodeBuffer& gb, const StringRef& reply, OutputBuffer*& outbuf) noexcept;
@@ -48,7 +47,7 @@ public:
 	EndStopPosition GetEndStopPosition(size_t axis) const pre(axis < MaxAxes) noexcept;
 	bool HomingZWithProbe() const noexcept;
 
-	EndStopHit Stopped(size_t axis) const noexcept;
+	bool Stopped(size_t axis) const noexcept;
 
 	void GetM119report(const StringRef& reply) noexcept;
 
@@ -90,7 +89,7 @@ private:
 #endif
 
 	// Translate end stop result to text
-	static const char *TranslateEndStopResult(EndStopHit es, bool atHighEnd) noexcept;
+	static const char *TranslateEndStopResult(bool hit, bool atHighEnd) noexcept;
 
 	ReadLockedPointer<Endstop> FindEndstop(size_t axis) const noexcept;
 

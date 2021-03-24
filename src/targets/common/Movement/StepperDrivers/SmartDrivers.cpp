@@ -3,7 +3,7 @@
 #include "TmcDriverState.h"
 #if HAS_SMART_DRIVERS
 #include "TmcDriverState.h"
-#include "Tasks.h"
+#include "Platform/Tasks.h"
 #if SUPPORT_TMC51xx
 #include "Tmc51xxDriver.h"
 #endif

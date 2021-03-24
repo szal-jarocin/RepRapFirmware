@@ -31,8 +31,6 @@
 # define USE_XDMAC			0		// use XDMA controller
 # define USE_DMAC_MANAGER	1		// use SAME5x DmacManager module
 constexpr IRQn SBC_SPI_IRQn = SbcSpiSercomIRQn;
-#define USE_32BIT_TRANSFERS		1
-
 #elif LPC17xx || STM32F4
 # define USE_DMAC           0
 # define USE_XDMAC          0
@@ -60,15 +58,15 @@ uint32_t HeaderCRCErrors, DataCRCErrors;
 # include <spi/spi.h>
 #endif
 
-#include "RepRapFirmware.h"
-#include "GCodes/GCodeMachineState.h"
-#include "Movement/Move.h"
-#include "Movement/BedProbing/Grid.h"
-#include "ObjectModel/ObjectModel.h"
-#include "OutputMemory.h"
-#include "RepRap.h"
+#include <RepRapFirmware.h>
+#include <GCodes/GCodeMachineState.h>
+#include <Movement/Move.h>
+#include <Movement/BedProbing/Grid.h>
+#include <ObjectModel/ObjectModel.h>
+#include <Platform/OutputMemory.h>
+#include <Platform/RepRap.h>
 #include <Cache.h>
-#include "RTOSIface/RTOSIface.h"
+#include <RTOSIface/RTOSIface.h>
 
 #include <General/IP4String.h>
 static TaskHandle linuxTaskHandle = nullptr;
@@ -187,13 +185,8 @@ static void spi_tx_dma_setup(const void *outBuffer, size_t bytesToTransfer) noex
 #if USE_DMAC_MANAGER
 	DmacManager::SetSourceAddress(DmacChanSbcTx, outBuffer);
 	DmacManager::SetDestinationAddress(DmacChanSbcTx, &(SbcSpiSercom->SPI.DATA.reg));
-# if USE_32BIT_TRANSFERS
 	DmacManager::SetBtctrl(DmacChanSbcTx, DMAC_BTCTRL_STEPSIZE_X1 | DMAC_BTCTRL_STEPSEL_SRC | DMAC_BTCTRL_SRCINC | DMAC_BTCTRL_BEATSIZE_WORD | DMAC_BTCTRL_BLOCKACT_NOACT);
 	DmacManager::SetDataLength(DmacChanSbcTx, (bytesToTransfer + 3) >> 2);			// must do this one last
-# else
-	DmacManager::SetBtctrl(DmacChanSbcTx, DMAC_BTCTRL_STEPSIZE_X1 | DMAC_BTCTRL_STEPSEL_SRC | DMAC_BTCTRL_SRCINC | DMAC_BTCTRL_BEATSIZE_BYTE | DMAC_BTCTRL_BLOCKACT_NOACT);
-	DmacManager::SetDataLength(DmacChanSbcTx, bytesToTransfer);						// must do this one last
-# endif
 	DmacManager::SetTriggerSourceSercomTx(DmacChanSbcTx, SbcSpiSercomNumber);
 #endif
 }
@@ -246,13 +239,8 @@ static void spi_rx_dma_setup(void *inBuffer, size_t bytesToTransfer) noexcept
 #if USE_DMAC_MANAGER
 	DmacManager::SetSourceAddress(DmacChanSbcRx, &(SbcSpiSercom->SPI.DATA.reg));
 	DmacManager::SetDestinationAddress(DmacChanSbcRx, inBuffer);
-# if USE_32BIT_TRANSFERS
 	DmacManager::SetBtctrl(DmacChanSbcRx, DMAC_BTCTRL_STEPSIZE_X1 | DMAC_BTCTRL_STEPSEL_DST | DMAC_BTCTRL_DSTINC | DMAC_BTCTRL_BEATSIZE_WORD | DMAC_BTCTRL_BLOCKACT_INT);
 	DmacManager::SetDataLength(DmacChanSbcRx, (bytesToTransfer + 3) >> 2);			// must do this one last
-# else
-	DmacManager::SetBtctrl(DmacChanSbcRx, DMAC_BTCTRL_STEPSIZE_X1 | DMAC_BTCTRL_STEPSEL_DST | DMAC_BTCTRL_DSTINC | DMAC_BTCTRL_BEATSIZE_BYTE | DMAC_BTCTRL_BLOCKACT_INT);
-	DmacManager::SetDataLength(DmacChanSbcRx, bytesToTransfer);						// must do this one last
-# endif
 	DmacManager::SetTriggerSourceSercomRx(DmacChanSbcRx, SbcSpiSercomNumber);
 #endif
 }
@@ -459,11 +447,7 @@ void DataTransfer::Init() noexcept
 	SbcSpiSercom->SPI.CTRLA.reg = SERCOM_SPI_CTRLA_DIPO(3) | SERCOM_SPI_CTRLA_DOPO(0) | SERCOM_SPI_CTRLA_MODE(2);
 	SbcSpiSercom->SPI.CTRLB.reg = SERCOM_SPI_CTRLB_RXEN | SERCOM_SPI_CTRLB_SSDE | SERCOM_SPI_CTRLB_PLOADEN;
 	while (SbcSpiSercom->SPI.SYNCBUSY.reg & SERCOM_SPI_SYNCBUSY_MASK) { };
-# if USE_32BIT_TRANSFERS
 	SbcSpiSercom->SPI.CTRLC.reg = SERCOM_SPI_CTRLC_DATA32B;
-# else
-	hri_sercomspi_write_CTRLC_reg(SbcSpiSercom, 0);
-# endif
 #else
 	// Initialize SPI
 	SetPinFunction(APIN_SBC_SPI_MOSI, SBCPinPeriphMode);
@@ -607,10 +591,11 @@ bool DataTransfer::ReadHeightMap() noexcept
 {
 	// Read height map header
 	const HeightMapHeader * const header = ReadDataHeader<HeightMapHeader>();
-	float xRange[2] = { header->xMin, header->xMax };
-	float yRange[2] = { header->yMin, header->yMax };
-	float spacing[2] = { header->xSpacing, header->ySpacing };
-	const bool ok = reprap.GetGCodes().AssignGrid(xRange, yRange, header->radius, spacing);
+	char axesLetter[2] 		= { 'X', 'Y' };
+	float axis0Range[2]		= { header->xMin, header->xMax };
+	float axis1Range[2]		= { header->yMin, header->yMax };
+	float spacing[2]		= { header->xSpacing, header->ySpacing };
+	const bool ok = reprap.GetGCodes().AssignGrid(axesLetter, axis0Range, axis1Range, header->radius, spacing);
 	if (ok)
 	{
 		// Read Z coordinates
@@ -675,7 +660,7 @@ void DataTransfer::ReadFileChunk(char *buffer, int32_t& dataLength, uint32_t& fi
 	}
 }
 
-GCodeChannel DataTransfer::ReadEvaluateExpression(size_t packetLength, StringRef& expression) noexcept
+GCodeChannel DataTransfer::ReadEvaluateExpression(size_t packetLength, const StringRef& expression) noexcept
 {
 	// Read header
 	const CodeChannelHeader *header = ReadDataHeader<CodeChannelHeader>();
@@ -1169,6 +1154,7 @@ bool DataTransfer::WritePrintPaused(FilePosition position, PrintPausedReason rea
 bool DataTransfer::WriteHeightMap() noexcept
 {
 	const GridDefinition& grid = reprap.GetMove().GetGrid();
+
 	size_t numPoints = reprap.GetMove().AccessHeightMap().UsingHeightMap() ? grid.NumPoints() : 0;
 	size_t bytesToWrite = sizeof(HeightMapHeader) + numPoints * sizeof(float);
 	if (!CanWritePacket(bytesToWrite))
@@ -1181,15 +1167,15 @@ bool DataTransfer::WriteHeightMap() noexcept
 
 	// Write heightmap header
 	HeightMapHeader *header = WriteDataHeader<HeightMapHeader>();
-	header->xMin = grid.xMin;
-	header->xMax = grid.xMax;
-	header->xSpacing = grid.xSpacing;
-	header->yMin = grid.yMin;
-	header->yMax = grid.yMax;
-	header->ySpacing = grid.ySpacing;
+	header->xMin = grid.GetMin(0);
+	header->xMax = grid.GetMax(0);
+	header->xSpacing = grid.GetSpacing(0);
+	header->yMin = grid.GetMin(1);
+	header->yMax = grid.GetMax(1);
+	header->ySpacing = grid.GetSpacing(1);
 	header->radius = grid.radius;
-	header->numX = grid.numX;
-	header->numY = grid.numY;
+	header->numX = grid.NumAxisPoints(0);
+	header->numY = grid.NumAxisPoints(1);
 
 	// Write Z points
 	if (numPoints != 0)
@@ -1266,6 +1252,10 @@ bool DataTransfer::WriteEvaluationResult(const char *expression, const Expressio
 		value.AppendAsString(rslt.GetRef());
 		payloadLength = expressionLength + rslt.strlen();
 		break;
+	case TypeCode::HeapString:
+		payloadLength = expressionLength + value.shVal.GetLength();
+		break;
+
 	default:
 		rslt.printf("unsupported type code %d", (int)value.type);
 		payloadLength = expressionLength + rslt.strlen();
@@ -1315,6 +1305,11 @@ bool DataTransfer::WriteEvaluationResult(const char *expression, const Expressio
 	case TypeCode::Int32:
 		header->dataType = DataType::Int;
 		header->intValue = value.iVal;
+		break;
+	case TypeCode::HeapString:
+		header->dataType = DataType::String;
+		header->intValue = value.shVal.GetLength();
+		WriteData(value.shVal.Get().Ptr(), header->intValue);
 		break;
 	case TypeCode::DateTime:
 	case TypeCode::MacAddress:

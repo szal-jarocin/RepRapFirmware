@@ -12,7 +12,7 @@
 #endif
 #include "Platform.h"
 #include "Scanner.h"
-#include "PrintMonitor.h"
+#include <PrintMonitor/PrintMonitor.h>
 #include "Tools/Tool.h"
 #include "Tools/Filament.h"
 #include "Endstops/ZProbe.h"
@@ -410,7 +410,7 @@ RepRap::RepRap() noexcept
 	  networkSeq(0), scannerSeq(0), sensorsSeq(0), spindlesSeq(0), stateSeq(0), toolsSeq(0), volumesSeq(0),
 	  toolList(nullptr), currentTool(nullptr), lastWarningMillis(0),
 	  activeExtruders(0), activeToolHeaters(0), numToolsToReport(0),
-	  ticksInSpinState(0), heatTaskIdleTicks(0), debug(0),
+	  ticksInSpinState(0), heatTaskIdleTicks(0),
 	  beepFrequency(0), beepDuration(0), beepTimer(0),
 	  previousToolNumber(-1),
 	  diagnosticsDestination(MessageType::NoDestinationMessage), justSentDiagnostics(false),
@@ -420,6 +420,7 @@ RepRap::RepRap() noexcept
 														// because a disconnected SBC interface can generate noise which may trigger interrupts and DMA
 #endif
 {
+	ClearDebug();
 	// Don't call constructors for other objects here
 }
 
@@ -915,7 +916,7 @@ void RepRap::EmergencyStop() noexcept
 	case MachineType::cnc:
 		for (size_t i = 0; i < MaxSpindles; i++)
 		{
-			platform->AccessSpindle(i).TurnOff();
+			platform->AccessSpindle(i).SetState(SpindleState::stopped);
 		}
 		break;
 
@@ -940,24 +941,20 @@ void RepRap::EmergencyStop() noexcept
 	platform->StopLogging();
 }
 
-void RepRap::SetDebug(Module m, bool enable) noexcept
+void RepRap::SetDebug(Module m, uint32_t flags) noexcept
 {
 	if (m < numModules)
 	{
-		if (enable)
-		{
-			debug |= (1u << m);
-		}
-		else
-		{
-			debug &= ~(1u << m);
-		}
+		debugMaps[m].SetFromRaw(flags);
 	}
 }
 
 void RepRap::ClearDebug() noexcept
 {
-	debug = 0;
+	for (DebugFlags& dm : debugMaps)
+	{
+		dm.Clear();
+	}
 }
 
 void RepRap::PrintDebug(MessageType mt) noexcept
@@ -965,16 +962,16 @@ void RepRap::PrintDebug(MessageType mt) noexcept
 	platform->Message((MessageType)(mt | PushFlag), "Debugging enabled for modules:");
 	for (size_t i = 0; i < numModules; i++)
 	{
-		if ((debug & (1u << i)) != 0)
+		if (debugMaps[i].IsNonEmpty())
 		{
-			platform->MessageF((MessageType)(mt | PushFlag), " %s(%u)", GetModuleName(i), i);
+			platform->MessageF((MessageType)(mt | PushFlag), " %s(%u - %#" PRIx32 ")", GetModuleName(i), i, debugMaps[i].GetRaw());
 		}
 	}
 
 	platform->Message((MessageType)(mt | PushFlag), "\nDebugging disabled for modules:");
 	for (size_t i = 0; i < numModules; i++)
 	{
-		if ((debug & (1u << i)) == 0)
+		if (debugMaps[i].IsEmpty())
 		{
 			platform->MessageF((MessageType)(mt | PushFlag), " %s(%u)", GetModuleName(i), i);
 		}
@@ -1553,7 +1550,7 @@ OutputBuffer *RepRap::GetStatusResponse(uint8_t type, ResponseSource source) con
 	if (gCodes->GetMachineType() == MachineType::cnc || type == 2)
 	{
 		size_t numSpindles = MaxSpindles;
-		while (numSpindles != 0 && platform->AccessSpindle(numSpindles - 1).GetToolNumber() == -1)
+		while (numSpindles != 0 && platform->AccessSpindle(numSpindles - 1).GetState() == SpindleState::unconfigured)
 		{
 			--numSpindles;
 		}
@@ -1569,15 +1566,7 @@ OutputBuffer *RepRap::GetStatusResponse(uint8_t type, ResponseSource source) con
 				}
 
 				const Spindle& spindle = platform->AccessSpindle(i);
-				response->catf("{\"current\":%" PRIi32 ",\"active\":%" PRIi32, spindle.GetCurrentRpm(), spindle.GetRpm());
-				if (type == 2)
-				{
-					response->catf(",\"tool\":%d}", spindle.GetToolNumber());
-				}
-				else
-				{
-					response->cat('}');
-				}
+				response->catf("{\"current\":%" PRIi32 ",\"active\":%" PRIi32 ",\"state\":\"%s\"}", spindle.GetCurrentRpm(), spindle.GetRpm(), spindle.GetState().ToString());
 			}
 			response->cat(']');
 		}
@@ -1627,7 +1616,7 @@ OutputBuffer *RepRap::GetStatusResponse(uint8_t type, ResponseSource source) con
 		const size_t numTotalAxes = gCodes->GetTotalAxes();
 		for (size_t axis = 0; axis < numTotalAxes; axis++)
 		{
-			if (platform->GetEndstops().Stopped(axis) == EndStopHit::atStop)
+			if (platform->GetEndstops().Stopped(axis))
 			{
 				endstops |= (1u << axis);
 			}
@@ -1719,6 +1708,12 @@ OutputBuffer *RepRap::GetStatusResponse(uint8_t type, ResponseSource source) con
 					response->catf(",\"filament\":\"%.s\"", tool->GetFilament()->GetName());
 				}
 
+				// Spindle (if configured)
+				if (tool->spindleNumber > -1)
+				{
+					response->catf(",\"spindle\":%d,\"spindleRpm\":%" PRIi32, tool->spindleNumber, tool->spindleRpm);
+				}
+
 				// Offsets
 				response->cat(',');
 				AppendFloatArray(response, "offsets", numVisibleAxes, [tool](size_t axis) noexcept { return tool->GetOffset(axis); }, 2);
@@ -1770,12 +1765,9 @@ OutputBuffer *RepRap::GetStatusResponse(uint8_t type, ResponseSource source) con
 		// Byte position of the file being printed
 		response->catf(",\"filePosition\":%lu", gCodes->GetFilePosition());
 
-		// First Layer Duration
-		response->catf(",\"firstLayerDuration\":%.1f", (double)(printMonitor->GetFirstLayerDuration()));
+		// First Layer Duration is no longer included
 
-		// First Layer Height
-		// NB: This shouldn't be needed any more, but leave it here for the case that the file-based first-layer detection fails
-		response->catf(",\"firstLayerHeight\":%.2f", (double)(printMonitor->GetFirstLayerHeight()));
+		// First Layer Height is no longer included
 
 		// Print Duration
 		response->catf(",\"printDuration\":%.1f", (double)(printMonitor->GetPrintDuration()));
@@ -1784,13 +1776,7 @@ OutputBuffer *RepRap::GetStatusResponse(uint8_t type, ResponseSource source) con
 		response->catf(",\"warmUpDuration\":%.1f", (double)(printMonitor->GetWarmUpDuration()));
 
 		/* Print Time Estimations */
-		{
-			// Based on file progress
-			response->catf(",\"timesLeft\":{\"file\":%.1f,\"filament\":%.1f,\"layer\":%.1f}",
-							(double)(printMonitor->EstimateTimeLeft(fileBased)),
-							(double)(printMonitor->EstimateTimeLeft(filamentBased)),
-							(double)(printMonitor->EstimateTimeLeft(layerBased)));
-		}
+		response->catf(",\"timesLeft\":{\"file\":%.1f,\"filament\":%.1f}", (double)(printMonitor->EstimateTimeLeft(fileBased)), (double)(printMonitor->EstimateTimeLeft(filamentBased)));
 	}
 
 	response->cat('}');
@@ -2026,10 +2012,9 @@ OutputBuffer *RepRap::GetLegacyStatusResponse(uint8_t type, int seq) const noexc
 		if (printMonitor->IsPrinting())
 		{
 			// Send estimated times left based on file progress, filament usage, and layers
-			response->catf(",\"timesLeft\":[%.1f,%.1f,%.1f]",
+			response->catf(",\"timesLeft\":[%.1f,%.1f,0.0]",
 					(double)(printMonitor->EstimateTimeLeft(fileBased)),
-					(double)(printMonitor->EstimateTimeLeft(filamentBased)),
-					(double)(printMonitor->EstimateTimeLeft(layerBased)));
+					(double)(printMonitor->EstimateTimeLeft(filamentBased)));
 		}
 	}
 	else if (type == 3)
@@ -2301,7 +2286,7 @@ GCodeResult RepRap::GetFileInfoResponse(const char *filename, OutputBuffer *&res
 
 // Helper functions to write JSON arrays
 // Append float array using 1 decimal place
-void RepRap::AppendFloatArray(OutputBuffer *buf, const char *name, size_t numValues, std::function<float(size_t)> func, unsigned int numDecimalDigits) noexcept
+void RepRap::AppendFloatArray(OutputBuffer *buf, const char *name, size_t numValues, stdext::inplace_function<float(size_t)> func, unsigned int numDecimalDigits) noexcept
 {
 	if (name != nullptr)
 	{
@@ -2319,7 +2304,7 @@ void RepRap::AppendFloatArray(OutputBuffer *buf, const char *name, size_t numVal
 	buf->cat(']');
 }
 
-void RepRap::AppendIntArray(OutputBuffer *buf, const char *name, size_t numValues, std::function<int(size_t)> func) noexcept
+void RepRap::AppendIntArray(OutputBuffer *buf, const char *name, size_t numValues, stdext::inplace_function<int(size_t)> func) noexcept
 {
 	if (name != nullptr)
 	{
@@ -2337,7 +2322,7 @@ void RepRap::AppendIntArray(OutputBuffer *buf, const char *name, size_t numValue
 	buf->cat(']');
 }
 
-void RepRap::AppendStringArray(OutputBuffer *buf, const char *name, size_t numValues, std::function<const char *(size_t)> func) noexcept
+void RepRap::AppendStringArray(OutputBuffer *buf, const char *name, size_t numValues, stdext::inplace_function<const char *(size_t)> func) noexcept
 {
 	if (name != nullptr)
 	{
@@ -2693,13 +2678,15 @@ bool RepRap::WriteToolParameters(FileStore *f, const bool forceWriteOffsets) noe
 #else
 
 // Check the prerequisites for updating the main firmware. Return True if satisfied, else print a message to 'reply' and return false.
-bool RepRap::CheckFirmwareUpdatePrerequisites(const StringRef& reply) noexcept
+bool RepRap::CheckFirmwareUpdatePrerequisites(const StringRef& reply, const StringRef& filenameRef) noexcept
 {
 #if HAS_MASS_STORAGE
-	FileStore * const firmwareFile = platform->OpenFile(FIRMWARE_DIRECTORY, IAP_FIRMWARE_FILE, OpenMode::read);
+	FileStore * const firmwareFile = platform->OpenFile(FIRMWARE_DIRECTORY, filenameRef.IsEmpty() ? IAP_FIRMWARE_FILE : filenameRef.c_str(), OpenMode::read);
 	if (firmwareFile == nullptr)
 	{
-		reply.printf("Firmware binary \"%s\" not found", FIRMWARE_DIRECTORY IAP_FIRMWARE_FILE);
+		String<MaxFilenameLength> firmwareBinaryLocation;
+		MassStorage::CombineName(firmwareBinaryLocation.GetRef(), FIRMWARE_DIRECTORY, filenameRef.IsEmpty() ? IAP_FIRMWARE_FILE : filenameRef.c_str());
+		reply.printf("Firmware binary \"%s\" not found", firmwareBinaryLocation.c_str());
 		return false;
 	}
 
@@ -2711,7 +2698,7 @@ bool RepRap::CheckFirmwareUpdatePrerequisites(const StringRef& reply) noexcept
 		firmwareFile->Seek(32) &&
 #endif
 
-		firmwareFile->Read(reinterpret_cast<char*>(&firstDword), sizeof(firstDword)) == (int)sizeof(firstDword);
+	firmwareFile->Read(reinterpret_cast<char*>(&firstDword), sizeof(firstDword)) == (int)sizeof(firstDword);
 	firmwareFile->Close();
 	if (!ok || firstDword !=
 #if SAME5x
@@ -2738,7 +2725,7 @@ bool RepRap::CheckFirmwareUpdatePrerequisites(const StringRef& reply) noexcept
 }
 
 // Update the firmware. Prerequisites should be checked before calling this.
-void RepRap::UpdateFirmware() noexcept
+void RepRap::UpdateFirmware(const StringRef& filenameRef) noexcept
 {
 #if HAS_MASS_STORAGE
 	FileStore * const iapFile = platform->OpenFile(FIRMWARE_DIRECTORY, IAP_UPDATE_FILE, OpenMode::read);
@@ -2748,12 +2735,13 @@ void RepRap::UpdateFirmware() noexcept
 		return;
 	}
 
+
 	PrepareToLoadIap();
 
 	// Use RAM-based IAP
 	iapFile->Read(reinterpret_cast<char *>(IAP_IMAGE_START), iapFile->Length());
 	iapFile->Close();
-	StartIap();
+	StartIap(filenameRef.c_str());
 #endif
 }
 
@@ -2809,7 +2797,7 @@ void RepRap::PrepareToLoadIap() noexcept
 	#endif
 }
 
-void RepRap::StartIap() noexcept
+void RepRap::StartIap(const char *filename) noexcept
 {
 	// Disable all interrupts, then reallocate the vector table and program entry point to the new IAP binary
 	// This does essentially what the Atmel AT02333 paper suggests (see 3.2.2 ff)
@@ -2837,10 +2825,13 @@ void RepRap::StartIap() noexcept
 #endif
 
 #if HAS_MASS_STORAGE
-	// Newer versions of IAP reserve space above the stack for us to pass the firmware filename
-	static const char filename[] = FIRMWARE_DIRECTORY IAP_FIRMWARE_FILE;
-	const uint32_t topOfStack = *reinterpret_cast<uint32_t *>(IAP_IMAGE_START);
-	if (topOfStack + sizeof(filename) <=
+	if (filename != nullptr)
+	{
+		// Newer versions of IAP reserve space above the stack for us to pass the firmware filename
+		String<MaxFilenameLength> firmwareFileLocation;
+		MassStorage::CombineName(firmwareFileLocation.GetRef(), FIRMWARE_DIRECTORY, filename[0] == 0 ? IAP_FIRMWARE_FILE : filename);
+		const uint32_t topOfStack = *reinterpret_cast<uint32_t *>(IAP_IMAGE_START);
+		if (topOfStack + firmwareFileLocation.strlen() + 1 <=
 # if SAME5x
 						HSRAM_ADDR + HSRAM_SIZE
 # elif SAM3XA
@@ -2848,9 +2839,10 @@ void RepRap::StartIap() noexcept
 # else
 						IRAM_ADDR + IRAM_SIZE
 # endif
-	   )
-	{
-		memcpy(reinterpret_cast<char*>(topOfStack), filename, sizeof(filename));
+		   )
+		{
+			strcpy(reinterpret_cast<char*>(topOfStack), firmwareFileLocation.c_str());
+		}
 	}
 #endif
 
@@ -2922,6 +2914,12 @@ void RepRap::StartIap() noexcept
 /*static*/ float RepRap::SinfCosf(float angle) noexcept
 {
 	return sinf(angle) + cosf(angle);
+}
+
+// Helper function for diagnostic tests in Platform.cpp, to calculate square root
+/*static*/ float RepRap::FastSqrtf(float f) noexcept
+{
+	return ::fastSqrtf(f);
 }
 
 // Report an internal error

@@ -12,7 +12,7 @@
 #if SUPPORT_TMC51xx
 
 #include <RTOSIface/RTOSIface.h>
-#include <TaskPriorities.h>
+#include <Platform/TaskPriorities.h>
 #include <Movement/Move.h>
 #include <Hardware/SharedSpi/SharedSpiDevice.h>
 #include <Hardware/SharedSpi/SharedSpiClient.h>

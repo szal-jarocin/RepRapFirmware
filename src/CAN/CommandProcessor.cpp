@@ -11,9 +11,9 @@
 
 #include "CanInterface.h"
 #include <CanMessageBuffer.h>
-#include "RepRap.h"
-#include "Platform.h"
-#include "Heating/Heat.h"
+#include <Platform/RepRap.h>
+#include <Platform/Platform.h>
+#include <Heating/Heat.h>
 #include "ExpansionManager.h"
 
 #ifndef DUET3_ATE
@@ -22,14 +22,18 @@
 # include <Version.h>
 
 # if SUPPORT_TMC2660
-#  include "Movement/StepperDrivers/TMC2660.h"
+#  include <Movement/StepperDrivers/TMC2660.h>
 # endif
 # if SUPPORT_TMC22xx
-#  include "Movement/StepperDrivers/TMC22xx.h"
+#  include <Movement/StepperDrivers/TMC22xx.h>
 # endif
 # if SUPPORT_TMC51xx
-#  include "Movement/StepperDrivers/TMC51xx.h"
+#  include <Movement/StepperDrivers/TMC51xx.h>
 # endif
+#endif
+
+#if SUPPORT_ACCELEROMETERS
+# include <Accelerometers/Accelerometers.h>
 #endif
 
 #if HAS_LINUX_INTERFACE
@@ -147,7 +151,7 @@ pre(buf->id.MsgType() == CanMessageType::firmwareBlockRequest)
 		{
 #if HAS_MASS_STORAGE
 			// Fetch the firmware file from the local SD card
-			FileStore * const f = reprap.GetPlatform().OpenFile(DEFAULT_SYS_DIR, fname.c_str(), OpenMode::read);
+			FileStore * const f = reprap.GetPlatform().OpenFile(FIRMWARE_DIRECTORY, fname.c_str(), OpenMode::read);
 			if (f != nullptr)
 			{
 				fileLength = f->Length();
@@ -534,6 +538,12 @@ void CommandProcessor::ProcessReceivedMessage(CanMessageBuffer *buf) noexcept
 			case CanMessageType::filamentMonitorsStatusReport:
 				FilamentMonitor::UpdateRemoteFilamentStatus(buf->id.Src(), buf->msg.filamentMonitorsStatus);
 				break;
+
+#if SUPPORT_ACCELEROMETERS
+			case CanMessageType::accelerometerData:
+				Accelerometers::ProcessReceivedData(buf->id.Src(), buf->msg.accelerometerData, buf->dataLength);
+				break;
+#endif
 
 #if SUPPORT_REMOTE_COMMANDS
 			case CanMessageType::enterTestMode:

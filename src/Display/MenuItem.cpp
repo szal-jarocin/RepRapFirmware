@@ -9,16 +9,17 @@
 
 #if SUPPORT_12864_LCD
 
-#include "RepRap.h"
-#include "Heating/Heat.h"
-#include "Platform.h"
-#include "GCodes/GCodes.h"
-#include "Movement/Move.h"
+#include <Platform/RepRap.h>
+#include <Heating/Heat.h>
+#include <Platform/Platform.h>
+#include <GCodes/GCodes.h>
+#include <Movement/Move.h>
 #include "Display.h"
 #include "Tools/Tool.h"
-#include "PrintMonitor.h"
 #include "Networking/Network.h"
 
+#include <Tools/Tool.h>
+#include <PrintMonitor/PrintMonitor.h>
 
 MenuItem::MenuItem(PixelNumber r, PixelNumber c, PixelNumber w, Alignment a, FontNumber fn, Visibility vis) noexcept
 	: row(r), column(c), width(w), height(0), align(a), fontNumber(fn), visCase(vis), itemChanged(true), highlighted(false), drawn(false), next(nullptr)

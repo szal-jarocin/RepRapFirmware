@@ -65,6 +65,10 @@ const char *SafeStrptime(const char *buf, const char *format, struct tm *timeptr
 # include <CoreIO.h>
 # include <Devices.h>
 
+// The following are needed by many other files, so include them here
+# include <Platform/MessageType.h>
+# include <GCodes/GCodeResult.h>
+
 #define SPEED_CRITICAL	__attribute__((optimize("O2")))
 
 // API level definition.
@@ -326,7 +330,11 @@ typedef Bitmap<uint32_t> DriversBitmap;			// Type of a bitmap representing a set
 typedef Bitmap<uint32_t> FansBitmap;			// Type of a bitmap representing a set of fan numbers
 typedef Bitmap<uint32_t> HeatersBitmap;			// Type of a bitmap representing a set of heater numbers
 typedef Bitmap<uint16_t> DriverChannelsBitmap;	// Type of a bitmap representing a set of drivers that typically have a common cooling fan
+#if defined(DUET3) || defined(DUET_NG)
+typedef Bitmap<uint32_t> InputPortsBitmap;		// Type of a bitmap representing a set of input ports
+#else
 typedef Bitmap<uint16_t> InputPortsBitmap;		// Type of a bitmap representing a set of input ports
+#endif
 typedef Bitmap<uint32_t> TriggerNumbersBitmap;	// Type of a bitmap representing a set of trigger numbers
 
 #if defined(DUET3) || defined(DUET3MINI)
@@ -436,7 +444,7 @@ constexpr size_t XY_AXES = 2;										// The number of Cartesian axes
 constexpr size_t XYZ_AXES = 3;										// The number of Cartesian axes
 constexpr size_t X_AXIS = 0, Y_AXIS = 1, Z_AXIS = 2;				// The indices of the Cartesian axes in drive arrays
 constexpr size_t U_AXIS = 3;										// The assumed index of the U axis when executing M673
-constexpr size_t NO_AXIS = 0x0F;									// A value to represent no axis, must fit in 4 bits (see Endstops) and not be a valid axis number
+constexpr size_t NO_AXIS = 0x3F;									// A value to represent no axis, must fit in 6 bits (see EndstopHitDetails and RemoteInputHandle) and not be a valid axis number
 
 static_assert(MaxAxesPlusExtruders <= MaxAxes + MaxExtruders);
 static_assert(MaxAxesPlusExtruders >= MinAxes + NumDefaultExtruders);

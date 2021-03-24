@@ -6,9 +6,9 @@
  */
 
 #include "Trigger.h"
-#include "RepRap.h"
+#include <Platform/RepRap.h>
 #include "GCodes.h"
-#include "PrintMonitor.h"
+#include <PrintMonitor/PrintMonitor.h>
 #include "GCodeBuffer/GCodeBuffer.h"
 
 Trigger::Trigger() noexcept : condition(0)
@@ -44,7 +44,7 @@ bool Trigger::Check() noexcept
 		EndstopsManager& endstops = reprap.GetPlatform().GetEndstops();
 		endstopsMonitored.Iterate([this, &endstops, &triggered](unsigned int axis, unsigned int)
 									{
-										const bool stopped = (endstops.Stopped(axis) == EndStopHit::atStop);
+										const bool stopped = endstops.Stopped(axis);
 										if (stopped != endstopStates.IsBitSet(axis))
 										{
 											if (stopped)

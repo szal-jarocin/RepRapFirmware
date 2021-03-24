@@ -9,8 +9,8 @@
 
 #if HAS_STALL_DETECT
 
-#include "Platform.h"
-#include "Movement/Kinematics/Kinematics.h"
+#include <Platform/Platform.h>
+#include <Movement/Kinematics/Kinematics.h>
 
 // Stall detection endstop
 StallDetectionEndstop::StallDetectionEndstop(uint8_t p_axis, EndStopPosition pos, bool p_individualMotors) noexcept
@@ -24,9 +24,9 @@ StallDetectionEndstop::StallDetectionEndstop() noexcept
 }
 
 // Test whether we are at or near the stop
-EndStopHit StallDetectionEndstop::Stopped() const noexcept
+bool StallDetectionEndstop::Stopped() const noexcept
 {
-	return (GetStalledDrivers(driversMonitored).IsNonEmpty()) ? EndStopHit::atStop : EndStopHit::noStop;
+	return GetStalledDrivers(driversMonitored).IsNonEmpty();
 }
 
 // This is called to prime axis endstops
@@ -46,7 +46,7 @@ bool StallDetectionEndstop::Prime(const Kinematics& kin, const AxisDriversConfig
 
 // Check whether the endstop is triggered and return the action that should be performed. Called from the step ISR.
 // Note, the result will not necessarily be acted on because there may be a higher priority endstop!
-EndstopHitDetails StallDetectionEndstop::CheckTriggered(bool goingSlow) noexcept
+EndstopHitDetails StallDetectionEndstop::CheckTriggered() noexcept
 {
 	EndstopHitDetails rslt;				// initialised by default constructor
 	const DriversBitmap relevantStalledDrivers = GetStalledDrivers(driversMonitored);

@@ -6,10 +6,10 @@
  */
 
 #include "HangprinterKinematics.h"
-#include "RepRap.h"
-#include "Platform.h"
-#include "GCodes/GCodeBuffer/GCodeBuffer.h"
-#include "Movement/Move.h"
+#include <Platform/RepRap.h>
+#include <Platform/Platform.h>
+#include <GCodes/GCodeBuffer/GCodeBuffer.h>
+#include <Movement/Move.h>
 //#include "Movement/BedProbing/RandomProbePointSet.h"
 
 // Default anchor coordinates
@@ -70,7 +70,7 @@ DEFINE_GET_OBJECT_MODEL_TABLE(HangprinterKinematics)
 
 // Constructor
 HangprinterKinematics::HangprinterKinematics() noexcept
-	: Kinematics(KinematicsType::scara, DefaultSegmentsPerSecond, DefaultMinSegmentSize, true)
+	: RoundBedKinematics(KinematicsType::scara, true, true)
 {
 	Init();
 }
@@ -129,15 +129,13 @@ const char *HangprinterKinematics::GetName(bool forStatusReport) const noexcept
 }
 
 // Set the parameters from a M665, M666 or M669 command
-// Return true if we changed any parameters. Set 'error' true if there was an error, otherwise leave it alone.
+// Return true if we changed any parameters that affect the geometry. Set 'error' true if there was an error, otherwise leave it alone.
 bool HangprinterKinematics::Configure(unsigned int mCode, GCodeBuffer& gb, const StringRef& reply, bool& error) THROWS(GCodeException) /*override*/
 {
 	if (mCode == 669)
 	{
+		const bool seenNonGeometry = TryConfigureSegmentation(gb);
 		bool seen = false;
-		bool seenNonGeometry = false;
-		gb.TryGetFValue('S', segmentsPerSecond, seenNonGeometry);
-		gb.TryGetFValue('T', minSegmentLength, seenNonGeometry);
 		if (gb.TryGetFloatArray('A', 3, anchorA, reply, seen))
 		{
 			error = true;
@@ -155,16 +153,17 @@ bool HangprinterKinematics::Configure(unsigned int mCode, GCodeBuffer& gb, const
 		}
 		gb.TryGetFValue('D', anchorDz, seen);
 
-		if (seen || seenNonGeometry)
-		{
-			Recalc();
-		}
 		if (gb.Seen('P'))
 		{
 			printRadius = gb.GetFValue();
 			seen = true;
 		}
-		else if (!gb.Seen('K'))
+
+		if (seen)
+		{
+			Recalc();
+		}
+		else if (!seenNonGeometry && !gb.Seen('K'))
 		{
 			reply.printf("Kinematics is Hangprinter with ABC anchor coordinates (%.2f,%.2f,%.2f) (%.2f,%.2f,%.2f) (%.2f,%.2f,%.2f),"
 							"D anchor Z coordinate %.2f, print radius %.1f, segments/sec %d, min. segment length %.2f",
@@ -200,10 +199,10 @@ bool HangprinterKinematics::CartesianToMotorSteps(const float machinePos[], cons
 							+ fsquare(anchorDz - machinePos[Z_AXIS]);
 	if (aSquared > 0.0 && bSquared > 0.0 && cSquared > 0.0 && dSquared > 0.0)
 	{
-		motorPos[A_AXIS] = lrintf(sqrtf(aSquared) * stepsPerMm[A_AXIS]);
-		motorPos[B_AXIS] = lrintf(sqrtf(bSquared) * stepsPerMm[B_AXIS]);
-		motorPos[C_AXIS] = lrintf(sqrtf(cSquared) * stepsPerMm[C_AXIS]);
-		motorPos[D_AXIS] = lrintf(sqrtf(dSquared) * stepsPerMm[D_AXIS]);
+		motorPos[A_AXIS] = lrintf(fastSqrtf(aSquared) * stepsPerMm[A_AXIS]);
+		motorPos[B_AXIS] = lrintf(fastSqrtf(bSquared) * stepsPerMm[B_AXIS]);
+		motorPos[C_AXIS] = lrintf(fastSqrtf(cSquared) * stepsPerMm[C_AXIS]);
+		motorPos[D_AXIS] = lrintf(fastSqrtf(dSquared) * stepsPerMm[D_AXIS]);
 		return true;
 	}
 	return false;
@@ -215,18 +214,12 @@ void HangprinterKinematics::MotorStepsToCartesian(const int32_t motorPos[], cons
 	InverseTransform(motorPos[A_AXIS]/stepsPerMm[A_AXIS], motorPos[B_AXIS]/stepsPerMm[B_AXIS], motorPos[C_AXIS]/stepsPerMm[C_AXIS], machinePos);
 }
 
-// Return true if the specified XY position is reachable by the print head reference point.
-bool HangprinterKinematics::IsReachable(float x, float y, bool isCoordinated) const noexcept
-{
-	return fsquare(x) + fsquare(y) < printRadiusSquared;
-}
-
 // Limit the Cartesian position that the user wants to move to returning true if we adjusted the position
 LimitPositionResult HangprinterKinematics::LimitPosition(float finalCoords[], const float * null initialCoords,
-															size_t numVisibleAxes, AxesBitmap axesHomed, bool isCoordinated, bool applyM208Limits) const noexcept
+															size_t numVisibleAxes, AxesBitmap axesToLimit, bool isCoordinated, bool applyM208Limits) const noexcept
 {
 	bool limited = false;
-	if ((axesHomed & XyzAxes) == XyzAxes)
+	if ((axesToLimit & XyzAxes) == XyzAxes)
 	{
 		// If axes have been homed on a delta printer and this isn't a homing move, check for movements outside limits.
 		// Skip this check if axes have not been homed, so that extruder-only moves are allowed before homing
@@ -234,7 +227,7 @@ LimitPositionResult HangprinterKinematics::LimitPosition(float finalCoords[], co
 		const float diagonalSquared = fsquare(finalCoords[X_AXIS]) + fsquare(finalCoords[Y_AXIS]);
 		if (diagonalSquared > printRadiusSquared)
 		{
-			const float factor = sqrtf(printRadiusSquared / diagonalSquared);
+			const float factor = fastSqrtf(printRadiusSquared / diagonalSquared);
 			finalCoords[X_AXIS] *= factor;
 			finalCoords[Y_AXIS] *= factor;
 			limited = true;
@@ -316,28 +309,6 @@ AxesBitmap HangprinterKinematics::MustBeHomedAxes(AxesBitmap axesMoving, bool di
 	return axesMoving;
 }
 
-// Limit the speed and acceleration of a move to values that the mechanics can handle.
-// The speeds in Cartesian space have already been limited.
-void HangprinterKinematics::LimitSpeedAndAcceleration(DDA& dda, const float *normalisedDirectionVector, size_t numVisibleAxes, bool continuousRotationShortcut) const noexcept
-{
-	// Limit the speed in the XY plane to the lower of the X and Y maximum speeds, and similarly for the acceleration
-	const float xyFactor = sqrtf(fsquare(normalisedDirectionVector[X_AXIS]) + fsquare(normalisedDirectionVector[Y_AXIS]));
-	if (xyFactor > 0.01)
-	{
-		const Platform& platform = reprap.GetPlatform();
-		const float maxSpeed = min<float>(platform.MaxFeedrate(X_AXIS), platform.MaxFeedrate(Y_AXIS));
-		const float maxAcceleration = min<float>(platform.Acceleration(X_AXIS), platform.Acceleration(Y_AXIS));
-		dda.LimitSpeedAndAcceleration(maxSpeed/xyFactor, maxAcceleration/xyFactor);
-	}
-}
-
-// Return a bitmap of axes that move linearly in response to the correct combination of linear motor movements.
-// This is called to determine whether we can babystep the specified axis independently of regular motion.
-AxesBitmap HangprinterKinematics::GetLinearAxes() const noexcept
-{
-	return AxesBitmap();
-}
-
 #if HAS_MASS_STORAGE
 
 // Write the parameters that are set by auto calibration to a file, returning true if success
@@ -381,7 +352,7 @@ void HangprinterKinematics::InverseTransform(float La, float Lb, float Lc, float
 	const float C = fsquare(S) + fsquare(T) + (anchorA[1] * T - anchorA[0] * S) * P * 2 + (Da2 - fsquare(La)) * P2;
 
 	// Solve the quadratic equation for z
-	machinePos[2] = (- halfB - sqrtf(fsquare(halfB) - A * C))/A;
+	machinePos[2] = (- halfB - fastSqrtf(fsquare(halfB) - A * C))/A;
 
 	// Substitute back for X and Y
 	machinePos[0] = (Q * machinePos[2] + S)/P;
@@ -432,9 +403,9 @@ bool HangprinterKinematics::DoAutoCalibration(size_t numFactors, const RandomPro
 			const floatc_t zp = reprap.GetMove().GetProbeCoordinates(i, machinePos[X_AXIS], machinePos[Y_AXIS], probePoints.PointWasCorrected(i));
 			machinePos[Z_AXIS] = 0.0;
 
-			probeMotorPositions(i, A_AXIS) = sqrtf(LineLengthSquared(machinePos, anchorA));
-			probeMotorPositions(i, B_AXIS) = sqrtf(LineLengthSquared(machinePos, anchorB));
-			probeMotorPositions(i, C_AXIS) = sqrtf(LineLengthSquared(machinePos, anchorC));
+			probeMotorPositions(i, A_AXIS) = fastSqrtf(LineLengthSquared(machinePos, anchorA));
+			probeMotorPositions(i, B_AXIS) = fastSqrtf(LineLengthSquared(machinePos, anchorB));
+			probeMotorPositions(i, C_AXIS) = fastSqrtf(LineLengthSquared(machinePos, anchorC));
 			initialSumOfSquares += fcsquare(zp);
 		}
 		initialDeviation.Set(initialSumOfSquares, initialSum, numPoints);

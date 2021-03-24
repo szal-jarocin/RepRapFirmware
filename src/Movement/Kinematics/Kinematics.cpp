@@ -15,16 +15,16 @@
 #include "PolarKinematics.h"
 #include "FiveBarScaraKinematics.h"
 
-#include "RepRap.h"
-#include "Platform.h"
-#include "GCodes/GCodes.h"
-#include "GCodes/GCodeBuffer/GCodeBuffer.h"
+#include <Platform/RepRap.h>
+#include <Platform/Platform.h>
+#include <GCodes/GCodes.h>
+#include <GCodes/GCodeBuffer/GCodeBuffer.h>
 
 const char * const Kinematics::HomeAllFileName = "homeall.g";
 
 // Constructor. Pass segsPerSecond <= 0.0 to get non-segmented kinematics.
-Kinematics::Kinematics(KinematicsType t, float segsPerSecond, float minSegLength, bool doUseRawG0) noexcept
-	: segmentsPerSecond(segsPerSecond), minSegmentLength(minSegLength), useSegmentation(segsPerSecond > 0.0), useRawG0(doUseRawG0), type(t)
+Kinematics::Kinematics(KinematicsType t, bool doUseSegmentation, bool doUseRawG0) noexcept
+	: segmentsPerSecond(DefaultSegmentsPerSecond), minSegmentLength(DefaultMinSegmentLength), useSegmentation(doUseSegmentation), useRawG0(doUseRawG0), type(t)
 {
 }
 
@@ -47,31 +47,54 @@ bool Kinematics::Configure(unsigned int mCode, GCodeBuffer& gb, const StringRef&
 	return false;
 }
 
+// Try to configure the segmentation parameters. Return true if we did.
+bool Kinematics::TryConfigureSegmentation(GCodeBuffer& gb) noexcept
+{
+	bool seen = false;
+	gb.TryGetFValue('S', segmentsPerSecond, seen);
+	gb.TryGetFValue('T', minSegmentLength, seen);
+	if (seen)
+	{
+		useSegmentation = minSegmentLength > 0.0 && segmentsPerSecond > 0.0;
+		if (useSegmentation)
+		{
+			reciprocalMinSegmentLength = 1.0 / minSegmentLength;
+		}
+	}
+	return seen;
+}
+
 // Return true if the specified XY position is reachable by the print head reference point.
 // This default implementation assumes a rectangular reachable area, so it just uses the bed dimensions give in the M208 command.
-bool Kinematics::IsReachable(float x, float y, bool isCoordinated) const noexcept
+bool Kinematics::IsReachable(float axesCoords[MaxAxes], AxesBitmap axes, bool isCoordinated) const noexcept
 {
 	const Platform& platform = reprap.GetPlatform();
-	return x >= platform.AxisMinimum(X_AXIS) && y >= platform.AxisMinimum(Y_AXIS) && x <= platform.AxisMaximum(X_AXIS) && y <= platform.AxisMaximum(Y_AXIS);
+	return axes.IterateWhile([&platform, axesCoords](unsigned int axis, unsigned int count) -> bool {
+		if (axesCoords[axis] >= platform.AxisMinimum(axis) && axesCoords[axis] <= platform.AxisMaximum(axis))
+		{
+			return true;
+		}
+		return false;
+	});
 }
 
 // Limit the Cartesian position that the user wants to move to, returning true if any coordinates were changed
 // This default implementation just applies the rectangular limits set up by M208 to those axes that have been homed.
 LimitPositionResult Kinematics::LimitPosition(float finalCoords[], const float * null initialCoords,
-												size_t numVisibleAxes, AxesBitmap axesHomed, bool isCoordinated, bool applyM208Limits) const noexcept
+												size_t numVisibleAxes, AxesBitmap axesToLimit, bool isCoordinated, bool applyM208Limits) const noexcept
 {
-	return (applyM208Limits && LimitPositionFromAxis(finalCoords, 0, numVisibleAxes, axesHomed)) ? LimitPositionResult::adjusted : LimitPositionResult::ok;
+	return (applyM208Limits && LimitPositionFromAxis(finalCoords, 0, numVisibleAxes, axesToLimit)) ? LimitPositionResult::adjusted : LimitPositionResult::ok;
 }
 
 // Apply the M208 limits to the Cartesian position that the user wants to move to for all axes from the specified one upwards
 // Return true if any coordinates were changed
-bool Kinematics::LimitPositionFromAxis(float coords[], size_t firstAxis, size_t numVisibleAxes, AxesBitmap axesHomed) const noexcept
+bool Kinematics::LimitPositionFromAxis(float coords[], size_t firstAxis, size_t numVisibleAxes, AxesBitmap axesToLimit) const noexcept
 {
 	const Platform& platform = reprap.GetPlatform();
 	bool limited = false;
 	for (size_t axis = firstAxis; axis < numVisibleAxes; axis++)
 	{
-		if (axesHomed.IsBitSet(axis))
+		if (axesToLimit.IsBitSet(axis))
 		{
 			float& f = coords[axis];
 			// When homing a printer we convert the M208 axis limit to motor positions, then back again to get the user position.

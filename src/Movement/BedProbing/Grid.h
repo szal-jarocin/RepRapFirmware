@@ -11,7 +11,7 @@
 #include "RepRapFirmware.h"
 #include "ObjectModel/ObjectModel.h"
 #ifdef LPC_DEBUG
-#include "MessageType.h"
+#include "Platform/MessageType.h"
 #endif
 
 class DataTransfer;
@@ -26,15 +26,19 @@ public:
 
 	GridDefinition() noexcept;
 
-	uint32_t NumXpoints() const noexcept { return numX; }
-	uint32_t NumYpoints() const noexcept { return numY; }
-	uint32_t NumPoints() const noexcept { return numX * numY; }
-	float GetXCoordinate(unsigned int xIndex) const noexcept;
-	float GetYCoordinate(unsigned int yIndex) const noexcept;
+	char GetAxisLetter(size_t axis) const noexcept pre(axis < 2) { return letters[axis]; }
+	uint8_t GetAxisNumber(size_t axis) const noexcept pre(axis < 2) { return axisNumbers[axis]; }
+	float GetMin(size_t axis) const noexcept pre(axis < 2) { return mins[axis]; }
+	float GetMax(size_t axis) const noexcept pre(axis < 2) { return maxs[axis]; }
+	float GetSpacing(size_t axis) const noexcept pre(axis < 2) { return spacings[axis]; }
+
+	uint32_t NumAxisPoints(size_t axis) const noexcept pre(axis < 2) { return nums[axis]; }
+	uint32_t NumPoints() const noexcept { return nums[0] * nums[1]; }
+	float GetCoordinate(size_t axis, size_t coordinateIndex) pre(axis < 2) const noexcept { return mins[axis] + (coordinateIndex * spacings[axis]); }
 	bool IsInRadius(float x, float y) const noexcept;
 	bool IsValid() const noexcept { return isValid; }
 
-	bool Set(const float xRange[2], const float yRange[2], float pRadius, const float pSpacings[2]) noexcept;
+	bool Set(const char axisLetters[2], const float axis0Range[2], const float axis1Range[2], float pRadius, const float pSpacings[2]) noexcept;
 	void PrintParameters(const StringRef& r) const noexcept;
 	void WriteHeadingAndParameters(const StringRef& r) const noexcept;
 	static int CheckHeading(const StringRef& s) noexcept;
@@ -47,20 +51,22 @@ protected:
 	DECLARE_OBJECT_MODEL
 
 private:
-	void CheckValidity() noexcept;
+	void CheckValidity(bool setNum0Num1) noexcept;
 
 	static constexpr float MinSpacing = 0.1;						// The minimum point spacing allowed
 	static constexpr float MinRange = 1.0;							// The minimum X and Y range allowed
 	static const char * const HeightMapLabelLines[];				// The line we write to the height map file listing the parameter names
 
 	// Primary parameters
-	float xMin, xMax, yMin, yMax;									// The edges of the grid for G29 probing
+	char letters[2];												// Axis letters for this grid
+	float mins[2], maxs[2];											// The edges of the grid for G29 probing
 	float radius;													// The grid radius to probe
-	float xSpacing, ySpacing;										// The spacing of the grid probe points
+	float spacings[2];												// The spacings of the grid probe points
 
 	// Derived parameters
-	uint32_t numX, numY;
-	float recipXspacing, recipYspacing;
+	uint8_t axisNumbers[2];											// Axis numbers for this grid
+	uint32_t nums[2];												// Number of probe points in each direction
+	float recipAxisSpacings[2];										// Reciprocals of the axis spacings
 	bool isValid;
 };
 
@@ -73,10 +79,10 @@ public:
 	const GridDefinition& GetGrid() const noexcept { return def; }
 	void SetGrid(const GridDefinition& gd) noexcept;
 
-	float GetInterpolatedHeightError(float x, float y) const noexcept;			// Compute the interpolated height error at the specified point
-	void ClearGridHeights() noexcept;											// Clear all grid height corrections
-	void SetGridHeight(size_t xIndex, size_t yIndex, float height) noexcept;	// Set the height of a grid point
-	void SetGridHeight(size_t index, float height) noexcept;					// Set the height of a grid point
+	float GetInterpolatedHeightError(float axis0, float axis1) const noexcept;			// Compute the interpolated height error at the specified point
+	void ClearGridHeights() noexcept;													// Clear all grid height corrections
+	void SetGridHeight(size_t axis0Index, size_t axis1Index, float height) noexcept;	// Set the height of a grid point
+	void SetGridHeight(size_t index, float height) noexcept;							// Set the height of a grid point
 
 #if HAS_MASS_STORAGE
 	bool SaveToFile(FileStore *f, const char *fname, float zOffset) noexcept	// Save the grid to file returning true if an error occurred
@@ -93,7 +99,7 @@ public:
 	pre(IsValid());
 #endif
 
-	unsigned int GetMinimumSegments(float deltaX, float deltaY) const noexcept;	// Return the minimum number of segments for a move by this X or Y amount
+	unsigned int GetMinimumSegments(float deltaAxis0, float deltaAxis1) const noexcept;	// Return the minimum number of segments for a move by this X or Y amount
 
 	bool UseHeightMap(bool b) noexcept;
 	bool UsingHeightMap() const noexcept { return useMap; }
@@ -117,9 +123,9 @@ private:
 #endif
 	bool useMap;													// True to do bed compensation
 
-	uint32_t GetMapIndex(uint32_t xIndex, uint32_t yIndex) const noexcept { return (yIndex * def.NumXpoints()) + xIndex; }
+	uint32_t GetMapIndex(uint32_t axis0Index, uint32_t axis1Index) const noexcept { return (axis1Index * def.NumAxisPoints(0)) + axis0Index; }
 
-	float InterpolateXY(uint32_t xIndex, uint32_t yIndex, float xFrac, float yFrac) const noexcept;
+	float InterpolateAxis0Axis1(uint32_t axis0Index, uint32_t axis1Index, float axis0Frac, float axis1Frac) const noexcept;
 };
 
 #endif /* SRC_MOVEMENT_GRID_H_ */

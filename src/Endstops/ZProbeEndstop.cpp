@@ -8,20 +8,20 @@
 #include "ZProbeEndstop.h"
 
 #include "ZProbe.h"
-#include "RepRap.h"
-#include "Platform.h"
-#include "Movement/Kinematics/Kinematics.h"
+#include <Platform/RepRap.h>
+#include <Platform/Platform.h>
+#include <Movement/Kinematics/Kinematics.h>
 
 // Z probe endstop
-ZProbeEndstop::ZProbeEndstop(uint8_t axis, EndStopPosition pos) noexcept : Endstop(axis, pos), zProbeNumber(0)
+ZProbeEndstop::ZProbeEndstop(uint8_t p_axis, EndStopPosition pos) noexcept : Endstop(p_axis, pos), zProbeNumber(0)
 {
 }
 
 // Test whether we are at or near the stop
-EndStopHit ZProbeEndstop::Stopped() const noexcept
+bool ZProbeEndstop::Stopped() const noexcept
 {
 	const auto zp = reprap.GetPlatform().GetEndstops().GetZProbe(zProbeNumber);
-	return (zp.IsNotNull()) ? zp->Stopped() : EndStopHit::atStop;
+	return zp.IsNotNull() && zp->Stopped();
 }
 
 // This is called to prime axis endstops
@@ -38,12 +38,11 @@ bool ZProbeEndstop::Prime(const Kinematics& kin, const AxisDriversConfig& axisDr
 }
 
 // Check whether the endstop is triggered and return the action that should be performed. Called from the step ISR.
-EndstopHitDetails ZProbeEndstop::CheckTriggered(bool goingSlow) noexcept
+EndstopHitDetails ZProbeEndstop::CheckTriggered() noexcept
 {
 	EndstopHitDetails rslt;				// initialised by default constructor
-	switch (Stopped())
+	if (Stopped())
 	{
-	case EndStopHit::atStop:
 		rslt.SetAction((stopAll) ? EndstopHitAction::stopAll : EndstopHitAction::stopAxis);
 		rslt.axis = GetAxis();
 		if (GetAtHighEnd())
@@ -54,17 +53,6 @@ EndstopHitDetails ZProbeEndstop::CheckTriggered(bool goingSlow) noexcept
 		{
 			rslt.setAxisLow = true;
 		}
-		break;
-
-	case EndStopHit::nearStop:
-		if (!goingSlow)
-		{
-			rslt.SetAction(EndstopHitAction::reduceSpeed);
-		}
-		break;
-
-	default:
-		break;
 	}
 	return rslt;
 }
@@ -73,7 +61,7 @@ EndstopHitDetails ZProbeEndstop::CheckTriggered(bool goingSlow) noexcept
 // Return true if we have finished with this endstop or probe in this move.
 bool ZProbeEndstop::Acknowledge(EndstopHitDetails what) noexcept
 {
-	return what.GetAction() != EndstopHitAction::reduceSpeed;
+	return true;
 }
 
 void ZProbeEndstop::AppendDetails(const StringRef& str) noexcept

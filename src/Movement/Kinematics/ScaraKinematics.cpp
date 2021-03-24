@@ -6,11 +6,11 @@
  */
 
 #include "ScaraKinematics.h"
-#include "RepRap.h"
-#include "Platform.h"
-#include "Storage/MassStorage.h"
-#include "GCodes/GCodeBuffer/GCodeBuffer.h"
-#include "Movement/DDA.h"
+#include <Platform/RepRap.h>
+#include <Platform/Platform.h>
+#include <Storage/MassStorage.h>
+#include <GCodes/GCodeBuffer/GCodeBuffer.h>
+#include <Movement/DDA.h>
 
 #include <limits>
 
@@ -37,7 +37,7 @@ DEFINE_GET_OBJECT_MODEL_TABLE_WITH_PARENT(ScaraKinematics, ZLeadscrewKinematics)
 #endif
 
 ScaraKinematics::ScaraKinematics() noexcept
-	: ZLeadscrewKinematics(KinematicsType::scara, DefaultSegmentsPerSecond, DefaultMinSegmentSize, true),
+	: ZLeadscrewKinematics(KinematicsType::scara, true, true),
 	  proximalArmLength(DefaultProximalArmLength), distalArmLength(DefaultDistalArmLength), xOffset(0.0), yOffset(0.0)
 {
 	thetaLimits[0] = DefaultMinTheta;
@@ -73,7 +73,7 @@ bool ScaraKinematics::CalculateThetaAndPsi(const float machinePos[], bool isCoor
 	}
 
 	psi = acosf(cosPsi) * RadiansToDegrees;
-	const float sinPsi = sqrtf(square);
+	const float sinPsi = fastSqrtf(square);
 	const float SCARA_K1 = proximalArmLength + distalArmLength * cosPsi;
 	const float SCARA_K2 = distalArmLength * sinPsi;
 
@@ -189,17 +189,15 @@ void ScaraKinematics::MotorStepsToCartesian(const int32_t motorPos[], const floa
 }
 
 // Set the parameters from a M665, M666 or M669 command
-// Return true if we changed any parameters. Set 'error' true if there was an error, otherwise leave it alone.
+// Return true if we changed any parameters that affect the geometry. Set 'error' true if there was an error, otherwise leave it alone.
 bool ScaraKinematics::Configure(unsigned int mCode, GCodeBuffer& gb, const StringRef& reply, bool& error) THROWS(GCodeException) /*override*/
 {
 	if (mCode == 669)
 	{
+		const bool seenNonGeometry = TryConfigureSegmentation(gb);
 		bool seen = false;
-		bool seenNonGeometry = false;
 		gb.TryGetFValue('P', proximalArmLength, seen);
 		gb.TryGetFValue('D', distalArmLength, seen);
-		gb.TryGetFValue('S', segmentsPerSecond, seenNonGeometry);
-		gb.TryGetFValue('T', minSegmentLength, seenNonGeometry);
 		gb.TryGetFValue('X', xOffset, seen);
 		gb.TryGetFValue('Y', yOffset, seen);
 		if (gb.TryGetFloatArray('A', 2, thetaLimits, reply, seen))
@@ -219,11 +217,11 @@ bool ScaraKinematics::Configure(unsigned int mCode, GCodeBuffer& gb, const Strin
 		}
 		gb.TryGetFValue('R', requestedMinRadius, seen);
 
-		if (seen || seenNonGeometry)
+		if (seen)
 		{
 			Recalc();
 		}
-		else if (!gb.Seen('K'))
+		else if (!seenNonGeometry && !gb.Seen('K'))
 		{
 			reply.printf("Kinematics is Scara with proximal arm %.2fmm range %.1f to %.1f" DEGREE_SYMBOL
 							"%s, distal arm %.2fmm range %.1f to %.1f" DEGREE_SYMBOL "%s, crosstalk %.1f:%.1f:%.1f, bed origin (%.1f, %.1f), segments/sec %d, min. segment length %.2f",
@@ -242,21 +240,30 @@ bool ScaraKinematics::Configure(unsigned int mCode, GCodeBuffer& gb, const Strin
 }
 
 // Return true if the specified XY position is reachable by the print head reference point, ignoring M208 limits.
-bool ScaraKinematics::IsReachable(float x, float y, bool isCoordinated) const noexcept
+bool ScaraKinematics::IsReachable(float axesCoords[MaxAxes], AxesBitmap axes, bool isCoordinated) const noexcept
 {
-	// See if we can transform the position
-	float coords[2] = {x, y};
-	float theta, psi;
-	bool armMode = currentArmMode;
-	return CalculateThetaAndPsi(coords, isCoordinated, theta, psi, armMode);
+	if (axes.IsBitSet(X_AXIS) && axes.IsBitSet(Y_AXIS))
+	{
+		// See if we can transform the position
+		float coords[2] = {axesCoords[X_AXIS], axesCoords[Y_AXIS]};
+		float theta, psi;
+		bool armMode = currentArmMode;
+		if (!CalculateThetaAndPsi(coords, isCoordinated, theta, psi, armMode))
+		{
+			return false;
+		}
+	}
+	axes.ClearBit(X_AXIS);
+	axes.ClearBit(Y_AXIS);
+	return Kinematics::IsReachable(axesCoords, axes, isCoordinated);
 }
 
 // Limit the Cartesian position that the user wants to move to, returning true if any coordinates were changed
 LimitPositionResult ScaraKinematics::LimitPosition(float finalCoords[], const float * null initialCoords,
-													size_t numVisibleAxes, AxesBitmap axesHomed, bool isCoordinated, bool applyM208Limits) const noexcept
+													size_t numVisibleAxes, AxesBitmap axesToLimit, bool isCoordinated, bool applyM208Limits) const noexcept
 {
 	// First limit all axes according to M208
-	bool limited = applyM208Limits && Kinematics::LimitPositionFromAxis(finalCoords, 0, numVisibleAxes, axesHomed);
+	bool limited = applyM208Limits && Kinematics::LimitPositionFromAxis(finalCoords, 0, numVisibleAxes, axesToLimit);
 
 	// Now check whether the arms can reach the final position
 	float theta, psi;
@@ -270,7 +277,7 @@ LimitPositionResult ScaraKinematics::LimitPosition(float finalCoords[], const fl
 			// We are radius-limited
 			float x = finalCoords[X_AXIS] + xOffset;
 			float y = finalCoords[Y_AXIS] + yOffset;
-			const float r = sqrtf(fsquare(x) + fsquare(y));
+			const float r = fastSqrtf(fsquare(x) + fsquare(y));
 			if (r < minRadius)
 			{
 				// Radius is too small. The user may have specified x=0 y=0 so allow for this.
@@ -469,7 +476,7 @@ void ScaraKinematics::LimitSpeedAndAcceleration(DDA& dda, const float *normalise
 {
 	// For now we limit the speed in the XY plane to the lower of the X and Y maximum speeds, and similarly for the acceleration.
 	// Limiting the angular rates of the arms would be better.
-	const float xyFactor = sqrtf(fsquare(normalisedDirectionVector[X_AXIS]) + fsquare(normalisedDirectionVector[Y_AXIS]));
+	const float xyFactor = fastSqrtf(fsquare(normalisedDirectionVector[X_AXIS]) + fsquare(normalisedDirectionVector[Y_AXIS]));
 	if (xyFactor > 0.01)
 	{
 		const Platform& platform = reprap.GetPlatform();
@@ -499,7 +506,7 @@ void ScaraKinematics::Recalc() noexcept
 	distalArmLengthSquared = fsquare(distalArmLength);
 	twoPd = proximalArmLength * distalArmLength * 2;
 
-	minRadius = max<float>(sqrtf(proximalArmLengthSquared + distalArmLengthSquared
+	minRadius = max<float>(fastSqrtf(proximalArmLengthSquared + distalArmLengthSquared
 							+ twoPd * min<float>(cosf(psiLimits[0] * DegreesToRadians), cosf(psiLimits[1] * DegreesToRadians))) * 1.005,
 							requestedMinRadius);
 	minRadiusSquared = fsquare(minRadius);
@@ -516,7 +523,7 @@ void ScaraKinematics::Recalc() noexcept
 	else
 	{
 		const float minAngle = min<float>(fabsf(psiLimits[0]), fabsf(psiLimits[1])) * DegreesToRadians;
-		maxRadius = sqrtf(proximalArmLengthSquared + distalArmLengthSquared + (twoPd * cosf(minAngle)));
+		maxRadius = fastSqrtf(proximalArmLengthSquared + distalArmLengthSquared + (twoPd * cosf(minAngle)));
 	}
 	maxRadius *= 0.995;
 

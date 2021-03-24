@@ -8,9 +8,8 @@
 #ifndef OUTPUTMEMORY_H_
 #define OUTPUTMEMORY_H_
 
-#include "RepRapFirmware.h"
-#include "MessageType.h"
-#include "Storage/FileData.h"
+#include <RepRapFirmware.h>
+#include <Storage/FileData.h>
 
 #if HAS_LINUX_INTERFACE
 #if LPC17xx

@@ -19,10 +19,9 @@ class ZProbe;
 enum class EndstopHitAction : uint8_t
 {
 	none = 0,						// don't stop anything
-	reduceSpeed = 1,				// reduce speed because an endstop or Z probe is close to triggering
-	stopDriver = 2,					// stop a single motor driver
-	stopAxis = 3,					// stop all drivers for an axis
-	stopAll = 4						// stop movement completely
+	stopDriver = 1,					// stop a single motor driver
+	stopAxis = 2,					// stop all drivers for an axis
+	stopAll = 3						// stop movement completely
 };
 
 // Struct to return info about what endstop has been triggered and what to do about it
@@ -35,9 +34,9 @@ struct EndstopHitDetails
 	void SetAction(EndstopHitAction a) noexcept { action = (uint32_t)a; }
 	EndstopHitAction GetAction() const noexcept { return (EndstopHitAction)action; }
 
-	uint16_t action : 4,			// an EndstopHitAction
-			 internalUse : 4,		// used to pass data between CheckTriggered() and Acknowledge()
-			 axis : 4,				// which axis to stop if the action is stopAxis, and which axis to set the position of if setAxisPos is true
+	uint16_t action : 2,			// an EndstopHitAction
+			 internalUse : 4,		// used to pass the port index between CheckTriggered() and Acknowledge()
+			 axis : 6,				// which axis to stop if the action is stopAxis, and which axis to set the position of if setAxisLow or SetAxisHigh is true
 			 setAxisLow : 1,		// whether or not to set the axis position to its min
 			 setAxisHigh : 1,		// whether or not to set the axis position to its max
 			 isZProbe : 1;			// whether this is a Z probe
@@ -63,15 +62,6 @@ NamedEnum
 	motorStallIndividual,
 	numInputTypes
 );
-
-// This is used as the return type of function Stopped.
-// Note the ordering: we need more-stopped-value > less-stopped-value
-enum class EndStopHit
-{
-  noStop = 0,		// no endstop hit
-  nearStop = 1,		// approaching Z-probe threshold
-  atStop = 2
-};
 
 enum class ZProbeType : uint8_t
 {

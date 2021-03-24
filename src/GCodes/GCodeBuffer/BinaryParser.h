@@ -13,8 +13,8 @@
 #if HAS_LINUX_INTERFACE
 
 #include <Linux/LinuxMessageFormats.h>
-#include <MessageType.h>
 #include <GCodes/GCodeException.h>
+#include <GCodes/GCodeMachineState.h>
 
 class GCodeBuffer;
 class IPAddress;
@@ -45,7 +45,6 @@ public:
 	void GetCompleteParameters(const StringRef& str) THROWS(GCodeException);					// Get the complete parameter string
 	void GetQuotedString(const StringRef& str, bool allowEmpty) THROWS(GCodeException);			// Get and copy a quoted string
 	void GetPossiblyQuotedString(const StringRef& str, bool allowEmpty) THROWS(GCodeException);	// Get and copy a string which may or may not be quoted
-	void GetReducedString(const StringRef& str) THROWS(GCodeException);							// Get and copy a quoted string, removing certain characters
 	void GetFloatArray(float arr[], size_t& length, bool doPad) THROWS(GCodeException) SPEED_CRITICAL; // Get a colon-separated list of floats after a key letter
 	void GetIntArray(int32_t arr[], size_t& length, bool doPad) THROWS(GCodeException);			// Get a :-separated list of ints after a key letter
 	void GetUnsignedArray(uint32_t arr[], size_t& length, bool doPad) THROWS(GCodeException);	// Get a :-separated list of unsigned ints after a key letter
@@ -60,6 +59,7 @@ public:
 
 	void PrintCommand(const StringRef& s) const noexcept;
 	void AppendFullCommand(const StringRef &s) const noexcept;
+	void SetParameters(VariableSet& vs, int codeRunning) noexcept;
 
 private:
 	GCodeBuffer& gb;

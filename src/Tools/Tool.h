@@ -27,14 +27,11 @@ Licence: GPL
 #define TOOL_H_
 
 #include <RepRapFirmware.h>
-#include <RepRap.h>
+#include <Platform/RepRap.h>
 #include <ObjectModel/ObjectModel.h>
 #include <General/FreelistManager.h>
 #include <General/NamedEnum.h>
-
-#undef array
-#include <functional>
-#define array _ecv_array
+#include <General/inplace_function.h>
 
 constexpr size_t ToolNameLength = 32;						// maximum allowed length for tool names
 
@@ -52,7 +49,17 @@ public:
 
 	~Tool() override { delete name; }
 
-	static Tool *Create(unsigned int toolNumber, const char *toolName, int32_t d[], size_t dCount, int32_t h[], size_t hCount, AxesBitmap xMap, AxesBitmap yMap, FansBitmap fanMap, int filamentDrive, const StringRef& reply) noexcept;
+	static Tool *Create(
+			unsigned int toolNumber,
+			const char *toolName,
+			int32_t d[], size_t dCount,
+			int32_t h[], size_t hCount,
+			AxesBitmap xMap,
+			AxesBitmap yMap,
+			FansBitmap fanMap,
+			int filamentDrive,
+			size_t sCount, int8_t spindleNo,
+			const StringRef& reply) noexcept;
 	static void Delete(Tool *t) noexcept { delete t; }
 	static AxesBitmap GetXAxes(const Tool *tool) noexcept;
 	static AxesBitmap GetYAxes(const Tool *tool) noexcept;
@@ -87,6 +94,9 @@ public:
 	float GetRetractSpeed() const noexcept { return retractSpeed; }
 	float GetUnRetractSpeed() const noexcept { return unRetractSpeed; }
 	void SetRetracted(bool b) noexcept { isRetracted = b; }
+	int8_t GetSpindleNumber() const noexcept { return spindleNumber; }
+	uint32_t GetSpindleRpm() const noexcept { return spindleRpm; }
+	void SetSpindleRpm(uint32_t rpm) THROWS(GCodeException);
 
 #if HAS_MASS_STORAGE
 	bool WriteSettings(FileStore *f) const noexcept;							// write the tool's settings to file
@@ -100,8 +110,8 @@ public:
 
 	bool HasTemperatureFault() const noexcept { return heaterFault; }
 
-	void IterateExtruders(std::function<void(unsigned int)> f) const noexcept;
-	void IterateHeaters(std::function<void(int)> f) const noexcept;
+	void IterateExtruders(stdext::inplace_function<void(unsigned int)> f) const noexcept;
+	void IterateHeaters(stdext::inplace_function<void(int)> f) const noexcept;
 	bool UsesHeater(int8_t heater) const noexcept;
 
 	void SetFansPwm(float f) const noexcept;
@@ -156,6 +166,9 @@ private:
 
 	uint8_t drives[MaxExtrudersPerTool];
 	int8_t heaters[MaxHeatersPerTool];
+
+	int8_t spindleNumber;
+	uint32_t spindleRpm;
 
 	ToolState state;
 	bool heaterFault;

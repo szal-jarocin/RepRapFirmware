@@ -20,8 +20,8 @@
 //    00 -- Three-State?
 
 #include "ThermocoupleSensor6675.h"
-#include "RepRap.h"
-#include "Platform.h"
+#include "Platform/RepRap.h"
+#include "Platform/Platform.h"
 #include "GCodes/GCodeBuffer/GCodeBuffer.h"
 
 const uint32_t MAX6675_Frequency = 4000000;	// maximum for MAX6675 is 5MHz

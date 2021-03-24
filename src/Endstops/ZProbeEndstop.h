@@ -16,12 +16,12 @@ public:
 	void* operator new(size_t sz) noexcept { return FreelistManager::Allocate<ZProbeEndstop>(); }
 	void operator delete(void* p) noexcept { FreelistManager::Release<ZProbeEndstop>(p); }
 
-	ZProbeEndstop(uint8_t axis, EndStopPosition pos) noexcept;
+	ZProbeEndstop(uint8_t p_axis, EndStopPosition pos) noexcept;
 
 	EndStopType GetEndstopType() const noexcept override { return EndStopType::zProbeAsEndstop; }
-	EndStopHit Stopped() const noexcept override;
+	bool Stopped() const noexcept override;
 	bool Prime(const Kinematics& kin, const AxisDriversConfig& axisDrivers) noexcept override;
-	EndstopHitDetails CheckTriggered(bool goingSlow) noexcept override;
+	EndstopHitDetails CheckTriggered() noexcept override;
 	bool Acknowledge(EndstopHitDetails what) noexcept override;
 	void AppendDetails(const StringRef& str) noexcept override;
 

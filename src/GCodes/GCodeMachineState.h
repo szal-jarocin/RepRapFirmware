@@ -12,21 +12,31 @@
 #include <Storage/FileData.h>
 #include <General/FreelistManager.h>
 #include <General/NamedEnum.h>
-#include <GCodes/GCodeResult.h>
+#include <GCodes/Variable.h>
 
 // Enumeration to list all the possible states that the Gcode processing machine may be in
 enum class GCodeState : uint8_t
 {
 	normal,												// not doing anything and ready to process a new GCode
 
+	abortWhenMovementFinished,							// abort the print when all current moves have completed
+
 	waitingForSpecialMoveToComplete,					// doing a special move, so we must wait for it to finish before processing another GCode
 	waitingForSegmentedMoveToGo,						// doing an arc move, so we must check whether it completes normally
 
-	probingToolOffset,
+	// This group must be contiguous
+	probingToolOffset1,
+	probingToolOffset2,
+	probingToolOffset3,
+	probingToolOffset4,
 
-	findCenterOfCavityMin,
-	findCenterOfCavityR,
-	findCenterOfCavityMax,
+	// These next 7 must be contiguous
+	findCenterOfCavity1,
+	findCenterOfCavity2,
+	findCenterOfCavity3,
+	findCenterOfCavity4,
+	findCenterOfCavity5,
+	findCenterOfCavity6,
 
 	homing1,
 	homing2,
@@ -181,13 +191,15 @@ public:
 	inline void AdvanceState() noexcept { state = static_cast<GCodeState>(static_cast<uint8_t>(state) + 1); }
 
 	GCodeMachineState *GetPrevious() const noexcept { return previous; }
+	uint8_t GetBlockNesting() const noexcept { return blockNesting; }
 
+	VariableSet variables;											// local variables and parameters
 	float feedRate;
 #if HAS_MASS_STORAGE
 	FileData fileState;
 #endif
 #if HAS_LINUX_INTERFACE
-	FileId fileId;								// virtual ID to distinguish files in different stack levels (only unique per GB)
+	FileId fileId;													// virtual ID to distinguish files in different stack levels (only unique per GB)
 #endif
 	ResourceBitmap lockedResources;
 	BlockState blockStates[MaxBlockIndent];
@@ -207,7 +219,8 @@ public:
 		usingInches : 1,						// true if units are inches not mm
 		waitingForAcknowledgement : 1,
 		messageAcknowledged : 1,
-		messageCancelled : 1
+		messageCancelled : 1,
+		localPush : 1							// true if this stack frame was created by M120, so we use the parent variables
 #if HAS_LINUX_INTERFACE
 		, lastCodeFromSbc : 1,
 		macroStartedByCode : 1,
@@ -216,7 +229,6 @@ public:
 		;
 
 	Compatibility compatibility;
-	uint8_t blockNesting;
 	uint16_t stateParameter;					// a parameter, the meaning of which depends on what state we are in
 
 	bool DoingFile() const noexcept;
@@ -242,7 +254,6 @@ public:
 	BlockState& CurrentBlockState() noexcept;
 	const BlockState& CurrentBlockState() const noexcept;
 	int32_t GetIterations() const noexcept;
-	uint16_t CurrentBlockIndent() const noexcept { return CurrentBlockState().GetIndent(); }
 
 	bool CreateBlock(uint16_t indentLevel) noexcept;
 	void EndBlock() noexcept;
@@ -250,6 +261,7 @@ public:
 private:
 	GCodeMachineState *previous;
 	const char *errorMessage;
+	uint8_t blockNesting;
 	GCodeState state;
 	GCodeResult stateMachineResult;				// the worst status (ok, warning or error) that we encountered while running the state machine
 };

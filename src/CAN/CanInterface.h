@@ -12,8 +12,6 @@
 
 #if SUPPORT_CAN_EXPANSION
 
-#include "GCodes/GCodeResult.h"
-#include "MessageType.h"
 #include <CanId.h>
 #include <CanMessageFormats.h>
 
@@ -76,7 +74,7 @@ namespace CanInterface
 
 	CanRequestId AllocateRequestId(CanAddress destination) noexcept;
 	GCodeResult SendRequestAndGetStandardReply(CanMessageBuffer *buf, CanRequestId rid, const StringRef& reply, uint8_t *extra = nullptr) noexcept;
-	GCodeResult SendRequestAndGetCustomReply(CanMessageBuffer *buf, CanRequestId rid, const StringRef& reply, uint8_t *extra, CanMessageType replyType, std::function<void(const CanMessageBuffer*) /*noexcept*/> callback) noexcept;
+	GCodeResult SendRequestAndGetCustomReply(CanMessageBuffer *buf, CanRequestId rid, const StringRef& reply, uint8_t *extra, CanMessageType replyType, stdext::inplace_function<void(const CanMessageBuffer*) /*noexcept*/> callback) noexcept;
 	void SendResponseNoFree(CanMessageBuffer *buf) noexcept;
 	void SendBroadcastNoFree(CanMessageBuffer *buf) noexcept;
 	void SendMessageNoReplyNoFree(CanMessageBuffer *buf) noexcept;
@@ -128,6 +126,9 @@ namespace CanInterface
 	GCodeResult WriteGpio(CanAddress boardAddress, uint8_t portNumber, float pwm, bool isServo, const GCodeBuffer *gb, const StringRef& reply) noexcept;
 	GCodeResult ChangeAddressAndNormalTiming(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeException);
 	GCodeResult ChangeFastTiming(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeException);
+#if SUPPORT_ACCELEROMETERS
+	GCodeResult StartAccelerometer(DriverId device, uint8_t axes, uint16_t numSamples, uint8_t mode, const GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeException);
+#endif
 }
 
 // Members of template class CanDriversData

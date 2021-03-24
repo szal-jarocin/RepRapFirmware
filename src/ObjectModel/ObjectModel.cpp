@@ -9,9 +9,9 @@
 
 #if SUPPORT_OBJECT_MODEL
 
-#include <RepRap.h>
-#include <Platform.h>
-#include <OutputMemory.h>
+#include <Platform/RepRap.h>
+#include <Platform/Platform.h>
+#include <Platform/OutputMemory.h>
 #include <cstring>
 #include <General/SafeStrtod.h>
 #include <General/IP4String.h>
@@ -31,6 +31,10 @@ void ExpressionValue::AppendAsString(const StringRef& str) const noexcept
 
 	case TypeCode::CString:
 		str.cat(sVal);
+		break;
+
+	case TypeCode::HeapString:
+		str.cat(shVal.Get().Ptr());
 		break;
 
 	case TypeCode::Float:
@@ -120,6 +124,56 @@ void ExpressionValue::AppendAsString(const StringRef& str) const noexcept
 	case TypeCode::Enum32:
 		str.cat("(enumeration)");
 		break;
+	}
+}
+
+ExpressionValue::ExpressionValue(const ExpressionValue& other) noexcept
+{
+	type = other.type;
+	param = other.param;
+	whole = other.whole;
+	if (type == (uint32_t)TypeCode::HeapString)
+	{
+		shVal.IncreaseRefCount();
+	}
+}
+
+ExpressionValue::ExpressionValue(ExpressionValue&& other) noexcept
+{
+	type = other.type;
+	param = other.param;
+	whole = other.whole;
+	other.type = (uint32_t)TypeCode::None;
+}
+
+ExpressionValue::~ExpressionValue()
+{
+	Release();
+}
+
+ExpressionValue& ExpressionValue::operator=(const ExpressionValue& other) noexcept
+{
+	if (&other != this)
+	{
+		Release();
+		type = other.type;
+		param = other.param;
+		whole = other.whole;
+		if (type == (uint32_t)TypeCode::HeapString)
+		{
+			shVal.IncreaseRefCount();
+		}
+	}
+	return *this;
+}
+
+// Release any associated storage
+void ExpressionValue::Release() noexcept
+{
+	if (type == (uint32_t)TypeCode::HeapString)
+	{
+		shVal.Delete();
+		type = (uint32_t)TypeCode::None;
 	}
 }
 
@@ -215,7 +269,7 @@ ObjectModel::ObjectModel() noexcept
 ObjectExplorationContext::ObjectExplorationContext(bool wal, const char *reportFlags, unsigned int initialMaxDepth) noexcept
 	: startMillis(millis()), maxDepth(initialMaxDepth), currentDepth(0), numIndicesProvided(0), numIndicesCounted(0),
 	  line(-1), column(-1),
-	  shortForm(false), onlyLive(false), includeVerbose(false), wantArrayLength(wal), includeNulls(false)
+	  shortForm(false), onlyLive(false), includeVerbose(false), wantArrayLength(wal), includeNulls(false), includeObsolete(false), obsoleteFieldQueried(false)
 {
 	while (true)
 	{
@@ -234,6 +288,9 @@ ObjectExplorationContext::ObjectExplorationContext(bool wal, const char *reportF
 			break;
 		case 'n':
 			includeNulls = true;
+			break;
+		case 'o':
+			includeObsolete = true;
 			break;
 		case 'd':
 			maxDepth = 0;
@@ -257,7 +314,7 @@ ObjectExplorationContext::ObjectExplorationContext(bool wal, const char *reportF
 ObjectExplorationContext::ObjectExplorationContext(bool wal, int p_line, int p_col) noexcept
 	: startMillis(millis()), maxDepth(99), currentDepth(0), numIndicesProvided(0), numIndicesCounted(0),
 	  line(p_line), column(p_col),
-	  shortForm(false), onlyLive(false), includeVerbose(true), wantArrayLength(wal), includeNulls(false)
+	  shortForm(false), onlyLive(false), includeVerbose(true), wantArrayLength(wal), includeNulls(false), includeObsolete(true), obsoleteFieldQueried(false)
 {
 }
 
@@ -282,7 +339,8 @@ int32_t ObjectExplorationContext::GetLastIndex() const THROWS(GCodeException)
 bool ObjectExplorationContext::ShouldReport(const ObjectModelEntryFlags f) const noexcept
 {
 	return (!onlyLive || ((uint8_t)f & (uint8_t)ObjectModelEntryFlags::live) != 0)
-		&& (includeVerbose || ((uint8_t)f & (uint8_t)ObjectModelEntryFlags::verbose) == 0);
+		&& (includeVerbose || ((uint8_t)f & (uint8_t)ObjectModelEntryFlags::verbose) == 0)
+		&& (includeObsolete || ((uint8_t)f & (uint8_t)ObjectModelEntryFlags::obsolete) == 0);
 }
 
 GCodeException ObjectExplorationContext::ConstructParseException(const char *msg) const noexcept
@@ -421,6 +479,10 @@ void ObjectModel::ReportArrayLengthAsJson(OutputBuffer *buf, ObjectExplorationCo
 		buf->catf("%u", strlen(val.sVal));
 		break;
 
+	case TypeCode::HeapString:
+		buf->catf("%u", val.shVal.GetLength());
+		break;
+
 	default:
 		buf->cat("null");
 		break;
@@ -497,6 +559,10 @@ void ObjectModel::ReportItemAsJsonFull(OutputBuffer *buf, ObjectExplorationConte
 
 	case TypeCode::CString:
 		buf->catf("\"%.s\"", val.sVal);
+		break;
+
+	case TypeCode::HeapString:
+		buf->catf("\"%.s\"", val.shVal.Get().Ptr());
 		break;
 
 #if SUPPORT_CAN_EXPANSION
@@ -754,7 +820,7 @@ int ObjectModelTableEntry::IdCompare(const char *id) const noexcept
 		++n;
 	}
 	return (*n == 0 && (*id == 0 || *id == '.' || *id == '[' || *id == '^')) ? 0
-		: (*id > *n) ? 1
+		: (*id > *n && *id != '^') ? 1
 			: -1;
 }
 
@@ -771,6 +837,10 @@ ExpressionValue ObjectModel::GetObjectValue(ObjectExplorationContext& context, c
 		const ObjectModelTableEntry * const e = FindObjectModelTableEntry(classDescriptor, tableNumber, idString);
 		if (e != nullptr)
 		{
+			if (e->IsObsolete())
+			{
+				context.SetObsoleteFieldQueried();
+			}
 			idString = GetNextElement(idString);
 			const ExpressionValue val = e->func(this, context);
 			return GetObjectValue(context, classDescriptor, val, idString);
@@ -910,21 +980,25 @@ ExpressionValue ObjectModel::GetObjectValue(ObjectExplorationContext& context, c
 	case TypeCode::CanExpansionBoardDetails:
 		if (*idString == 0)
 		{
-			if (context.WantArrayLength())
-			{
-				return GetExpansionBoardDetailLength(val);
-			}
-			return val;
+			return (context.WantArrayLength()) ? GetExpansionBoardDetailLength(val) : val;
 		}
 		break;
 #endif
 
-	case TypeCode::CString:
-		if (*idString == 0 && context.WantArrayLength())
+	case TypeCode::HeapString:
+		if (*idString == 0)
 		{
-			return ExpressionValue((int32_t)strlen(val.sVal));
+			return (context.WantArrayLength()) ? ExpressionValue((int32_t)val.shVal.GetLength()) : val;
 		}
-		// no break
+		break;
+
+	case TypeCode::CString:
+		if (*idString == 0)
+		{
+			return (context.WantArrayLength()) ? ExpressionValue((int32_t)strlen(val.sVal)) : val;
+		}
+		break;
+
 	default:
 		if (*idString == 0)
 		{

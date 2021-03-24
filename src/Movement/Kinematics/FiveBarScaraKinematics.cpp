@@ -8,11 +8,11 @@
  */
 
 #include "FiveBarScaraKinematics.h"
-#include "RepRap.h"
-#include "Platform.h"
-#include "Storage/MassStorage.h"
-#include "GCodes/GCodeBuffer/GCodeBuffer.h"
-#include "Movement/DDA.h"
+#include <Platform/RepRap.h>
+#include <Platform/Platform.h>
+#include <Storage/MassStorage.h>
+#include <GCodes/GCodeBuffer/GCodeBuffer.h>
+#include <Movement/DDA.h>
 
 #include <limits>
 
@@ -42,7 +42,7 @@ DEFINE_GET_OBJECT_MODEL_TABLE_WITH_PARENT(FiveBarScaraKinematics, ZLeadscrewKine
 #endif
 
 FiveBarScaraKinematics::FiveBarScaraKinematics() noexcept
-	: ZLeadscrewKinematics(KinematicsType::scara, DefaultSegmentsPerSecond, DefaultMinSegmentSize, true)
+	: ZLeadscrewKinematics(KinematicsType::scara, true, true)
 {
 	Recalc();
 }
@@ -177,7 +177,7 @@ bool FiveBarScaraKinematics::isCantilevered(int mode) const noexcept
 // get angle between -90 and 270 for given origin and destination coordinates
 float FiveBarScaraKinematics::getAbsoluteAngle(float xOrig, float yOrig, float xDest, float yDest) const noexcept
 {
-	const float length = sqrtf(fsquare(xOrig - xDest) + fsquare(yOrig - yDest));
+	const float length = fastSqrtf(fsquare(xOrig - xDest) + fsquare(yOrig - yDest));
 	const float y = fabs(yOrig - yDest);
 	float angle = asinf(y / length) * 180.0f / Pi;
 
@@ -208,9 +208,9 @@ void FiveBarScaraKinematics::getIntersec(float result[], float firstRadius, floa
 	const float secondRadius2 = fsquare(secondRadius);
 
 	const float distance2 = fsquare(firstX - secondX) + fsquare(firstY - secondY);
-	const float distance  = sqrtf(distance2);
+	const float distance  = fastSqrtf(distance2);
 
-	const float delta = 0.25 * sqrtf(
+	const float delta = 0.25 * fastSqrtf(
 			(distance + firstRadius + secondRadius)
 			* (distance + firstRadius - secondRadius)
 			* (distance - firstRadius + secondRadius)
@@ -550,7 +550,6 @@ bool FiveBarScaraKinematics::Configure(unsigned int mCode, GCodeBuffer& gb, cons
 		gb.MustSee('D');
 
 		bool seen = false;
-		bool seenNonGeometry = false;
 
 		// parameter X: x origins of actuators
 		float paraX[2];
@@ -687,6 +686,7 @@ bool FiveBarScaraKinematics::Configure(unsigned int mCode, GCodeBuffer& gb, cons
 
 		// optional rectangle definition of a print area. Must match the workmode reachable area
 		//TODO is this needed? Why not use the M208 limits instead?
+		bool seenNonGeometry = TryConfigureSegmentation(gb);
 		if (gb.Seen('Z'))
 		{
 			float coordinates[4];
@@ -701,9 +701,6 @@ bool FiveBarScaraKinematics::Configure(unsigned int mCode, GCodeBuffer& gb, cons
 		{
 			printAreaDefined = false;
 		}
-
-		gb.TryGetFValue('S', segmentsPerSecond, seenNonGeometry);		// value defined in Kinematics.h
-		gb.TryGetFValue('T', minSegmentLength, seenNonGeometry);		// value defined in Kinematics.h
 
 		if (seen)
 		{
@@ -725,10 +722,10 @@ bool FiveBarScaraKinematics::Configure(unsigned int mCode, GCodeBuffer& gb, cons
 
 // Limit the Cartesian position that the user wants to move to, returning true if any coordinates were changed
 LimitPositionResult FiveBarScaraKinematics::LimitPosition(float coords[], const float * null initialCoords,
-															size_t numVisibleAxes, AxesBitmap axesHomed, bool isCoordinated, bool applyM208Limits) const noexcept
+															size_t numVisibleAxes, AxesBitmap axesToLimit, bool isCoordinated, bool applyM208Limits) const noexcept
 {
 	// First limit all axes according to M208
-	const bool m208Limited = applyM208Limits && Kinematics::LimitPositionFromAxis(coords, 0, numVisibleAxes, axesHomed);
+	const bool m208Limited = applyM208Limits && Kinematics::LimitPositionFromAxis(coords, 0, numVisibleAxes, axesToLimit);
 
 	if (!constraintsOk(coords))
 	{
@@ -826,10 +823,19 @@ void FiveBarScaraKinematics::MotorStepsToCartesian(const int32_t motorPos[], con
 }
 
 // Return true if the specified XY position is reachable by the print head reference point.
-bool FiveBarScaraKinematics::IsReachable(float x, float y, bool isCoordinated) const noexcept
+bool FiveBarScaraKinematics::IsReachable(float axesCoords[MaxAxes], AxesBitmap axes, bool isCoordinated) const noexcept
 {
-	float coords[2] = {x, y};
-	return constraintsOk(coords);
+	if (axes.IsBitSet(X_AXIS) && axes.IsBitSet(Y_AXIS))
+	{
+		float coords[2] = {axesCoords[X_AXIS], axesCoords[Y_AXIS]};
+		if (!constraintsOk(coords))
+		{
+			return false;
+		}
+	}
+	axes.ClearBit(X_AXIS);
+	axes.ClearBit(Y_AXIS);
+	return Kinematics::IsReachable(axesCoords, axes, isCoordinated);
 }
 
 // Return the initial Cartesian coordinates we assume after switching to this kinematics
@@ -921,7 +927,7 @@ void FiveBarScaraKinematics::LimitSpeedAndAcceleration(DDA& dda, const float *no
 	//TODO should we make use of numVisibleAxes and/or continuousRotationShortcut?
 	// For now we limit the speed in the XY plane to the lower of the X and Y maximum speeds, and similarly for the acceleration.
 	// Limiting the angular rates of the arms would be better.
-	const float xyFactor = sqrtf(fsquare(normalisedDirectionVector[X_AXIS]) + fsquare(normalisedDirectionVector[Y_AXIS]));
+	const float xyFactor = fastSqrtf(fsquare(normalisedDirectionVector[X_AXIS]) + fsquare(normalisedDirectionVector[Y_AXIS]));
 	if (xyFactor > 0.01)
 	{
 		const Platform& platform = reprap.GetPlatform();

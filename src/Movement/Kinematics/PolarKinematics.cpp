@@ -7,11 +7,11 @@
 
 #include "PolarKinematics.h"
 
-#include "RepRap.h"
-#include "Platform.h"
-#include "Storage/MassStorage.h"
-#include "GCodes/GCodeBuffer/GCodeBuffer.h"
-#include "Movement/DDA.h"
+#include <Platform/RepRap.h>
+#include <Platform/Platform.h>
+#include <Storage/MassStorage.h>
+#include <GCodes/GCodeBuffer/GCodeBuffer.h>
+#include <Movement/DDA.h>
 
 #if SUPPORT_OBJECT_MODEL
 
@@ -37,7 +37,7 @@ DEFINE_GET_OBJECT_MODEL_TABLE(PolarKinematics)
 
 // Constructor
 PolarKinematics::PolarKinematics() noexcept
-	: Kinematics(KinematicsType::polar, DefaultSegmentsPerSecond, DefaultMinSegmentSize, true),
+	: Kinematics(KinematicsType::polar, true, true),
 	  minRadius(0.0), maxRadius(DefaultMaxRadius), homedRadius(0.0),
 	  maxTurntableSpeed(DefaultMaxTurntableSpeed), maxTurntableAcceleration(DefaultMaxTurntableAcceleration)
 {
@@ -64,10 +64,6 @@ bool PolarKinematics::Configure(unsigned int mCode, GCodeBuffer& gb, const Strin
 {
 	if (mCode == 669)
 	{
-		bool seenNonGeometry = false;
-		gb.TryGetFValue('S', segmentsPerSecond, seenNonGeometry);
-		gb.TryGetFValue('T', minSegmentLength, seenNonGeometry);
-
 		bool seen = false;
 		if (gb.Seen('R'))
 		{
@@ -89,14 +85,16 @@ bool PolarKinematics::Configure(unsigned int mCode, GCodeBuffer& gb, const Strin
 		}
 
 		gb.TryGetFValue('H', homedRadius, seen);
+
+		bool seenNonGeometry = TryConfigureSegmentation(gb);
 		gb.TryGetFValue('A', maxTurntableAcceleration, seenNonGeometry);
 		gb.TryGetFValue('F', maxTurntableSpeed, seenNonGeometry);
 
-		if (seen || seenNonGeometry)
+		if (seen)
 		{
 			Recalc();
 		}
-		else if (!gb.Seen('K'))
+		else if (!seenNonGeometry && !gb.Seen('K'))
 		{
 			reply.printf("Kinematics is Polar with radius %.1f to %.1fmm, homed radius %.1fmm, segments/sec %d, min. segment length %.2f",
 							(double)minRadius, (double)maxRadius, (double)homedRadius,
@@ -118,7 +116,7 @@ bool PolarKinematics::Configure(unsigned int mCode, GCodeBuffer& gb, const Strin
 // Return true if successful, false if we were unable to convert
 bool PolarKinematics::CartesianToMotorSteps(const float machinePos[], const float stepsPerMm[], size_t numVisibleAxes, size_t numTotalAxes, int32_t motorPos[], bool isCoordinated) const noexcept
 {
-	motorPos[0] = lrintf(sqrtf(fsquare(machinePos[0]) + fsquare(machinePos[1])) * stepsPerMm[0]);
+	motorPos[0] = lrintf(fastSqrtf(fsquare(machinePos[0]) + fsquare(machinePos[1])) * stepsPerMm[0]);
 	motorPos[1] = (motorPos[0] == 0.0) ? 0 : lrintf(atan2f(machinePos[1], machinePos[0]) * RadiansToDegrees * stepsPerMm[1]);
 
 	// Transform remaining axes linearly
@@ -149,25 +147,34 @@ void PolarKinematics::MotorStepsToCartesian(const int32_t motorPos[], const floa
 }
 
 // Return true if the specified XY position is reachable by the print head reference point.
-bool PolarKinematics::IsReachable(float x, float y, bool isCoordinated) const noexcept
+bool PolarKinematics::IsReachable(float axesCoords[MaxAxes], AxesBitmap axes, bool isCoordinated) const noexcept
 {
-	const float r2 = fsquare(x) + fsquare(y);
-	return r2 >= minRadiusSquared && r2 <= maxRadiusSquared;
+	if (axes.IsBitSet(X_AXIS) && axes.IsBitSet(Y_AXIS))
+	{
+		const float r2 = fsquare(axesCoords[X_AXIS]) + fsquare(axesCoords[Y_AXIS]);
+		if(r2 < minRadiusSquared || r2 > maxRadiusSquared)
+		{
+			return false;
+		}
+	}
+	axes.ClearBit(X_AXIS);
+	axes.ClearBit(Y_AXIS);
+	return Kinematics::IsReachable(axesCoords, axes, isCoordinated);
 }
 
 // Limit the Cartesian position that the user wants to move to, returning true if any coordinates were changed
 LimitPositionResult PolarKinematics::LimitPosition(float finalCoords[], const float * null initialCoords,
-													size_t numAxes, AxesBitmap axesHomed, bool isCoordinated, bool applyM208Limits) const noexcept
+													size_t numAxes, AxesBitmap axesToLimit, bool isCoordinated, bool applyM208Limits) const noexcept
 {
 	const bool m208Limited = (applyM208Limits)
-								? Kinematics::LimitPositionFromAxis(finalCoords, Z_AXIS, numAxes, axesHomed)	// call base class function to limit Z and higher axes
+								? Kinematics::LimitPositionFromAxis(finalCoords, Z_AXIS, numAxes, axesToLimit)	// call base class function to limit Z and higher axes
 								: false;
 	const float r2 = fsquare(finalCoords[X_AXIS]) + fsquare(finalCoords[Y_AXIS]);
 	bool radiusLimited;
 	if (r2 < minRadiusSquared)
 	{
 		radiusLimited = true;
-		const float r = sqrtf(r2);
+		const float r = fastSqrtf(r2);
 		if (r < 0.01)
 		{
 			finalCoords[X_AXIS] = minRadius;
@@ -182,7 +189,7 @@ LimitPositionResult PolarKinematics::LimitPosition(float finalCoords[], const fl
 	else if (r2 > maxRadiusSquared)
 	{
 		radiusLimited = true;
-		const float r = sqrtf(r2);
+		const float r = fastSqrtf(r2);
 		finalCoords[X_AXIS] *= maxRadius/r;
 		finalCoords[Y_AXIS] *= maxRadius/r;
 	}

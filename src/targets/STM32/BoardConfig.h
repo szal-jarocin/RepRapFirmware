@@ -10,9 +10,9 @@
 
 #include "Core.h"
 #include "RepRapFirmware.h"
-#include "MessageType.h"
+#include "Platform/MessageType.h"
 #include "ff.h"
-#include "RepRap.h"
+#include "Platform/RepRap.h"
 
 
 enum configValueType{

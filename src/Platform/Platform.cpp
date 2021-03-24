@@ -21,18 +21,19 @@
 
 #include "Platform.h"
 
-#include "Heating/Heat.h"
-#include "Movement/DDA.h"
-#include "Movement/Move.h"
-#include "Movement/StepTimer.h"
-#include "Tools/Tool.h"
-#include "Endstops/ZProbe.h"
-#include "Networking/Network.h"
-#include "PrintMonitor.h"
-#include "FilamentMonitors/FilamentMonitor.h"
+#include <Heating/Heat.h>
+#include <Movement/DDA.h>
+#include <Movement/Move.h>
+#include <Movement/StepTimer.h>
+#include <Tools/Tool.h>
+#include <Endstops/ZProbe.h>
+#include <Networking/Network.h>
+#include <PrintMonitor/PrintMonitor.h>
+#include <FilamentMonitors/FilamentMonitor.h>
 #include "RepRap.h"
+#include "Heap.h"
 #include "Scanner.h"
-#include "Version.h"
+#include <Version.h>
 #include "Logger.h"
 #include "Tasks.h"
 #include <Cache.h>
@@ -1928,6 +1929,8 @@ void Platform::Diagnostics(MessageType mtype) noexcept
 	lowestV12 = highestV12 = currentV12;
 #endif
 
+	StringHandle::Diagnostics(mtype);
+
 	// Show the motor position and stall status
 	for (size_t drive = 0; drive < NumDirectDrivers; ++drive)
 	{
@@ -2329,7 +2332,31 @@ GCodeResult Platform::DiagnosticTest(GCodeBuffer& gb, const StringRef& reply, Ou
 			}
 
 			// We no longer calculate sin and cos for doubles because it pulls in those library functions, which we don't otherwise need
-			reply.lcatf("Sine + cosine: float %.2fus", (double)((float)(tim1 * (1'000'000/iterations))/SystemCoreClock));
+			reply.lcatf("Float sine + cosine: %.2fus", (double)((float)(tim1 * (1'000'000/iterations))/SystemCoreClock));
+		}
+
+		// We also time floating point square root so we can compare it with sine/cosine in order to consider various optimisations
+		{
+			uint32_t tim1 = 0;
+			constexpr uint32_t iterations = 100;				// use a value that divides into one million
+			float val = 10000.0;
+			for (unsigned int i = 0; i < iterations; ++i)
+			{
+
+				cpu_irq_disable();
+				asm volatile("":::"memory");
+				uint32_t now1 = SysTick->VAL;
+				val = RepRap::FastSqrtf(val);
+				uint32_t now2 = SysTick->VAL;
+				asm volatile("":::"memory");
+				cpu_irq_enable();
+				now1 &= 0x00FFFFFF;
+				now2 &= 0x00FFFFFF;
+				tim1 += ((now1 > now2) ? now1 : now1 + (SysTick->LOAD & 0x00FFFFFF) + 1) - now2;
+			}
+
+			// We no longer calculate sin and cos for doubles because it pulls in those library functions, which we don't otherwise need
+			reply.lcatf("Float sqrt: %.2fus", (double)((float)(tim1 * (1'000'000/iterations))/SystemCoreClock));
 		}
 		break;
 
@@ -2629,7 +2656,7 @@ bool Platform::WriteAxisLimits(FileStore *f, AxesBitmap axesProbed, const float 
 #if SUPPORT_CAN_EXPANSION
 
 // Function to identify and iterate through all drivers attached to an axis or extruder
-void Platform::IterateDrivers(size_t axisOrExtruder, std::function<void(uint8_t)> localFunc, std::function<void(DriverId)> remoteFunc) noexcept
+void Platform::IterateDrivers(size_t axisOrExtruder, stdext::inplace_function<void(uint8_t)> localFunc, stdext::inplace_function<void(DriverId)> remoteFunc) noexcept
 {
 	if (axisOrExtruder < reprap.GetGCodes().GetTotalAxes())
 	{
@@ -2663,7 +2690,7 @@ void Platform::IterateDrivers(size_t axisOrExtruder, std::function<void(uint8_t)
 #else
 
 // Function to identify and iterate through all drivers attached to an axis or extruder
-void Platform::IterateDrivers(size_t axisOrExtruder, std::function<void(uint8_t)> localFunc) noexcept
+void Platform::IterateDrivers(size_t axisOrExtruder, stdext::inplace_function<void(uint8_t)> localFunc) noexcept
 {
 	if (axisOrExtruder < reprap.GetGCodes().GetTotalAxes())
 	{
@@ -3681,7 +3708,7 @@ GCodeResult Platform::ConfigureLogging(GCodeBuffer& gb, const StringRef& reply) 
 	if (gb.Seen('S'))
 	{
 		StopLogging();
-		const auto logLevel = (LogLevel) gb.GetLimitedUIValue('S', LogLevel::NumValues, LogLevel::off);
+		const auto logLevel = (LogLevel) gb.GetLimitedUIValue('S', LogLevel::off, LogLevel::NumValues);
 		if (logLevel > LogLevel::off)
 		{
 			// Start logging
@@ -4415,25 +4442,17 @@ float Platform::GetCurrentV12Voltage() const noexcept
 float Platform::GetTmcDriversTemperature(unsigned int boardNumber) const noexcept
 {
 #if defined(DUET3MINI)
-	const DriversBitmap mask = (boardNumber == 0)
-							? DriversBitmap::MakeLowestNBits(5)							// drivers 0-4 are on the main board
-								: DriversBitmap::MakeLowestNBits(3).ShiftUp(5);			// drivers 5-7 are on the daughter board
+	const DriversBitmap mask = DriversBitmap::MakeLowestNBits(7);						// report the 2-driver addon along with the main board
 #elif defined(DUET3)
 	const DriversBitmap mask = DriversBitmap::MakeLowestNBits(6);						// there are 6 drivers, only one board
 #elif defined(DUET_NG)
 	const DriversBitmap mask = DriversBitmap::MakeLowestNBits(5).ShiftUp(5 * boardNumber);	// there are 5 drivers on each board
 #elif defined(DUET_M)
-	const DriversBitmap mask = (boardNumber == 0)
-							? DriversBitmap::MakeLowestNBits(5)							// drivers 0-4 are on the main board
-								: DriversBitmap::MakeLowestNBits(2).ShiftUp(5);			// drivers 5-6 are on the daughter board
+	const DriversBitmap mask = DriversBitmap::MakeLowestNBits(7);						// report the 2-driver addon along with the main board
 #elif defined(PCCB_10)
 	const DriversBitmap mask = (boardNumber == 0)
 							? DriversBitmap::MakeLowestNBits(2)							// drivers 0,1 are on-board
 								: DriversBitmap::MakeLowestNBits(5).ShiftUp(2);			// drivers 2-7 are on the DueX5
-#elif defined(PCCB_08_X5)
-	const DriversBitmap mask = DriversBitmap::MakeLowestNBits(5);						// all drivers (0-4) are on the DueX, no further expansion supported
-#elif defined(PCCB_08)
-	const DriversBitmap mask = DriversBitmap::MakeLowestNBits(2);						// drivers 0, 1 are on-board, no expansion supported
 #elif LPC17xx || STM32F4
 	const DriversBitmap mask = DriversBitmap::MakeLowestNBits(MaxSmartDrivers);			// All drivers
 #else
@@ -4656,7 +4675,7 @@ GCodeResult Platform::ConfigurePort(GCodeBuffer& gb, const StringRef& reply) THR
 {
 	// Exactly one of FHJPS is allowed
 	unsigned int charsPresent = 0;
-	for (char c : (const char[]){'J', 'F', 'H', 'P', 'S'})
+	for (char c : (const char[]){'R', 'J', 'F', 'H', 'P', 'S'})
 	{
 		charsPresent <<= 1;
 		if (gb.Seen(c))
@@ -4690,9 +4709,14 @@ GCodeResult Platform::ConfigurePort(GCodeBuffer& gb, const StringRef& reply) THR
 			const uint32_t gpinNumber = gb.GetLimitedUIValue('J', MaxGpInPorts);
 			return gpinPorts[gpinNumber].Configure(gpinNumber, gb, reply);
 		}
+	case 32:
+		{
+			const uint32_t slot = gb.GetLimitedUIValue('R', MaxSpindles);
+			return spindles[slot].Configure(gb, reply);
+		}
 
 	default:
-		reply.copy("exactly one of FHJPS must be given");
+		reply.copy("exactly one of FHJPSR must be given");
 		return GCodeResult::error;
 	}
 }
@@ -4860,7 +4884,7 @@ GCodeResult Platform::EutSetMotorCurrents(const CanMessageMultipleDrivesRequest<
 	}
 
 	GCodeResult rslt = GCodeResult::ok;
-	drivers.Iterate([this, msg, reply, &rslt](unsigned int driver, unsigned int count) -> void
+	drivers.Iterate([this, &msg, &reply, &rslt](unsigned int driver, unsigned int count) -> void
 						{
 							if (driver >= NumDirectDrivers)
 							{
@@ -4890,7 +4914,7 @@ GCodeResult Platform::EutSetStepsPerMmAndMicrostepping(const CanMessageMultipleD
 	}
 
 	GCodeResult rslt = GCodeResult::ok;
-	drivers.Iterate([this, msg, reply, &rslt](unsigned int driver, unsigned int count) -> void
+	drivers.Iterate([this, &msg, &reply, &rslt](unsigned int driver, unsigned int count) -> void
 						{
 							if (driver >= NumDirectDrivers)
 							{
@@ -4924,7 +4948,7 @@ GCodeResult Platform::EutHandleSetDriverStates(const CanMessageMultipleDrivesReq
 {
 	//TODO check message is long enough for the number of drivers specified
 	const auto drivers = Bitmap<uint16_t>::MakeFromRaw(msg.driversToUpdate);
-	drivers.Iterate([this, msg](unsigned int driver, unsigned int count) -> void
+	drivers.Iterate([this, &msg](unsigned int driver, unsigned int count) -> void
 		{
 			switch (msg.values[count].mode)
 			{
@@ -4963,7 +4987,7 @@ GCodeResult Platform::EutSetRemotePressureAdvance(const CanMessageMultipleDrives
 	}
 
 	GCodeResult rslt = GCodeResult::ok;
-	drivers.Iterate([this, msg, reply, &rslt](unsigned int driver, unsigned int count) -> void
+	drivers.Iterate([this, &msg, &reply, &rslt](unsigned int driver, unsigned int count) -> void
 						{
 							if (driver >= NumDirectDrivers)
 							{

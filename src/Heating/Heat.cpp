@@ -21,12 +21,12 @@ Licence: GPL
 #include "Heat.h"
 #include "LocalHeater.h"
 #include "HeaterMonitor.h"
-#include "Platform.h"
-#include "RepRap.h"
+#include <Platform/Platform.h>
+#include <Platform/RepRap.h>
 #include "Sensors/TemperatureSensor.h"
-#include "GCodes/GCodeBuffer/GCodeBuffer.h"
+#include <GCodes/GCodeBuffer/GCodeBuffer.h>
 #include <Tools/Tool.h>
-#include <TaskPriorities.h>
+#include <Platform/TaskPriorities.h>
 #include <General/Portability.h>
 
 #if SUPPORT_DHT_SENSOR
@@ -1192,7 +1192,7 @@ bool Heat::WriteBedAndChamberTempSettings(FileStore *f) const noexcept
 void Heat::ProcessRemoteSensorsReport(CanAddress src, const CanMessageSensorTemperatures& msg) noexcept
 {
 	Bitmap<uint64_t> sensorsReported(msg.whichSensors);
-	sensorsReported.Iterate([this, src, msg](unsigned int sensor, unsigned int index)
+	sensorsReported.Iterate([this, src, &msg](unsigned int sensor, unsigned int index)
 								{
 									if (index < ARRAY_SIZE(msg.temperatureReports))
 									{
@@ -1216,7 +1216,7 @@ void Heat::ProcessRemoteSensorsReport(CanAddress src, const CanMessageSensorTemp
 void Heat::ProcessRemoteHeatersReport(CanAddress src, const CanMessageHeatersStatus& msg) noexcept
 {
 	Bitmap<uint64_t> heatersReported(msg.whichHeaters);
-	heatersReported.Iterate([this, src, msg](unsigned int heaterNum, unsigned int index)
+	heatersReported.Iterate([this, src, &msg](unsigned int heaterNum, unsigned int index)
 								{
 									if (index < ARRAY_SIZE(msg.reports))
 									{
