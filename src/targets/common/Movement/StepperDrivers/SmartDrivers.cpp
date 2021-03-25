@@ -5,10 +5,10 @@
 #include "TmcDriverState.h"
 #include "Platform/Tasks.h"
 #if SUPPORT_TMC51xx
-#include "Tmc51xxDriver.h"
+#include "TMC51xxDriver.h"
 #endif
 #if SUPPORT_TMC22xx
-#include "Tmc22xxDriver.h"
+#include "TMC22xxDriver.h"
 #endif
 static TmcDriverState **driverStates;
 static size_t numDrivers;
