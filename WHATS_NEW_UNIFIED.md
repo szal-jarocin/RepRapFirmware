@@ -1,3 +1,10 @@
+Version 3.3-beta1_4
+===================
+* STM32F4: Added additional signature for SKR pro boards
+* STM32F4: Minor SDIO improvements and bug fixes
+* STM32F4: Added board definition for FLY E3-Pro
+* STM32F4: Allow Vin value to settle before first reading.
+
 Version 3.3-beta1_3
 ===================
 * Duet3D V3.3-beta1 support
