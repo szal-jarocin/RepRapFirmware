@@ -881,6 +881,10 @@ void Platform::Init() noexcept
 #ifdef DUET_NG
 	DuetExpansion::DueXnTaskInit();								// must initialise interrupt priorities before calling this
 #endif
+#if STM32F4
+	// Give ADC readings time to settle
+	delay(500);
+#endif
 	active = true;
 }
 
