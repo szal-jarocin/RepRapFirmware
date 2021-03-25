@@ -19,7 +19,7 @@
 #include <Endstops/Endstop.h>
 #include <General/Portability.h>
 #include "TmcDriverState.h"
-#include "Tmc51xxDriver.h"
+#include "TMC51xxDriver.h"
 
 
 static inline const Move& GetMoveInstance() noexcept { return reprap.GetMove(); }
