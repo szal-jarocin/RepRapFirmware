@@ -217,7 +217,7 @@ constexpr float EXT_SHC = 0.0;
 // Thermistor series resistor value in Ohms
 constexpr float DefaultThermistorSeriesR = 4700.0;
 
-constexpr size_t MaxSpiTempSensors = 2;
+constexpr size_t MaxSpiTempSensors = 4;
 extern Pin SpiTempSensorCsPins[MaxSpiTempSensors];  // Digital pins the 31855s have their select lines tied to
 extern SSPChannel TempSensorSSPChannel;
 
