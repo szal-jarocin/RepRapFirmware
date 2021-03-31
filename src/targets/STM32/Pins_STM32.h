@@ -217,7 +217,7 @@ constexpr float EXT_SHC = 0.0;
 // Thermistor series resistor value in Ohms
 constexpr float DefaultThermistorSeriesR = 4700.0;
 
-constexpr size_t MaxSpiTempSensors = 2;
+constexpr size_t MaxSpiTempSensors = 4;
 extern Pin SpiTempSensorCsPins[MaxSpiTempSensors];  // Digital pins the 31855s have their select lines tied to
 extern SSPChannel TempSensorSSPChannel;
 
@@ -393,7 +393,7 @@ constexpr BoardEntry LPC_Boards[] =
     {"fly_f407zg",      PinTable_FLY_F407ZG,    ARRAY_SIZE(PinTable_FLY_F407ZG),    fly_f407zg_Defaults},
     {"fly_e3",      PinTable_FLY_E3,    ARRAY_SIZE(PinTable_FLY_E3),    fly_e3_Defaults},
     {"fly_cdyv2",      PinTable_FLY_CDYV2,    ARRAY_SIZE(PinTable_FLY_CDYV2),    fly_cdyv2_Defaults},
-    {"biquskr_rrf_e3_1.0",      PinTable_BTT_RRF_E3_v1_0,    ARRAY_SIZE(PinTable_BTT_RRF_E3_v1_0),    btt_rrf_e3_1_0_Defaults},
+    {"biquskr_rrf_e3_1.1",      PinTable_BTT_RRF_E3_v1_1,    ARRAY_SIZE(PinTable_BTT_RRF_E3_v1_1),    btt_rrf_e3_1_1_Defaults},
     {"generic",      PinTable_Generic,    ARRAY_SIZE(PinTable_Generic),    Generic_Defaults},    
 };
 
