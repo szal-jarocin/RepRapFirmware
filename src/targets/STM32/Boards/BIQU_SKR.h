@@ -273,7 +273,7 @@ constexpr BoardDefaults biqu_gtr_1_0_Defaults = {
 #endif
 };
 
-constexpr PinEntry PinTable_BTT_RRF_E3_v1_0[] =
+constexpr PinEntry PinTable_BTT_RRF_E3_v1_1[] =
 {
     //Thermistors
     {PA_0, "e0temp,th0"},
@@ -363,7 +363,7 @@ constexpr PinEntry PinTable_BTT_RRF_E3_v1_0[] =
 	{PB_11, "PB11"},
 };
 
-constexpr BoardDefaults btt_rrf_e3_1_0_Defaults = {
+constexpr BoardDefaults btt_rrf_e3_1_1_Defaults = {
     {0x94a2cc03},                 				// Signatures
     SD_SPI1_B,                                  // SD Card access
     {   //CLK, MISO, MOSI
