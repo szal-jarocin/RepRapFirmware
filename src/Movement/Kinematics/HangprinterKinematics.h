@@ -8,9 +8,9 @@
 #ifndef SRC_MOVEMENT_KINEMATICS_HANGPRINTERKINEMATICS_H_
 #define SRC_MOVEMENT_KINEMATICS_HANGPRINTERKINEMATICS_H_
 
-#include "Kinematics.h"
+#include "RoundBedKinematics.h"
 
-class HangprinterKinematics : public Kinematics
+class HangprinterKinematics : public RoundBedKinematics
 {
 public:
 	// Constructors
@@ -27,8 +27,7 @@ public:
 #if HAS_MASS_STORAGE
 	bool WriteCalibrationParameters(FileStore *f) const noexcept override;
 #endif
-	bool IsReachable(float x, float y, bool isCoordinated) const noexcept override;
-	LimitPositionResult LimitPosition(float finalCoords[], const float * null initialCoords, size_t numAxes, AxesBitmap axesHomed, bool isCoordinated, bool applyM208Limits) const noexcept override;
+	LimitPositionResult LimitPosition(float finalCoords[], const float * null initialCoords, size_t numAxes, AxesBitmap axesToLimit, bool isCoordinated, bool applyM208Limits) const noexcept override;
 	void GetAssumedInitialPosition(size_t numAxes, float positions[]) const noexcept override;
 	size_t NumHomingButtons(size_t numVisibleAxes) const noexcept override { return 0; }
 	const char* HomingButtonNames() const noexcept override { return "ABCD"; }
@@ -41,8 +40,6 @@ public:
 #if HAS_MASS_STORAGE
 	bool WriteResumeSettings(FileStore *f) const noexcept override;
 #endif
-	void LimitSpeedAndAcceleration(DDA& dda, const float *normalisedDirectionVector, size_t numVisibleAxes, bool continuousRotationShortcut) const noexcept override;
-	AxesBitmap GetLinearAxes() const noexcept override;
 
 protected:
 	DECLARE_OBJECT_MODEL
@@ -51,9 +48,6 @@ protected:
 	OBJECT_MODEL_ARRAY(anchorC)
 
 private:
-	static constexpr float DefaultSegmentsPerSecond = 100.0;
-	static constexpr float DefaultMinSegmentSize = 0.2;
-
 	// Basic facts about movement system
 	static constexpr size_t HANGPRINTER_AXES = 4;
 	static constexpr size_t A_AXIS = 0;
@@ -75,7 +69,6 @@ private:
 	float printRadius;
 
 	// Derived parameters
-	float printRadiusSquared;
 	float Da2, Db2, Dc2;
 	float Xab, Xbc, Xca;
 	float Yab, Ybc, Yca;

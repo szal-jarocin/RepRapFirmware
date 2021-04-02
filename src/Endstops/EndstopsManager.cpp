@@ -16,11 +16,11 @@
 #include "LocalZProbe.h"
 #include "RemoteZProbe.h"
 
-#include "RepRap.h"
-#include "GCodes/GCodeBuffer/GCodeBuffer.h"
-#include "GCodes/GCodes.h"
-#include "Movement/Move.h"
-#include <OutputMemory.h>
+#include <Platform/RepRap.h>
+#include <GCodes/GCodeBuffer/GCodeBuffer.h>
+#include <GCodes/GCodes.h>
+#include <Movement/Move.h>
+#include <Platform/OutputMemory.h>
 #include <Heating/Heat.h>
 #include <Heating/Sensors/TemperatureSensor.h>
 
@@ -256,13 +256,13 @@ bool EndstopsManager::EnableExtruderEndstops(ExtrudersBitmap extruders) noexcept
 
 // Check the endstops.
 // If an endstop has triggered, remove it from the active list and return its details
-EndstopHitDetails EndstopsManager::CheckEndstops(bool goingSlow) noexcept
+EndstopHitDetails EndstopsManager::CheckEndstops() noexcept
 {
 	EndstopHitDetails ret;									// the default constructor will clear all fields
 	EndstopOrZProbe *actioned = nullptr;
 	for (EndstopOrZProbe *esp = activeEndstops; esp != nullptr; esp = esp->GetNext())
 	{
-		EndstopHitDetails hd = esp->CheckTriggered(goingSlow);
+		EndstopHitDetails hd = esp->CheckTriggered();
 		if (hd.GetAction() == EndstopHitAction::stopAll)
 		{
 			activeEndstops = nullptr;						// no need to do anything else
@@ -280,7 +280,7 @@ EndstopHitDetails EndstopsManager::CheckEndstops(bool goingSlow) noexcept
 		}
 	}
 
-	if (ret.GetAction() > EndstopHitAction::reduceSpeed)
+	if (ret.GetAction() != EndstopHitAction::none)
 	{
 		if (actioned->Acknowledge(ret))
 		{
@@ -506,9 +506,9 @@ bool EndstopsManager::HomingZWithProbe() const noexcept
 	return axisEndstops[Z_AXIS] == nullptr || axisEndstops[Z_AXIS]->GetEndstopType() == EndStopType::zProbeAsEndstop;
 }
 
-EndStopHit EndstopsManager::Stopped(size_t axis) const noexcept
+bool EndstopsManager::Stopped(size_t axis) const noexcept
 {
-	return (axisEndstops[axis] == nullptr) ? EndStopHit::noStop : axisEndstops[axis]->Stopped();
+	return (axisEndstops[axis] != nullptr) && axisEndstops[axis]->Stopped();
 }
 
 void EndstopsManager::GetM119report(const StringRef& reply) noexcept
@@ -524,20 +524,14 @@ void EndstopsManager::GetM119report(const StringRef& reply) noexcept
 	reply.catf("Z probe: %s", TranslateEndStopResult(GetZProbeOrDefault(0)->Stopped(), false));
 }
 
-const char *EndstopsManager::TranslateEndStopResult(EndStopHit es, bool atHighEnd) noexcept
+const char *EndstopsManager::TranslateEndStopResult(bool hit, bool atHighEnd) noexcept
 {
-	switch (es)
+	if (hit)
 	{
-	case EndStopHit::atStop:
 		return (atHighEnd) ? "at max stop" : "at min stop";
-
-	case EndStopHit::nearStop:
-		return "near stop";
-
-	case EndStopHit::noStop:
-	default:
-		return "not stopped";
 	}
+
+	return "not stopped";
 }
 
 void EndstopsManager::SetZProbeDefaults() noexcept

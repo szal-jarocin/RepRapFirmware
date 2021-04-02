@@ -7,10 +7,10 @@
 
 #include "ZLeadscrewKinematics.h"
 
-#include "RepRap.h"
-#include "Platform.h"
-#include "Movement/Move.h"
-#include "GCodes/GCodeBuffer/GCodeBuffer.h"
+#include <Platform/RepRap.h>
+#include <Platform/Platform.h>
+#include <Movement/Move.h>
+#include <GCodes/GCodeBuffer/GCodeBuffer.h>
 
 const float M3ScrewPitch = 0.5;
 
@@ -69,12 +69,12 @@ DEFINE_GET_OBJECT_MODEL_TABLE(ZLeadscrewKinematics)
 #endif
 
 ZLeadscrewKinematics::ZLeadscrewKinematics(KinematicsType k) noexcept
-	: Kinematics(k, -1.0, 0.0, true), numLeadscrews(0), correctionFactor(1.0), maxCorrection(1.0), screwPitch(M3ScrewPitch)
+	: Kinematics(k, false, true), numLeadscrews(0), correctionFactor(1.0), maxCorrection(1.0), screwPitch(M3ScrewPitch)
 {
 }
 
-ZLeadscrewKinematics::ZLeadscrewKinematics(KinematicsType k, float segsPerSecond, float minSegLength, bool doUseRawG0) noexcept
-	: Kinematics(k, segsPerSecond, minSegLength, doUseRawG0), numLeadscrews(0), correctionFactor(1.0), maxCorrection(1.0), screwPitch(M3ScrewPitch)
+ZLeadscrewKinematics::ZLeadscrewKinematics(KinematicsType k, bool doUseSegmentation, bool doUseRawG0) noexcept
+	: Kinematics(k, doUseSegmentation, doUseRawG0), numLeadscrews(0), correctionFactor(1.0), maxCorrection(1.0), screwPitch(M3ScrewPitch)
 {
 }
 

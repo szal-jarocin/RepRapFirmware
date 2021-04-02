@@ -23,9 +23,9 @@ public:
 	StallDetectionEndstop() noexcept;							// for creating the single extruders endstop
 
 	EndStopType GetEndstopType() const noexcept override { return (individualMotors) ? EndStopType::motorStallIndividual : EndStopType::motorStallAny; }
-	EndStopHit Stopped() const noexcept override;
+	bool Stopped() const noexcept override;
 	bool Prime(const Kinematics& kin, const AxisDriversConfig& axisDrivers) noexcept override;
-	EndstopHitDetails CheckTriggered(bool goingSlow) noexcept override;
+	EndstopHitDetails CheckTriggered() noexcept override;
 	bool Acknowledge(EndstopHitDetails what) noexcept override;
 	void AppendDetails(const StringRef& str) noexcept override;
 	void SetDrivers(DriversBitmap extruderDrivers) noexcept;		// for setting which local extruder drives are active extruder endstops

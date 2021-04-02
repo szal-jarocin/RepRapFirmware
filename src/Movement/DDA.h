@@ -11,7 +11,7 @@
 #include <RepRapFirmware.h>
 #include "DriveMovement.h"
 #include "StepTimer.h"
-#include <Tasks.h>
+#include <Platform/Tasks.h>
 #include <GCodes/GCodes.h>			// for class RawMove
 
 #ifdef DUET_NG
@@ -45,14 +45,14 @@ public:
 	void operator delete(void* ptr) noexcept {}
 	void operator delete(void* ptr, std::align_val_t align) noexcept {}
 
-	bool InitStandardMove(DDARing& ring, const RawMove &nextMove, bool doMotorMapping) noexcept  SPEED_CRITICAL;	// Set up a new move, returning true if it represents real movement
+	bool InitStandardMove(DDARing& ring, const RawMove &nextMove, bool doMotorMapping) noexcept SPEED_CRITICAL;	// Set up a new move, returning true if it represents real movement
 	bool InitLeadscrewMove(DDARing& ring, float feedrate, const float amounts[MaxDriversPerAxis]) noexcept;		// Set up a leadscrew motor move
 #if SUPPORT_ASYNC_MOVES
 	bool InitAsyncMove(DDARing& ring, const AsyncMove& nextMove) noexcept;			// Set up an async move
 #endif
 
-	void Start(Platform& p, uint32_t tim) noexcept SPEED_CRITICAL;	// Start executing the DDA, i.e. move the move.
-	void StepDrivers(Platform& p) noexcept SPEED_CRITICAL;			// Take one step of the DDA, called by timed interrupt.
+	void Start(Platform& p, uint32_t tim) noexcept SPEED_CRITICAL;					// Start executing the DDA, i.e. move the move.
+	void StepDrivers(Platform& p) noexcept SPEED_CRITICAL;							// Take one step of the DDA, called by timed interrupt.
 	bool ScheduleNextStepInterrupt(StepTimer& timer) const noexcept SPEED_CRITICAL;	// Schedule the next interrupt, returning true if we can't because it is already due
 
 	void SetNext(DDA *n) noexcept { next = n; }
@@ -176,18 +176,21 @@ public:
 #endif
 
 #if SUPPORT_LASER || SUPPORT_IOBITS
-	bool ControlLaser() const { return flags.controlLaser; }
+	bool ControlLaser() const noexcept { return flags.controlLaser; }
 #endif
 
 	static uint32_t lastStepLowTime;										// when we last completed a step pulse to a slow driver
 	static uint32_t lastDirChangeTime;										// when we last change the DIR signal to a slow driver
+
+#if 0	// debug only
+	static uint32_t stepsRequested[NumDirectDrivers], stepsDone[NumDirectDrivers];
+#endif
 
 private:
 	DriveMovement *FindDM(size_t drive) const noexcept;						// find the DM for a drive if there is one even if it is completed
 	DriveMovement *FindActiveDM(size_t drive) const noexcept;				// find the DM for a drive if there is one but only if it is active
 	void RecalculateMove(DDARing& ring) noexcept SPEED_CRITICAL;
 	void MatchSpeeds() noexcept SPEED_CRITICAL;
-	void ReduceHomingSpeed() noexcept;										// called to reduce homing speed when a near-endstop is triggered
 	void StopDrive(size_t drive) noexcept;									// stop movement of a drive and recalculate the endpoint
 	void InsertDM(DriveMovement *dm) noexcept SPEED_CRITICAL;
 	void DeactivateDM(size_t drive) noexcept;
@@ -201,7 +204,7 @@ private:
 	int32_t PrepareRemoteExtruder(size_t drive, float& extrusionPending, float speedChange) const noexcept;
 #endif
 
-	static void DoLookahead(DDARing& ring, DDA *laDDA) noexcept  SPEED_CRITICAL;	// Try to smooth out moves in the queue
+	static void DoLookahead(DDARing& ring, DDA *laDDA) noexcept SPEED_CRITICAL;	// Try to smooth out moves in the queue
     static float Normalise(float v[], AxesBitmap unitLengthAxes) noexcept;  // Normalise a vector to unit length over the specified axes
     static float Normalise(float v[]) noexcept; 							// Normalise a vector to unit length over all axes
 	float NormaliseLinearMotion(AxesBitmap linearAxes) noexcept;			// Make the direction vector unit-normal in XYZ
@@ -228,7 +231,6 @@ private:
 					 usePressureAdvance : 1,		// True if pressure advance should be applied to any forward extrusion
 					 hadLookaheadUnderrun : 1,		// True if the lookahead queue was not long enough to optimise this move
 					 xyMoving : 1,					// True if movement along an X axis or the Y axis was requested, even it if's too small to do
-					 goingSlow : 1,					// True if we have slowed the movement because the Z probe is approaching its threshold
 					 isLeadscrewAdjustmentMove : 1,	// True if this is a leadscrews adjustment move
 					 usingStandardFeedrate : 1,		// True if this move uses the standard feed rate
 					 isNonPrintingExtruderMove : 1,	// True if this move is a fast extruder-only move, probably a retract/re-prime
@@ -288,7 +290,9 @@ private:
 			int32_t extraAccelerationClocks;	// the additional number of clocks needed because we started the move at less than topSpeed. Negative after ReduceHomingSpeed has been called.
 
 			// These are used only in delta calculations
+#if !DM_USE_FPU
 			int32_t cKc;						// The Z movement fraction multiplied by Kc and converted to integer
+#endif
 
 #if SUPPORT_CAN_EXPANSION
 			DriversBitmap drivesMoving;			// bitmap of logical drives moving - needed to keep track of whether remote drives are moving
@@ -300,7 +304,7 @@ private:
 #if DDA_LOG_PROBE_CHANGES
 	static bool probeTriggered;
 
-	void LogProbePosition();
+	void LogProbePosition() noexcept;
 #endif
 
 	DriveMovement* activeDMs;					// list of associated DMs that need steps, in step time order

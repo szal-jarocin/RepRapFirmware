@@ -7,10 +7,10 @@
 
 #include "GCodeQueue.h"
 
-#include "RepRap.h"
+#include <Platform/RepRap.h>
 #include "GCodes.h"
 #include "GCodeBuffer/GCodeBuffer.h"
-#include "Movement/Move.h"
+#include <Movement/Move.h>
 
 // GCodeQueue class
 
@@ -67,6 +67,7 @@ GCodeQueue::GCodeQueue() noexcept : freeItems(nullptr), queuedItems(nullptr)
 				case 280:	// set servo
 				case 300:	// beep
 				case 420:	// set RGB colour
+				case 568:	// spindle or temperature control
 					return true;
 
 				case 291:

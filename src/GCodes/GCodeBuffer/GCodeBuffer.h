@@ -11,13 +11,11 @@
 #include "BinaryParser.h"
 #include "StringParser.h"
 
-#include "RepRapFirmware.h"
-#include "GCodes/GCodeChannel.h"
-#include "GCodes/GCodeMachineState.h"
-#include "GCodes/GCodeResult.h"
-#include "Linux/LinuxMessageFormats.h"
-#include "MessageType.h"
-#include "ObjectModel/ObjectModel.h"
+#include <RepRapFirmware.h>
+#include <GCodes/GCodeChannel.h>
+#include <GCodes/GCodeMachineState.h>
+#include <Linux/LinuxMessageFormats.h>
+#include <ObjectModel/ObjectModel.h>
 
 class FileGCodeInput;
 
@@ -49,7 +47,7 @@ public:
 	void Init() noexcept;														// Set it up to parse another G-code
 	void Diagnostics(MessageType mtype) noexcept;								// Write some debug info
 
-	bool Put(char c) noexcept SPEED_CRITICAL;								// Add a character to the end
+	bool Put(char c) noexcept SPEED_CRITICAL;									// Add a character to the end
 #if HAS_LINUX_INTERFACE
 	void PutBinary(const uint32_t *data, size_t len) noexcept;					// Add an entire binary G-Code, overwriting any existing content
 #endif
@@ -66,23 +64,30 @@ public:
 	int8_t GetCommandFraction() const noexcept;										// Return the command fraction, or -1 if none given
 	bool ContainsExpression() const noexcept;
 	void GetCompleteParameters(const StringRef& str) THROWS(GCodeException);		// Get all of the line following the command. Currently called only for the Q0 command.
-	int32_t GetLineNumber() const noexcept { return machineState->lineNumber; }
+	int32_t GetLineNumber() const noexcept { return CurrentFileMachineState().lineNumber; }
 	bool IsLastCommand() const noexcept;
 	GCodeResult GetLastResult() const noexcept { return lastResult; }
 	void SetLastResult(GCodeResult r) noexcept { lastResult = r; }
 
-	bool Seen(char c) noexcept SPEED_CRITICAL;								// Is a character present?
+	bool Seen(char c) noexcept SPEED_CRITICAL;										// Is a character present?
 	void MustSee(char c) THROWS(GCodeException);									// Test for character present, throw error if not
+	char MustSee(char c1, char c2) THROWS(GCodeException);							// Test for one of two characters present, throw error if not
 
-	float GetFValue() THROWS(GCodeException) SPEED_CRITICAL;					// Get a float after a key letter
+	float GetFValue() THROWS(GCodeException) SPEED_CRITICAL;						// Get a float after a key letter
 	float GetDistance() THROWS(GCodeException);										// Get a distance or coordinate and convert it from inches to mm if necessary
-	int32_t GetIValue() THROWS(GCodeException) SPEED_CRITICAL;				// Get an integer after a key letter
+	int32_t GetIValue() THROWS(GCodeException) SPEED_CRITICAL;						// Get an integer after a key letter
 	int32_t GetLimitedIValue(char c, int32_t minValue, int32_t maxValue) THROWS(GCodeException)
+		pre(minvalue <= maxValue)
 		post(minValue <= result; result <= maxValue);								// Get an integer after a key letter
 	uint32_t GetUIValue() THROWS(GCodeException);									// Get an unsigned integer value
-	uint32_t GetLimitedUIValue(char c, uint32_t maxValuePlusOne, uint32_t minValue = 0) THROWS(GCodeException)
-		pre(maxValuePlusOne > minValue)
-		post(result >= minValue; result < maxValuePlusOne);							// Get an unsigned integer value, throw if outside limits
+	uint32_t GetLimitedUIValue(char c, uint32_t minValue, uint32_t maxValuePlusOne) THROWS(GCodeException)		// Get an unsigned integer value, throw if outside limits
+		pre(maxValuePlusOne > minValue)												// Get an unsigned integer value, throw if outside limits
+		post(result >= minValue; result < maxValuePlusOne);
+	uint32_t GetLimitedUIValue(char c, uint32_t maxValuePlusOne) THROWS(GCodeException)
+		post(result < maxValuePlusOne) { return GetLimitedUIValue(c, 0, maxValuePlusOne); }
+	float GetLimitedFValue(char c, float minValue, float maxValue) THROWS(GCodeException)
+		pre(minvalue <= maxValue)
+		post(minValue <= result; result <= maxValue);								// Get a float after a key letter
 	void GetIPAddress(IPAddress& returnedIp) THROWS(GCodeException);				// Get an IP address quad after a key letter
 	void GetMacAddress(MacAddress& mac) THROWS(GCodeException);						// Get a MAC address sextet after a key letter
 	PwmFrequency GetPwmFrequency() THROWS(GCodeException);							// Get a PWM frequency
@@ -116,8 +121,12 @@ public:
 
 	void SetCommsProperties(uint32_t arg) noexcept;
 
-	GCodeMachineState& MachineState() const noexcept { return *machineState; }
+	GCodeMachineState& LatestMachineState() const noexcept { return *machineState; }
+	GCodeMachineState& CurrentFileMachineState() const noexcept;
 	GCodeMachineState& OriginalMachineState() const noexcept;
+	GCodeMachineState::BlockState& GetBlockState() const noexcept { return CurrentFileMachineState().CurrentBlockState(); }
+	uint16_t GetBlockIndent() const noexcept { return GetBlockState().GetIndent(); }
+
 	float ConvertDistance(float distance) const noexcept;
 	float InverseConvertDistance(float distance) const noexcept;
 	unsigned int GetStackDepth() const noexcept;
@@ -216,6 +225,9 @@ public:
 	void MotionCommanded() noexcept { motionCommanded = true; }
 	void MotionStopped() noexcept { motionCommanded = false; }
 	bool WasMotionCommanded() const noexcept { return motionCommanded; }
+
+	void SetParameters(int codeRunning) noexcept;
+	VariableSet& GetVariables() const noexcept;
 
 	Mutex mutex;
 

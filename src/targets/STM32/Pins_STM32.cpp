@@ -9,7 +9,7 @@
 //All I/Os default to input with pullup after reset (9.2.1 from manual)
 
 Pin TEMP_SENSE_PINS[NumThermistorInputs];
-Pin SpiTempSensorCsPins[MaxSpiTempSensors] = { NoPin, NoPin };
+Pin SpiTempSensorCsPins[MaxSpiTempSensors] = { NoPin, NoPin, NoPin, NoPin };
 SSPChannel TempSensorSSPChannel = SSPNONE;   //default SPI Temp sensor on SSP1
 
 Pin ATX_POWER_PIN = NoPin;                  // Pin to use to control external power

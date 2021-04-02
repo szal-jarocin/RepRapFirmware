@@ -27,6 +27,9 @@ For generic RepRapFirmware questions, please use the [Duet Forum](forum.duet.com
 
 **The LPC/STM port is experimental and is likely to contain bugs - Use at your own risk**
 
-Licence
-=======
+# Licence
 The source files in this project are licensed under GPLv3, see http://www.gnu.org/licenses/gpl-3.0.en.html. 
+
+# Documentation
+All documentation has been moved to the [RepRapFirmware GitHub Wiki](https://github.com/Duet3D/RepRapFirmware/wiki).
+

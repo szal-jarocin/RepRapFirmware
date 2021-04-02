@@ -18,7 +18,7 @@
 #if SUPPORT_TMC22xx
 #include "TMCSoftUART.h"
 #include "TMC22xx.h"
-#include "RepRap.h"
+#include "Platform/RepRap.h"
 #include "HardwareTimer.h"
 #include "Movement/Move.h"
 #include "Movement/StepTimer.h"

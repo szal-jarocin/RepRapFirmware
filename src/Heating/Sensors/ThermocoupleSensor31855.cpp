@@ -46,9 +46,9 @@
 // used by anything else as the Arduino Due leaves pin 78 unconnected.
 
 #include "ThermocoupleSensor31855.h"
-#include "RepRap.h"
-#include "Platform.h"
-#include "GCodes/GCodeBuffer/GCodeBuffer.h"
+#include <Platform/RepRap.h>
+#include <Platform/Platform.h>
+#include <GCodes/GCodeBuffer/GCodeBuffer.h>
 
 #if SUPPORT_REMOTE_COMMANDS
 # include <CanMessageGenericParser.h>
@@ -116,6 +116,15 @@ void ThermocoupleSensor31855::Poll() noexcept
 {
 	uint32_t rawVal;
 	TemperatureError sts = DoSpiTransaction(nullptr, 4, rawVal);
+#if STM32F4
+	// Some STM32F4 boards have 31855 sensors but the board is wired for 6675 devices and
+	// so has T- wired to ground. This produces a permanent short to ground error.
+	// So we mask this out. Not nice!
+	if ((rawVal & 0x00010007) == 0x00010002)
+		rawVal &= ~0x00010002;
+	else
+		rawVal &= ~0x00000002;
+#endif
 	if (sts != TemperatureError::success)
 	{
 		SetResult(sts);
@@ -169,7 +178,6 @@ void ThermocoupleSensor31855::Poll() noexcept
 		{
 			rawVal >>= 18;							// shift the 14-bit temperature data to the bottom of the word
 			rawVal |= (0 - (rawVal & 0x2000));		// sign-extend the sign bit
-
 			// And convert to from units of 1/4C to 1C
 			SetResult((float)(0.25 * (float)(int32_t)rawVal), TemperatureError::success);
 		}

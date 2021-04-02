@@ -121,16 +121,16 @@ public:
 	// Usually this is only relevant if we are auto calibrating the bed tilt, however you can also specify bed tilt manually if you wanted to.
 	virtual float GetTiltCorrection(size_t axis) const noexcept { return 0.0; }
 
-	// Return true if the specified XY position is reachable by the print head reference point.
+	// Return true if the positions specified for the axes in the AxesBitmap are reachable by the print head reference point.
 	// The default implementation assumes a rectangular reachable area, so it just uses the bed dimensions give in the M208 commands.
-	virtual bool IsReachable(float x, float y, bool isCoordinated) const noexcept;
+	virtual bool IsReachable(float axesCoords[MaxAxes], AxesBitmap axes, bool isCoordinated) const noexcept;
 
 	// Limit the Cartesian position that the user wants to move to, returning true if any coordinates were changed
 	// The default implementation just applies the rectangular limits set up by M208 to those axes that have been homed.
 	// applyM208Limits determines whether the m208 limits are applied, otherwise just the geometric limitations of the architecture are applied.
 	// If initialCoords is null, just limit the final coordinates; else limit all points on a straight line between the two.
 	virtual LimitPositionResult LimitPosition(float finalCoords[], const float * null initialCoords,
-												size_t numVisibleAxes, AxesBitmap axesHomed, bool isCoordinated, bool applyM208Limits) const noexcept;
+												size_t numVisibleAxes, AxesBitmap axesToLimit, bool isCoordinated, bool applyM208Limits) const noexcept;
 
 	// Return the set of axes that must have been homed before bed probing is allowed
 	// The default implementation requires just X and Y, but some kinematics require additional axes to be homed (e.g. delta, CoreXZ)
@@ -208,16 +208,20 @@ public:
 	bool UseRawG0() const noexcept { return useRawG0; }
 	float GetSegmentsPerSecond() const noexcept pre(UseSegmentation()) { return segmentsPerSecond; }
 	float GetMinSegmentLength() const noexcept pre(UseSegmentation()) { return minSegmentLength; }
+	float GetReciprocalMinSegmentLength() const noexcept pre(UseSegmentation()) { return reciprocalMinSegmentLength; }
 
 protected:
 	DECLARE_OBJECT_MODEL_VIRTUAL
 
 	// Constructor. Pass segsPerSecond <= 0.0 to get non-segmented motion.
-	Kinematics(KinematicsType t, float segsPerSecond, float minSegLength, bool doUseRawG0) noexcept;
+	Kinematics(KinematicsType t, bool doUseSegmentation, bool doUseRawG0) noexcept;
 
 	// Apply the M208 limits to the Cartesian position that the user wants to move to for all axes from the specified one upwards
 	// Return true if any coordinates were changed
 	bool LimitPositionFromAxis(float coords[], size_t firstAxis, size_t numVisibleAxes, AxesBitmap axesHomed) const noexcept;
+
+	// Try to configure the segmentation parameters
+	bool TryConfigureSegmentation(GCodeBuffer& gb) noexcept;
 
 	// Debugging functions
 	static void PrintMatrix(const char* s, const MathMatrix<float>& m, size_t numRows = 0, size_t maxCols = 0) noexcept;
@@ -227,10 +231,15 @@ protected:
 
 	float segmentsPerSecond;				// if we are using segmentation, the target number of segments/second
 	float minSegmentLength;					// if we are using segmentation, the minimum segment size
+	float reciprocalMinSegmentLength;		// if we are using segmentation, the reciprocal of minimum segment size
 
 	static const char * const HomeAllFileName;
 
 private:
+	// Default values for those kinematics that always use segmentation
+	static constexpr float DefaultSegmentsPerSecond = 100.0;
+	static constexpr float DefaultMinSegmentLength = 0.2;
+
 	bool useSegmentation;					// true if we have to approximate linear movement using segmentation
 	bool useRawG0;							// true if we normally use segmentation but we do not need to segment travel moves
 	KinematicsType type;

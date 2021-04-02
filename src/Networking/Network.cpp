@@ -9,8 +9,12 @@
 #define NO_STATUS_CODES
 
 #include "Network.h"
-#include <Platform.h>
-#include <RepRap.h>
+#include <Platform/Platform.h>
+#include <Platform/RepRap.h>
+#include <General/IP4String.h>
+#include <Version.h>
+#include <Movement/StepTimer.h>
+#include <Platform/TaskPriorities.h>
 
 #if HAS_NETWORKING
 #include "NetworkBuffer.h"
@@ -41,10 +45,6 @@
 #if SUPPORT_TELNET
 #include "TelnetResponder.h"
 #endif
-#include <General/IP4String.h>
-#include <Version.h>
-#include <Movement/StepTimer.h>
-#include <TaskPriorities.h>
 
 #if LPC17xx
 constexpr size_t NetworkStackWords = 575;
@@ -54,7 +54,7 @@ constexpr size_t NetworkStackWords = 1000;				// needs to be enough to support r
 constexpr size_t NetworkStackWords = 600;				// needs to be enough to support rr_model
 #endif
 
-static Task<NetworkStackWords> networkTask;
+static TASKMEM Task<NetworkStackWords> networkTask;
 
 #else
 const char * const notSupportedText = "Networking is not supported on this hardware";

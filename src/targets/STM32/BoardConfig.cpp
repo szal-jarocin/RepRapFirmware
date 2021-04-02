@@ -18,7 +18,7 @@
 #include "sd_mmc.h"
 #include "SPI.h"
 #include "HardwareSPI.h"
-#include "Platform.h"
+#include "Platform/Platform.h"
 
 #include "HybridPWM.h"
 #include "ff.h"
@@ -409,12 +409,15 @@ static SSPChannel InitSDCard(uint32_t boardSig, FATFS *fs)
     return SSPNONE;
 }
 
+extern char _sccmram;						// defined in linker script
+extern char _eccmram;					// defined in linker script
+
 void BoardConfig::Init() noexcept
 {
 
     constexpr char boardConfigPath[] = "0:/sys/board.txt";
     FIL configFile;
-    FATFS fs;
+    FATFS *fs = new FATFS;
     FRESULT rslt;
     SSPChannel sdChannel;
 
@@ -438,7 +441,7 @@ void BoardConfig::Init() noexcept
     sd_mmc_init(SdWriteProtectPins, SdSpiCSPins);
 #endif
     // Mount the internal SD card
-    sdChannel = InitSDCard(signature, &fs);
+    sdChannel = InitSDCard(signature, fs);
     if (sdChannel != SSPNONE)
     {
         //Open File
@@ -474,7 +477,7 @@ void BoardConfig::Init() noexcept
         BoardConfig::GetConfigKeys(&configFile, boardConfigs, (size_t) ARRAY_SIZE(boardConfigs));
         f_close(&configFile);
         f_unmount ("0:");
-        
+        delete fs;
         //Calculate STEP_DRIVER_MASK (used for parallel writes)
         STEP_DRIVER_MASK = 0;
         // Currently not implemented for STM32

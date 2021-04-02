@@ -24,20 +24,11 @@ Licence: GPL
 #include <GCodes/GCodeFileInfo.h>
 #include <ObjectModel/ObjectModel.h>
 
-const float LAYER_HEIGHT_TOLERANCE = 0.015;			// Tolerance for comparing two Z heights (in mm)
-
-const size_t MAX_LAYER_SAMPLES = 5;					// Number of layer samples for end-time estimation (except for first layer)
-const float ESTIMATION_MIN_FILAMENT_USAGE = 0.01;	// Minimum per cent of filament to be printed before the filament-based estimation returns values
-const float ESTIMATION_MIN_FILE_USAGE = 0.001;		// Minimum per cent of the file to be processed before any file-based estimations are made
-const float FIRST_LAYER_SPEED_FACTOR = 0.25;		// First layer speed factor compared to other layers (only for layer-based estimation)
-
-const uint32_t PRINTMONITOR_UPDATE_INTERVAL = 200;	// Update interval in milliseconds
-
 enum PrintEstimationMethod
 {
 	filamentBased,
 	fileBased,
-	layerBased
+	slicerBased
 };
 
 class PrintMonitor INHERIT_OBJECT_MODEL
@@ -57,56 +48,62 @@ public:
 
 	// Return an estimate in seconds based on a specific estimation method
 	float EstimateTimeLeft(PrintEstimationMethod method) const noexcept;
-#if SUPPORT_OBJECT_MODEL
-	ExpressionValue EstimateTimeLeftAsExpression(PrintEstimationMethod method) const noexcept;
-#endif
 
 	// Provide some information about the file being printed
 	unsigned int GetCurrentLayer() const noexcept;
-	float GetCurrentLayerTime() const noexcept;
+	float GetCurrentLayerTime() const noexcept;				// Return the number of seconds printing the current layer
 	float GetPrintDuration() const noexcept;
 	float GetWarmUpDuration() const noexcept;
-	float GetFirstLayerDuration() const noexcept;
-	float GetFirstLayerHeight() const noexcept;
+	float GetPauseDuration() const noexcept;
 
 	const char *GetPrintingFilename() const noexcept { return (isPrinting) ? filenameBeingPrinted.c_str() : nullptr; }
 	bool GetPrintingFileInfo(GCodeFileInfo& info) noexcept;
 	void SetPrintingFileInfo(const char *filename, GCodeFileInfo& info) noexcept;
+
+	GCodeResult ProcessM73(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeException);
 
 protected:
 	DECLARE_OBJECT_MODEL
 	OBJECT_MODEL_ARRAY(filament)
 
 private:
+	static constexpr float MinFilamentUsageForEstimation = 0.01;	// Minimum per cent of filament to be printed before the filament-based estimation returns values
+	static constexpr uint32_t UpdateIntervalMillis = 200;			// Update interval in milliseconds
+	static constexpr uint32_t SnapshotIntervalSeconds = 30;			// Snapshot interval in seconds
+
+	void Reset() noexcept;
+	void UpdatePrintingFileInfo() noexcept;
+
+#if SUPPORT_OBJECT_MODEL
+	ExpressionValue EstimateTimeLeftAsExpression(PrintEstimationMethod method) const noexcept;
+	int32_t GetPrintOrSimulatedDuration() const noexcept;
+#endif
+
 	Platform& platform;
 	GCodes& gCodes;
 	uint32_t lastUpdateTime;
 
-	// Information/Events concerning the file being printed
-	void FirstLayerComplete() noexcept;
-	void LayerComplete() noexcept;
-	void Reset() noexcept;
-
-#if SUPPORT_OBJECT_MODEL
-	int32_t GetPrintOrSimulatedDuration() const noexcept;
-#endif
-
 	bool isPrinting;
 	bool heatingUp;
+	bool paused;
+
 	uint64_t printStartTime;
 	uint64_t heatingStartedTime;
+	uint64_t warmUpDuration, printDuration;
 	uint64_t pauseStartTime, totalPauseTime;
+	uint64_t lastSnapshotTime;
+	uint64_t lastSnapshotNonPrintingTime;
+	uint64_t lastLayerChangeTime;
+	uint64_t lastLayerChangeNonPrintingTime;
+	uint64_t whenSlicerTimeLeftSet;
+
+	uint32_t lastLayerDuration;
 
 	unsigned int currentLayer;
-	float warmUpDuration, firstLayerDuration;
-	float firstLayerFilament, firstLayerProgress;
-	float lastLayerChangeTime, lastLayerFilament, lastLayerZ;
-
-	unsigned int numLayerSamples;
-	float layerDurations[MAX_LAYER_SAMPLES];
-	float filamentUsagePerLayer[MAX_LAYER_SAMPLES];
-	float fileProgressPerLayer[MAX_LAYER_SAMPLES];
-	float layerEstimatedTimeLeft;
+	float lastSnapshotFileFraction, lastSnapshotFilamentUsed;
+	float fileProgressRate, filamentProgressRate;
+	float totalFilamentNeeded;
+	float slicerTimeLeft;						// time left in seconds as reported by slicer
 
 	unsigned int lastLayerNumberNotified;
 	float lastLayerStartHeightNotified;
@@ -120,18 +117,6 @@ private:
 
 inline bool PrintMonitor::IsPrinting() const noexcept { return isPrinting; }
 inline unsigned int PrintMonitor::GetCurrentLayer() const noexcept { return currentLayer; }
-
-inline float PrintMonitor::GetCurrentLayerTime() const noexcept
-{
-	return (currentLayer == 0) ? 0.0
-			: (currentLayer == 1) ? GetPrintDuration()
-				: GetPrintDuration() - lastLayerChangeTime;
-}
-
-inline float PrintMonitor::GetFirstLayerHeight() const noexcept
-{
-	return printingFileParsed ? printingFileInfo.firstLayerHeight : 0.0;
-}
 
 #endif /* PRINTMONITOR_H */
 

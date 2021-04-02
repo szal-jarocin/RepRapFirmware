@@ -1,3 +1,17 @@
+Version 3.3-beta1_4
+===================
+STM32F4: Reduce SD card beffer size back to values used in Version 3.3-beta1_3
+
+Version 3.3-beta1_4
+===================
+* STM32F4: Added additional signature for SKR pro boards
+* STM32F4: Minor SDIO improvements and bug fixes
+* STM32F4: Added board definition for FLY E3-Pro
+* STM32F4: Allow VIn value to settle before first reading
+* STM32F4: Fix for boards that ground MAX31855 T- pin (avoid short to ground error)
+* STM32F4: Increase number of heat sensor SPI CS pins to 4
+* STM32F4: Changed  BTT RRF E3 board name to be "biquskr_rrf_e3_1.1"
+
 Version 3.3-beta1_3
 ===================
 * Duet3D V3.3-beta1 support

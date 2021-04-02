@@ -17,8 +17,8 @@
 
 
 #include "RepRapFirmware.h"
-#include "RepRap.h"
-#include "Tasks.h"
+#include "Platform/RepRap.h"
+#include "Platform/Tasks.h"
 #include <Movement/StepTimer.h>
 
 

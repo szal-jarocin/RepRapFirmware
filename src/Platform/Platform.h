@@ -24,23 +24,23 @@ Licence: GPL
 #ifndef PLATFORM_H
 #define PLATFORM_H
 
-#include "RepRapFirmware.h"
-#include "ObjectModel/ObjectModel.h"
-#include "Hardware/IoPorts.h"
-#include "Fans/FansManager.h"
-#include "Heating/TemperatureError.h"
+#include <RepRapFirmware.h>
+#include <ObjectModel/ObjectModel.h>
+#include <Hardware/IoPorts.h>
+#include <Fans/FansManager.h>
+#include <Heating/TemperatureError.h>
 #include "OutputMemory.h"
-#include "Storage/FileStore.h"
-#include "Storage/FileData.h"
-#include "Storage/MassStorage.h"	// must be after Pins.h because it needs NumSdCards defined
-#include "MessageType.h"
-#include "Tools/Spindle.h"
-#include "Endstops/EndstopsManager.h"
+#include <Storage/FileStore.h>
+#include <Storage/FileData.h>
+#include <Storage/MassStorage.h>	// must be after Pins.h because it needs NumSdCards defined
+#include <Tools/Spindle.h>
+#include <Endstops/EndstopsManager.h>
 #include <GPIO/GpInPort.h>
 #include <GPIO/GpOutPort.h>
 #include <Comms/AuxDevice.h>
 #include <Comms/PanelDueUpdater.h>
 #include <General/IPAddress.h>
+#include <General/inplace_function.h>
 
 #if defined(DUET_NG)
 # include "DueXn.h"
@@ -57,8 +57,6 @@ Licence: GPL
 #if SUPPORT_CAN_EXPANSION
 # include <RemoteInputHandle.h>
 #endif
-
-#include <functional>
 
 constexpr bool FORWARDS = true;
 constexpr bool BACKWARDS = !FORWARDS;
@@ -676,12 +674,12 @@ private:
 	float GetCpuTemperature() const noexcept;
 
 #if SUPPORT_CAN_EXPANSION
-	void IterateDrivers(size_t axisOrExtruder, std::function<void(uint8_t) /*noexcept*/ > localFunc, std::function<void(DriverId) /*noexcept*/ > remoteFunc) noexcept;
-	void IterateLocalDrivers(size_t axisOrExtruder, std::function<void(uint8_t) /*noexcept*/ > func) noexcept { IterateDrivers(axisOrExtruder, func, [](DriverId) noexcept {}); }
-	void IterateRemoteDrivers(size_t axisOrExtruder, std::function<void(DriverId) /*noexcept*/ > func) noexcept { IterateDrivers(axisOrExtruder, [](uint8_t) noexcept {}, func); }
+	void IterateDrivers(size_t axisOrExtruder, stdext::inplace_function<void(uint8_t) /*noexcept*/ > localFunc, stdext::inplace_function<void(DriverId) /*noexcept*/ > remoteFunc) noexcept;
+	void IterateLocalDrivers(size_t axisOrExtruder, stdext::inplace_function<void(uint8_t) /*noexcept*/ > func) noexcept { IterateDrivers(axisOrExtruder, func, [](DriverId) noexcept {}); }
+	void IterateRemoteDrivers(size_t axisOrExtruder, stdext::inplace_function<void(DriverId) /*noexcept*/ > func) noexcept { IterateDrivers(axisOrExtruder, [](uint8_t) noexcept {}, func); }
 #else
-	void IterateDrivers(size_t axisOrExtruder, std::function<void(uint8_t) /*noexcept*/ > localFunc) noexcept;
-	void IterateLocalDrivers(size_t axisOrExtruder, std::function<void(uint8_t) /*noexcept*/ > func) noexcept { IterateDrivers(axisOrExtruder, func); }
+	void IterateDrivers(size_t axisOrExtruder, stdext::inplace_function<void(uint8_t) /*noexcept*/ > localFunc) noexcept;
+	void IterateLocalDrivers(size_t axisOrExtruder, stdext::inplace_function<void(uint8_t) /*noexcept*/ > func) noexcept { IterateDrivers(axisOrExtruder, func); }
 #endif
 
 #if SUPPORT_REMOTE_COMMANDS

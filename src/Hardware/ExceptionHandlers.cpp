@@ -6,8 +6,8 @@
  */
 
 #include "ExceptionHandlers.h"
-#include <RepRap.h>
-#include <Platform.h>
+#include <Platform/RepRap.h>
+#include <Platform/Platform.h>
 #include <Hardware/NonVolatileMemory.h>
 #include <Cache.h>
 #if SAME70 || SAM4S || SAM4E
@@ -20,7 +20,7 @@
 	cpu_irq_disable();							// disable interrupts before we call any flash functions. We don't enable them again.
 	WatchdogReset();							// kick the watchdog
 #if STM32F4
-	//WatchdogDisable();
+	WatchdogDisable();
 #endif
 
 #if SAME70 || SAM4E

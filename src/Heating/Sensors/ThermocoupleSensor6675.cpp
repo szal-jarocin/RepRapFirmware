@@ -20,8 +20,8 @@
 //    00 -- Three-State?
 
 #include "ThermocoupleSensor6675.h"
-#include "RepRap.h"
-#include "Platform.h"
+#include "Platform/RepRap.h"
+#include "Platform/Platform.h"
 #include "GCodes/GCodeBuffer/GCodeBuffer.h"
 
 const uint32_t MAX6675_Frequency = 4000000;	// maximum for MAX6675 is 5MHz
@@ -33,7 +33,7 @@ const uint32_t MAX6675_Frequency = 4000000;	// maximum for MAX6675 is 5MHz
 const SpiMode MAX6675_SpiMode = SPI_MODE_0;
 
 // Define the minimum interval between readings
-const uint32_t MinimumReadInterval = 100;		// minimum interval between reads, in milliseconds
+const uint32_t MinimumReadInterval = 250;		// minimum interval between reads, in milliseconds
 
 ThermocoupleSensor6675::ThermocoupleSensor6675(unsigned int sensorNum) noexcept
 	: SpiTemperatureSensor(sensorNum, "Thermocouple (MAX6675)", MAX6675_SpiMode, MAX6675_Frequency)
@@ -86,7 +86,6 @@ void ThermocoupleSensor6675::Poll() noexcept
 		else
 		{
 			rawVal >>= 3;							// shift the 12-bit temperature data to the bottom of the word
-
 			// And convert to from units of 1/4C to 1C
 			SetResult((float)(0.25 * (float)(int32_t)rawVal), TemperatureError::success);
 		}

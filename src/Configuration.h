@@ -154,22 +154,25 @@ constexpr unsigned int MaxBlockIndent = 10;				// maximum indentation of GCode. 
 //   So 32 points using double precision arithmetic need 3584 bytes of stack space.
 #if SAM4E || SAM4S || SAME70 || SAME5x || STM32F4
 constexpr size_t MaxGridProbePoints = 441;				// 441 allows us to probe e.g. 400x400 at 20mm intervals
-constexpr size_t MaxXGridPoints = 41;					// Maximum number of grid points in one X row
+constexpr size_t MaxAxis0GridPoints = 41;				// Maximum number of grid points in one X row
 constexpr size_t MaxProbePoints = 32;					// Maximum number of G30 probe points
 constexpr size_t MaxCalibrationPoints = 32;				// Should a power of 2 for speed
 #elif SAM3XA
 constexpr size_t MaxGridProbePoints = 121;				// 121 allows us to probe 200x200 at 20mm intervals
-constexpr size_t MaxXGridPoints = 21;					// Maximum number of grid points in one X row
+constexpr size_t MaxAxis0GridPoints = 21;				// Maximum number of grid points in one X row
 constexpr size_t MaxProbePoints = 32;					// Maximum number of G30 probe points
 constexpr size_t MaxCalibrationPoints = 32;				// Should a power of 2 for speed
 #elif LPC17xx
 constexpr size_t MaxGridProbePoints = 121;    			// 121 allows us to probe 200x200 at 20mm intervals
-constexpr size_t MaxXGridPoints = 21;         			// Maximum number of grid points in one X row
+constexpr size_t MaxAxis0GridPoints = 21;         			// Maximum number of grid points in one X row
 constexpr size_t MaxProbePoints = 16;       			// Maximum number of G30 probe points
 constexpr size_t MaxCalibrationPoints = 16; 			// Should a power of 2 for speed
-#else
-# error
-#endif
+# else
+constexpr size_t MaxGridProbePoints = 441;				// 441 allows us to probe e.g. 400x400 at 20mm intervals
+constexpr size_t MaxAxis0GridPoints = 41;				// Maximum number of grid points in one X row
+constexpr size_t MaxProbePoints = 32;					// Maximum number of G30 probe points
+constexpr size_t MaxCalibrationPoints = 32;				// Should a power of 2 for speed
+# endif
 
 constexpr float DefaultGridSpacing = 20.0;				// Default bed probing grid spacing in mm
 
@@ -284,10 +287,11 @@ constexpr float DefaultG0FeedRate = 18000;				// The initial feed rate for G0 co
 constexpr float DefaultRetractSpeed = 1000.0;			// The default firmware retraction and un-retraction speed, in mm
 constexpr float DefaultRetractLength = 2.0;
 
-constexpr float MaxArcDeviation = 0.02;					// maximum deviation from ideal arc due to segmentation
+constexpr float MaxArcDeviation = 0.005;				// maximum deviation from ideal arc due to segmentation
 constexpr float MinArcSegmentLength = 0.1;				// G2 and G3 arc movement commands get split into segments at least this long
-constexpr float MaxArcSegmentLength = 2.0;				// G2 and G3 arc movement commands get split into segments at most this long
-constexpr float MinArcSegmentsPerSec = 50;
+constexpr float MaxArcSegmentLength = 1.0;				// G2 and G3 arc movement commands get split into segments at most this long
+constexpr float MinArcSegmentsPerSec = 200;
+constexpr float SegmentsPerFulArcCalculation = 8;		// we do the full sine/cosine calculation every this number of segments
 
 constexpr uint32_t DefaultIdleTimeout = 30000;			// Milliseconds
 constexpr float DefaultIdleCurrentFactor = 0.3;			// Proportion of normal motor current that we use for idle hold

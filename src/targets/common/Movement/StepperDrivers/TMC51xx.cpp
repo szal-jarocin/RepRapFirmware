@@ -12,14 +12,14 @@
 #if SUPPORT_TMC51xx
 
 #include <RTOSIface/RTOSIface.h>
-#include <TaskPriorities.h>
+#include <Platform/TaskPriorities.h>
 #include <Movement/Move.h>
 #include <Hardware/SharedSpi/SharedSpiDevice.h>
 #include <Hardware/SharedSpi/SharedSpiClient.h>
 #include <Endstops/Endstop.h>
 #include <General/Portability.h>
 #include "TmcDriverState.h"
-#include "Tmc51xxDriver.h"
+#include "TMC51xxDriver.h"
 
 
 static inline const Move& GetMoveInstance() noexcept { return reprap.GetMove(); }
@@ -958,7 +958,7 @@ void Tmc51xxDriverState::TransferFailed() noexcept
 static Tmc51xxDriverState *driverStates;
 static size_t baseDriveNo = 0;
 // TMC51xx management task
-static Task<TmcTaskStackWords> tmcTask;
+static TASKMEM Task<TmcTaskStackWords> tmcTask;
 
 
 DriversState Tmc51xxDriverState::SetupDriver(bool reset) noexcept

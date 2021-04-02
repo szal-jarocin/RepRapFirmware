@@ -20,8 +20,8 @@ public:
 	bool Configure(unsigned int mCode, GCodeBuffer& gb, const StringRef& reply, bool& error) THROWS(GCodeException) override;
 	bool CartesianToMotorSteps(const float machinePos[], const float stepsPerMm[], size_t numVisibleAxes, size_t numTotalAxes, int32_t motorPos[], bool isCoordinated) const noexcept override;
 	void MotorStepsToCartesian(const int32_t motorPos[], const float stepsPerMm[], size_t numVisibleAxes, size_t numTotalAxes, float machinePos[]) const noexcept override;
-	bool IsReachable(float x, float y, bool isCoordinated) const noexcept override;
-	LimitPositionResult LimitPosition(float finalCoords[], const float * null initialCoords, size_t numAxes, AxesBitmap axesHomed, bool isCoordinated, bool applyM208Limits) const noexcept override;
+	bool IsReachable(float axesCoords[MaxAxes], AxesBitmap axes, bool isCoordinated) const noexcept override;
+	LimitPositionResult LimitPosition(float finalCoords[], const float * null initialCoords, size_t numAxes, AxesBitmap axesToLimit, bool isCoordinated, bool applyM208Limits) const noexcept override;
 	void GetAssumedInitialPosition(size_t numAxes, float positions[]) const noexcept override;
 	const char* HomingButtonNames() const noexcept override { return "RTZUVWABC"; }
 	HomingMode GetHomingMode() const noexcept override { return HomingMode::homeIndividualMotors; }
@@ -38,8 +38,6 @@ protected:
 	DECLARE_OBJECT_MODEL
 
 private:
-	static constexpr float DefaultSegmentsPerSecond = 100.0;
-	static constexpr float DefaultMinSegmentSize = 0.2;
 	static constexpr float DefaultMaxRadius = 150.0;
 	static constexpr float DefaultMaxTurntableSpeed = 30.0;				// degrees per second
 	static constexpr float DefaultMaxTurntableAcceleration = 30.0;		// degrees per second per second

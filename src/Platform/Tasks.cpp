@@ -9,7 +9,7 @@
 #include "RepRap.h"
 #include "Platform.h"
 #include <Cache.h>
-#include <TaskPriorities.h>
+#include <Platform/TaskPriorities.h>
 #include <Hardware/SoftwareReset.h>
 #include <Storage/CRC32.h>
 
@@ -54,12 +54,12 @@ constexpr unsigned int MainTaskStackWords = 1110-(16*9);	// LPC builds only supp
 constexpr unsigned int MainTaskStackWords = 1110;			// on other processors we use matrixes of floats
 #endif
 
-static Task<MainTaskStackWords> mainTask;
+static TASKMEM Task<MainTaskStackWords> mainTask;
 extern "C" [[noreturn]] void MainTask(void * pvParameters) noexcept;
 
 // Idle task data
 constexpr unsigned int IdleTaskStackWords = 40;				// currently we don't use the idle talk for anything, so this can be quite small
-static Task<IdleTaskStackWords> idleTask;
+static TASKMEM Task<IdleTaskStackWords> idleTask;
 
 extern "C" void vApplicationGetIdleTaskMemory(StaticTask_t **ppxIdleTaskTCBBuffer, StackType_t **ppxIdleTaskStackBuffer, uint32_t *pulIdleTaskStackSize) noexcept
 {
@@ -279,7 +279,10 @@ void Tasks::Diagnostics(MessageType mtype) noexcept
 		p.MessageF(mtype, "Dynamic ram: %d of which %d recycled\n", mi.uordblks, mi.fordblks);
 #endif
 		p.MessageF(mtype, "Never used RAM %d, free system stack %d words\n", GetNeverUsedRam(), GetHandlerFreeStack()/4);
-
+#if STM32F4
+		//p.MessageF(mtype, "heaptop %x heaplimit %x _end %x\n", heapTop, heapLimit, &_end);
+		//p.MessageF(mtype, "ccmheaptop %x ccmheaplimit %x eccmram %x\n", ccmHeapTop, ccmHeapLimit, _eccmram);
+#endif
 	}	// end memory stats scope
 
 	p.Message(mtype, "Tasks:");

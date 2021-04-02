@@ -7,10 +7,10 @@
 
 #include "LinearDeltaKinematics.h"
 
-#include "Movement/Move.h"
-#include "RepRap.h"
-#include "Storage/FileStore.h"
-#include "GCodes/GCodeBuffer/GCodeBuffer.h"
+#include <Movement/Move.h>
+#include <Platform/RepRap.h>
+#include <Storage/FileStore.h>
+#include <GCodes/GCodeBuffer/GCodeBuffer.h>
 #include <Math/Deviation.h>
 
 #if SUPPORT_OBJECT_MODEL
@@ -55,7 +55,7 @@ DEFINE_GET_OBJECT_MODEL_TABLE(LinearDeltaKinematics)
 
 #endif
 
-LinearDeltaKinematics::LinearDeltaKinematics() noexcept : Kinematics(KinematicsType::linearDelta, -1.0, 0.0, true), numTowers(UsualNumTowers)
+LinearDeltaKinematics::LinearDeltaKinematics() noexcept : RoundBedKinematics(KinematicsType::linearDelta, false, true), numTowers(UsualNumTowers)
 {
 	Init();
 }
@@ -115,7 +115,7 @@ void LinearDeltaKinematics::Recalc() noexcept
 	{
 		D2[axis] = fsquare(diagonals[axis]);
 		homedCarriageHeights[axis] = homedHeight
-									+ sqrtf(D2[axis] - ((axis < UsualNumTowers) ? fsquare(radius) : fsquare(towerX[axis]) + fsquare(towerY[axis])))
+									+ fastSqrtf(D2[axis] - ((axis < UsualNumTowers) ? fsquare(radius) : fsquare(towerX[axis]) + fsquare(towerY[axis])))
 									+ endstopAdjustments[axis];
 		const float heightLimit = homedCarriageHeights[axis] - diagonals[axis];
 		if (heightLimit < alwaysReachableHeight)
@@ -161,7 +161,7 @@ float LinearDeltaKinematics::Transform(const float machinePos[], size_t axis) co
 {
 	if (axis < numTowers)
 	{
-		return sqrtf(D2[axis] - fsquare(machinePos[X_AXIS] - towerX[axis]) - fsquare(machinePos[Y_AXIS] - towerY[axis]))
+		return fastSqrtf(D2[axis] - fsquare(machinePos[X_AXIS] - towerX[axis]) - fsquare(machinePos[Y_AXIS] - towerY[axis]))
 			 + machinePos[Z_AXIS]
 			 + (machinePos[X_AXIS] * xTilt)
 			 + (machinePos[Y_AXIS] * yTilt);
@@ -193,7 +193,7 @@ void LinearDeltaKinematics::ForwardTransform(float Ha, float Hb, float Hc, float
 							- (R * T + U * S);
 	const float C = fsquare(towerX[DELTA_A_AXIS] * Q - S) + fsquare(towerY[DELTA_A_AXIS] * Q + T) + (fsquare(Ha) - D2[DELTA_A_AXIS]) * Q2;
 
-	const float z = (minusHalfB - sqrtf(fsquare(minusHalfB) - A * C)) / A;
+	const float z = (minusHalfB - fastSqrtf(fsquare(minusHalfB) - A * C)) / A;
 	machinePos[X_AXIS] = (U * z + S) / Q;
 	machinePos[Y_AXIS] = -(R * z + T) / Q;
 	machinePos[Z_AXIS] = z - ((machinePos[X_AXIS] * xTilt) + (machinePos[Y_AXIS] * yTilt));
@@ -240,27 +240,21 @@ void LinearDeltaKinematics::MotorStepsToCartesian(const int32_t motorPos[], cons
 	}
 }
 
-// Return true if the specified XY position is reachable by the print head reference point.
-bool LinearDeltaKinematics::IsReachable(float x, float y, bool isCoordinated) const noexcept
-{
-	return fsquare(x) + fsquare(y) < printRadiusSquared;
-}
-
 // Limit the Cartesian position that the user wants to move to returning true if we adjusted the position
 LimitPositionResult LinearDeltaKinematics::LimitPosition(float finalCoords[], const float * null initialCoords,
-															size_t numVisibleAxes, AxesBitmap axesHomed, bool isCoordinated, bool applyM208Limits) const noexcept
+															size_t numVisibleAxes, AxesBitmap axesToLimit, bool isCoordinated, bool applyM208Limits) const noexcept
 {
 	bool limited = false;
 
 	// If axes have been homed on a delta printer and this isn't a homing move, check for movements outside limits.
 	// Skip this check if axes have not been homed, so that extruder-only moves are allowed before homing
-	if ((axesHomed & XyzAxes) == XyzAxes)
+	if ((axesToLimit & XyzAxes) == XyzAxes)
 	{
 		// Constrain the move to be within the build radius
 		const float diagonalSquared = fsquare(finalCoords[X_AXIS]) + fsquare(finalCoords[Y_AXIS]);
 		if (applyM208Limits && diagonalSquared > printRadiusSquared)
 		{
-			const float factor = sqrtf(printRadiusSquared / diagonalSquared);
+			const float factor = fastSqrtf(printRadiusSquared / diagonalSquared);
 			finalCoords[X_AXIS] *= factor;
 			finalCoords[Y_AXIS] *= factor;
 			limited = true;
@@ -320,7 +314,7 @@ LimitPositionResult LinearDeltaKinematics::LimitPosition(float finalCoords[], co
 						}
 						else
 						{
-							const float tP2Q2 = dz * sqrtf(discriminant * Q2) - ((tx * dx) + (ty * dy)) * Q2;
+							const float tP2Q2 = dz * fastSqrtf(discriminant * Q2) - ((tx * dx) + (ty * dy)) * Q2;
 							const float P2Q2 = P2 * Q2;
 							if (tP2Q2 >= P2Q2)
 							{
@@ -405,7 +399,7 @@ LimitPositionResult LinearDeltaKinematics::LimitPosition(float finalCoords[], co
 	}
 
 	// Limit any additional axes according to the M208 limits
-	if (applyM208Limits && LimitPositionFromAxis(finalCoords, numTowers, numVisibleAxes, axesHomed))
+	if (applyM208Limits && LimitPositionFromAxis(finalCoords, numTowers, numVisibleAxes, axesToLimit))
 	{
 		limited = true;
 	}
@@ -740,12 +734,12 @@ void LinearDeltaKinematics::Adjust(size_t numFactors, const floatc_t v[]) noexce
 	{
 		if (numFactors >= 4)
 		{
-			const float oldCarriageHeight = sqrtf(fsquare(diagonals[tower]) - fsquare(oldRadius));
+			const float oldCarriageHeight = fastSqrtf(fsquare(diagonals[tower]) - fsquare(oldRadius));
 			if (numFactors == 7 || numFactors == 9)
 			{
 				diagonals[tower] += (float)v[6];
 			}
-			const float newCarriageHeight = sqrtf(fsquare(diagonals[tower]) - fsquare(radius));
+			const float newCarriageHeight = fastSqrtf(fsquare(diagonals[tower]) - fsquare(radius));
 			endstopAdjustments[tower] += oldCarriageHeight - newCarriageHeight;
 		}
 		endstopAdjustments[tower] += (float)v[tower];
@@ -934,6 +928,8 @@ bool LinearDeltaKinematics::Configure(unsigned int mCode, GCodeBuffer& gb, const
 
 	case 669:
 		{
+			const bool seenSeg = TryConfigureSegmentation(gb);			// configure optional segmentation
+
 			// X and Y give the X and Y coordinates of the additional towers beyond the first three
 			// The correct number of L parameters must have been given in the M665 command first
 			size_t numX = 0, numY = 0;
@@ -959,11 +955,18 @@ bool LinearDeltaKinematics::Configure(unsigned int mCode, GCodeBuffer& gb, const
 					return true;
 				}
 			}
+
 			if (numX != 0 || numY != 0)
 			{
 				Recalc();				// recalculate the homed carriage heights
 				return true;
 			}
+
+			if (seenSeg)
+			{
+				return false;
+			}
+
 			return Kinematics::Configure(mCode, gb, reply, error);
 		}
 
@@ -1031,21 +1034,6 @@ void LinearDeltaKinematics::OnHomingSwitchTriggered(size_t axis, bool highEnd, c
 		// Assume that any additional axes are linear
 		const float hitPoint = (highEnd) ? reprap.GetPlatform().AxisMaximum(axis) : reprap.GetPlatform().AxisMinimum(axis);
 		dda.SetDriveCoordinate(lrintf(hitPoint * stepsPerMm[axis]), axis);
-	}
-}
-
-// Limit the speed and acceleration of a move to values that the mechanics can handle.
-// The speeds in Cartesian space have already been limited.
-void LinearDeltaKinematics::LimitSpeedAndAcceleration(DDA& dda, const float *normalisedDirectionVector, size_t numVisibleAxes, bool continuousRotationShortcut) const noexcept
-{
-	// Limit the speed in the XY plane to the lower of the X and Y maximum speeds, and similarly for the acceleration
-	const float xyFactor = sqrtf(fsquare(normalisedDirectionVector[X_AXIS]) + fsquare(normalisedDirectionVector[Y_AXIS]));
-	if (xyFactor > 0.01)
-	{
-		const Platform& platform = reprap.GetPlatform();
-		const float maxSpeed = min<float>(platform.MaxFeedrate(X_AXIS), platform.MaxFeedrate(Y_AXIS));
-		const float maxAcceleration = min<float>(platform.Acceleration(X_AXIS), platform.Acceleration(Y_AXIS));
-		dda.LimitSpeedAndAcceleration(maxSpeed/xyFactor, maxAcceleration/xyFactor);
 	}
 }
 

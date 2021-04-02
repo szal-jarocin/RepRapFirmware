@@ -9,7 +9,6 @@
 #define SRC_ENDSTOPS_SWITCHENDSTOP_H_
 
 #include "Endstop.h"
-#include "GCodes/GCodeResult.h"
 
 // Switch-type endstop, either on the main board or on a CAN-connected board
 class SwitchEndstop : public Endstop
@@ -22,9 +21,9 @@ public:
 	SwitchEndstop(uint8_t p_axis, EndStopPosition pos) noexcept;
 
 	EndStopType GetEndstopType() const noexcept override;
-	EndStopHit Stopped() const noexcept override;
+	bool Stopped() const noexcept override;
 	bool Prime(const Kinematics& kin, const AxisDriversConfig& axisDrivers) noexcept override;
-	EndstopHitDetails CheckTriggered(bool goingSlow) noexcept override;
+	EndstopHitDetails CheckTriggered() noexcept override;
 	bool Acknowledge(EndstopHitDetails what) noexcept override;
 	void AppendDetails(const StringRef& str) noexcept override;
 

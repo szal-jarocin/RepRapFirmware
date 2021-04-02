@@ -9,16 +9,18 @@
 #define SRC_GCODES_GCODEBUFFER_EXPRESSIONPARSER_H_
 
 #include <RepRapFirmware.h>
-#include <General/StringBuffer.h>
 #include <ObjectModel/ObjectModel.h>
 #include <GCodes/GCodeException.h>
+
+class VariableSet;
 
 class ExpressionParser
 {
 public:
 	ExpressionParser(const GCodeBuffer& p_gb, const char *text, const char *textLimit, int p_column = -1) noexcept;
 
-	ExpressionValue Parse(bool evaluate = true, uint8_t priority = 0) THROWS(GCodeException);
+	ExpressionValue Parse(bool evaluate = true) THROWS(GCodeException);
+	ExpressionValue ParseSimple() THROWS(GCodeException);
 	bool ParseBoolean() THROWS(GCodeException);
 	float ParseFloat() THROWS(GCodeException);
 	int32_t ParseInteger() THROWS(GCodeException);
@@ -33,12 +35,14 @@ private:
 	GCodeException ConstructParseException(const char *str, const char *param) const noexcept;
 	GCodeException ConstructParseException(const char *str, uint32_t param) const noexcept;
 
+	ExpressionValue ParseInternal(bool evaluate = true, uint8_t priority = 0) THROWS(GCodeException);
 	ExpressionValue ParseExpectKet(bool evaluate, char expectedKet) THROWS(GCodeException);
 	ExpressionValue ParseNumber() noexcept
 		pre(readPointer >= 0; isdigit(gb.buffer[readPointer]));
 	ExpressionValue ParseIdentifierExpression(bool evaluate, bool applyLengthOperator) THROWS(GCodeException)
 		pre(readPointer >= 0; isalpha(gb.buffer[readPointer]));
-	void ParseQuotedString(const StringRef& str) THROWS(GCodeException);
+	ExpressionValue ParseQuotedString() THROWS(GCodeException);
+	ExpressionValue GetVariableValue(VariableSet& vars, const char *name, bool parameter) THROWS(GCodeException);
 
 	void ConvertToFloat(ExpressionValue& val, bool evaluate) const THROWS(GCodeException);
 	void ConvertToBool(ExpressionValue& val, bool evaluate) const THROWS(GCodeException);
@@ -49,7 +53,6 @@ private:
 	void EnsureNumeric(ExpressionValue& val, bool evaluate) const THROWS(GCodeException);
 	static bool TypeHasNoLiterals(TypeCode t) noexcept;
 
-	const char *GetAndFix() THROWS(GCodeException);
 	int GetColumn() const noexcept;
 	char CurrentCharacter() const noexcept;
 	void AdvancePointer() noexcept { ++currentp; }		// could check that we havebn't reached endp but we should stop before that happens
@@ -59,8 +62,7 @@ private:
 	const char * const endp;
 	const GCodeBuffer& gb;
 	int column;
-	char stringBufferStorage[StringBufferLength];
-	StringBuffer stringBuffer;
+	String<MaxVariableNameLength> obsoleteField;
 };
 
 #endif /* SRC_GCODES_GCODEBUFFER_EXPRESSIONPARSER_H_ */

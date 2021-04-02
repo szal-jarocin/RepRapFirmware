@@ -6,10 +6,10 @@
  */
 
 #include "PulsedFilamentMonitor.h"
-#include "GCodes/GCodeBuffer/GCodeBuffer.h"
-#include "Platform.h"
-#include "RepRap.h"
-#include "Movement/Move.h"
+#include <GCodes/GCodeBuffer/GCodeBuffer.h>
+#include <Platform/Platform.h>
+#include <Platform/RepRap.h>
+#include <Movement/Move.h>
 
 // Unless we set the option to compare filament on all type of move, we reject readings if the last retract or reprime move wasn't completed
 // well before the start bit was received. This is because those moves have high accelerations and decelerations, so the measurement delay
@@ -244,7 +244,7 @@ FilamentSensorStatus PulsedFilamentMonitor::Check(bool isPrinting, bool fromIsr,
 		extrusionCommandedThisSegment = extrusionCommandedSinceLastSync = movementMeasuredThisSegment = movementMeasuredSinceLastSync = 0.0;
 	}
 
-	return ret;
+	return (comparisonEnabled) ? ret : FilamentSensorStatus::ok;
 }
 
 // Compare the amount commanded with the amount of extrusion measured, and set up for the next comparison

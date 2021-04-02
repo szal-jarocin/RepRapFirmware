@@ -13,7 +13,7 @@
 #include "RepRapFirmware.h"
 #if SUPPORT_TMC22xx
 #include "TMC22xx.h"
-#include "RepRap.h"
+#include "Platform/RepRap.h"
 #include "Movement/Move.h"
 #include "Movement/StepTimer.h"
 #include "Cache.h"
@@ -21,10 +21,10 @@
 #include "Endstops/Endstop.h"
 #endif
 #include "Pins.h"
-#include "MessageType.h"
+#include "Platform/MessageType.h"
 #include "TmcDriverState.h"
 #include "TMCSoftUART.h"
-#include "Tmc22xxDriver.h"
+#include "TMC22xxDriver.h"
 
 // TMC22xx DRV_STATUS register bit assignments
 const uint32_t TMC22xx_RR_OT = 1u << 1;			// over temperature shutdown

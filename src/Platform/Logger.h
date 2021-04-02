@@ -8,15 +8,14 @@
 #ifndef SRC_LOGGER_H_
 #define SRC_LOGGER_H_
 
-#include "RepRapFirmware.h"
+#include <RepRapFirmware.h>
 #include <General/NamedEnum.h>
 NamedEnum(LogLevel, uint8_t, off, warn, info, debug);
 
 #if HAS_MASS_STORAGE
 
 #include <ctime>
-#include "Storage/FileData.h"
-#include "MessageType.h"
+#include <Storage/FileData.h>
 
 class OutputBuffer;
 

@@ -8,12 +8,10 @@
 #ifndef SRC_FILAMENTSENSORS_FILAMENTMONITOR_H_
 #define SRC_FILAMENTSENSORS_FILAMENTMONITOR_H_
 
-#include "RepRapFirmware.h"
-#include "Hardware/IoPorts.h"
-#include "MessageType.h"
-#include "GCodes/GCodeResult.h"
+#include <RepRapFirmware.h>
+#include <Hardware/IoPorts.h>
 #include <ObjectModel/ObjectModel.h>
-#include "RTOSIface/RTOSIface.h"
+#include <RTOSIface/RTOSIface.h>
 
 #if defined(DUET3) || defined(DUET3MINI)
 # include <Duet3Common.h>

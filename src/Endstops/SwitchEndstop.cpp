@@ -7,16 +7,16 @@
 
 #include <Endstops/SwitchEndstop.h>
 
-#include "RepRap.h"
-#include "Platform.h"
-#include "Movement/Kinematics/Kinematics.h"
-#include "GCodes/GCodeBuffer/GCodeBuffer.h"
+#include <Platform/RepRap.h>
+#include <Platform/Platform.h>
+#include <Movement/Kinematics/Kinematics.h>
+#include <GCodes/GCodeBuffer/GCodeBuffer.h>
 
 #if SUPPORT_CAN_EXPANSION
-# include "CanId.h"
-# include "CanMessageBuffer.h"
-# include "CanMessageFormats.h"
-# include "CAN/CanInterface.h"
+# include <CanId.h>
+# include <CanMessageBuffer.h>
+# include <CanMessageFormats.h>
+# include <CAN/CanInterface.h>
 #endif
 
 // Switch endstop
@@ -118,16 +118,16 @@ EndStopType SwitchEndstop::GetEndstopType() const noexcept
 }
 
 // Test whether we are at or near the stop
-EndStopHit SwitchEndstop::Stopped() const noexcept
+bool SwitchEndstop::Stopped() const noexcept
 {
 	for (size_t i = 0; i < numPortsUsed; ++i)
 	{
 		if (IsTriggered(i))
 		{
-			return EndStopHit::atStop;
+			return true;
 		}
 	}
-	return EndStopHit::noStop;
+	return false;
 }
 
 // This is called to prime axis endstops
@@ -161,7 +161,7 @@ bool SwitchEndstop::Prime(const Kinematics& kin, const AxisDriversConfig& axisDr
 
 // Check whether the endstop is triggered and return the action that should be performed. Don't update the state until Acknowledge is called.
 // Called from the step ISR.
-EndstopHitDetails SwitchEndstop::CheckTriggered(bool goingSlow) noexcept
+EndstopHitDetails SwitchEndstop::CheckTriggered() noexcept
 {
 	EndstopHitDetails rslt;				// initialised by default constructor
 	if (portsLeftToTrigger.IsNonEmpty())
