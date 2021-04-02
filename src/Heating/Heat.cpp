@@ -59,7 +59,7 @@ constexpr uint32_t HeaterTaskStackWords = 400;			// task stack size in dwords, m
 #endif
 #endif
 
-static Task<HeaterTaskStackWords> heaterTask;
+static TASKMEM Task<HeaterTaskStackWords> heaterTask;
 
 extern "C" [[noreturn]] void HeaterTaskStart(void * pvParameters) noexcept
 {

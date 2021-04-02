@@ -54,7 +54,7 @@ constexpr size_t NetworkStackWords = 1000;				// needs to be enough to support r
 constexpr size_t NetworkStackWords = 600;				// needs to be enough to support rr_model
 #endif
 
-static Task<NetworkStackWords> networkTask;
+static TASKMEM Task<NetworkStackWords> networkTask;
 
 #else
 const char * const notSupportedText = "Networking is not supported on this hardware";

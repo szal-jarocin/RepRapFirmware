@@ -958,7 +958,7 @@ void Tmc51xxDriverState::TransferFailed() noexcept
 static Tmc51xxDriverState *driverStates;
 static size_t baseDriveNo = 0;
 // TMC51xx management task
-static Task<TmcTaskStackWords> tmcTask;
+static TASKMEM Task<TmcTaskStackWords> tmcTask;
 
 
 DriversState Tmc51xxDriverState::SetupDriver(bool reset) noexcept

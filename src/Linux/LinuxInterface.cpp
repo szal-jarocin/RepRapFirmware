@@ -40,7 +40,7 @@ constexpr size_t LinuxTaskStackWords = 1000;			// needs to be enough to support 
 constexpr size_t LinuxTaskStackWords = 600;				// needs to be enough to support rr_model
 #endif
 
-static Task<LinuxTaskStackWords> *linuxTask;
+static TASKMEM Task<LinuxTaskStackWords> *linuxTask;
 
 extern "C" [[noreturn]] void LinuxTaskStart(void * pvParameters) noexcept
 {
