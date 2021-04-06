@@ -1313,6 +1313,7 @@ void HttpResponder::DoUpload() noexcept
 	}
 	else if (!skt->CanRead() || millis() - timer >= HttpSessionTimeout)
 	{
+		debugPrintf("upload failed expected len %u actual %u\n", (unsigned)postFileLength, (unsigned)uploadedBytes);
 		// Sometimes uploads can get stuck; make sure they are cancelled when that happens
 		ConnectionLost();
 		return;
@@ -1504,6 +1505,8 @@ void HttpResponder::Diagnostics(MessageType mt) const noexcept
 /*static*/ void HttpResponder::CommonDiagnostics(MessageType mtype) noexcept
 {
 	GetPlatform().MessageF(mtype, "HTTP sessions: %u of %u\n", numSessions, MaxHttpSessions);
+	GetPlatform().MessageF(mtype, "Uploads/Errors: %u/%u\n", numUploads, numUploadErrors);
+	numUploads = numUploadErrors = 0;
 }
 
 void HttpResponder::AddCorsHeader() noexcept
