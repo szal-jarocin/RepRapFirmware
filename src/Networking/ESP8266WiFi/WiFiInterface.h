@@ -158,6 +158,8 @@ private:
 	unsigned int transferAlreadyPendingCount;
 	unsigned int readyTimeoutCount;
 	unsigned int responseTimeoutCount;
+	unsigned int badHeaderCount;
+	unsigned int actualBadHeaderCount;
 
 	char wiFiServerVersion[16];
 
