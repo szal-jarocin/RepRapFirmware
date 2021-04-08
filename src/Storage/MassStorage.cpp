@@ -290,6 +290,10 @@ void MassStorage::Init() noexcept
 #endif
 	}
 
+#if HAS_WRITER_TASK
+	FileStore::InitWriterTask();
+#endif
+
 	for (size_t card = 0; card < NumSdCards; ++card)
 	{
 		SdCardInfo& inf = info[card];

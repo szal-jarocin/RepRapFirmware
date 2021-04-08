@@ -13,7 +13,7 @@ class Platform;
 class FileWriteBuffer;
 
 #if HAS_MASS_STORAGE || HAS_LINUX_INTERFACE
-
+#define HAS_WRITER_TASK 1
 enum class OpenMode : uint8_t
 {
 	read,			// open an existing file for reading
@@ -50,6 +50,7 @@ public:
 	bool Write(const char *s, size_t len) noexcept;				// Write a block of len bytes
 	bool Write(const uint8_t *s, size_t len) noexcept;			// Write a block of len bytes
 	bool Write(const char* s) noexcept;							// Write a string
+	int CanWrite() noexcept;
 #endif
 	bool Close() noexcept;										// Shut the file and tidy up
 #if HAS_MASS_STORAGE
@@ -84,6 +85,10 @@ public:
 #endif
 
 #endif
+#if HAS_WRITER_TASK
+	static void Spin() noexcept;
+	static void InitWriterTask() noexcept;
+#endif
 private:
 #if HAS_MASS_STORAGE || HAS_LINUX_INTERFACE
 	void Init() noexcept;
@@ -110,6 +115,13 @@ private:
 	char* absoluteFilename;
 	FilePosition length;
 	FilePosition offset;
+#endif
+#if HAS_WRITER_TASK
+	FRESULT FlushWriteBuffer(FileWriteBuffer *buffer) noexcept;
+	FRESULT WaitWriteBufferEmpty(FileWriteBuffer *buffer) noexcept;
+	static FileWriteBuffer * volatile bufferToWrite;
+	static FileStore * volatile fileToWrite;
+	static Mutex writerMutex;
 #endif
 };
 

@@ -1284,23 +1284,31 @@ void HttpResponder::RejectMessage(const char* response, unsigned int code) noexc
 }
 
 #if HAS_MASS_STORAGE
-
+#include "WiFiSocket.h"
 // This function overrides the one in class NetworkResponder.
 // It tries to process a chunk of uploaded data and changes the state if finished.
 void HttpResponder::DoUpload() noexcept
 {
 	const uint8_t *buffer;
 	size_t len;
-	if (skt->ReadBuffer(buffer, len))
+	bool dataRead = false;
+	int canWrite = fileBeingUploaded.CanWrite();
+	//int avail = ((WiFiSocket *)skt)->TotalRemaining();
+	//if (avail != 0)
+		//debugPrintf("DU %d %d\n", avail, canWrite);
+	while (skt->ReadBuffer(buffer, len))
 	{
-		skt->Taken(len);
-		uploadedBytes += len;
+		//skt->Taken(len);
+		//uploadedBytes += len;
 
-		(void)CheckAuthenticated();							// uploading may take a long time, so make sure the requester IP is not timed out
-		timer = millis();									// reset the timer
+		//(void)CheckAuthenticated();							// uploading may take a long time, so make sure the requester IP is not timed out
+		//timer = millis();									// reset the timer
 
 		if (!dummyUpload)
 		{
+			canWrite = fileBeingUploaded.CanWrite();
+			if (canWrite == 0) break;
+			if (len > canWrite) len = canWrite;
 			if (!fileBeingUploaded.Write(buffer, len))
 			{
 				uploadError = true;
@@ -1310,8 +1318,14 @@ void HttpResponder::DoUpload() noexcept
 				return;
 			}
 		}
+		skt->Taken(len);
+		uploadedBytes += len;
+
+		(void)CheckAuthenticated();							// uploading may take a long time, so make sure the requester IP is not timed out
+		timer = millis();									// reset the timer
+		dataRead = true;
 	}
-	else if (!skt->CanRead() || millis() - timer >= HttpSessionTimeout)
+	if (!dataRead && (!skt->CanRead() || millis() - timer >= HttpSessionTimeout))
 	{
 		debugPrintf("upload failed expected len %u actual %u\n", (unsigned)postFileLength, (unsigned)uploadedBytes);
 		// Sometimes uploads can get stuck; make sure they are cancelled when that happens
