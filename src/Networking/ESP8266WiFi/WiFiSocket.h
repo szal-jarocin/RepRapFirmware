@@ -35,7 +35,6 @@ public:
 	void Send() noexcept;
 	void SetNeedsPolling() noexcept { needsPolling = true; }
 	bool NeedsPolling() const noexcept;
-	int TotalRemaining() noexcept {return receivedData == nullptr ? 0 : receivedData->TotalRemaining();}
 private:
 	enum class SocketState : uint8_t
 	{
