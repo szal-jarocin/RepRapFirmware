@@ -87,7 +87,7 @@ constexpr IRQn ESP_SPI_IRQn = WiFiSpiSercomIRQn;
 
 const uint32_t WifiResponseTimeoutMillis = 200;
 const uint32_t WiFiWaitReadyMillis = 100;
-const uint32_t WiFiStartupMillis = 300;
+const uint32_t WiFiStartupMillis = 1000;
 const uint32_t WiFiStableMillis = 100;
 
 const unsigned int MaxHttpConnections = 4;
@@ -580,7 +580,8 @@ void WiFiInterface::Stop() noexcept
 		MutexLocker lock(interfaceMutex);
 
 		digitalWrite(SamTfrReadyPin, false);		// tell the ESP we can't receive
-		digitalWrite(EspResetPin, false);			// put the ESP back into reset
+		pinMode(EspResetPin, OUTPUT_LOW);
+		//digitalWrite(EspResetPin, false);			// put the ESP back into reset
 #if defined(DUET_NG) || defined(DUET3MINI)
 		digitalWrite(EspEnablePin, false);
 #endif
@@ -1857,6 +1858,7 @@ int32_t WiFiInterface::SendCommand(NetworkCommand cmd, SocketNumber socketNum, u
 		{
 			debugPrintf("bad format version %02x\n", bufferIn->hdr.formatVersion);
 		}
+		debugPrintf("bad format version %02x\n", bufferIn->hdr.formatVersion);
 		// For some reason I don't understand when using the ESP32 with DMA seems to result in a very
 		// occasaional packet with formatVersion == 0. We check for that here and allow it if a second
 		// header field has the correct value. 
@@ -1891,7 +1893,8 @@ int32_t WiFiInterface::SendCommand(NetworkCommand cmd, SocketNumber socketNum, u
 		memcpy(dataIn, bufferIn->data, min<size_t>(dataInLength, (size_t)response));
 	}
 
-	if (response < 0 && reprap.Debug(moduleNetwork))
+	//if (response < 0 && reprap.Debug(moduleNetwork))
+	if (response < 0)
 	{
 		debugPrintf("Network command %d socket %u returned error: %s\n", (int)cmd, socketNum, TranslateWiFiResponse(response));
 	}
@@ -2025,7 +2028,11 @@ void WiFiInterface::SpiInterrupt() noexcept
 // Start the ESP
 void WiFiInterface::StartWiFi() noexcept
 {
+#if STM32F4 || LPC17xx
+	pinMode(EspResetPin, INPUT_PULLUP);
+#else
 	digitalWrite(EspResetPin, true);
+#endif
 #if defined(DUET_NG) || defined(DUET_5LC)
 	delayMicroseconds(150);										// ESP8266 datasheet specifies minimum 100us from releasing reset to power up
 	digitalWrite(EspEnablePin, true);
@@ -2121,8 +2128,11 @@ void WiFiInterface::ResetWiFiForUpload(bool external) noexcept
 	}
 
 	// Release the reset on the ESP8266
+#if STM32F4 || LPC17xx
+	pinMode(EspResetPin, INPUT_PULLUP);
+#else
 	digitalWrite(EspResetPin, true);
-
+#endif
 #if defined(DUET_NG) || defined(DUET3MINI)
 	// Take the ESP8266 out of power down
 	delayMicroseconds(150);											// ESP8266 datasheet specifies minimum 100us from releasing reset to power up
