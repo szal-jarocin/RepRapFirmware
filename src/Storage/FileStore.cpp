@@ -502,6 +502,7 @@ bool FileStore::Write(const char *s, size_t len) noexcept
 				do
 				{
 #if HAS_WRITER_TASK
+					// If the buffer is currently being written we need to wait for it to complete
 					if (writeBuffer == bufferToWrite)
 						WaitWriteBufferEmpty(writeBuffer);
 #endif				
@@ -510,7 +511,6 @@ bool FileStore::Write(const char *s, size_t len) noexcept
 					{
 #if HAS_WRITER_TASK
 						writeStatus = FlushWriteBuffer(writeBuffer);
-						//WaitWriteBufferEmpty(writeBuffer);
 #else
 						const size_t bytesToWrite = writeBuffer->BytesStored();
 						size_t bytesWritten;
@@ -546,9 +546,9 @@ bool FileStore::Write(const char *s, size_t len) noexcept
 int FileStore::CanWrite() noexcept
 {
 #if HAS_WRITER_TASK
-	return writeBuffer == nullptr ? 2048 : writeBuffer == bufferToWrite ? 0 : writeBuffer->BytesLeft();
+	return writeBuffer == nullptr ? 0x7fffffff : writeBuffer == bufferToWrite ? 0 : writeBuffer->BytesLeft();
 #else
-	return writeBuffer != nullptr ? writeBuffer->BytesLeft() : 2048;
+	return writeBuffer == nullptr ? 0x7fffffff : writeBuffer->BytesLeft();
 #endif
 }
 
@@ -567,9 +567,8 @@ bool FileStore::Flush() noexcept
 		if (writeBuffer != nullptr)
 		{
 #if HAS_WRITER_TASK
-			if (writeBuffer == bufferToWrite)
-				WaitWriteBufferEmpty(writeBuffer);
-			FlushWriteBuffer(writeBuffer);
+			if (bufferToWrite != writeBuffer)
+				FlushWriteBuffer(writeBuffer);
 			WaitWriteBufferEmpty(writeBuffer);
 #else
 			const size_t bytesToWrite = writeBuffer->BytesStored();
@@ -692,7 +691,7 @@ void FileStore::Spin() noexcept
 {
 	for(;;)
 	{
-		TaskBase::Take(1000);
+		TaskBase::Take();
 		{
 			MutexLocker lock(writerMutex);
 			if (bufferToWrite != nullptr)
@@ -732,6 +731,7 @@ FRESULT FileStore::FlushWriteBuffer(FileWriteBuffer *buffer) noexcept
 
 FRESULT FileStore::WaitWriteBufferEmpty(FileWriteBuffer *buffer) noexcept
 {
+	if (buffer != bufferToWrite) return FR_OK;
 	for(;;)
 	{
 		MutexLocker lock(writerMutex);

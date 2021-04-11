@@ -1284,7 +1284,7 @@ void HttpResponder::RejectMessage(const char* response, unsigned int code) noexc
 }
 
 #if HAS_MASS_STORAGE
-#include "WiFiSocket.h"
+
 // This function overrides the one in class NetworkResponder.
 // It tries to process a chunk of uploaded data and changes the state if finished.
 void HttpResponder::DoUpload() noexcept
@@ -1292,21 +1292,13 @@ void HttpResponder::DoUpload() noexcept
 	const uint8_t *buffer;
 	size_t len;
 	bool dataRead = false;
-	int canWrite = fileBeingUploaded.CanWrite();
-	//int avail = ((WiFiSocket *)skt)->TotalRemaining();
-	//if (avail != 0)
-		//debugPrintf("DU %d %d\n", avail, canWrite);
 	while (skt->ReadBuffer(buffer, len))
 	{
-		//skt->Taken(len);
-		//uploadedBytes += len;
-
-		//(void)CheckAuthenticated();							// uploading may take a long time, so make sure the requester IP is not timed out
-		//timer = millis();									// reset the timer
-
 		if (!dummyUpload)
 		{
-			canWrite = fileBeingUploaded.CanWrite();
+			// Check to see how much we can write, this avaoid blocking when using a 
+			// writer task and provides better throughput
+			size_t canWrite = (size_t)fileBeingUploaded.CanWrite();
 			if (canWrite == 0) break;
 			if (len > canWrite) len = canWrite;
 			if (!fileBeingUploaded.Write(buffer, len))
