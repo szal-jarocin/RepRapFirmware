@@ -36,7 +36,6 @@ private:
 	static const unsigned int percentToReportIncrement = 5;	// how often we report % complete
 	static const uint32_t systemParametersAddress = 0x3FE000;	// the address of the system + user parameter area that needs to be cleared when changing SDK version
 	static const uint32_t systemParametersSize = 0x2000;		// the size of the system + user parameter area
-
 	// Return codes - this list must be kept in step with the corresponding messages
 	enum class EspUploadResult
 	{
@@ -63,6 +62,13 @@ private:
 		done
 	};
 
+	enum ESPType
+	{
+		unknown = 0,
+		ESP8266,
+		ESP32
+	};
+
 	void MessageF(const char *fmt, ...) noexcept;
 	uint32_t getData(unsigned byteCnt, const uint8_t *buf, int ofst) noexcept;
 	void putData(uint32_t val, unsigned byteCnt, uint8_t *buf, int ofst) noexcept;
@@ -78,6 +84,7 @@ private:
 	void sendCommand(uint8_t op, uint32_t checkVal, const uint8_t *data, size_t dataLen) noexcept;
 	EspUploadResult doCommand(uint8_t op, const uint8_t *data, size_t dataLen, uint32_t checkVal, uint32_t *valp, uint32_t msTimeout) noexcept;
 	EspUploadResult Sync(uint16_t timeout) noexcept;
+	EspUploadResult flashSPIAttach() noexcept;
 	EspUploadResult flashBegin(uint32_t addr, uint32_t size) noexcept;
 	EspUploadResult flashFinish(bool reboot) noexcept;
 	static uint16_t checksum(const uint8_t *data, uint16_t dataLen, uint16_t cksum) noexcept;
@@ -97,6 +104,10 @@ private:
 	UploadState state;
 	EspUploadResult uploadResult;
 	int restartModeOnCompletion;
+	ESPType espType;
+#if STM32F4
+	uint32_t *blkBuf32;
+#endif
 };
 
 #endif /* SRC_SAME70_WIFIFIRMWAREUPLOADER_H_ */
