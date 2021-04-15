@@ -13,7 +13,7 @@ class Platform;
 class FileWriteBuffer;
 
 #if HAS_MASS_STORAGE || HAS_LINUX_INTERFACE
-#define HAS_WRITER_TASK 1
+
 enum class OpenMode : uint8_t
 {
 	read,			// open an existing file for reading

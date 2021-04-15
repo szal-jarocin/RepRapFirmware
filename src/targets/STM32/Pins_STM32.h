@@ -43,6 +43,7 @@
 #define HAS_VOLTAGE_MONITOR		         1
 #define ACTIVE_LOW_HEAT_ON		         0
 #define HAS_VREF_MONITOR                 0
+#define HAS_WRITER_TASK                  1
 
 #define SUPPORT_INKJET		             0	// set nonzero to support inkjet control
 #define SUPPORT_ROLAND		             0	// set nonzero to support Roland mill

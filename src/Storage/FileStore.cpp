@@ -703,7 +703,7 @@ void FileStore::Spin() noexcept
 
 				if ((writeStatus != FR_OK) || (bytesToWrite != bytesWritten))
 				{
-					reprap.GetPlatform().MessageF(ErrorMessage, "Failed to flush data to file, error code %d. Card may be full.\n", (int)writeStatus);
+					reprap.GetPlatform().MessageF(ErrorMessage, "Failed to write data to file, error code %d. Card may be full.\n", (int)writeStatus);
 				}
 				bufferToWrite = nullptr;
 				fileToWrite = nullptr;
