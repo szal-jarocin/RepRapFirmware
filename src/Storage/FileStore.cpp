@@ -467,6 +467,8 @@ FRESULT FileStore::Store(const char *s, size_t len, size_t *bytesWritten) noexce
 		crc.Update(s, len);
 	}
 	const FRESULT writeStatus = f_write(&file, s, len, bytesWritten);
+	if (writeStatus != FR_OK || *bytesWritten != len)
+		debugPrintf("SD Write failed error %d bytesWritten %d len %d\n", writeStatus, *bytesWritten, len);
 	return writeStatus;
 }
 

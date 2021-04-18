@@ -166,7 +166,9 @@ int SDCard::wait_ready (uint32_t wt) /* 1:Ready, 0:Timeout */
         /* This loop takes a time. Insert rot_rdq() here for multitask envilonment. */
         
     } while (d != 0xFF && (millis() - now) < wt);    /* Wait for card goes ready or timeout */
-    
+#ifdef SD_DEBUG
+    if (d != 0xFF) debugPrintf("Card not ready timeout\n");
+#endif    
     return (d == 0xFF) ? 1 : 0;
 }
 
@@ -233,6 +235,9 @@ int SDCard::rcvr_datablock (uint8_t *buff, uint32_t btr)/* 1:OK, 0:Error */
         /* This loop will take a time. Insert rot_rdq() here for multitask envilonment. */
         
     } while ((token == 0xFF) && (millis() - now) < 200 );
+#ifdef SD_DEBUG
+    if (token != 0xFE) debugPrintf("recv datablock failed\n");
+#endif
     if(token != 0xFE) return 0;        /* Function fails if invalid DataStart token or timeout */
     rcvr_spi_multi(buff, btr);        /* Store trailing data to the buffer */
     xchg_spi(0xFF); xchg_spi(0xFF);    /* Discard CRC */
@@ -260,7 +265,9 @@ int SDCard::xmit_datablock (const uint8_t *buff, uint8_t token) /* 1:OK, 0:Faile
     xchg_spi(0xFF); xchg_spi(0xFF);        /* Dummy CRC */
     
     uint8_t resp = xchg_spi(0xFF);                /* Receive data resp */
-    
+#ifdef SD_DEBUG
+    if ((resp & 0x1F) != 0x05) debugPrintf("xmit datablock failed\n");
+#endif
     return (resp & 0x1F) == 0x05 ? 1 : 0;    /* Data was accepted or not */
     
     /* Busy check is done at next transmission */
@@ -461,7 +468,14 @@ DRESULT SDCard::disk_read (uint8_t *buff, uint32_t sector, uint32_t count)
         } while (--count);
         if (cmd == CMD18) send_cmd(CMD12, 0);    /* STOP_TRANSMISSION */
     }
+#ifdef SD_DEBUG
+    else
+        debugPrintf("read failed 1\n");
+#endif
     deselect();
+#ifdef SD_DEBUG
+    if (count) debugPrintf("Read failed 2\n");
+#endif
     return count ? RES_ERROR : RES_OK;    /* Return result */
 }
 
@@ -508,7 +522,9 @@ DRESULT SDCard::disk_write (const uint8_t *buff, uint32_t sector, uint32_t count
         }
     }
     deselect();
-
+#ifdef SD_DEBUG
+    if (count) debugPrintf("write failed\n");
+#endif
     return count ? RES_ERROR : RES_OK;    /* Return result */
 }
 
