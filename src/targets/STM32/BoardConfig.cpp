@@ -39,6 +39,7 @@ static const boardConfigEntry_t boardConfigs[]=
     {"leds.diagnostic", &DiagPin, nullptr, cvPinType},
 
     //Steppers
+    {"stepper.powerEnablePin", &StepperPowerEnablePin, nullptr, cvPinType},
     {"stepper.enablePins", ENABLE_PINS, &MaxTotalDrivers, cvPinType},
     {"stepper.stepPins", STEP_PINS, &MaxTotalDrivers, cvPinType},
     {"stepper.directionPins", DIRECTION_PINS, &MaxTotalDrivers, cvPinType},
@@ -183,7 +184,6 @@ BoardConfig::BoardConfig() noexcept
 {
 }
 
-
 static void ConfigureGPIOPins() noexcept
 {
     // loop through and set and pins that have special requirements from the board settings
@@ -219,6 +219,8 @@ static void ConfigureGPIOPins() noexcept
     // Configure ATX power control
     if (ATX_POWER_PIN != NoPin)
         pinMode(ATX_POWER_PIN, (ATX_INITIAL_POWER_ON ^ ATX_POWER_INVERTED ? OUTPUT_HIGH : OUTPUT_LOW));
+    if (StepperPowerEnablePin != NoPin)
+        pinMode(StepperPowerEnablePin, OUTPUT_LOW);
 }
 
 static void ConfigureSPIPins(SSPChannel dev, Pin clk, Pin miso, Pin mosi)
@@ -269,6 +271,25 @@ static void FatalError(const char* fmt, ...)
         delay(2000);
     }
 }
+
+static void CheckDriverPins() noexcept
+{
+    for(size_t i=0; i<MaxTotalDrivers; i++)
+    {
+        if (ENABLE_PINS[i] != NoPin && STEP_PINS[i] != NoPin && DIRECTION_PINS[i] != NoPin)
+        {
+            pinMode(ENABLE_PINS[i], INPUT);
+            bool state1 = IoPort::ReadPin(ENABLE_PINS[i]);
+            pinMode(STEP_PINS[i], OUTPUT_LOW);
+            delay(1);
+            bool state2 = IoPort::ReadPin(ENABLE_PINS[i]);
+            pinMode(STEP_PINS[i], INPUT);
+            if (state1 != state2 && state2 == false)
+                FatalError("Possible short between step and enable pins on driver %d.\nPlease check driver installation/configuration.\n", i);
+        }
+    }
+}
+
 
 static void UnknownHardware(uint32_t sig)
 {
@@ -499,12 +520,12 @@ void BoardConfig::Init() noexcept
         #endif
         hasStepPinsOnDifferentPorts = true;
         
-        //Does board have build in current control via digipots?
+        //Does board have built in current control via digipots?
         if(digipotFactor > 1)
         {
             hasDriverCurrentControl = true;
         }
-        
+        CheckDriverPins();        
         //Setup the SPI Pins, note that the SD SPI device may already have been configured
         for(size_t i = 0; i < ARRAY_SIZE(SPIPins); i++)
             if (sdChannel != (SSPChannel)i)
