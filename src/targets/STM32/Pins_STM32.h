@@ -68,6 +68,7 @@
     #define HAS_WIFI_NETWORKING          0
     #define HAS_MASS_STORAGE             1
     #define SUPPORT_TELNET               0
+    #define SUPPORT_ACCELEROMETERS       0
 
     #define BOARD_NAME          "STM32F4 Ethernet"
     #define BOARD_SHORT_NAME    "STMEth"
@@ -78,6 +79,7 @@
     #define HAS_WIFI_NETWORKING          1
     #define HAS_MASS_STORAGE             1
     #define SUPPORT_TELNET               0
+    #define SUPPORT_ACCELEROMETERS       1
 
     #define BOARD_NAME          "STM32F4 WiFi"
     #define BOARD_SHORT_NAME    "STMWiFi"
@@ -89,6 +91,7 @@
     #define HAS_MASS_STORAGE             0
     #define HAS_LINUX_INTERFACE          1
     #define SUPPORT_TELNET               1
+    #define SUPPORT_ACCELEROMETERS       0
 
     #define BOARD_NAME          "STM32F4 SBC"
     #define BOARD_SHORT_NAME    "STMSBC"
@@ -99,6 +102,7 @@
     #define HAS_WIFI_NETWORKING          0
     #define HAS_MASS_STORAGE             1
     #define SUPPORT_TELNET               0
+    #define SUPPORT_ACCELEROMETERS       0
 
     #define BOARD_NAME          "STM32F4"
     #define BOARD_SHORT_NAME    "STM32"
@@ -198,10 +202,6 @@ extern bool hasDriverCurrentControl;
 extern float digipotFactor;
 
 constexpr uint32_t DefaultStandstillCurrentPercent = 100;
-
-//Smoothie uses MCP4451 for current control
-// Indices for motor current digipots (X,Y,Z,E) - E is on 2nd digipot chip
-//constexpr uint8_t POT_WIPES[5] = { 0, 1, 2, 3, 0};
 
 
 // HEATERS - The bed is assumed to be the at index 0
@@ -303,6 +303,10 @@ constexpr float PowerMonitorVoltageRange = 11.0 * 3.3;						// We use an 11:1 vo
 extern uint32_t VInDummyReading;
 #endif
 extern Pin StepperPowerEnablePin;
+
+#if SUPPORT_ACCELEROMETERS
+extern SSPChannel AccelerometerSpiChannel;
+#endif
 
 //Timer 5 is used for Step Generation
 #define STEP_TC             (TIM5)

@@ -415,7 +415,11 @@ GCodeResult Accelerometers::ConfigureAccelerometer(GCodeBuffer& gb, const String
 			return GCodeResult::error;
 		}
 
+#if STM32F4 || LPC17xx
+		temp = new LIS3DH(SharedSpiDevice::GetSharedSpiDevice(AccelerometerSpiChannel), spiCsPort.GetPin(), irqPort.GetPin());
+#else
 		temp = new LIS3DH(SharedSpiDevice::GetMainSharedSpiDevice(), spiCsPort.GetPin(), irqPort.GetPin());
+#endif
 		if (temp->CheckPresent())
 		{
 			accelerometer = temp;
