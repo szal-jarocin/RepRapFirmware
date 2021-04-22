@@ -132,6 +132,7 @@ constexpr BoardDefaults biquskr_pro_1_1_Defaults = {
 #if HAS_VOLTAGE_MONITOR
     NoPin,
 #endif
+    NoPin,
 };
 
 
@@ -231,7 +232,7 @@ constexpr PinEntry PinTable_BIQU_GTR_v1_0[] =
 	{PA_9, "PA9"},
 	
 	//SPI
-	{PC_14, "X-CS,PC10"},
+	{PC_14, "X-CS,PC14"},
 	{PE_1, "Y-CS,PE1"},
 	{PB_5, "Z-CS,PB5"},
 	{PG_10, "E0-CS,PG10"},
@@ -271,6 +272,7 @@ constexpr BoardDefaults biqu_gtr_1_0_Defaults = {
 #if HAS_VOLTAGE_MONITOR
     NoPin,
 #endif
+    NoPin,
 };
 
 constexpr PinEntry PinTable_BTT_RRF_E3_v1_1[] =
@@ -278,24 +280,32 @@ constexpr PinEntry PinTable_BTT_RRF_E3_v1_1[] =
     //Thermistors
     {PA_0, "e0temp,th0"},
     {PA_1, "bedtemp,tb"},
+    {PA_2, "e1temp,th1"},
+    {PA_3, "PT100,th2"},
 
     //Endstops
     {PC_0, "xstop,x-stop"},
     {PC_1, "ystop,y-stop"},
     {PC_2, "zstop,z-stop"},
     {PC_3, "e0stop,e0det"},
+    {PB_10, "e1stop"},
+    {PB_11, "x2stop"},
+    {PE_3, "IO"},
 
     //Servos
     {PB_0,  "servo0" },
 
     //Probe
-	{PC_5, "probe"},
+    {PC_5, "probe"},
 
     //Heaters and Fans (Big and Small Mosfets}
     {PB_4,  "bed,hbed" },
     {PB_3,  "e0heat,heat0" },
+    {PE_4,  "e1heat" },
     {PB_5,  "fan0,fan" },
     {PB_6,  "fan1" },
+    {PE_5,  "fan2" },
+    {PE_6,  "fan3" },
 
     //EXP1
     {PB_1, "LCDCS"},
@@ -307,19 +317,19 @@ constexpr PinEntry PinTable_BTT_RRF_E3_v1_1[] =
     {PE_11,"LCDEN"},
 
 	//Neopixel
-	{PB_7, "Neopixel,PB7"},
+    {PB_7, "Neopixel,PB7"},
 
-	//TFT
-	{PA_9, "TX1,tft-tx"},
-	{PA_10, "RX1,tft-rx"},
+    //TFT
+    {PA_9, "TX1,tft-tx"},
+    {PA_10, "RX1,tft-rx"},
 
     //WIFI UART
-	{PD_8, "PD8"},
-	{PD_9, "PD9"},
+    {PD_8, "PD8"},
+    {PD_9, "PD9"},
 	
-	//UART
-	{PB_8, "SDA1,PB8"},
-	{PB_9, "SCL1,PB9"},	
+    //UART
+    {PB_8, "SDA1,PB8"},
+    {PB_9, "SCL1,PB9"},	
 
     //WIFI
     {PD_13, "PD13"},//RST
@@ -335,32 +345,32 @@ constexpr PinEntry PinTable_BTT_RRF_E3_v1_1[] =
     {PB_14, "PB14"},//MISO
     {PB_15, "PB15"},//MOSI
 	
-	//PSON
-	{PE_1, "PSON,PE1"},
+    //PSON
+    {PE_1, "PSON,PE1"},
 	
-	//PWRDET
-	{PE_0, "PWRDET,PE0"},
+    //PWRDET
+    {PE_0, "PWRDET,PE0"},
 	
-	//Status LED
-	{PE_2, "LED,PE2"},
+    //Status LED
+    {PE_2, "LED,PE2"},
 	
-	//J7
-	{PE_3, "PE3"},
-	{PE_4, "PE4"},
-	{PE_5, "PE5"},
-	{PE_6, "PE6"},
-	{PC_13, "PC13"},
-	{PC_14, "PC14"},
-	{PC_15, "PC15"},
-	{PA_8, "PA8"},
-	{PA_2, "PA2"},
-	{PA_3, "PA3"},
-	{PE_12, "PE12"},
-	{PE_13, "PE13"},
-	{PE_14, "PE14"},
-	{PE_15, "PE15"},
-	{PB_10, "PB10"},
-	{PB_11, "PB11"},
+    //J7
+    //{PE_3, "PE3"},
+    //{PE_4, "PE4"},
+    //{PE_5, "PE5"},
+    //{PE_6, "PE6"},
+    //{PC_13, "PC13"},
+    //{PC_14, "PC14"},
+    //{PC_15, "PC15"},
+    //{PA_8, "PA8"},
+    //{PA_2, "PA2"},
+    //{PA_3, "PA3"},
+    //{PE_12, "PE12"},
+    //{PE_13, "PE13"},
+    //{PE_14, "PE14"},
+    //{PE_15, "PE15"},
+    //{PB_10, "PB10"},
+    //{PB_11, "PB11"},
 };
 
 constexpr BoardDefaults btt_rrf_e3_1_1_Defaults = {
@@ -374,17 +384,129 @@ constexpr BoardDefaults btt_rrf_e3_1_1_Defaults = {
         {NoPin, NoPin, NoPin},                  //SPI4
         {NoPin, NoPin, NoPin},                  //SPI5
     },
-	4,							// Number of drivers
-	{PD_7, PD_3, PD_14, PD_10}, // enablePins
-	{PD_5, PD_0, PC_6, PD_12},  // stepPins
-	{PD_4, PA_15, PC_7, PD_13},	// dirPins
+    6,							// Number of drivers
+    {PD_7, PD_3, PD_14, PD_10, PC_13, PE_15}, // enablePins
+    {PD_5, PD_0, PC_6, PD_12, PC_15, PE_13},  // stepPins
+    {PD_4, PA_15, PC_7, PD_13, PA_8, PE_12},	// dirPins
 #if TMC_SOFT_UART
-	{PD_6, PD_1, PD_15, PD_11},	// uartpins
+    {PD_6, PD_1, PD_15, PD_11, PC_14, PE_14},	// uartpins
     4,							// Smart drivers
 #endif
     0,							// digiPot Factor
 #if HAS_VOLTAGE_MONITOR
     NoPin,
 #endif
+    NoPin,
 };
+
+constexpr PinEntry PinTable_BTT_SKR_2[] =
+{
+    //Thermistors
+    {PA_1, "bedtemp,tb"},
+    {PA_2, "e0temp,th0"},
+    {PA_3, "e1temp,th1"},
+
+    //Endstops
+    {PC_1, "xstop,x-stop"},
+    {PC_3, "ystop,y-stop"},
+    {PC_0, "zstop,z-stop"},
+    {PC_2, "e0stop,e0det"},
+    {PA_0, "e1stop,e1det"},
+
+    //Servos
+    {PE_5,  "servo0" },
+
+    //Probe
+    {PE_4, "probe"},
+
+    //Heaters and Fans (Big and Small Mosfets}
+    {PD_7,  "bed,hbed" },
+    {PB_3,  "e0heat,heat0" },
+    {PB_4,  "e1heat,heat1" },
+    {PB_7,  "fan0,fan" },
+    {PB_6,  "fan1" },
+    {PB_5,  "fan2" },
+
+    //EXP1
+    {PB_1, "LCDCS"},
+    {PB_2, "LCDENCA"},
+    {PE_7, "LCDENCB"},
+    {PC_5, "LCDBEEP"},
+    {PB_0, "LCDBTN"},
+    {PE_10, "LCDD4"},
+    {PB_1, "LCDEN"},
+
+    //Neopixel
+    {PE_6, "Neopixel,PE6"},
+
+    //TFT
+    {PA_9, "TX1,tft-tx"},
+    {PA_10, "RX1,tft-rx"},
+
+    //WIFI UART
+    {PD_8, "PD8"},
+    {PD_9, "PD9"},
+
+    //SPI
+    {PE_0, "X-CS,PE0"},
+    {PD_3, "Y-CS,PD3"},
+    {PD_0, "Z-CS,PD0"},
+    {PC_6, "E0-CS,PC6"},
+    {PD_12, "E1-CS,PD12"},
+    {PA_14, "MISO,PA14"},
+    {PE_14, "MOSI,PE14"},
+    {PE_15, "SCK,PE15"},
+
+    //I2C
+    {PB_8, "SCL1,PB8"},
+    {PB_9, "SDA1,PB9"},
+
+    //WIFI
+    {PC_14, "PC14"}, //RST
+    {PB_10, "PB10"}, //IO0
+    {PB_11, "PB11"}, //IO4
+    {PB_12, "PB12"}, //CS
+    {PB_13, "PB13"}, //CLK
+    {PB_14, "PB14"}, //MISO
+    {PB_15, "PB15"}, //MOSI
+
+    //PSON
+    {PE_8, "PSON,PE8"},
+
+    //PWRDET
+    {PC_15, "PWRDET,PC15"},
+
+    //Status LED
+    {PA_13, "LED,PA13"},
+
+    //Safe power
+    {PC_13, "SP,PC13"},
+};
+
+constexpr BoardDefaults btt_skr_2_Defaults = {
+    {0xb75b00a7},                 				// Signatures
+    SD_SDIO,                                  // SD Card access
+    {   //CLK, MISO, MOSI
+        {PA_5, PA_6, PA_7},                     //SPI0
+        {PB_13, PB_14, PB_15},                  //SPI1
+        {NoPin, NoPin, NoPin},                  //SPI2
+        {NoPin, NoPin, NoPin},                  //SPI3
+        {NoPin, NoPin, NoPin},                  //SPI4
+        {NoPin, NoPin, NoPin},                  //SPI5
+    },
+    5,							// Number of drivers
+    {PE_3, PD_6, PD_1, PC_7, PD_13}, // enablePins
+    {PE_2, PD_5, PA_15, PD_15, PD_11},  // stepPins
+    {PE_1, PD_4, PA_8, PD_14, PD_10},	// dirPins
+#if TMC_SOFT_UART
+    {PE_0, PD_3, PD_0, PC_6, PD_12},	// uartpins
+    5,							// Smart drivers
+#endif
+    0,							// digiPot Factor
+#if HAS_VOLTAGE_MONITOR
+    NoPin,
+#endif
+    PC_13,
+};
+
 #endif

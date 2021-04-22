@@ -60,6 +60,7 @@
 #define SUPPORT_LED_STRIPS               1
 #define SUPPORT_ASYNC_MOVES		         0
 #define ALLOCATE_DEFAULT_PORTS           0
+#define TRACK_OBJECT_NAMES		         1
 
 #if defined(LPC_NETWORKING)
     //LPC Ethernet
@@ -164,7 +165,7 @@ constexpr size_t NumDefaultExtruders = 1;            // The number of drivers th
 constexpr size_t MaxAxesPlusExtruders = 14;
 
 constexpr size_t MaxHeatersPerTool = 2;
-constexpr size_t MaxExtrudersPerTool = 2;
+constexpr size_t MaxExtrudersPerTool = 4;
 
 constexpr size_t MaxFans = 8;
 
@@ -302,6 +303,7 @@ extern Pin PowerMonitorVinDetectPin;
 constexpr float PowerMonitorVoltageRange = 11.0 * 3.3;						// We use an 11:1 voltage divider
 extern uint32_t VInDummyReading;
 #endif
+extern Pin StepperPowerEnablePin;
 
 //Timer 5 is used for Step Generation
 #define STEP_TC             (TIM5)
@@ -368,7 +370,8 @@ struct BoardDefaults
     const float digipotFactor;
 #if HAS_VOLTAGE_MONITOR
     const Pin vinDetectPin;
-#endif    
+#endif
+    const Pin stepperPowerEnablePin;    
 };
 
 struct BoardEntry
@@ -395,6 +398,7 @@ constexpr BoardEntry LPC_Boards[] =
     {"fly_e3",      PinTable_FLY_E3,    ARRAY_SIZE(PinTable_FLY_E3),    fly_e3_Defaults},
     {"fly_cdyv2",      PinTable_FLY_CDYV2,    ARRAY_SIZE(PinTable_FLY_CDYV2),    fly_cdyv2_Defaults},
     {"biquskr_rrf_e3_1.1",      PinTable_BTT_RRF_E3_v1_1,    ARRAY_SIZE(PinTable_BTT_RRF_E3_v1_1),    btt_rrf_e3_1_1_Defaults},
+    {"biquskr_2", PinTable_BTT_SKR_2, ARRAY_SIZE(PinTable_BTT_SKR_2), btt_skr_2_Defaults},
     {"generic",      PinTable_Generic,    ARRAY_SIZE(PinTable_Generic),    Generic_Defaults},    
 };
 

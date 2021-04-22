@@ -1,6 +1,14 @@
-Version 3.3-beta1_4
+Version 3.3-beta1_6
 ===================
-STM32F4: Reduce SD card beffer size back to values used in Version 3.3-beta1_3
+* STM32F4: Add pins for BTT RRF E3 IDX board
+* STM32F4: Increase number of extruders per tool to 4
+* STM32F4: Enable object tracking
+* STM32F4: Add driver checking
+* STM32F4: Initial support for BTT SKR V2
+
+Version 3.3-beta1_5
+===================
+STM32F4: Reduce SD card buffer size back to values used in Version 3.3-beta1_3
 
 Version 3.3-beta1_4
 ===================

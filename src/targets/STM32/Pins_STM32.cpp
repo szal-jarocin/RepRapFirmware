@@ -102,6 +102,7 @@ Pin NeopixelOutPin = NoPin;
 Pin PowerMonitorVinDetectPin = NoPin;
 uint32_t VInDummyReading = 24;
 #endif
+Pin StepperPowerEnablePin = NoPin;
 
 //BrownOut Detection
 //The brownout interrupt is triggered when the supply voltage drops below approx 2.2V
@@ -193,7 +194,7 @@ bool SetBoard(const char* bn) noexcept
 #if HAS_VOLTAGE_MONITOR
             PowerMonitorVinDetectPin = LPC_Boards[i].defaults.vinDetectPin;
 #endif
-                        
+            StepperPowerEnablePin = LPC_Boards[i].defaults.stepperPowerEnablePin;
             return true;
         }
     }

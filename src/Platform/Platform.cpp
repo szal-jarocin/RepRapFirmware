@@ -3797,6 +3797,9 @@ void Platform::AtxPowerOn() noexcept
 #if LPC17xx || STM32F4
 	IoPort::WriteDigital(ATX_POWER_PIN, !ATX_POWER_INVERTED);
 	ATX_POWER_STATE = true;
+# if STM32F4
+	IoPort::WriteDigital(StepperPowerEnablePin, true);
+# endif
 #else
 	IoPort::WriteDigital(ATX_POWER_PIN, true);
 #endif
@@ -3818,6 +3821,9 @@ void Platform::AtxPowerOff(bool defer) noexcept
 #if LPC17xx || STM32F4
 		IoPort::WriteDigital(ATX_POWER_PIN, ATX_POWER_INVERTED);
 		ATX_POWER_STATE = false;
+#if STM32F4
+		IoPort::WriteDigital(StepperPowerEnablePin, false);
+#endif
 #else
 		IoPort::WriteDigital(ATX_POWER_PIN, false);
 #endif

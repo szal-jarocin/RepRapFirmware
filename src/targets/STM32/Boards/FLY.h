@@ -108,6 +108,7 @@ constexpr BoardDefaults fly_f407zg_Defaults = {
 #if HAS_VOLTAGE_MONITOR
     NoPin,
 #endif
+    NoPin,
 };
 
 
@@ -216,6 +217,7 @@ constexpr BoardDefaults fly_e3_Defaults = {
 #if HAS_VOLTAGE_MONITOR
     NoPin,
 #endif
+    NoPin,
 };
 
 
@@ -324,8 +326,9 @@ constexpr BoardDefaults fly_cdyv2_Defaults = {
 #endif
     0,
 #if HAS_VOLTAGE_MONITOR
-    PC_3
+    PC_3,
 #endif
+    NoPin,
 };
 
 constexpr PinEntry PinTable_FLY_E3_PRO[] =
@@ -413,7 +416,8 @@ constexpr BoardDefaults fly_e3_pro_Defaults = {
 #endif
     0,  
 #if HAS_VOLTAGE_MONITOR
-    PC_3
+    PC_3,
 #endif
+    NoPin,
 };
 #endif
