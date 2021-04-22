@@ -51,7 +51,7 @@ namespace LedStripDriver
 			const uint32_t T1L = NanosecondsToCycles(475);
 			const uint8_t *q = chunkBuffer;
 			uint32_t nextDelay = T0L;
-			cpu_irq_disable();
+			IrqDisable();
 			uint32_t lastTransitionTime = GetCurrentCycles();
 
 			while (q < p)
@@ -78,7 +78,7 @@ namespace LedStripDriver
 					c <<= 1;
 				}
 			}
-			cpu_irq_enable();
+			IrqEnable();
 			numAlreadyInBuffer = 0;
 		}
 		return GCodeResult::ok;

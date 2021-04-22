@@ -61,15 +61,17 @@ public:
 	void SetPrintingFileInfo(const char *filename, GCodeFileInfo& info) noexcept;
 
 	GCodeResult ProcessM73(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeException);
+	void SetSlicerTimeLeft(float seconds) noexcept;
 
 protected:
 	DECLARE_OBJECT_MODEL
 	OBJECT_MODEL_ARRAY(filament)
 
 private:
-	static constexpr float MinFilamentUsageForEstimation = 0.01;	// Minimum per cent of filament to be printed before the filament-based estimation returns values
-	static constexpr uint32_t UpdateIntervalMillis = 200;			// Update interval in milliseconds
-	static constexpr uint32_t SnapshotIntervalSeconds = 30;			// Snapshot interval in seconds
+	static constexpr float MinFilamentUsageForEstimation = 0.01;		// Minimum per cent of filament to be printed before the filament-based estimation returns values
+	static constexpr uint32_t UpdateIntervalMillis = 200;				// Update interval in milliseconds
+	static constexpr uint32_t SnapshotIntervalSecondsPrinting = 30;		// Snapshot interval in seconds
+	static constexpr uint32_t SnapshotIntervalSecondsSimulating = 1;	// Snapshot interval in seconds
 
 	void Reset() noexcept;
 	void UpdatePrintingFileInfo() noexcept;

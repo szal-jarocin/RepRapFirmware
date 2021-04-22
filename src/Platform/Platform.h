@@ -222,7 +222,7 @@ public:
 
 	void Init(uint16_t val) volatile noexcept
 	{
-		const irqflags_t flags = cpu_irq_save();
+		const irqflags_t flags = IrqSave();
 		sum = (uint32_t)val * (uint32_t)numAveraged;
 		index = 0;
 		isValid = false;
@@ -230,21 +230,23 @@ public:
 		{
 			readings[i] = val;
 		}
-		cpu_irq_restore(flags);
+		IrqRestore(flags);
 	}
 
 	// Call this to put a new reading into the filter
-	// This is only called by the ISR, so it not declared volatile to make it faster
-	void ProcessReading(uint16_t r) noexcept
+	// This is called by the ISR and by the ADC callback function
+	void ProcessReading(uint16_t r) volatile noexcept
 	{
-		sum = sum - readings[index] + r;
-		readings[index] = r;
-		++index;
-		if (index == numAveraged)
+		size_t locIndex = index;				// avoid repeatedly reloading volatile variable
+		sum = sum - readings[locIndex] + r;
+		readings[locIndex] = r;
+		++locIndex;
+		if (locIndex == numAveraged)
 		{
-			index = 0;
+			locIndex = 0;
 			isValid = true;
 		}
+		index = locIndex;
 	}
 
 	// Return the raw sum
@@ -259,18 +261,10 @@ public:
 		return isValid;
 	}
 
-	// Get the latest reading
-	uint16_t GetLatestReading() const volatile noexcept
-	{
-		size_t indexOfLastReading = index;			// capture volatile variable
-		indexOfLastReading =  (indexOfLastReading == 0) ? numAveraged - 1 : indexOfLastReading - 1;
-		return readings[indexOfLastReading];
-	}
-
 	static constexpr size_t NumAveraged() noexcept { return numAveraged; }
 
 	// Function used as an ADC callback to feed a result into an averaging filter
-	static void CallbackFeedIntoFilter(CallbackParameter cp, uint16_t val);
+	static void CallbackFeedIntoFilter(CallbackParameter cp, uint16_t val) noexcept;
 
 private:
 	uint16_t readings[numAveraged];
@@ -281,7 +275,7 @@ private:
 	//invariant(index < numAveraged)
 };
 
-template<size_t numAveraged> void AveragingFilter<numAveraged>::CallbackFeedIntoFilter(CallbackParameter cp, uint16_t val)
+template<size_t numAveraged> void AveragingFilter<numAveraged>::CallbackFeedIntoFilter(CallbackParameter cp, uint16_t val) noexcept
 {
 	static_cast<AveragingFilter<numAveraged>*>(cp.vp)->ProcessReading(val);
 }
@@ -597,8 +591,10 @@ public:
 #endif
 
 #if HAS_VOLTAGE_MONITOR || HAS_12V_MONITOR
+	void ResetVoltageMonitors() noexcept;
 	bool HasVinPower() const noexcept;
 #else
+	void ResetVoltageMonitors() noexcept { }
 	bool HasVinPower() const noexcept { return true; }
 #endif
 

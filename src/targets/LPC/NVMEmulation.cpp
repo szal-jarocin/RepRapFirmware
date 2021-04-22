@@ -66,7 +66,7 @@ bool NVMEmulationErase()
         currentSlot++;
         return true;
     }
-    const irqflags_t flags = cpu_irq_save();
+    const irqflags_t flags = IrqSave();
     /* Prepare to write/erase the last sector */
     iap_ret_code = Chip_IAP_PreSectorForReadWrite(IAP_LAST_SECTOR, IAP_LAST_SECTOR);
     
@@ -93,7 +93,7 @@ bool NVMEmulationErase()
     
     
     }
-    cpu_irq_restore(flags);
+    IrqRestore(flags);
     currentSlot = 0;    
     return ret;
     
@@ -115,7 +115,7 @@ bool NVMEmulationWrite(const void *data, uint32_t dataLength){
     //
     uint32_t slotStartAddress = (START_ADDR_LAST_SECTOR + (currentSlot*SLOT_SIZE));
     
-    const irqflags_t flags = cpu_irq_save();
+    const irqflags_t flags = IrqSave();
     
     /* Prepare to write/erase the last sector */
     iap_ret_code = Chip_IAP_PreSectorForReadWrite(IAP_LAST_SECTOR, IAP_LAST_SECTOR);
@@ -142,7 +142,7 @@ bool NVMEmulationWrite(const void *data, uint32_t dataLength){
         }
     }
     /* Re-enable interrupt mode */
-    cpu_irq_restore(flags);
+    IrqRestore(flags);
     return ret;
     
 }

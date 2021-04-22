@@ -111,6 +111,10 @@
 # define HAS_STALL_DETECT		(SUPPORT_TMC2660 || SUPPORT_TMC51xx
 #endif
 
+#ifndef SUPPORT_SLOW_DRIVERS
+# define SUPPORT_SLOW_DRIVERS	1
+#endif
+
 #ifndef HAS_12V_MONITOR
 # define HAS_12V_MONITOR		0
 # define ENFORCE_MIN_V12		0
@@ -192,6 +196,12 @@
 
 #ifndef SUPPORT_ACCELEROMETERS
 # define SUPPORT_ACCELEROMETERS	0
+#endif
+
+#if !STM32F4 && !LPC17xx
+#ifndef ATX_POWER_INVERTED
+# define ATX_POWER_INVERTED		false
+#endif
 #endif
 
 // We must define MCU_HAS_UNIQUE_ID as either 0 or 1 so we can use it in maths

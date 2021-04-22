@@ -1095,9 +1095,9 @@ bool DDA::FetchEndPosition(volatile int32_t ep[MaxAxesPlusExtruders], volatile f
 }
 
 // This may be called from an ISR, e.g. via Kinematics::OnHomingSwitchTriggered
-void DDA::SetPositions(const float move[MaxAxesPlusExtruders], size_t numDrives) noexcept
+void DDA::SetPositions(const float move[MaxAxesPlusExtruders]) noexcept
 {
-	reprap.GetMove().EndPointToMachine(move, endPoint, numDrives);
+	(void)reprap.GetMove().CartesianToMotorSteps(move, endPoint, true);
 	const size_t numAxes = reprap.GetGCodes().GetVisibleAxes();
 	for (size_t axis = 0; axis < numAxes; ++axis)
 	{
@@ -1127,7 +1127,6 @@ pre(disableDeltaMapping || drive < MaxAxes)
 }
 
 // Adjust the acceleration and deceleration to reduce ringing
-// Only called if topSpeed > startSpeed & topSpeed > endSpeed
 // This is only called once, so inlined for speed
 inline void DDA::AdjustAcceleration() noexcept
 {
@@ -1136,7 +1135,7 @@ inline void DDA::AdjustAcceleration() noexcept
 
 	float proposedAcceleration = acceleration, proposedAccelDistance = beforePrepare.accelDistance;
 	bool adjustAcceleration = false;
-	if ((prev->state != DDAState::frozen && prev->state != DDAState::executing) || !prev->IsAccelerationMove())
+	if (topSpeed > startSpeed && ((prev->state != DDAState::frozen && prev->state != DDAState::executing) || !prev->flags.wasAccelOnlyMove))
 	{
 		const float accelTime = (topSpeed - startSpeed)/acceleration;
 		if (accelTime < idealPeriod)
@@ -1157,7 +1156,7 @@ inline void DDA::AdjustAcceleration() noexcept
 
 	float proposedDeceleration = deceleration, proposedDecelDistance = beforePrepare.decelDistance;
 	bool adjustDeceleration = false;
-	if (next->state != DDAState::provisional || !next->IsDecelerationMove())
+	if (topSpeed > endSpeed && (next->state != DDAState::provisional || !next->IsDecelerationMove()))
 	{
 		const float decelTime = (topSpeed - endSpeed)/deceleration;
 		if (decelTime < idealPeriod)
@@ -1260,11 +1259,9 @@ inline void DDA::AdjustAcceleration() noexcept
 // This must not be called with interrupts disabled, because it calls Platform::EnableDrive.
 void DDA::Prepare(uint8_t simMode, float extrusionPending[]) noexcept
 {
-	if (   flags.xyMoving
-		&& reprap.GetMove().GetShaper().GetType() == InputShaperType::DAA
-		&& topSpeed > startSpeed && topSpeed > endSpeed
-		&& (fabsf(directionVector[X_AXIS]) > 0.5 || fabsf(directionVector[Y_AXIS]) > 0.5)
-	   )
+	flags.wasAccelOnlyMove = IsAccelerationMove();			// save this for the next move to look at
+
+	if (flags.xyMoving && reprap.GetMove().GetShaper().GetType() == InputShaperType::DAA)
 	{
 		AdjustAcceleration();
 	}
@@ -1455,7 +1452,11 @@ void DDA::Prepare(uint8_t simMode, float extrusionPending[]) noexcept
 						}
 					}
 
-					if (platform.GetDriversBitmap(drive) != 0)					// if any of the drives is local
+					if (   platform.GetDriversBitmap(drive) != 0				// if any of the drives is local
+#if SUPPORT_CAN_EXPANSION
+						|| flags.checkEndstops									// if checking endstops, create a DM even if there are no local drives involved
+#endif
+					   )
 					{
 						DriveMovement* const pdm = DriveMovement::Allocate(drive, DMState::accel0);
 						pdm->totalSteps = labs(delta);
@@ -1971,14 +1972,20 @@ uint32_t DDA::stepsRequested[NumDirectDrivers];
 uint32_t DDA::stepsDone[NumDirectDrivers];
 #endif
 
+#if 0	//debug
+uint32_t lastDelay;
+uint32_t maxDelay;
+uint32_t maxDelayIncrease;
+#endif
+
 // Generate the step pulses of internal drivers used by this DDA
 // Sets the status to 'completed' if the move is complete and the next move should be started
-void DDA::StepDrivers(Platform& p) noexcept
+void DDA::StepDrivers(Platform& p, uint32_t now) noexcept
 {
 	// Check endstop switches and Z probe if asked. This is not speed critical because fast moves do not use endstops or the Z probe.
 	if (flags.checkEndstops)		// if any homing switches or the Z probe is enabled in this move
 	{
-		CheckEndstops(p);			// call out to a separate function because this may help cache usage in the more common case where we don't call it
+		CheckEndstops(p);			// call out to a separate function because this may help cache usage in the more common and time-critical case where we don't call it
 		if (state == completed)		// we may have completed the move due to triggering an endstop switch or Z probe
 		{
 			return;
@@ -1987,8 +1994,19 @@ void DDA::StepDrivers(Platform& p) noexcept
 
 	uint32_t driversStepping = 0;
 	DriveMovement* dm = activeDMs;
-	uint32_t now = StepTimer::GetTimerTicks();
 	const uint32_t elapsedTime = (now - afterPrepare.moveStartTime) + StepTimer::MinInterruptInterval;
+#if 0	//DEBUG
+	if (dm != nullptr && elapsedTime >= dm->nextStepTime)
+	{
+		const uint32_t delay = elapsedTime - dm->nextStepTime;
+		if (dm->nextStep != 1)
+		{
+			if (delay > maxDelay) { maxDelay = delay; }
+			if (delay > lastDelay && (delay - lastDelay) > maxDelayIncrease) { maxDelayIncrease = delay - lastDelay; }
+		}
+		lastDelay = delay;
+	}
+#endif	//END DEBUG
 	while (dm != nullptr && elapsedTime >= dm->nextStepTime)		// if the next step is due
 	{
 		driversStepping |= p.GetDriversBitmap(dm->drive);
@@ -1999,7 +2017,7 @@ void DDA::StepDrivers(Platform& p) noexcept
 	}
 
 	driversStepping &= p.GetSteppingEnabledDrivers();
-#if 1	// if supporting slow drivers
+#if SUPPORT_SLOW_DRIVERS											// if supporting slow drivers
 	if ((driversStepping & p.GetSlowDriversBitmap()) != 0)			// if using some slow drivers
 	{
 		// Wait until step low and direction setup time have elapsed
@@ -2048,7 +2066,7 @@ void DDA::StepDrivers(Platform& p) noexcept
 			if (dmToInsert->directionChanged)
 			{
 				dmToInsert->directionChanged = false;
-				reprap.GetPlatform().SetDirection(dmToInsert->drive, dmToInsert->direction);
+				p.SetDirection(dmToInsert->drive, dmToInsert->direction);
 			}
 		}
 		else

@@ -326,13 +326,15 @@ GCodeResult GCodes::DefineGrid(GCodeBuffer& gb, const StringRef &reply) THROWS(G
 		// Seen both axes
 		if (seenP)
 		{
+			// In the following, we multiply the spacing by 0.9999 to ensure that when we divide the axis range by the spacing, we get the correct number of points
+			// Otherwise, for some values we occasionally get one less point
 			if (spacings[0] >= 2 && axis0Values[1] > axis0Values[0])
 			{
-				spacings[0] = (axis0Values[1] - axis0Values[0])/(numPoints[0] - 1);
+				spacings[0] = (axis0Values[1] - axis0Values[0])/(numPoints[0] - 1) * 0.9999;
 			}
 			if (spacings[1] >= 2 && axis1Values[1] > axis1Values[0])
 			{
-				spacings[1] = (axis1Values[1] - axis1Values[0])/(numPoints[1] - 1);
+				spacings[1] = (axis1Values[1] - axis1Values[0])/(numPoints[1] - 1) * 0.9999;
 			}
 		}
 	}
@@ -1342,8 +1344,13 @@ GCodeResult GCodes::ConfigureDriver(GCodeBuffer& gb, const StringRef& reply) THR
 #endif
 
 	const uint8_t drive = id.localDriver;
-	if (gb.GetCommandFraction() > 0)
+	switch (gb.GetCommandFraction())
 	{
+	case 0:
+	case -1:
+		return ConfigureLocalDriver(gb, reply, drive);
+
+	case 1:
 		// Main board drivers do not support closed loop modes
 		if (gb.Seen('S'))
 		{
@@ -1356,8 +1363,28 @@ GCodeResult GCodes::ConfigureDriver(GCodeBuffer& gb, const StringRef& reply) THR
 		}
 		reply.copy("Driver %u mode is open loop", drive);
 		return GCodeResult::ok;
-	}
 
+#if SUPPORT_TMC22xx || SUPPORT_TMC51xx
+	case 2:			// read/write smart driver register
+		{
+			gb.MustSee('R');
+			const uint8_t regNum = gb.GetLimitedUIValue('R', 0, 0x80);
+			if (gb.Seen('V'))
+			{
+				const uint32_t regVal = gb.GetUIValue();
+				return SmartDrivers::SetAnyRegister(drive, reply, regNum, regVal);
+			}
+			return SmartDrivers::GetAnyRegister(drive, reply, regNum);
+		}
+#endif
+
+	default:
+		return GCodeResult::warningNotSupported;
+	}
+}
+
+GCodeResult GCodes::ConfigureLocalDriver(GCodeBuffer& gb, const StringRef& reply, uint8_t drive) THROWS(GCodeException)
+{
 	if (drive < platform.GetNumActualDirectDrivers())
 	{
 		bool seen = false;
@@ -1627,6 +1654,8 @@ bool GCodes::ProcessWholeLineComment(GCodeBuffer& gb, const StringRef& reply) TH
 		"; --- layer",				// KiriMoto (the line starts with ;;)
 		"BEGIN_LAYER_OBJECT z=",	// KISSlicer (followed by Z height)
 		"HEIGHT",					// Ideamaker
+		"PRINTING",					// Ideamaker
+		"REMAINING_TIME"			// Ideamaker
 	};
 
 	String<StringLength100> comment;
@@ -1657,10 +1686,27 @@ bool GCodes::ProcessWholeLineComment(GCodeBuffer& gb, const StringRef& reply) TH
 					if (StringStartsWith(text, "NONMESH"))
 					{
 						buildObjects.StopObject(gb);
-						break;
+					}
+					else
+					{
+						buildObjects.StartObject(gb, text);
 					}
 #endif
-					// no break
+					break;
+
+				case 9:		// PRINTING (Ideamaker)
+#if TRACK_OBJECT_NAMES
+					if (StringStartsWith(text, "NON-OBJECT"))
+					{
+						buildObjects.StopObject(gb);
+					}
+					else
+					{
+						buildObjects.StartObject(gb, text);
+					}
+#endif
+					break;
+
 				case 0:		// printing object (slic3r)
 				case 2:		// process (S3D)
 #if TRACK_OBJECT_NAMES
@@ -1679,13 +1725,13 @@ bool GCodes::ProcessWholeLineComment(GCodeBuffer& gb, const StringRef& reply) TH
 				case 6:		// later (counting from 0)
 					{
 						const char *endptr;
-						const uint32_t layer = StrToU32(text, &endptr);
-						if (endptr != text)
+						const int32_t layer = StrToI32(text, &endptr);		// IdeaMaker uses negative layer numbers for the raft, so read a signed number here
+						if (endptr != text && layer >= 0)
 						{
-							reprap.GetPrintMonitor().SetLayerNumber((i == 4) ? layer : layer + 1);
+							reprap.GetPrintMonitor().SetLayerNumber((uint32_t)((i == 4) ? layer : layer + 1));
 						}
 						text = endptr;
-						if (!StringStartsWith(text, ", z = "))		// S3D gives us the height too
+						if (!StringStartsWith(text, ", z = "))				// S3D gives us the height too
 						{
 							break;
 						}
@@ -1701,6 +1747,17 @@ bool GCodes::ProcessWholeLineComment(GCodeBuffer& gb, const StringRef& reply) TH
 						if (endptr != text)
 						{
 							reprap.GetPrintMonitor().SetLayerZ(layerZ);
+						}
+					}
+					break;
+
+				case 10:	// REMAINING_TIME (Ideamaker), followed by time in seconds as an integer
+					{
+						const char *endptr;
+						const uint32_t secondsRemaining = StrToU32(text, &endptr);
+						if (endptr != text)
+						{
+							reprap.GetPrintMonitor().SetSlicerTimeLeft(secondsRemaining);
 						}
 					}
 					break;
