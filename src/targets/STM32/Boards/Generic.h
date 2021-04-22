@@ -33,5 +33,6 @@ constexpr BoardDefaults Generic_Defaults = {
 #if HAS_VOLTAGE_MONITOR
     NoPin,
 #endif
+    NoPin,
 };
 #endif
