@@ -104,6 +104,10 @@ uint32_t VInDummyReading = 24;
 #endif
 Pin StepperPowerEnablePin = NoPin;
 
+#if SUPPORT_ACCELEROMETERS
+SSPChannel AccelerometerSpiChannel = SSPNONE;
+#endif
+
 //BrownOut Detection
 //The brownout interrupt is triggered when the supply voltage drops below approx 2.2V
 //If the voltage falls below approx 1.8V the BOD will reset the CPU (and Brownout will be

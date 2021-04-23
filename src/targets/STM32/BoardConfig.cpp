@@ -122,7 +122,11 @@ static const boardConfigEntry_t boardConfigs[]=
 #if HAS_VOLTAGE_MONITOR
     {"power.VInDetectPin", &PowerMonitorVinDetectPin, nullptr, cvPinType},
     {"power.voltage", &VInDummyReading, nullptr, cvUint32Type},
-#endif    
+#endif
+#if SUPPORT_ACCELEROMETERS
+    {"accelerometer.spiChannel", &AccelerometerSpiChannel, nullptr, cvUint8Type},
+#endif
+
 };
 
 uint32_t crc32_for_byte(uint32_t r) 

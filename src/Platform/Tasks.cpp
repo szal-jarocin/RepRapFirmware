@@ -12,6 +12,7 @@
 #include <Platform/TaskPriorities.h>
 #include <Hardware/SoftwareReset.h>
 #include <Storage/CRC32.h>
+#include <Movement/StepTimer.h>
 
 #if SAM4E || SAM4S || SAME70
 # include <efc/efc.h>		// for efc_enable_cloe()
@@ -108,7 +109,7 @@ extern "C" void ReleaseMallocMutex() noexcept
 // Application entry point
 [[noreturn]] void AppMain() noexcept
 {
-	irqflags_t flags = cpu_irq_save();
+	irqflags_t flags = IrqSave();
 	pinMode(DiagPin, (DiagOnPolarity) ? OUTPUT_LOW : OUTPUT_HIGH);	// set up diag LED for debugging and turn it off
 
 #if !defined(DEBUG) && !LPC17xx && !STM32F4	// don't check the CRC of a debug build because debugger breakpoints mess up the CRC
@@ -202,7 +203,7 @@ extern "C" void ReleaseMallocMutex() noexcept
 	i2cMutex.Create("I2C");
 	filamentsMutex.Create("Filaments");
 	mainTask.Create(MainTask, "MAIN", nullptr, TaskPriority::SpinPriority);
-	cpu_irq_restore(flags);
+	IrqRestore(flags);
 	vTaskStartScheduler();			// doesn't return
 	for (;;) { }					// keep gcc happy
 }
@@ -252,6 +253,16 @@ void *Tasks::AllocPermanent(size_t sz, std::align_val_t align) noexcept
 	return ret;
 }
 
+// Function called by FreeRTOS and internally to reset the run-time counter and return the number of timer ticks since it was last reset
+extern "C" uint32_t TaskResetRunTimeCounter() noexcept
+{
+	static uint32_t whenLastReset = 0;
+	const uint32_t now = StepTimer::GetTimerTicks();
+	const uint32_t ret = now - whenLastReset;
+	whenLastReset = now;
+	return ret;
+}
+
 // Write data about the current task
 void Tasks::Diagnostics(MessageType mtype) noexcept
 {
@@ -285,6 +296,8 @@ void Tasks::Diagnostics(MessageType mtype) noexcept
 #endif
 	}	// end memory stats scope
 
+	const uint32_t timeSinceLastCall = TaskResetRunTimeCounter();
+	float totalCpuPercent = 0.0;
 	p.Message(mtype, "Tasks:");
 	for (TaskBase *t = TaskBase::GetTaskList(); t != nullptr; t = t->GetNext())
 	{
@@ -304,7 +317,7 @@ void Tasks::Diagnostics(MessageType mtype) noexcept
 			stateText = "notifyWait";
 			break;
 		case esResourceWaiting:
-			stateText = "resourceWait";
+			stateText = "resourceWait:";
 			break;
 		case esDelaying:
 			stateText = "delaying";
@@ -320,7 +333,7 @@ void Tasks::Diagnostics(MessageType mtype) noexcept
 			break;
 		}
 
-		const char *mutexName = nullptr;
+		const char *mutexName = "";
 		if (taskDetails.eCurrentState == esResourceWaiting)
 		{
 			const Mutex *m = Mutex::GetMutexList();
@@ -335,16 +348,11 @@ void Tasks::Diagnostics(MessageType mtype) noexcept
 			}
 		}
 
-		if (mutexName != nullptr)
-		{
-			p.MessageF(mtype, " %s(%s,%s,%u)", taskDetails.pcTaskName, stateText, mutexName, (unsigned int)taskDetails.usStackHighWaterMark);
-		}
-		else
-		{
-			p.MessageF(mtype, " %s(%s,%u)", taskDetails.pcTaskName, stateText, (unsigned int)taskDetails.usStackHighWaterMark);
-		}
+		const float cpuPercent = (100 * (float)taskDetails.ulRunTimeCounter)/(float)timeSinceLastCall;
+		totalCpuPercent += cpuPercent;
+		p.MessageF(mtype, " %s(%s%s,%.1f%%,%u)", taskDetails.pcTaskName, stateText, mutexName, (double)cpuPercent, (unsigned int)taskDetails.usStackHighWaterMark);
 	}
-	p.Message(mtype, "\nOwned mutexes:");
+	p.MessageF(mtype, ", total %.1f%%\nOwned mutexes:", (double)totalCpuPercent);
 
 	for (const Mutex *m = Mutex::GetMutexList(); m != nullptr; m = m->GetNext())
 	{

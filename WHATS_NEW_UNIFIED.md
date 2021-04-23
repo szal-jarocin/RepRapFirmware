@@ -1,3 +1,9 @@
+Version 3.3-beta3_1
+===================
+* RRF V3.3-Beta3
+* STM32F4 Enable accelerometer support
+* STM32F4 New board.txt entry: accelerometer.spiChannel
+
 Version 3.3-beta1_6
 ===================
 * STM32F4: Add pins for BTT RRF E3 IDX board

@@ -52,7 +52,7 @@ public:
 #endif
 
 	void Start(Platform& p, uint32_t tim) noexcept SPEED_CRITICAL;					// Start executing the DDA, i.e. move the move.
-	void StepDrivers(Platform& p) noexcept SPEED_CRITICAL;							// Take one step of the DDA, called by timed interrupt.
+	void StepDrivers(Platform& p, uint32_t now) noexcept SPEED_CRITICAL;			// Take one step of the DDA, called by timer interrupt.
 	bool ScheduleNextStepInterrupt(StepTimer& timer) const noexcept SPEED_CRITICAL;	// Schedule the next interrupt, returning true if we can't because it is already due
 
 	void SetNext(DDA *n) noexcept { next = n; }
@@ -86,7 +86,7 @@ public:
 	void SetFeedRate(float rate) noexcept { requestedSpeed = rate; }
 	float GetEndCoordinate(size_t drive, bool disableMotorMapping) noexcept;
 	bool FetchEndPosition(volatile int32_t ep[MaxAxesPlusExtruders], volatile float endCoords[MaxAxesPlusExtruders]) noexcept;
-	void SetPositions(const float move[], size_t numDrives) noexcept;				// Force the endpoints to be these
+	void SetPositions(const float move[]) noexcept;									// Force the endpoints to be these
 	FilePosition GetFilePosition() const noexcept { return filePos; }
 	float GetRequestedSpeed() const noexcept { return requestedSpeed; }
 	float GetTopSpeed() const noexcept { return topSpeed; }
@@ -238,7 +238,8 @@ private:
 					 checkEndstops : 1,				// True if this move monitors endstops or Z probe
 					 controlLaser : 1,				// True if this move controls the laser or iobits
 					 hadHiccup : 1,	 	 	 		// True if we had a hiccup while executing a move from a remote master
-					 isRemote : 1;					// True if this move was commanded from a remote
+					 isRemote : 1,					// True if this move was commanded from a remote
+					 wasAccelOnlyMove : 1;			// set by Prepare if this was an acceleration-only move, for the next move to look at
 		};
 		uint16_t all;								// so that we can print all the flags at once for debugging
 	} flags;

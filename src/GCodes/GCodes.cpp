@@ -168,7 +168,7 @@ void GCodes::Init() noexcept
 		f = 0.0;
 	}
 
-	runningConfigFile = false;
+	runningConfigFile = daemonRunning = false;
 	m501SeenInConfigFile = false;
 	doingToolChange = false;
 	active = true;
@@ -294,7 +294,7 @@ void GCodes::Reset() noexcept
 #if HAS_LINUX_INTERFACE
 	lastFilePosition = noFilePosition;
 #endif
-	pausePending = filamentChangePausePending = false;
+	deferredPauseCommandPending = nullptr;
 	moveBuffer.filePos = noFilePosition;
 	firmwareUpdateModuleMap.Clear();
 	isFlashing = false;
@@ -403,6 +403,7 @@ void GCodes::CheckFinishedRunningConfigFile(GCodeBuffer& gb) noexcept
 			}
 			runningConfigFile = false;
 		}
+		reprap.InputsUpdated();
 	}
 }
 
@@ -556,7 +557,7 @@ bool GCodes::SpinGCodeBuffer(GCodeBuffer& gb) noexcept
 // Start a new gcode, or continue to execute one that has already been started. Return true if we found something significant to do.
 bool GCodes::StartNextGCode(GCodeBuffer& gb, const StringRef& reply) noexcept
 {
-	if (&gb == fileGCode && ((pauseState != PauseState::notPaused && pauseState != PauseState::pausing) || (pausePending && !gb.IsDoingFileMacro())))
+	if (&gb == fileGCode && ((pauseState != PauseState::notPaused && pauseState != PauseState::pausing) || (deferredPauseCommandPending != nullptr && !gb.IsDoingFileMacro())))
 	{
 		// We are paused or pausing, so don't process any more gcodes from the file being printed.
 		// There is a potential issue here if fileGCode holds any locks, so unlock everything.
@@ -577,11 +578,12 @@ bool GCodes::StartNextGCode(GCodeBuffer& gb, const StringRef& reply) noexcept
 #endif
 			)
 	{
-		// Delay 1 second, then try to open and run daemon.g. No error if it is not found.
+		// Delay 1 or 10 seconds, then try to open and run daemon.g. No error if it is not found.
 		if (   !reprap.IsProcessingConfig()
-			&& gb.DoDwellTime(1000)
+			&& gb.DoDwellTime((daemonRunning) ? 10000 : 1000)
 		   )
 		{
+			daemonRunning = true;
 			return DoFileMacro(gb, DAEMON_G, false, AsyncSystemMacroCode);
 		}
 	}
@@ -815,6 +817,7 @@ void GCodes::EndSimulation(GCodeBuffer *gb) noexcept
 {
 	// Ending a simulation, so restore the position
 	RestorePosition(simulationRestorePoint, gb);
+	reprap.SelectTool(simulationRestorePoint.toolNumber, true);
 	ToolOffsetTransform(currentUserPosition, moveBuffer.coords);
 	reprap.GetMove().SetNewPosition(moveBuffer.coords, true);
 	axesVirtuallyHomed = axesHomed;
@@ -914,7 +917,7 @@ void GCodes::DoPause(GCodeBuffer& gb, PauseReason reason, const char *msg, uint1
 		// Pausing a file print via another input source or for some other reason
 		pauseRestorePoint.feedRate = fileGCode->LatestMachineState().feedRate;				// set up the default
 
-		const bool movesSkipped = reprap.GetMove().PausePrint(pauseRestorePoint);		// tell Move we wish to pause the current print
+		const bool movesSkipped = reprap.GetMove().PausePrint(pauseRestorePoint);			// tell Move we wish to pause the current print
 		if (movesSkipped)
 		{
 			// The PausePrint call has filled in the restore point with machine coordinates
@@ -1005,9 +1008,31 @@ void GCodes::DoPause(GCodeBuffer& gb, PauseReason reason, const char *msg, uint1
 	}
 #endif
 
-	const GCodeState newState = (reason == PauseReason::filamentChange) ? GCodeState::filamentChangePause1
-								: (reason == PauseReason::filamentError) ? GCodeState::filamentErrorPause1
-									: GCodeState::pausing1;
+	GCodeState newState;
+	switch (reason)
+	{
+	case PauseReason::filamentChange:					// M600 command
+		newState = GCodeState::filamentChangePause1;
+		break;
+
+	case PauseReason::filamentError:					// filament monitor
+		newState = GCodeState::filamentErrorPause1;
+		break;
+
+	case PauseReason::user:								// M25 command received
+	case PauseReason::gcode:							// M25 or M226 command encountered in the file being printed
+		newState = (gb.Seen('P') && gb.GetUIValue() == 0) ? GCodeState::pausing2 : GCodeState::pausing1;
+		break;
+
+	case PauseReason::trigger:							// external switch
+	case PauseReason::heaterFault:						// heater fault detected
+#if HAS_SMART_DRIVERS
+	case PauseReason::stall:							// motor stall detected
+#endif
+	default:
+		newState = GCodeState::pausing1;
+		break;
+	}
 	gb.SetState(newState, param);
 	pauseState = PauseState::pausing;
 
@@ -1038,11 +1063,6 @@ void GCodes::DoPause(GCodeBuffer& gb, PauseReason reason, const char *msg, uint1
 			pauseReason = PrintPausedReason::stall;
 			break;
 # endif
-# if HAS_VOLTAGE_MONITOR
-		case PauseReason::lowVoltage:
-			pauseReason = PrintPausedReason::lowVoltage;
-			break;
-# endif
 		default:
 			pauseReason = PrintPausedReason::user;
 			break;
@@ -1063,18 +1083,10 @@ void GCodes::DoPause(GCodeBuffer& gb, PauseReason reason, const char *msg, uint1
 // Check if a pause is pending, action it if so
 void GCodes::CheckForDeferredPause(GCodeBuffer& gb) noexcept
 {
-	if (&gb == fileGCode && !gb.IsDoingFileMacro())
+	if (&gb == fileGCode && !gb.IsDoingFileMacro() && deferredPauseCommandPending != nullptr)
 	{
-		if (filamentChangePausePending)
-		{
-			gb.PutAndDecode("M600");
-			filamentChangePausePending = false;
-		}
-		else if (pausePending)
-		{
-			gb.PutAndDecode("M226");
-			pausePending = false;
-		}
+		gb.PutAndDecode(deferredPauseCommandPending);
+		deferredPauseCommandPending = nullptr;
 	}
 }
 
@@ -1446,6 +1458,10 @@ void GCodes::SaveResumeInfo(bool wasPowerFailure) noexcept
 			}
 			if (ok)
 			{
+				ok = buildObjects.WriteObjectDirectory(f);					// write the state of printing objects
+			}
+			if (ok)
+			{
 				const unsigned int selectedPlane = fileGCode->OriginalMachineState().selectedPlane;
 				buf.printf("G%u\nM23 \"%s\"\nM26 S%" PRIu32, selectedPlane + 17, printingFilename, pauseRestorePoint.filePos);
 				if (pauseRestorePoint.proportionDone > 0.0)
@@ -1496,7 +1512,6 @@ void GCodes::SaveResumeInfo(bool wasPowerFailure) noexcept
 				buf.cat("\n");
 				ok = f->Write(buf.c_str());									// restore feed rate and output bits or laser power
 			}
-
 			if (ok)
 			{
 				buf.printf("%s\nM24\n", (fileGCode->OriginalMachineState().usingInches) ? "G20" : "G21");
@@ -1597,6 +1612,7 @@ void GCodes::Pop(GCodeBuffer& gb, bool withinSameFile)
 	{
 		platform.Message(ErrorMessage, "Pop(): stack underflow\n");
 	}
+	reprap.InputsUpdated();
 }
 
 // Set up the extrusion and feed rate of a move for the Move class
@@ -2661,6 +2677,27 @@ void GCodes::ClearMove() noexcept
 	moveFractionToSkip = 0.0;
 }
 
+// Flag that a new move is available for consumption by the Move subsystem
+// Code that sets up a new move should ensure that segmentsLeft is zero, then set up all the move parameters,
+// then call this function to update SegmentsLeft safely in a multi-threaded environment
+void GCodes::NewMoveAvailable(unsigned int sl) noexcept
+{
+	moveBuffer.totalSegments = sl;
+	__DMB();									// make sure that all the move details have been written first
+	moveBuffer.segmentsLeft = sl;				// set the number of segments to indicate that a move is available to be taken
+	reprap.GetMove().MoveAvailable();			// notify the Move task that we have a move
+}
+
+// Flag that a new move is available for consumption by the Move subsystem
+// This version is for when totalSegments has already be set up.
+void GCodes::NewMoveAvailable() noexcept
+{
+	const unsigned int sl = moveBuffer.totalSegments;
+	__DMB();									// make sure that the move details have been written first
+	moveBuffer.segmentsLeft = sl;				// set the number of segments to indicate that a move is available to be taken
+	reprap.GetMove().MoveAvailable();			// notify the Move task that we have a move
+}
+
 // Cancel any macro or print in progress
 void GCodes::AbortPrint(GCodeBuffer& gb) noexcept
 {
@@ -2767,6 +2804,14 @@ bool GCodes::DoFileMacro(GCodeBuffer& gb, const char* fileName, bool reportMissi
 																		// running a system macro e.g. homing, so don't use workplace coordinates
 	gb.SetState(GCodeState::normal);
 	gb.Init();
+
+# if HAS_LINUX_INTERFACE
+	if (!reprap.UsingLinuxInterface() && codeRunning != AsyncSystemMacroCode)
+# endif
+	{
+		// Don't notify DSF when files are requested asynchronously, it creates excessive traffic
+		reprap.InputsUpdated();
+	}
 	return true;
 #endif
 }
@@ -3248,7 +3293,11 @@ GCodeResult GCodes::DoDwell(GCodeBuffer& gb) THROWS(GCodeException)
 	}
 #endif
 
-	if (simulationMode != 0)
+	if (   simulationMode != 0														// if we are simulating then simulate the G4...
+		&& &gb != daemonGCode														// ...unless it comes from the daemon...
+		&& &gb != triggerGCode														// ...or a trigger...
+		&& (&gb == fileGCode || !exitSimulationWhenFileComplete)					// ...or we are simulating a file and this command doesn't come from the file
+	   )
 	{
 		simulationTime += (float)dwell * 0.001;
 		return GCodeResult::ok;
@@ -3355,7 +3404,7 @@ GCodeResult GCodes::SetOrReportOffsets(GCodeBuffer &gb, const StringRef& reply, 
 		reply.printf("Tool %d offsets:", tool->Number());
 		for (size_t axis = 0; axis < numVisibleAxes; ++axis)
 		{
-			reply.catf(" %c%.2f", axisLetters[axis], (double)tool->GetOffset(axis));
+			reply.catf(" %c%.3f", axisLetters[axis], (double)tool->GetOffset(axis));
 		}
 		if (hCount != 0)
 		{
@@ -3980,7 +4029,7 @@ bool GCodes::IsCodeQueueIdle() const noexcept
 void GCodes::StopPrint(StopPrintReason reason) noexcept
 {
 	moveBuffer.segmentsLeft = 0;
-	pausePending = filamentChangePausePending = false;
+	deferredPauseCommandPending = nullptr;
 	pauseState = PauseState::notPaused;
 
 #if HAS_LINUX_INTERFACE
@@ -4151,6 +4200,7 @@ void GCodes::SavePosition(RestorePoint& rp, const GCodeBuffer& gb) const noexcep
 	rp.feedRate = gb.LatestMachineState().feedRate;
 	rp.virtualExtruderPosition = virtualExtruderPosition;
 	rp.filePos = gb.GetFilePosition();
+	rp.toolNumber = reprap.GetCurrentToolNumber();
 
 #if SUPPORT_LASER || SUPPORT_IOBITS
 	rp.laserPwmOrIoBits = moveBuffer.laserPwmOrIoBits;
@@ -4433,11 +4483,6 @@ GCodeResult GCodes::WriteConfigOverrideFile(GCodeBuffer& gb, const StringRef& re
 		ok = WriteWorkplaceCoordinates(f);
 	}
 #endif
-
-	if (ok)
-	{
-		ok = buildObjects.WriteObjectDirectory(f);
-	}
 
 	if (!f->Close())
 	{

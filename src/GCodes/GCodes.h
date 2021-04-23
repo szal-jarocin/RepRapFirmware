@@ -65,9 +65,6 @@ enum class PauseReason
 #if HAS_SMART_DRIVERS
 	stall,			// motor stall detected
 #endif
-#if HAS_VOLTAGE_MONITOR
-	lowVoltage		// VIN voltage dropped below configured minimum
-#endif
 };
 
 // Keep this in sync with PrintStopReason in Linux/MessageFormats.h
@@ -364,30 +361,31 @@ private:
 	bool CheckEnoughAxesHomed(AxesBitmap axesMoved) noexcept;						// Check that enough axes have been homed
 	bool TravelToStartPoint(GCodeBuffer& gb) noexcept;								// Set up a move to travel to the resume point
 
-	GCodeResult DoDwell(GCodeBuffer& gb) THROWS(GCodeException);									// Wait for a bit
-	GCodeResult DoHome(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeException);				// Home some axes
-	GCodeResult SetOrReportOffsets(GCodeBuffer& gb, const StringRef& reply, int code) THROWS(GCodeException);	// Deal with a G10/M568
-	GCodeResult SetPositions(GCodeBuffer& gb) THROWS(GCodeException);								// Deal with a G92
-	GCodeResult StraightProbe(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeException);		// Deal with a G38.x
-	GCodeResult DoDriveMapping(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeException);		// Deal with a M584
-	GCodeResult ProbeTool(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeException);			// Deal with a M585
-	GCodeResult FindCenterOfCavity(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeException);	// Deal with a M675
-	GCodeResult SetDateTime(GCodeBuffer& gb,const StringRef& reply) THROWS(GCodeException);			// Deal with a M905
-	GCodeResult SavePosition(GCodeBuffer& gb,const StringRef& reply) THROWS(GCodeException);		// Deal with G60
-	GCodeResult ConfigureDriver(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeException);	// Deal with M569
+	GCodeResult DoDwell(GCodeBuffer& gb) THROWS(GCodeException);														// Wait for a bit
+	GCodeResult DoHome(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeException);									// Home some axes
+	GCodeResult SetOrReportOffsets(GCodeBuffer& gb, const StringRef& reply, int code) THROWS(GCodeException);			// Deal with a G10/M568
+	GCodeResult SetPositions(GCodeBuffer& gb) THROWS(GCodeException);													// Deal with a G92
+	GCodeResult StraightProbe(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeException);							// Deal with a G38.x
+	GCodeResult DoDriveMapping(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeException);							// Deal with a M584
+	GCodeResult ProbeTool(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeException);								// Deal with a M585
+	GCodeResult FindCenterOfCavity(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeException);						// Deal with a M675
+	GCodeResult SetDateTime(GCodeBuffer& gb,const StringRef& reply) THROWS(GCodeException);								// Deal with a M905
+	GCodeResult SavePosition(GCodeBuffer& gb,const StringRef& reply) THROWS(GCodeException);							// Deal with G60
+	GCodeResult ConfigureDriver(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeException);						// Deal with M569
+	GCodeResult ConfigureLocalDriver(GCodeBuffer& gb, const StringRef& reply, uint8_t drive) THROWS(GCodeException);	// Deal with M569
 #if SUPPORT_ACCELEROMETERS
-	GCodeResult ConfigureAccelerometer(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeException);	// Deal with M955
-	GCodeResult StartAccelerometer(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeException);	// Deal with M956
+	GCodeResult ConfigureAccelerometer(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeException);					// Deal with M955
+	GCodeResult StartAccelerometer(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeException);						// Deal with M956
 #endif
 
 	bool SetupM675ProbingMove(GCodeBuffer& gb, bool towardsMin) noexcept;
 	void SetupM675BackoffMove(GCodeBuffer& gb, float position) noexcept;
 	bool SetupM585ProbingMove(GCodeBuffer& gb) noexcept;
-	size_t FindAxisLetter(GCodeBuffer& gb) THROWS(GCodeException);					// Search for and return an axis, throw if none found
+	size_t FindAxisLetter(GCodeBuffer& gb) THROWS(GCodeException);									// Search for and return an axis, throw if none found
 
 	bool ProcessWholeLineComment(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeException);	// Process a whole-line comment
 
-	const char *LoadExtrusionAndFeedrateFromGCode(GCodeBuffer& gb, bool isPrintingMove);	// Set up the extrusion of a move
+	const char *LoadExtrusionAndFeedrateFromGCode(GCodeBuffer& gb, bool isPrintingMove);			// Set up the extrusion of a move
 
 	bool Push(GCodeBuffer& gb, bool withinSameFile);								// Push feedrate etc on the stack
 	void Pop(GCodeBuffer& gb, bool withinSameFile);									// Pop feedrate etc
@@ -548,9 +546,8 @@ private:
 #if HAS_LINUX_INTERFACE
 	FilePosition lastFilePosition;				// Last known file position
 #endif
+	const char *deferredPauseCommandPending;
 	PauseState pauseState;						// whether the machine is running normally or is pausing, paused or resuming
-	bool pausePending;							// true if we have been asked to pause but we are running a macro
-	bool filamentChangePausePending;			// true if we have been asked to pause for a filament change but we are running a macro
 	bool runningConfigFile;						// We are running config.g during the startup process
 	bool doingToolChange;						// We are running tool change macros
 
@@ -704,31 +701,13 @@ private:
 	bool cancelWait;							// Set true to cancel waiting
 	bool displayNoToolWarning;					// True if we need to display a 'no tool selected' warning
 	bool m501SeenInConfigFile;					// true if M501 was executed form config.g
+	bool daemonRunning;
 	char filamentToLoad[FilamentNameLength];	// Name of the filament being loaded
 
 	static constexpr const float MinServoPulseWidth = 544.0, MaxServoPulseWidth = 2400.0;
 
 	static constexpr int8_t ObjectModelAuxStatusReportType = 100;		// A non-negative value distinct from any M408 report type
 };
-
-// Flag that a new move is available for consumption by the Move subsystem
-// Code that sets up a new move should ensure that segmentsLeft is zero, then set up all the move parameters,
-// then call this function to update SegmentsLeft safely in a multi-threaded environment
-inline void GCodes::NewMoveAvailable(unsigned int sl) noexcept
-{
-	moveBuffer.totalSegments = sl;
-	__DMB();									// make sure that all the move details have been written first
-	moveBuffer.segmentsLeft = sl;				// set the number of segments to indicate that a move is available to be taken
-}
-
-// Flag that a new move is available for consumption by the Move subsystem
-// This version is for when totalSegments has already be set up.
-inline void GCodes::NewMoveAvailable() noexcept
-{
-	const unsigned int sl = moveBuffer.totalSegments;
-	__DMB();									// make sure that the move details have been written first
-	moveBuffer.segmentsLeft = sl;				// set the number of segments to indicate that a move is available to be taken
-}
 
 // Get the total baby stepping offset for an axis
 inline float GCodes::GetTotalBabyStepOffset(size_t axis) const noexcept

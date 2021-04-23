@@ -233,6 +233,18 @@ uint32_t SmartDrivers::GetRegister(size_t driver, SmartDriverRegister reg) noexc
 	return (driver < numDrivers) ? driverStates[driver]->GetRegister(reg) : 0;
 }
 
+GCodeResult SmartDrivers::GetAnyRegister(size_t driver, const StringRef& reply, uint8_t regNum) noexcept
+{
+	reply.copy("Not currently implemented");
+	return GCodeResult::error;
+}
+
+GCodeResult SmartDrivers::SetAnyRegister(size_t driver, const StringRef& reply, uint8_t regNum, uint32_t regVal) noexcept
+{
+	reply.copy("Not currently implemented");
+	return GCodeResult::error;
+}
+
 #if HAS_STALL_DETECT
 
 DriversBitmap SmartDrivers::GetStalledDrivers(DriversBitmap driversOfInterest) noexcept

@@ -117,12 +117,22 @@ static_assert(MinVisibleAxes <= MinAxes);
 static_assert(NumNamedPins <= 255 || sizeof(LogicalPin) > 1, "Need 16-bit logical pin numbers");
 
 #if SUPPORT_CAN_EXPANSION
+
 # include <CanId.h>
 
 // We have to declare CanInterface::GetCanAddress here because CanInterface.h needs to include this file for the declaration of DriverId
 namespace CanInterface
 {
 	CanAddress GetCanAddress() noexcept;
+}
+
+#else
+
+typedef uint8_t CanAddress;
+
+namespace CanInterface
+{
+	inline CanAddress GetCanAddress() noexcept { return 0; }
 }
 
 #endif
@@ -509,6 +519,7 @@ const NvicPriority NvicPriorityAuxUartTx = 3;		// the SAME5x driver makes FreeRT
 const NvicPriority NvicPriorityWiFiUartRx = 2;		// UART used to receive debug data from the WiFi module
 const NvicPriority NvicPriorityWiFiUartTx = 3;		// the SAME5x driver makes FreeRTOS calls during transmission, so use a lower priority
 const NvicPriority NvicPriorityDriverDiag = 4;
+const NvicPriority NvicPriorityAdc = 4;
 #else
 const NvicPriority NvicPriorityAuxUart = 1;			// UART is highest to avoid character loss (it has only a 1-character receive buffer)
 const NvicPriority NvicPriorityWiFiUart = 2;		// UART used to receive debug data from the WiFi module

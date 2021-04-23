@@ -265,10 +265,12 @@ bool GCodes::HandleGcode(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeEx
 
 	case 20: // Inches (which century are we living in, here?)
 		gb.LatestMachineState().usingInches = true;
+		reprap.InputsUpdated();
 		break;
 
 	case 21: // mm
 		gb.LatestMachineState().usingInches = false;
+		reprap.InputsUpdated();
 		break;
 
 	case 28: // Home
@@ -423,10 +425,12 @@ bool GCodes::HandleGcode(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeEx
 
 	case 90: // Absolute coordinates
 		gb.LatestMachineState().axesRelative = false;
+		reprap.InputsUpdated();
 		break;
 
 	case 91: // Relative coordinates
 		gb.LatestMachineState().axesRelative = true;   // Axis movements (i.e. X, Y and Z)
+		reprap.InputsUpdated();
 		break;
 
 	case 92: // Set position
@@ -949,7 +953,7 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeEx
 					{
 						pauseState = PauseState::resuming;
 						gb.SetState(GCodeState::resuming1);
-						if (AllAxesAreHomed())
+						if (AllAxesAreHomed() && (!gb.Seen('P') || gb.GetUIValue() != 0))		// P0 parameter skips running resume.g
 						{
 							DoFileMacro(gb, RESUME_G, true, SystemHelperMacroCode);
 						}
@@ -994,7 +998,10 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeEx
 			{
 				if (gb.IsDoingFileMacro())
 				{
-					pausePending = true;
+					if (deferredPauseCommandPending == nullptr)	// filament change pause takes priority
+					{
+						deferredPauseCommandPending = (gb.Seen('P') && gb.GetUIValue() == 0) ? "M226 P0" : "M226";
+					}
 				}
 				else
 				{
@@ -1012,7 +1019,7 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeEx
 			{
 				if (fileGCode->IsDoingFileMacro())
 				{
-					filamentChangePausePending = true;
+					deferredPauseCommandPending = "M600";
 					if (&gb != fileGCode)
 					{
 						return false;							// wait for the current macro to finish
@@ -1042,7 +1049,10 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeEx
 			}
 			else if (fileGCode->IsDoingFileMacro())
 			{
-				pausePending = true;
+				if (deferredPauseCommandPending == nullptr)		// filament change pause takes priority
+				{
+					deferredPauseCommandPending = (gb.Seen('P') && gb.GetUIValue() == 0) ? "M226 P0" : "M226";
+				}
 				if (&gb != fileGCode)
 				{
 					return false;								// wait for the current macro to finish
@@ -1147,7 +1157,7 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeEx
 # if HAS_LINUX_INTERFACE
 			if (reprap.UsingLinuxInterface() && !gb.IsBinary())
 			{
-				reply.copy("M37 can be only started from the Linux interface");
+				reply.copy("M37 can be only started from the SBC interface");
 				result = GCodeResult::error;
 			}
 			else
@@ -1293,10 +1303,12 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeEx
 
 		case 82:	// Use absolute extruder positioning
 			gb.LatestMachineState().drivesRelative = false;
+			reprap.InputsUpdated();
 			break;
 
 		case 83:	// Use relative extruder positioning
 			gb.LatestMachineState().drivesRelative = true;
+			reprap.InputsUpdated();
 			break;
 
 			// For case 84, see case 18
@@ -2100,6 +2112,7 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeEx
 					volumetricExtrusionFactors[i] = (d <= 0.0) ? 1.0 : 4.0/(fsquare(d) * Pi);
 				}
 				gb.LatestMachineState().volumetricExtrusion = (diameters[0] > 0.0);
+				reprap.InputsUpdated();
 			}
 			else if (!gb.LatestMachineState().volumetricExtrusion)
 			{
@@ -2960,15 +2973,8 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeEx
 				String<MaxFilenameLength> newVal;
 				gb.MustSee('T');
 				gb.GetQuotedString(newVal.GetRef());
-				if (gb.Seen('D') && gb.GetUIValue() == 1 && MassStorage::FileExists(oldVal.c_str()) && MassStorage::FileExists(newVal.c_str()))
-				{
-					if (MassStorage::Delete(newVal.c_str(), true))
-					{
-						result = GCodeResult::error;
-						break;
-					}
-				}
-				result = (MassStorage::Rename(oldVal.c_str(), newVal.c_str(), true)) ? GCodeResult::ok : GCodeResult::error;
+				const bool deleteExisting = (gb.Seen('D') && gb.GetUIValue() == 1);
+				result = (MassStorage::Rename(oldVal.c_str(), newVal.c_str(), deleteExisting, true)) ? GCodeResult::ok : GCodeResult::error;
 			}
 			break;
 
@@ -3213,6 +3219,7 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeEx
 			if (gb.Seen('P'))
 			{
 				gb.LatestMachineState().compatibility.Assign(gb.GetIValue());
+				reprap.InputsUpdated();
 			}
 			else
 			{

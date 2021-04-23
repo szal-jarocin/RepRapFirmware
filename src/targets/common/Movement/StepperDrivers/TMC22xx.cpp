@@ -612,11 +612,11 @@ void Tmc22xxDriverState::UpdateRegister(size_t regIndex, uint32_t regVal) noexce
 	crc = CRCAddByte(crc, (uint8_t)(regVal >> 16));
 	crc = CRCAddByte(crc, (uint8_t)(regVal >> 8));
 	crc = CRCAddByte(crc, (uint8_t)regVal);
-	const irqflags_t flags = cpu_irq_save();
+	const irqflags_t flags = IrqSave();
 	writeRegisters[regIndex] = regVal;
 	writeRegCRCs[regIndex] = crc;
 	registersToUpdate |= (1u << regIndex);								// flag it for sending
-	cpu_irq_restore(flags);
+	IrqRestore(flags);
 	if (regIndex == WriteGConf || regIndex == WriteTpwmthrs)
 	{
 		UpdateMaxOpenLoadStepInterval();
@@ -938,10 +938,10 @@ uint32_t Tmc22xxDriverState::ReadAccumulatedStatus(uint32_t bitsToKeep) noexcept
 {
 	const uint32_t mask = (enabled) ? 0xFFFFFFFF : ~(TMC22xx_RR_OLA | TMC22xx_RR_OLB);
 	bitsToKeep &= mask;
-	const irqflags_t flags = cpu_irq_save();
+	const irqflags_t flags = IrqSave();
 	uint32_t status = accumulatedReadRegisters[ReadDrvStat];
 	accumulatedReadRegisters[ReadDrvStat] = (status & bitsToKeep) | readRegisters[ReadDrvStat];		// so that the next call to ReadAccumulatedStatus isn't missing some bits
-	cpu_irq_restore(flags);
+	IrqRestore(flags);
 	status &= (TMC22xx_RR_OT | TMC22xx_RR_OTPW | TMC22xx_RR_S2G | TMC22xx_RR_OLA | TMC22xx_RR_OLB | TMC22xx_RR_STST | TMC22xx_RR_TEMPBITS) & mask;
 #if HAS_STALL_DETECT
 	if (IoPort::ReadPin(diagPin))

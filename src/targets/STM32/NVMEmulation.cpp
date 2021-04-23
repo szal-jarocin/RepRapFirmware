@@ -60,7 +60,7 @@ bool NVMEmulationErase()
         currentSlot++;
         return true;
     }
-    const irqflags_t flags = cpu_irq_save();
+    const irqflags_t flags = IrqSave();
     FLASH_EraseInitTypeDef eraseInfo;
     uint32_t SectorError;
     bool ret = true;
@@ -75,7 +75,7 @@ bool NVMEmulationErase()
         ret = false;
     }
     HAL_FLASH_Lock();
-    cpu_irq_restore(flags);
+    IrqRestore(flags);
     currentSlot = 0;    
     return ret;
     
@@ -120,7 +120,7 @@ bool NVMEmulationWrite(const void *data, uint32_t dataLength){
         debugPrintf("Write to flash slot that has not been read slot is %d\n", (int)currentSlot);
         return false;
     }
-    const irqflags_t flags = cpu_irq_save();
+    const irqflags_t flags = IrqSave();
     uint32_t *dst = GetSlotPtr(currentSlot);
     uint32_t *src = (uint32_t *) data;
     uint32_t cnt = dataLength/sizeof(uint32_t);
@@ -145,7 +145,7 @@ bool NVMEmulationWrite(const void *data, uint32_t dataLength){
     HAL_FLASH_Lock();      
 
     // Re-enable interrupt mode
-    cpu_irq_restore(flags);
+    IrqRestore(flags);
     return ret;
     
 }
