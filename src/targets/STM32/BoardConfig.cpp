@@ -285,11 +285,13 @@ static void CheckDriverPins() noexcept
             pinMode(ENABLE_PINS[i], INPUT);
             bool state1 = IoPort::ReadPin(ENABLE_PINS[i]);
             pinMode(STEP_PINS[i], OUTPUT_LOW);
-            delay(1);
+            delay(50);
             bool state2 = IoPort::ReadPin(ENABLE_PINS[i]);
             pinMode(STEP_PINS[i], INPUT);
             if (state1 != state2 && state2 == false)
+            {
                 FatalError("Possible short between step and enable pins on driver %d.\nPlease check driver installation/configuration.\n", i);
+            }
         }
     }
 }
@@ -1161,6 +1163,7 @@ bool BoardConfig::BeginFirmwareUpdate()
     rslt = f_mount (fs, "0:", 1);
     if (rslt == FR_OK)
     {
+
         //Open File, abd zero length
         rslt = f_open (firmwareFile, firmwarePath, FA_WRITE|FA_CREATE_ALWAYS);
         if (rslt != FR_OK)
@@ -1190,10 +1193,8 @@ bool BoardConfig::WriteFirmwareData(const char *data, uint16_t length)
 {
     FRESULT rslt;
     UINT written;
-
     if (firmwareFile == nullptr) return false;
     rslt = f_write(firmwareFile, data, length, &written);
-    //debugPrintf("Write firmware data request %d actual %d\n", length, written);
     return rslt == FR_OK && length == written;    
 }
 
@@ -1208,10 +1209,8 @@ void BoardConfig::EndFirmwareUpdate()
         fs = nullptr;
         firmwareFile = nullptr;
     }
-    //debugPrintf("Doing software reset\n");
     reprap.EmergencyStop();			// turn off heaters etc.
     SoftwareReset(SoftwareResetReason::user); // Reboot
-    //debugPrintf("OH dear we should not see this!\n");
 }
 #endif
 

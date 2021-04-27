@@ -905,7 +905,7 @@ bool BoardConfig::BeginFirmwareUpdate()
     rslt = f_mount (fs, "0:", 1);
     if (rslt == FR_OK)
     {
-        //Open File, abd zero length
+        //Open File, and zero length
         rslt = f_open (firmwareFile, firmwarePath, FA_WRITE|FA_CREATE_ALWAYS);
         if (rslt != FR_OK)
         {
