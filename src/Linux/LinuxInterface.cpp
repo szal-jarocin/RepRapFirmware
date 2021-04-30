@@ -32,17 +32,24 @@ extern char _estack;		// defined by the linker
 volatile OutputStack LinuxInterface::gcodeReply;
 Mutex LinuxInterface::gcodeReplyMutex;
 
+// The SBC stack size needs to be enough to support rr_model and expression evaluation
+// In RRF 3.3beta3, 744 is only just enough for simple expression evaluation in a release build when using globals
+// In 3.3beta3.1 we have saved ~151 bytes (37 words) of stack compared to 3.3beta3
 #if LPC17xx
 constexpr size_t LinuxTaskStackWords = 550;
 #elif defined(DEBUG)
-constexpr size_t LinuxTaskStackWords = 1000;			// needs to be enough to support rr_model
+constexpr size_t SBCTaskStackWords = 1000;			// debug builds use more stack
 #else
-constexpr size_t LinuxTaskStackWords = 600;				// needs to be enough to support rr_model
+constexpr size_t SBCTaskStackWords = 820;
 #endif
 
+<<<<<<< HEAD
 static TASKMEM Task<LinuxTaskStackWords> *linuxTask;
+=======
+static Task<SBCTaskStackWords> *sbcTask;
+>>>>>>> upstream/3.3-dev
 
-extern "C" [[noreturn]] void LinuxTaskStart(void * pvParameters) noexcept
+extern "C" [[noreturn]] void SBCTaskStart(void * pvParameters) noexcept
 {
 	reprap.GetLinuxInterface().TaskLoop();
 }
@@ -59,7 +66,7 @@ LinuxInterface::LinuxInterface() noexcept : isConnected(false), numDisconnects(0
 
 void LinuxInterface::Init() noexcept
 {
-	gcodeReplyMutex.Create("LinuxReply");
+	gcodeReplyMutex.Create("SBCReply");
 	codeBuffer = (char *)new uint32_t[(SpiCodeBufferSize + 3)/4];
 
 #if defined(DUET_NG)
@@ -68,14 +75,14 @@ void LinuxInterface::Init() noexcept
 #endif
 
 	transfer.Init();
-	linuxTask = new Task<LinuxTaskStackWords>;
-	linuxTask->Create(LinuxTaskStart, "Linux", nullptr, TaskPriority::SpinPriority);
+	sbcTask = new Task<SBCTaskStackWords>;
+	sbcTask->Create(SBCTaskStart, "SBC", nullptr, TaskPriority::SpinPriority);
 	iapRamAvailable = &_estack - Tasks::GetHeapTop();
 }
 
 [[noreturn]] void LinuxInterface::TaskLoop() noexcept
 {
-	transfer.SetLinuxTask(linuxTask);
+	transfer.SetSBCTask(sbcTask);
 	transfer.StartNextTransfer();
 	bool writingIap = false, hadReset = false;
 	for (;;)
@@ -506,7 +513,7 @@ void LinuxInterface::Init() noexcept
 				// Evaluate an expression
 				case LinuxRequest::EvaluateExpression:
 				{
-					String<StringLength256> expression;
+					String<GCODE_LENGTH> expression;
 					const GCodeChannel channel = transfer.ReadEvaluateExpression(packet->length, expression.GetRef());
 					if (channel.IsValid())
 					{
@@ -646,7 +653,7 @@ void LinuxInterface::Init() noexcept
 				{
 					bool createVariable;
 					String<MaxVariableNameLength> varName;
-					String<StringLength256> expression;
+					String<GCODE_LENGTH> expression;
 					const GCodeChannel channel = transfer.ReadSetVariable(createVariable, varName.GetRef(), expression.GetRef());
 
 					// Make sure we can access the gb safely...
@@ -679,16 +686,16 @@ void LinuxInterface::Init() noexcept
 					if (createVariable && v != nullptr)
 					{
 						// For now we don't allow an existing variable to be reassigned using a 'var' or 'global' statement. We may need to allow it for 'global' statements.
-						String<StringLength100> errorMessage;
-						errorMessage.printf("variable '%s' already exists", varName.c_str());
-						packetAcknowledged = transfer.WriteSetVariableError(varName.c_str(), errorMessage.c_str());
+						// Save memory by re-using 'expression' to capture the error message
+						expression.printf("variable '%s' already exists", varName.c_str());
+						packetAcknowledged = transfer.WriteSetVariableError(varName.c_str(), expression.c_str());
 						break;
 					}
 					if (!createVariable && v == nullptr)
 					{
-						String<StringLength100> errorMessage;
-						errorMessage.printf("unknown variable '%s'", varName.c_str());
-						packetAcknowledged = transfer.WriteSetVariableError(varName.c_str(), errorMessage.c_str());
+						// Save memory by re-using 'expression' to capture the error message
+						expression.printf("unknown variable '%s'", varName.c_str());
+						packetAcknowledged = transfer.WriteSetVariableError(varName.c_str(), expression.c_str());
 						break;
 					}
 
@@ -716,9 +723,9 @@ void LinuxInterface::Init() noexcept
 					catch (const GCodeException& e)
 					{
 						// Get the error message and send it back to DSF
-						String<StringLength100> errorMessage;
-						e.GetMessage(errorMessage.GetRef(), nullptr);
-						packetAcknowledged = transfer.WriteSetVariableError(varName.c_str(), errorMessage.c_str());
+						// Save memory by re-using 'expression' to capture the error message
+						e.GetMessage(expression.GetRef(), nullptr);
+						packetAcknowledged = transfer.WriteSetVariableError(varName.c_str(), expression.c_str());
 					}
 					break;
 				}

@@ -28,6 +28,8 @@
 # include <Duet3Ate.h>
 #endif
 
+constexpr uint32_t DefaultAccelerometerSpiFrequency = 2000000;
+
 // Get the number of binary digits after the decimal point
 static inline unsigned int GetBitsAfterPoint(uint8_t dataResolution) noexcept
 {
@@ -414,11 +416,11 @@ GCodeResult Accelerometers::ConfigureAccelerometer(GCodeBuffer& gb, const String
 			spiCsPort.Release();				// in case it was allocated
 			return GCodeResult::error;
 		}
-
+		const uint32_t spiFrequency = (gb.Seen('Q')) ? gb.GetUIValue() : DefaultAccelerometerSpiFrequency;
 #if STM32F4 || LPC17xx
-		temp = new LIS3DH(SharedSpiDevice::GetSharedSpiDevice(AccelerometerSpiChannel), spiCsPort.GetPin(), irqPort.GetPin());
+		temp = new LIS3DH(SharedSpiDevice::GetSharedSpiDevice(AccelerometerSpiChannel), spiFrequency, spiCsPort.GetPin(), irqPort.GetPin());
 #else
-		temp = new LIS3DH(SharedSpiDevice::GetMainSharedSpiDevice(), spiCsPort.GetPin(), irqPort.GetPin());
+		temp = new LIS3DH(SharedSpiDevice::GetMainSharedSpiDevice(), spiFrequency, spiCsPort.GetPin(), irqPort.GetPin());
 #endif
 		if (temp->CheckPresent())
 		{
