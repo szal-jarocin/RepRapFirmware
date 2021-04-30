@@ -388,7 +388,7 @@ static SSPChannel InitSDCard(uint32_t boardSig, FATFS *fs)
 {
     int conf = SD_NONE;
     // First try to find a matching board
-    for(uint32_t i = 0; i < ARRAY_SIZE(LPC_Boards) && conf == SD_NONE; i++)
+    for(uint32_t i = 0; i < NumBoardEntries && conf == SD_NONE; i++)
         for(uint32_t j = 0; j < MaxSignatures && conf == SD_NONE; j++)
             if (LPC_Boards[i].defaults.signatures[j] == boardSig)
             {
@@ -764,7 +764,7 @@ void BoardConfig::Diagnostics(MessageType mtype) noexcept
     for (size_t lp = 0; lp < NumNamedLPCPins; ++lp)
     {
         reprap.GetPlatform().MessageF(mtype, "%s = ", PinTable[lp].names );
-        BoardConfig::PrintValue(mtype, cvPinType, &PinTable[lp].pin);
+        BoardConfig::PrintValue(mtype, cvPinType, (void *)&PinTable[lp].pin);
         reprap.GetPlatform().MessageF(mtype, "\n");
     }
     

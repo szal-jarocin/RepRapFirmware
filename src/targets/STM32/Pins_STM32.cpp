@@ -1,6 +1,23 @@
 #include "RepRapFirmware.h"
 #include "Pins.h"
 #include "BoardConfig.h"
+#include "Boards/BIQU_SKR.h"
+#include "Boards/FLY.h"
+#include "Boards/Generic.h"
+//Known boards with built in stepper configurations and pin table 
+constexpr BoardEntry LPC_Boards[] =
+{
+    {"biquskrpro_1.1",      PinTable_BIQU_SKR_PRO_v1_1,    ARRAY_SIZE(PinTable_BIQU_SKR_PRO_v1_1),    biquskr_pro_1_1_Defaults},
+    {"biqugtr_1.0",      PinTable_BIQU_GTR_v1_0,    ARRAY_SIZE(PinTable_BIQU_GTR_v1_0),    biqu_gtr_1_0_Defaults},
+    {"fly_e3_pro",      PinTable_FLY_E3_PRO,    ARRAY_SIZE(PinTable_FLY_E3_PRO),    fly_e3_pro_Defaults},
+    {"fly_f407zg",      PinTable_FLY_F407ZG,    ARRAY_SIZE(PinTable_FLY_F407ZG),    fly_f407zg_Defaults},
+    {"fly_e3",      PinTable_FLY_E3,    ARRAY_SIZE(PinTable_FLY_E3),    fly_e3_Defaults},
+    {"fly_cdyv2",      PinTable_FLY_CDYV2,    ARRAY_SIZE(PinTable_FLY_CDYV2),    fly_cdyv2_Defaults},
+    {"biquskr_rrf_e3_1.1",      PinTable_BTT_RRF_E3_v1_1,    ARRAY_SIZE(PinTable_BTT_RRF_E3_v1_1),    btt_rrf_e3_1_1_Defaults},
+    {"biquskr_2", PinTable_BTT_SKR_2, ARRAY_SIZE(PinTable_BTT_SKR_2), btt_skr_2_Defaults},
+    {"generic",      PinTable_Generic,    ARRAY_SIZE(PinTable_Generic),    Generic_Defaults},
+};
+constexpr size_t NumBoardEntries = ARRAY_SIZE(LPC_Boards);
 
 
 //Default values for configurable variables.
