@@ -2259,7 +2259,7 @@ bool GCodes::DoArcMove(GCodeBuffer& gb, bool clockwise, const char *& err)
 	}
 	else
 	{
-		if (gb.Seen('I'))
+		if (gb.Seen((char)('I' + axis0)))
 		{
 			iParam = gb.GetDistance();
 		}
@@ -2268,7 +2268,7 @@ bool GCodes::DoArcMove(GCodeBuffer& gb, bool clockwise, const char *& err)
 			iParam = 0.0;
 		}
 
-		if (gb.Seen('J'))
+		if (gb.Seen((char)('I' + axis1)))
 		{
 			jParam = gb.GetDistance();
 		}
@@ -2277,9 +2277,9 @@ bool GCodes::DoArcMove(GCodeBuffer& gb, bool clockwise, const char *& err)
 			jParam = 0.0;
 		}
 
-		if (iParam == 0.0 && jParam == 0.0)			// at least one of IJ must be specified and nonzero
+		if (iParam == 0.0 && jParam == 0.0)			// at least one of IJK must be specified and nonzero
 		{
-			err = "G2/G3: no I or J or R parameter";
+			err = "G2/G3: no I J K or R parameter";
 			return true;
 		}
 	}
