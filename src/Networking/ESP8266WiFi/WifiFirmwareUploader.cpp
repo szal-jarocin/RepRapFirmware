@@ -519,7 +519,12 @@ WifiFirmwareUploader::EspUploadResult WifiFirmwareUploader::flashWriteBlock(uint
 	const uint16_t hdrOfst = 0;
 	const uint16_t dataOfst = 16;
 	const uint16_t blkBufSize = dataOfst + blkSize;
+// Temporary fix for STM32F4, buffer must be in memory that can use DMA
+#if STM32F4
+	static uint32_t blkBuf32[blkBufSize/4];
+#else
 	uint32_t blkBuf32[blkBufSize/4];
+#endif
 	uint8_t * const blkBuf = reinterpret_cast<uint8_t*>(blkBuf32);
 
 	// Prepare the header for the block
