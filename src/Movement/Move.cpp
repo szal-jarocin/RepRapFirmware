@@ -52,7 +52,11 @@
 // Move task stack size
 // 250 is not enough when Move and DDA debug are enabled
 // deckingman's system (MB6HC with CAN expansion) needs at least 365 in 3.3beta3
+#if LPC17xx
+constexpr unsigned int MoveTaskStackWords = 375;
+#else
 constexpr unsigned int MoveTaskStackWords = 450;
+#endif
 static TASKMEM Task<MoveTaskStackWords> moveTask;
 
 constexpr uint32_t MoveTimeout = 20;					// normal timeout when the Move process is waiting for a new move

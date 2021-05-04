@@ -36,18 +36,14 @@ Mutex LinuxInterface::gcodeReplyMutex;
 // In RRF 3.3beta3, 744 is only just enough for simple expression evaluation in a release build when using globals
 // In 3.3beta3.1 we have saved ~151 bytes (37 words) of stack compared to 3.3beta3
 #if LPC17xx
-constexpr size_t LinuxTaskStackWords = 550;
+constexpr size_t SBCTaskStackWords = 820;
 #elif defined(DEBUG)
 constexpr size_t SBCTaskStackWords = 1000;			// debug builds use more stack
 #else
 constexpr size_t SBCTaskStackWords = 820;
 #endif
 
-<<<<<<< HEAD
-static TASKMEM Task<LinuxTaskStackWords> *linuxTask;
-=======
-static Task<SBCTaskStackWords> *sbcTask;
->>>>>>> upstream/3.3-dev
+static TASKMEM Task<SBCTaskStackWords> *sbcTask;
 
 extern "C" [[noreturn]] void SBCTaskStart(void * pvParameters) noexcept
 {

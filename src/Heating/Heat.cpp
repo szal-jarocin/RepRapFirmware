@@ -50,7 +50,7 @@ Licence: GPL
 #endif
 
 #if LPC17xx
-constexpr uint32_t HeaterTaskStackWords = 350;			// task stack size in dwords, must be large enough for auto tuning
+constexpr uint32_t HeaterTaskStackWords = 340;			// task stack size in dwords, must be large enough for auto tuning
 #else
 #if SUPPORT_CAN_EXPANSION
 constexpr uint32_t HeaterTaskStackWords = 440;			// task stack size in dwords, must be large enough for auto tuning and a local CAN buffer
