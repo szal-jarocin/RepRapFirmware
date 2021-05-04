@@ -49,7 +49,14 @@
 # include <CAN/CanMotion.h>
 #endif
 
-constexpr unsigned int MoveTaskStackWords = 300;		// 250 is not enough when Move and DDA debug are enabled
+// Move task stack size
+// 250 is not enough when Move and DDA debug are enabled
+// deckingman's system (MB6HC with CAN expansion) needs at least 365 in 3.3beta3
+#if LPC17xx
+constexpr unsigned int MoveTaskStackWords = 375;
+#else
+constexpr unsigned int MoveTaskStackWords = 450;
+#endif
 static TASKMEM Task<MoveTaskStackWords> moveTask;
 
 constexpr uint32_t MoveTimeout = 20;					// normal timeout when the Move process is waiting for a new move
@@ -370,8 +377,11 @@ unsigned int Move::GetNumProbedProbePoints() const noexcept
 }
 
 // Try to push some babystepping through the lookahead queue, returning the amount pushed
+// This is called by the Main task, so we need to lock out the Move task while doing this
 float Move::PushBabyStepping(size_t axis, float amount) noexcept
 {
+	TaskCriticalSectionLocker lock;						// lock out the Move task
+
 	return mainDDARing.PushBabyStepping(axis, amount);
 }
 
@@ -618,6 +628,37 @@ void Move::InverseAxisTransform(float xyzPoint[MaxAxes], const Tool *tool) const
 	}
 }
 
+// Compute the height correction needed at a point, ignoring taper
+float Move::ComputeHeightCorrection(float xyzPoint[MaxAxes], const Tool *tool) const noexcept
+{
+	float zCorrection = 0.0;
+	unsigned int numCorrections = 0;
+	const GridDefinition& grid = GetGrid();
+	const AxesBitmap axis1Axes = Tool::GetAxisMapping(tool, grid.GetAxisNumber(1));
+
+	// Transform the Z coordinate based on the average correction for each axis used as an X or Y axis.
+	Tool::GetAxisMapping(tool, grid.GetAxisNumber(0))
+		.Iterate([this, xyzPoint, tool, axis1Axes, &zCorrection, &numCorrections](unsigned int axis0Axis, unsigned int)
+					{
+						const float axis0Coord = xyzPoint[axis0Axis] + Tool::GetOffset(tool, axis0Axis);
+						axis1Axes.Iterate([this, xyzPoint, tool, axis0Coord, &zCorrection, &numCorrections](unsigned int axis1Axis, unsigned int)
+											{
+												const float axis1Coord = xyzPoint[axis1Axis] + Tool::GetOffset(tool, axis1Axis);
+												zCorrection += heightMap.GetInterpolatedHeightError(axis0Coord, axis1Coord);
+												++numCorrections;
+											}
+										);
+					}
+				);
+
+	if (numCorrections > 1)
+	{
+		zCorrection /= numCorrections;			// take an average
+	}
+
+	return zCorrection + zShift;
+}
+
 // Do the bed transform AFTER the axis transform
 void Move::BedTransform(float xyzPoint[MaxAxes], const Tool *tool) const noexcept
 {
@@ -626,32 +667,7 @@ void Move::BedTransform(float xyzPoint[MaxAxes], const Tool *tool) const noexcep
 		const float toolHeight = xyzPoint[Z_AXIS] + Tool::GetOffset(tool, Z_AXIS);
 		if (!useTaper || toolHeight < taperHeight)
 		{
-			float zCorrection = 0.0;
-			unsigned int numCorrections = 0;
-			const GridDefinition& grid = GetGrid();
-			const AxesBitmap axis1Axes = Tool::GetAxisMapping(tool, grid.GetAxisNumber(1));
-
-			// Transform the Z coordinate based on the average correction for each axis used as an X or Y axis.
-			Tool::GetAxisMapping(tool, grid.GetAxisNumber(0))
-				.Iterate([this, xyzPoint, tool, axis1Axes, &zCorrection, &numCorrections](unsigned int axis0Axis, unsigned int)
-							{
-								const float axis0Coord = xyzPoint[axis0Axis] + Tool::GetOffset(tool, axis0Axis);
-								axis1Axes.Iterate([this, xyzPoint, tool, axis0Coord, &zCorrection, &numCorrections](unsigned int axis1Axis, unsigned int)
-													{
-														const float axis1Coord = xyzPoint[axis1Axis] + Tool::GetOffset(tool, axis1Axis);
-														zCorrection += heightMap.GetInterpolatedHeightError(axis0Coord, axis1Coord);
-														++numCorrections;
-													}
-												);
-							}
-						);
-
-			if (numCorrections > 1)
-			{
-				zCorrection /= numCorrections;			// take an average
-			}
-
-			zCorrection += zShift;
+			const float zCorrection = ComputeHeightCorrection(xyzPoint, tool);
 			xyzPoint[Z_AXIS] += (useTaper && zCorrection < taperHeight) ? (taperHeight - toolHeight) * recipTaperHeight * zCorrection : zCorrection;
 		}
 	}
@@ -662,33 +678,7 @@ void Move::InverseBedTransform(float xyzPoint[MaxAxes], const Tool *tool) const 
 {
 	if (usingMesh)
 	{
-		float zCorrection = 0.0;
-		unsigned int numCorrections = 0;
-		const GridDefinition& grid = GetGrid();
-		const AxesBitmap axis1Axes = Tool::GetAxisMapping(tool, grid.GetAxisNumber(1));
-
-		// Transform the Z coordinate based on the average correction for each axis used as an X or Y axis.
-		Tool::GetAxisMapping(tool, grid.GetAxisNumber(0))
-			.Iterate([this, xyzPoint, tool, axis1Axes, &zCorrection, &numCorrections](unsigned int axis0Axis, unsigned int)
-						{
-							const float axis0Coord = xyzPoint[axis0Axis] + Tool::GetOffset(tool, axis0Axis);
-							axis1Axes.Iterate([this, xyzPoint, tool, axis0Coord, &zCorrection, &numCorrections](unsigned int axis1Axis, unsigned int)
-												{
-													const float axis1Coord = xyzPoint[axis1Axis] + Tool::GetOffset(tool, axis1Axis);
-													zCorrection += heightMap.GetInterpolatedHeightError(axis0Coord, axis1Coord);
-													++numCorrections;
-												}
-											);
-						}
-					);
-
-		if (numCorrections > 1)
-		{
-			zCorrection /= numCorrections;				// take an average
-		}
-
-		zCorrection += zShift;
-
+		const float zCorrection = ComputeHeightCorrection(xyzPoint, tool);
 		if (!useTaper || zCorrection >= taperHeight)	// need check on zCorrection to avoid possible divide by zero
 		{
 			xyzPoint[Z_AXIS] -= zCorrection;
@@ -1016,7 +1006,8 @@ GCodeResult Move::ConfigureAccelerations(GCodeBuffer&gb, const StringRef& reply)
 // Process M595
 GCodeResult Move::ConfigureMovementQueue(GCodeBuffer& gb, const StringRef& reply) noexcept
 {
-	return mainDDARing.ConfigureMovementQueue(gb, reply);
+	const size_t ringNumber = (gb.Seen('Q')) ? gb.GetLimitedUIValue('Q', ARRAY_SIZE(rings)) : 0;
+	return rings[ringNumber].ConfigureMovementQueue(gb, reply);
 }
 
 // Return the current live XYZ and extruder coordinates

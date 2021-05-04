@@ -1,4 +1,14 @@
-version 3/3-beta2_2
+Versions 3.3-RC1_1
+==================
+* RRF V3.3-RC1
+* LPC: Adjust stack sizes
+* Adjust parse stack to allow more complex operations (SBC)
+* STM32F4: Make WiFi Firmware update I/O buffer available to DMA
+* STM32F4: Disable BTT "anti-reverse protection" feature
+
+
+
+version 3.3-beta3_2
 ===================
 * Fix Neopixel configuration check
 * STM32F4: Add checks for change on interrupt pin being unused
