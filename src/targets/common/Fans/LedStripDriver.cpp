@@ -111,7 +111,7 @@ GCodeResult LedStripDriver::SetColours(GCodeBuffer& gb, const StringRef& reply) 
 	if (gb.Seen('X'))
 	{
 		seen = true;
-		const uint32_t newType = gb.GetLimitedUIValue('X', 3, 2 ); 
+		const uint32_t newType = gb.GetLimitedUIValue('X', 2, 3); 
 		const bool typeChanged = (newType != ledType);
 		if (newType != 2)
 		{

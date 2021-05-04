@@ -536,7 +536,7 @@ WifiFirmwareUploader::EspUploadResult WifiFirmwareUploader::flashWriteBlock(uint
 #if !STM32F4
 	// On the STM32F4 our stack is not DMA capable, so we can't use the stack instead we allocate it
 	// when we open the file.
-	static uint32_t blkBuf32[blkBufSize/4];
+	uint32_t blkBuf32[blkBufSize/4];
 #endif
 	uint8_t * const blkBuf = reinterpret_cast<uint8_t*>(blkBuf32);
 

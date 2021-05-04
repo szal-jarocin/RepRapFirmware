@@ -490,6 +490,8 @@ void Platform::Init() noexcept
 #endif
 
 #if LPC17xx || STM32F4
+	// initialise the step pulse timer, need to do this early as it is used to time disk I/O
+	StepTimer::Init();
 	// Load HW pin assignments from sdcard
 	BoardConfig::Init();
 #if HAS_NETWORKING
@@ -1806,7 +1808,9 @@ void Platform::InitialiseInterrupts() noexcept
 
 #endif
 
+#if !STM32F4 && !LPC17xx
 	StepTimer::Init();										// initialise the step pulse timer
+#endif
 
    // Tick interrupt for ADC conversions
 	tickState = 0;

@@ -493,7 +493,7 @@ void DataTransfer::Init() noexcept
 #endif
 }
 
-void DataTransfer::SetLinuxTask(TaskHandle handle) noexcept
+void DataTransfer::SetSBCTask(TaskHandle handle) noexcept
 {
 	linuxTaskHandle = handle;
 }
@@ -1600,8 +1600,9 @@ bool DataTransfer::IapDataExchange(size_t len)
 	dataReceived = false;
 	setup_spi(rxBuffer, txBuffer, len);
 	while (!dataReceived && millis() - lastTransferTime < SpiTransferTimeout) {}
-	if (!dataReceived)
-		debugPrintf("Timeout with length %d\n", (int)len);
+	// end of data is indicated by a timeout.
+	//if (!dataReceived)
+		//debugPrintf("Timeout with length %d\n", (int)len);
 	return dataReceived;
 }
 

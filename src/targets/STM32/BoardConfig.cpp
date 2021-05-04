@@ -276,6 +276,7 @@ static void FatalError(const char* fmt, ...)
     }
 }
 
+#if 0
 static void CheckDriverPins() noexcept
 {
     for(size_t i=0; i<MaxTotalDrivers; i++)
@@ -285,14 +286,17 @@ static void CheckDriverPins() noexcept
             pinMode(ENABLE_PINS[i], INPUT);
             bool state1 = IoPort::ReadPin(ENABLE_PINS[i]);
             pinMode(STEP_PINS[i], OUTPUT_LOW);
-            delay(1);
+            delay(50);
             bool state2 = IoPort::ReadPin(ENABLE_PINS[i]);
             pinMode(STEP_PINS[i], INPUT);
             if (state1 != state2 && state2 == false)
+            {
                 FatalError("Possible short between step and enable pins on driver %d.\nPlease check driver installation/configuration.\n", i);
+            }
         }
     }
 }
+#endif
 
 
 static void UnknownHardware(uint32_t sig)
@@ -386,7 +390,7 @@ static SSPChannel InitSDCard(uint32_t boardSig, FATFS *fs)
 {
     int conf = SD_NONE;
     // First try to find a matching board
-    for(uint32_t i = 0; i < ARRAY_SIZE(LPC_Boards) && conf == SD_NONE; i++)
+    for(uint32_t i = 0; i < NumBoardEntries && conf == SD_NONE; i++)
         for(uint32_t j = 0; j < MaxSignatures && conf == SD_NONE; j++)
             if (LPC_Boards[i].defaults.signatures[j] == boardSig)
             {
@@ -532,7 +536,10 @@ void BoardConfig::Init() noexcept
         {
             hasDriverCurrentControl = true;
         }
-        CheckDriverPins();        
+#if 0
+        // anti-rotation detection feature disabled for now due to potential to damage some drivers
+        CheckDriverPins();
+#endif       
         //Setup the SPI Pins, note that the SD SPI device may already have been configured
         for(size_t i = 0; i < ARRAY_SIZE(SPIPins); i++)
             if (sdChannel != (SSPChannel)i)
@@ -762,7 +769,7 @@ void BoardConfig::Diagnostics(MessageType mtype) noexcept
     for (size_t lp = 0; lp < NumNamedLPCPins; ++lp)
     {
         reprap.GetPlatform().MessageF(mtype, "%s = ", PinTable[lp].names );
-        BoardConfig::PrintValue(mtype, cvPinType, &PinTable[lp].pin);
+        BoardConfig::PrintValue(mtype, cvPinType, (void *)&PinTable[lp].pin);
         reprap.GetPlatform().MessageF(mtype, "\n");
     }
     
@@ -1161,6 +1168,7 @@ bool BoardConfig::BeginFirmwareUpdate()
     rslt = f_mount (fs, "0:", 1);
     if (rslt == FR_OK)
     {
+
         //Open File, abd zero length
         rslt = f_open (firmwareFile, firmwarePath, FA_WRITE|FA_CREATE_ALWAYS);
         if (rslt != FR_OK)
@@ -1190,10 +1198,8 @@ bool BoardConfig::WriteFirmwareData(const char *data, uint16_t length)
 {
     FRESULT rslt;
     UINT written;
-
     if (firmwareFile == nullptr) return false;
     rslt = f_write(firmwareFile, data, length, &written);
-    //debugPrintf("Write firmware data request %d actual %d\n", length, written);
     return rslt == FR_OK && length == written;    
 }
 
@@ -1208,10 +1214,8 @@ void BoardConfig::EndFirmwareUpdate()
         fs = nullptr;
         firmwareFile = nullptr;
     }
-    //debugPrintf("Doing software reset\n");
     reprap.EmergencyStop();			// turn off heaters etc.
     SoftwareReset(SoftwareResetReason::user); // Reboot
-    //debugPrintf("OH dear we should not see this!\n");
 }
 #endif
 
