@@ -276,6 +276,7 @@ static void FatalError(const char* fmt, ...)
     }
 }
 
+#if 0
 static void CheckDriverPins() noexcept
 {
     for(size_t i=0; i<MaxTotalDrivers; i++)
@@ -295,6 +296,7 @@ static void CheckDriverPins() noexcept
         }
     }
 }
+#endif
 
 
 static void UnknownHardware(uint32_t sig)
@@ -534,7 +536,10 @@ void BoardConfig::Init() noexcept
         {
             hasDriverCurrentControl = true;
         }
-        CheckDriverPins();        
+#if 0
+        // anti-rotation detection feature disabled for now due to potential to damage some drivers
+        CheckDriverPins();
+#endif       
         //Setup the SPI Pins, note that the SD SPI device may already have been configured
         for(size_t i = 0; i < ARRAY_SIZE(SPIPins); i++)
             if (sdChannel != (SSPChannel)i)
