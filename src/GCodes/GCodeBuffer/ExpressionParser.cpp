@@ -75,6 +75,16 @@ ExpressionValue ExpressionParser::ParseSimple() THROWS(GCodeException)
 	throw ConstructParseException("expected simple expression");
 }
 
+void AppendStrings(ExpressionValue &val, ExpressionValue &val2) noexcept
+{
+	String<MaxStringExpressionLength> str;
+	val.AppendAsString(str.GetRef());
+	val2.AppendAsString(str.GetRef());
+	StringHandle sh(str.c_str());
+	val.Set(sh);
+	val2.Release();
+}
+
 // Evaluate an expression internally, stopping before any binary operators with priority 'priority' or lower
 ExpressionValue ExpressionParser::ParseInternal(bool evaluate, uint8_t priority) THROWS(GCodeException)
 {
@@ -482,12 +492,18 @@ ExpressionValue ExpressionParser::ParseInternal(bool evaluate, uint8_t priority)
 
 				case '^':
 					{
+// Moving the following code into a function reduces the (recusrsive) stack usage
+// and allows more complex expressions to be used. Andy
+#if 0
 						String<MaxStringExpressionLength> str;
 						val.AppendAsString(str.GetRef());
 						val2.AppendAsString(str.GetRef());
 						StringHandle sh(str.c_str());
 						val.Set(sh);
 						val2.Release();
+#else
+						AppendStrings(val, val2);
+#endif
 					}
 					break;
 				}
