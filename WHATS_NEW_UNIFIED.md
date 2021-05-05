@@ -5,6 +5,7 @@ Versions 3.3-RC1_1
 * Adjust parse stack to allow more complex operations (SBC)
 * STM32F4: Make WiFi Firmware update I/O buffer available to DMA
 * STM32F4: Disable BTT "anti-reverse protection" feature
+* STM32F4: Fixed incorrect LCDCS pin for BTT SKR V2
 
 
 
