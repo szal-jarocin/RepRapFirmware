@@ -428,7 +428,7 @@ constexpr PinEntry PinTable_BTT_SKR_2[] =
     {PB_5,  "fan2" },
 
     //EXP1
-    {PB_1, "LCDCS"},
+    {PE_9, "LCDCS"},
     {PB_2, "LCDENCA"},
     {PE_7, "LCDENCB"},
     {PC_5, "LCDBEEP"},
