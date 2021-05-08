@@ -147,7 +147,7 @@ bool GCodes::HandleGcode(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeEx
 	{
 	case 0: // Rapid move
 	case 1: // Ordinary move
-		if (moveBuffer.segmentsLeft != 0)							// do this check first to avoid locking movement unnecessarily
+		if (moveBuffer.segmentsLeft != 0)								// do this check first to avoid locking movement unnecessarily
 		{
 			return false;
 		}
@@ -164,7 +164,7 @@ bool GCodes::HandleGcode(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeEx
 			if (err != nullptr)
 			{
 				gb.SetState(GCodeState::abortWhenMovementFinished);		// empty the queue before ending simulation, and force the user position to be restored
-				gb.LatestMachineState().SetError(err);						// must do this *after* calling SetState
+				gb.LatestMachineState().SetError(err);					// must do this *after* calling SetState
 			}
 		}
 		break;
@@ -1474,7 +1474,8 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeEx
 					}
 					else
 					{
-						SetMappedFanSpeed(pausedDefaultFanSpeed);
+						const size_t restorePointNumber = gb.GetLimitedUIValue('R', NumRestorePoints);
+						SetMappedFanSpeed(numberedRestorePoints[restorePointNumber].fanSpeed);
 					}
 				}
 			}
@@ -2865,8 +2866,8 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeEx
 				String<StringLength100> key;
 				String<StringLength20> flags;
 				bool dummy;
-				gb.TryGetQuotedString('K', key.GetRef(), dummy);
-				gb.TryGetQuotedString('F', flags.GetRef(), dummy);
+				gb.TryGetQuotedString('K', key.GetRef(), dummy, true);
+				gb.TryGetQuotedString('F', flags.GetRef(), dummy, true);
 				if (&gb == auxGCode)
 				{
 					lastAuxStatusReportType = ObjectModelAuxStatusReportType;
