@@ -98,12 +98,14 @@ static const boardConfigEntry_t boardConfigs[]=
     {"8266wifi.espResetPin", &EspResetPin, nullptr, cvPinType},
     {"8266wifi.csPin", &SamCsPin, nullptr, cvPinType},
     {"8266wifi.serialRxTxPins", &WifiSerialRxTxPins, &NumberSerialPins, cvPinType},
+    {"8266wifi.spiChannel", &WiFiSpiChannel, nullptr, cvUint8Type},    
 #endif
 
 #if HAS_LINUX_INTERFACE
     {"sbc.lpcTfrReadyPin", &SbcTfrReadyPin, nullptr, cvPinType},
     {"sbc.TfrReadyPin", &SbcTfrReadyPin, nullptr, cvPinType},
     {"sbc.csPin", &SbcCsPin, nullptr, cvPinType},
+    {"sbc.spiChannel", &SbcSpiChannel, nullptr, cvUint8Type},    
 #endif
 
 #if defined(SERIAL_AUX_DEVICE)
@@ -1168,8 +1170,7 @@ bool BoardConfig::BeginFirmwareUpdate()
     rslt = f_mount (fs, "0:", 1);
     if (rslt == FR_OK)
     {
-
-        //Open File, abd zero length
+        //Open File, and zero length
         rslt = f_open (firmwareFile, firmwarePath, FA_WRITE|FA_CREATE_ALWAYS);
         if (rslt != FR_OK)
         {
@@ -1200,6 +1201,8 @@ bool BoardConfig::WriteFirmwareData(const char *data, uint16_t length)
     UINT written;
     if (firmwareFile == nullptr) return false;
     rslt = f_write(firmwareFile, data, length, &written);
+    if (rslt != FR_OK || length != written)
+        debugPrintf("Write to firmware file failed err %d length requested %d actual %d\n", rslt, length, written);
     return rslt == FR_OK && length == written;    
 }
 
@@ -1207,14 +1210,18 @@ void BoardConfig::EndFirmwareUpdate()
 {
     if (firmwareFile != nullptr)
     {
-        f_close(firmwareFile);
-        f_unmount("0:");
+        FRESULT rslt = f_close(firmwareFile);
+        if (rslt != FR_OK) debugPrintf("file close failed err %d\n", rslt);
+        rslt = f_unmount("0:");
+        if (rslt != FR_OK) debugPrintf("unmount failed err %d\n", rslt);
         delete fs;
         delete firmwareFile;
         fs = nullptr;
         firmwareFile = nullptr;
     }
     reprap.EmergencyStop();			// turn off heaters etc.
+    debugPrintf("Restarting....\n");
+    delay(1000);
     SoftwareReset(SoftwareResetReason::user); // Reboot
 }
 #endif
