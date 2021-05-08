@@ -70,6 +70,7 @@ Pin SPIPins[NumSPIDevices][NumSPIPins];                 //GPIO pins for hardware
     Pin SamCsPin = PB_12;
     Pin APIN_Serial1_TXD = NoPin;
     Pin APIN_Serial1_RXD = NoPin;
+    SSPChannel WiFiSpiChannel = SSP2;
 
     Pin WifiSerialRxTxPins[NumberSerialPins] = {NoPin, NoPin};
 #endif
@@ -90,6 +91,7 @@ Pin SPIPins[NumSPIDevices][NumSPIPins];                 //GPIO pins for hardware
 #if HAS_LINUX_INTERFACE
     Pin SbcTfrReadyPin = NoPin;
     Pin SbcCsPin = PB_12;
+    SSPChannel SbcSpiChannel = SSP2;
 #endif
 
 bool ADCEnablePreFilter = true;

@@ -98,12 +98,14 @@ static const boardConfigEntry_t boardConfigs[]=
     {"8266wifi.espResetPin", &EspResetPin, nullptr, cvPinType},
     {"8266wifi.csPin", &SamCsPin, nullptr, cvPinType},
     {"8266wifi.serialRxTxPins", &WifiSerialRxTxPins, &NumberSerialPins, cvPinType},
+    {"8266wifi.spiChannel", &WiFiSpiChannel, nullptr, cvUint8Type},    
 #endif
 
 #if HAS_LINUX_INTERFACE
     {"sbc.lpcTfrReadyPin", &SbcTfrReadyPin, nullptr, cvPinType},
     {"sbc.TfrReadyPin", &SbcTfrReadyPin, nullptr, cvPinType},
     {"sbc.csPin", &SbcCsPin, nullptr, cvPinType},
+    {"sbc.spiChannel", &SbcSpiChannel, nullptr, cvUint8Type},    
 #endif
 
 #if defined(SERIAL_AUX_DEVICE)
