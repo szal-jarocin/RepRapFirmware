@@ -1168,8 +1168,7 @@ bool BoardConfig::BeginFirmwareUpdate()
     rslt = f_mount (fs, "0:", 1);
     if (rslt == FR_OK)
     {
-
-        //Open File, abd zero length
+        //Open File, and zero length
         rslt = f_open (firmwareFile, firmwarePath, FA_WRITE|FA_CREATE_ALWAYS);
         if (rslt != FR_OK)
         {
@@ -1200,6 +1199,8 @@ bool BoardConfig::WriteFirmwareData(const char *data, uint16_t length)
     UINT written;
     if (firmwareFile == nullptr) return false;
     rslt = f_write(firmwareFile, data, length, &written);
+    if (rslt != FR_OK || length != written)
+        debugPrintf("Write to firmware file failed err %d length requested %d actual %d\n", rslt, length, written);
     return rslt == FR_OK && length == written;    
 }
 
@@ -1207,14 +1208,18 @@ void BoardConfig::EndFirmwareUpdate()
 {
     if (firmwareFile != nullptr)
     {
-        f_close(firmwareFile);
-        f_unmount("0:");
+        FRESULT rslt = f_close(firmwareFile);
+        if (rslt != FR_OK) debugPrintf("file close failed err %d\n", rslt);
+        rslt = f_unmount("0:");
+        if (rslt != FR_OK) debugPrintf("unmount failed err %d\n", rslt);
         delete fs;
         delete firmwareFile;
         fs = nullptr;
         firmwareFile = nullptr;
     }
     reprap.EmergencyStop();			// turn off heaters etc.
+    debugPrintf("Restarting....\n");
+    delay(1000);
     SoftwareReset(SoftwareResetReason::user); // Reboot
 }
 #endif
