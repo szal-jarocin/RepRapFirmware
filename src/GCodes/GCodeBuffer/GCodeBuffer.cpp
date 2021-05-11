@@ -626,18 +626,18 @@ bool GCodeBuffer::TryGetFloatArray(char c, size_t numVals, float vals[], const S
 
 // Try to get a quoted string after parameter letter.
 // If we found it then set 'seen' true and return true, else leave 'seen' alone and return false
-bool GCodeBuffer::TryGetQuotedString(char c, const StringRef& str, bool& seen) THROWS(GCodeException)
+bool GCodeBuffer::TryGetQuotedString(char c, const StringRef& str, bool& seen, bool allowEmpty) THROWS(GCodeException)
 {
 	if (Seen(c))
 	{
 		seen = true;
-		GetQuotedString(str);
+		GetQuotedString(str, allowEmpty);
 		return true;
 	}
 	return false;
 }
 
-// Try to get a string, which may be quoted, after parameter letter.
+// Try to get a non-empty string, which may be quoted, after parameter letter.
 // If we found it then set 'seen' true and return true, else leave 'seen' alone and return false
 bool GCodeBuffer::TryGetPossiblyQuotedString(char c, const StringRef& str, bool& seen) THROWS(GCodeException)
 {
@@ -1026,14 +1026,9 @@ void GCodeBuffer::AppendFullCommand(const StringRef &s) const noexcept
 	PARSER_OPERATION(AppendFullCommand(s));
 }
 
-void GCodeBuffer::SetParameters(int codeRunning) noexcept
+void GCodeBuffer::AddParameters(VariableSet& vars, int codeRunning) noexcept
 {
-	// This is called after we have pushed the state.
-	// We need to add the parameters to the local variables in the new state, but the parameter expressions may refer to local variables and parameters in the old state.
-	VariableSet& vars = GetVariables();							// get a reference to the new variables and parameters
-	machineState->localPush = true;								// tell the system to fetch variables and parameters from the old state record
-	PARSER_OPERATION(SetParameters(vars, codeRunning));
-	machineState->localPush = false;							// go back to using the new state record
+	PARSER_OPERATION(AddParameters(vars, codeRunning));
 }
 
 VariableSet& GCodeBuffer::GetVariables() const noexcept

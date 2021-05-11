@@ -225,6 +225,7 @@ extern SSPChannel TempSensorSSPChannel;
 #if HAS_LINUX_INTERFACE
     extern Pin SbcTfrReadyPin;
     extern Pin SbcCsPin;
+    extern SSPChannel SbcSpiChannel;
 #endif
 
 // Power control
@@ -286,6 +287,7 @@ extern Pin AuxSerialRxTxPins[NumberSerialPins];
     extern Pin APIN_Serial1_TXD;
     extern Pin APIN_Serial1_RXD;
     extern Pin WifiSerialRxTxPins[NumberSerialPins];
+    extern SSPChannel WiFiSpiChannel;
 
     // Compatibility with existing RRF Code
     constexpr Pin APIN_ESP_SPI_MISO = PB_15;
