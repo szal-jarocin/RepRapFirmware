@@ -1,4 +1,10 @@
-Versions 3.3-RC1_1
+Version 3.3-RC2_2
+=================
+* RRF V3.3-RC2
+* STM32F4: New build stats
+
+
+Version 3.3-RC1_1
 ==================
 * RRF V3.3-RC1
 * LPC: Adjust stack sizes
