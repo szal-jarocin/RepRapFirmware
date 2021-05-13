@@ -1,7 +1,13 @@
-Version 3.3-RC2_2
+Version 3.3-RC2+1_1
+===================
+* WiFi Access point fix from Duet3D
+
+
+Version 3.3-RC2_1
 =================
 * RRF V3.3-RC2
 * STM32F4: New build stats
+* STM32F4: Adjust GPIO timing and SPI pullups 
 
 
 Version 3.3-RC1_1
