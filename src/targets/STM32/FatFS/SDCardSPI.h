@@ -42,6 +42,11 @@ protected:
     SharedSpiClient *spi;
     uint32_t maxFrequency;
     uint8_t status;
+    // We need cmd buffers that are not on the stack so that
+    // they can be accessed via DMA
+    uint8_t tx;
+    uint8_t rx;
+    uint8_t cmdData[64];
 };
 
 #endif
