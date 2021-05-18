@@ -9,7 +9,7 @@
 #define SRC_VERSION_H_
 
 #ifndef VERSION
-# define MAIN_VERSION	"3.3RC2_1e"
+# define MAIN_VERSION	"3.3RC2+1_1e"
 # ifdef USE_CAN0
 #  define VERSION_SUFFIX	" (CAN0)"
 # else
