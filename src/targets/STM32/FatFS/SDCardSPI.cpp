@@ -57,7 +57,6 @@ constexpr uint32_t SCLK_INIT =  400000;     /* SCLK frequency under initializati
 
 
 
-
 #define SD_COMMAND_TIMEOUT 5000
 
 SDCardSPI::SDCardSPI(SSPChannel SSPSlot, Pin cs) noexcept {
@@ -114,8 +113,8 @@ void SDCardSPI::unmount() noexcept
 /* Exchange a byte */
 inline uint8_t SDCardSPI::xchg_spi (uint8_t dat) noexcept
 {
-    uint8_t rx;
-    spi->TransceivePacket(&dat, &rx, 1);
+    tx = dat;
+    spi->TransceivePacket((uint8_t *)&tx, (uint8_t *)&rx, 1);
     return rx;
 }
 
@@ -221,7 +220,7 @@ int SDCardSPI::rcvr_datablock (uint8_t *buff, uint32_t btr) noexcept/* 1:OK, 0:E
         
         /* This loop will take a time. Insert rot_rdq() here for multitask envilonment. */
         
-    } while ((token == 0xFF) && (millis() - now) < 200 );
+    } while ((token != 0xFE) && (millis() - now) < 200 );
     if(token != 0xFE) return 0;        /* Function fails if invalid DataStart token or timeout */
     // FIXME SPI should really provide dummy data
     memset(buff, 0xff, btr);
@@ -266,31 +265,31 @@ int SDCardSPI::xmit_datablock (const uint8_t *buff, uint8_t token) noexcept /* 1
 uint8_t SDCardSPI::send_cmd (uint8_t cmd, uint32_t arg) noexcept/* Return value: R1 resp (bit7==1:Failed to send) */
 {
     uint8_t n, res;
-   
     if (cmd & 0x80) {    /* Send a CMD55 prior to ACMD<n> */
         cmd &= 0x7F;
         res = send_cmd(CMD55, 0);
         if (res > 1) return res;
     }
-    
+    uint8_t *cmdPtr = cmdData;
     /* Select the card and wait for ready except to stop multiple block read */
     if (cmd != CMD12) {
-        xchg_spi(0xff);
+        *cmdPtr++ = 0xff;
     }
-    
     /* Send command packet */
-    xchg_spi(0x40 | cmd);                   /* Start + command index */
-    xchg_spi((uint8_t)(arg >> 24));         /* Argument[31..24] */
-    xchg_spi((uint8_t)(arg >> 16));         /* Argument[23..16] */
-    xchg_spi((uint8_t)(arg >> 8));          /* Argument[15..8] */
-    xchg_spi((uint8_t)arg);                 /* Argument[7..0] */
+    *cmdPtr++ = (0x40 | cmd);               /* Start + command index */
+    *cmdPtr++ = ((uint8_t)(arg >> 24));     /* Argument[31..24] */
+    *cmdPtr++ = ((uint8_t)(arg >> 16));     /* Argument[23..16] */
+    *cmdPtr++ = ((uint8_t)(arg >> 8));      /* Argument[15..8] */
+    *cmdPtr++ = ((uint8_t)arg);             /* Argument[7..0] */
     n = 0x01;                               /* Dummy CRC + Stop */
     if (cmd == CMD0) n = 0x95;              /* Valid CRC for CMD0(0) */
     if (cmd == CMD8) n = 0x87;              /* Valid CRC for CMD8(0x1AA) */
-    xchg_spi(n);
+    *cmdPtr++ = (n);
     
     /* Receive command resp */
-    if (cmd == CMD12) xchg_spi(0xFF);       /* Discard following one byte when CMD12 */
+    if (cmd == CMD12) *cmdPtr++ = (0xFF);   /* Discard following one byte when CMD12 */
+    spi->TransceivePacket(cmdData, nullptr, cmdPtr - cmdData);
+
     n = 10;                                 /* Wait for response (10 bytes max) */
     do
         res = xchg_spi(0xFF);
@@ -317,7 +316,6 @@ uint8_t SDCardSPI::disk_initialize () noexcept
     for (n = 10; n; n--) xchg_spi(0xFF);    /* Send 80 dummy clocks */
     ty = 0;
     if (send_cmd(CMD0, 0) == 1) {            /* Put the card SPI state */
-       
         uint32_t now = millis();
         const uint32_t timeout = 1000;                        /* Initialization timeout = 1 sec */
         
@@ -363,11 +361,10 @@ uint8_t SDCardSPI::disk_initialize () noexcept
             if (send_cmd(CMD6, 0x80FFFFF1) == 0)
             {
                 // 512 bits of status (64 bytes)
-                uint8_t buf[64];
-                if(rcvr_datablock(buf, 64))
+                if(rcvr_datablock(cmdData, 64))
                 {
                     //bits of interest are 376:379
-                    isHighSpeed = ((buf[16] & 0x0F) == 1);
+                    isHighSpeed = ((cmdData[16] & 0x0F) == 1);
                     
                     if(isHighSpeed)
                     {
@@ -444,6 +441,9 @@ DRESULT SDCardSPI::disk_read (uint8_t *buff, uint32_t sector, uint32_t count) no
         if (cmd == CMD18) send_cmd(CMD12, 0);    /* STOP_TRANSMISSION */
     }
     deselect();
+#ifdef SD_DEBUG
+    if (count) debugPrintf("Read error sector %u count %u cmd %d\n", (unsigned)sector, (unsigned)count, cmd);
+#endif
     return count ? RES_ERROR : RES_OK;    /* Return result */
 }
 
@@ -506,7 +506,7 @@ DRESULT SDCardSPI::disk_write (const uint8_t *buff, uint32_t sector, uint32_t co
 DRESULT SDCardSPI::disk_ioctl (uint8_t cmd, void *buff) noexcept
 {
     DRESULT res;
-    uint8_t n, csd[16];
+    uint8_t n;
     uint32_t csize;
     if (status & STA_NOINIT) return RES_NOTRDY;    /* Check if drive is ready */
     
@@ -519,13 +519,13 @@ DRESULT SDCardSPI::disk_ioctl (uint8_t cmd, void *buff) noexcept
             break;
             
         case GET_SECTOR_COUNT:    /* Get drive capacity in unit of sector (DWORD) */
-            if ((send_cmd(CMD9, 0) == 0) && rcvr_datablock(csd, 16)) {
-                if ((csd[0] >> 6) == 1) {    /* SDC ver 2.00 */
-                    csize = csd[9] + ((uint16_t)csd[8] << 8) + ((uint32_t)(csd[7] & 63) << 16) + 1;
+            if ((send_cmd(CMD9, 0) == 0) && rcvr_datablock(cmdData, 16)) {
+                if ((cmdData[0] >> 6) == 1) {    /* SDC ver 2.00 */
+                    csize = cmdData[9] + ((uint16_t)cmdData[8] << 8) + ((uint32_t)(cmdData[7] & 63) << 16) + 1;
                     *(uint32_t*)buff = csize << 10;
                 } else {                    /* SDC ver 1.XX or MMC ver 3 */
-                    n = (csd[5] & 15) + ((csd[10] & 128) >> 7) + ((csd[9] & 3) << 1) + 2;
-                    csize = (csd[8] >> 6) + ((uint16_t)csd[7] << 2) + ((uint16_t)(csd[6] & 3) << 10) + 1;
+                    n = (cmdData[5] & 15) + ((cmdData[10] & 128) >> 7) + ((cmdData[9] & 3) << 1) + 2;
+                    csize = (cmdData[8] >> 6) + ((uint16_t)cmdData[7] << 2) + ((uint16_t)(cmdData[6] & 3) << 10) + 1;
                     *(uint32_t*)buff = csize << (n - 9);
                 }
                 res = RES_OK;
@@ -536,18 +536,18 @@ DRESULT SDCardSPI::disk_ioctl (uint8_t cmd, void *buff) noexcept
             if (cardtype & CT_SD2) {    /* SDC ver 2.00 */
                 if (send_cmd(ACMD13, 0) == 0) {    /* Read SD status */
                     xchg_spi(0xFF);
-                    if (rcvr_datablock(csd, 16)) {                /* Read partial block */
+                    if (rcvr_datablock(cmdData, 16)) {                /* Read partial block */
                         for (n = 64 - 16; n; n--) xchg_spi(0xFF);    /* Purge trailing data */
-                        *(uint32_t*)buff = 16UL << (csd[10] >> 4);
+                        *(uint32_t*)buff = 16UL << (cmdData[10] >> 4);
                         res = RES_OK;
                     }
                 }
             } else {                    /* SDC ver 1.XX or MMC */
-                if ((send_cmd(CMD9, 0) == 0) && rcvr_datablock(csd, 16)) {    /* Read CSD */
+                if ((send_cmd(CMD9, 0) == 0) && rcvr_datablock(cmdData, 16)) {    /* Read CSD */
                     if (cardtype & CT_SD1) {    /* SDC ver 1.XX */
-                        *(uint32_t*)buff = (((csd[10] & 63) << 1) + ((uint16_t)(csd[11] & 128) >> 7) + 1) << ((csd[13] >> 6) - 1);
+                        *(uint32_t*)buff = (((cmdData[10] & 63) << 1) + ((uint16_t)(cmdData[11] & 128) >> 7) + 1) << ((cmdData[13] >> 6) - 1);
                     } else {                    /* MMC */
-                        *(uint32_t*)buff = ((uint16_t)((csd[10] & 124) >> 2) + 1) * (((csd[11] & 3) << 3) + ((csd[11] & 224) >> 5) + 1);
+                        *(uint32_t*)buff = ((uint16_t)((cmdData[10] & 124) >> 2) + 1) * (((cmdData[11] & 3) << 3) + ((cmdData[11] & 224) >> 5) + 1);
                     }
                     res = RES_OK;
                 }

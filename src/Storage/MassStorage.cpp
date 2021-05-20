@@ -331,6 +331,19 @@ void MassStorage::Init() noexcept
 # endif
 }
 
+#if STM32F4
+void MassStorage::Init2() noexcept
+{
+	// some things may have changed when we loaded the board config, update them.
+	for (size_t card = 0; card < NumSdCards; ++card)
+	{
+		SdCardInfo& inf = info[card];
+		inf.cdPin = SdCardDetectPins[card];
+		inf.cardState = (inf.cdPin == NoPin) ? CardDetectState::present : CardDetectState::notPresent;
+	}
+}
+#endif
+
 FileStore* MassStorage::OpenFile(const char* filePath, OpenMode mode, uint32_t preAllocSize) noexcept
 {
 	{
