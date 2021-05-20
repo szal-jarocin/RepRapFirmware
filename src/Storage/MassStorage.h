@@ -33,6 +33,9 @@ namespace MassStorage
 	bool FileExists(const char *filePath) noexcept;
 #endif
 #if HAS_MASS_STORAGE
+#if STM32F4
+	void Init2() noexcept;
+#endif
 	bool FindFirst(const char *directory, FileInfo &file_info) noexcept;
 	bool FindNext(FileInfo &file_info) noexcept;
 	void AbandonFindNext() noexcept;

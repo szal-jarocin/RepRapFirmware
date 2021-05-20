@@ -546,6 +546,17 @@ void BoardConfig::Init() noexcept
         for(size_t i = 0; i < ARRAY_SIZE(SPIPins); i++)
             if (sdChannel != (SSPChannel)i)
                 ConfigureSPIPins((SSPChannel)i, SPIPins[i][0], SPIPins[i][1], SPIPins[i][2]);
+#if HAS_MASS_STORAGE
+        // Set internal SD card frequency (if supported)
+        sd_mmc_reinit_slot(0, NoPin, InternalSDCardFrequency);
+        if (ExternalSDCardSSPChannel != SSPNONE && SdSpiCSPins[1] != NoPin)
+        {
+            sd_mmc_setSSPChannel(1, ExternalSDCardSSPChannel, SdSpiCSPins[1]);
+            sd_mmc_reinit_slot(1, NoPin, ExternalSDCardFrequency);
+        }
+        // Update RRF settings
+        MassStorage::Init2();
+#endif
 // FIXME
 #if 0
         //Internal SDCard SPI Frequency
