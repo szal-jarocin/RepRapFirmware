@@ -49,15 +49,7 @@
 # include <CAN/CanMotion.h>
 #endif
 
-// Move task stack size
-// 250 is not enough when Move and DDA debug are enabled
-// deckingman's system (MB6HC with CAN expansion) needs at least 365 in 3.3beta3
-#if LPC17xx
-constexpr unsigned int MoveTaskStackWords = 375;
-#else
-constexpr unsigned int MoveTaskStackWords = 450;
-#endif
-static TASKMEM Task<MoveTaskStackWords> moveTask;
+TASKMEM Task<Move::MoveTaskStackWords> Move::moveTask;
 
 constexpr uint32_t MoveTimeout = 20;					// normal timeout when the Move process is waiting for a new move
 
@@ -973,7 +965,7 @@ bool Move::WriteResumeSettings(FileStore *f) const noexcept
 #endif
 
 // Process M204
-GCodeResult Move::ConfigureAccelerations(GCodeBuffer&gb, const StringRef& reply) noexcept
+GCodeResult Move::ConfigureAccelerations(GCodeBuffer&gb, const StringRef& reply) THROWS(GCodeException)
 {
 	bool seen = false;
 	if (gb.Seen('S'))
@@ -1004,7 +996,7 @@ GCodeResult Move::ConfigureAccelerations(GCodeBuffer&gb, const StringRef& reply)
 }
 
 // Process M595
-GCodeResult Move::ConfigureMovementQueue(GCodeBuffer& gb, const StringRef& reply) noexcept
+GCodeResult Move::ConfigureMovementQueue(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeException)
 {
 	const size_t ringNumber = (gb.Seen('Q')) ? gb.GetLimitedUIValue('Q', ARRAY_SIZE(rings)) : 0;
 	return rings[ringNumber].ConfigureMovementQueue(gb, reply);
