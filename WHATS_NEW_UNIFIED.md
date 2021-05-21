@@ -1,3 +1,10 @@
+Version 3.3-RC2+3_1
+===================
+* Duet3D version 3.3-RC2+3
+* STM32F4: Add support for external SD cards
+* LPC: Fix for board not booting with zero smart drivers
+
+
 Version 3.3-RC2+1_1
 ===================
 * WiFi Access point fix from Duet3D
