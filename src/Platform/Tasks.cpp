@@ -207,6 +207,7 @@ extern "C" void ReleaseMallocMutex() noexcept
 	i2cMutex.Create("I2C");
 	filamentsMutex.Create("Filaments");
 	mainTask.Create(MainTask, "MAIN", nullptr, TaskPriority::SpinPriority);
+	StepTimer::Init();
 	IrqRestore(flags);
 	vTaskStartScheduler();			// doesn't return
 	for (;;) { }					// keep gcc happy
