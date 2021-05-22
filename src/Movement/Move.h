@@ -94,8 +94,8 @@ public:
 
 	float PushBabyStepping(size_t axis, float amount) noexcept;				// Try to push some babystepping through the lookahead queue
 
-	GCodeResult ConfigureAccelerations(GCodeBuffer&gb, const StringRef& reply) noexcept;		// process M204
-	GCodeResult ConfigureMovementQueue(GCodeBuffer& gb, const StringRef& reply) noexcept;		// process M595
+	GCodeResult ConfigureAccelerations(GCodeBuffer&gb, const StringRef& reply) THROWS(GCodeException);		// process M204
+	GCodeResult ConfigureMovementQueue(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeException);		// process M595
 
 	float GetMaxPrintingAcceleration() const noexcept { return maxPrintingAcceleration; }
 	float GetMaxTravelAcceleration() const noexcept { return maxTravelAcceleration; }
@@ -121,7 +121,7 @@ public:
 	bool IsRawMotorMove(uint8_t moveType) const noexcept;									// Return true if this is a raw motor move
 
 	float IdleTimeout() const noexcept;														// Returns the idle timeout in seconds
-	void SetIdleTimeout(float timeout) noexcept;												// Set the idle timeout in seconds
+	void SetIdleTimeout(float timeout) noexcept;											// Set the idle timeout in seconds
 
 	void Simulate(uint8_t simMode) noexcept;												// Enter or leave simulation mode
 	float GetSimulationTime() const noexcept { return mainDDARing.GetSimulationTime(); }	// Get the accumulated simulation time
@@ -195,6 +195,8 @@ public:
 
 	static void WakeMoveTaskFromISR() noexcept;
 
+	static const TaskBase *GetMoveTaskHandle() noexcept { return &moveTask; }
+
 #if SUPPORT_REMOTE_COMMANDS
 	void AddMoveFromRemote(const CanMessageMovementLinear& msg) noexcept					// add a move from the ATE to the movement queue
 	{
@@ -222,6 +224,16 @@ private:
 	float ComputeHeightCorrection(float xyzPoint[MaxAxes], const Tool *tool) const noexcept;	// Compute the height correction needed at a point, ignoring taper
 
 	const char *GetCompensationTypeString() const noexcept;
+
+	// Move task stack size
+	// 250 is not enough when Move and DDA debug are enabled
+	// deckingman's system (MB6HC with CAN expansion) needs at least 365 in 3.3beta3
+#if LPC17xx
+	static constexpr unsigned int MoveTaskStackWords = 375;
+#else
+	static constexpr unsigned int MoveTaskStackWords = 450;
+#endif	
+	static TASKMEM Task<MoveTaskStackWords> moveTask;
 
 #if SUPPORT_ASYNC_MOVES
 	DDARing rings[2];

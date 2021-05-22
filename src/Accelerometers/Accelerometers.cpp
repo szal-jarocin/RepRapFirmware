@@ -422,7 +422,7 @@ GCodeResult Accelerometers::ConfigureAccelerometer(GCodeBuffer& gb, const String
 			spiCsPort.Release();				// in case it was allocated
 			return GCodeResult::error;
 		}
-		const uint32_t spiFrequency = (gb.Seen('Q')) ? gb.GetLimitedUIValue('Q', 500000, 10000000) : DefaultAccelerometerSpiFrequency;
+		const uint32_t spiFrequency = (gb.Seen('Q')) ? gb.GetLimitedUIValue('Q', 500000, 10000001) : DefaultAccelerometerSpiFrequency;
 #if STM32F4 || LPC17xx
 		temp = new LIS3DH(SharedSpiDevice::GetSharedSpiDevice(AccelerometerSpiChannel), spiFrequency, spiCsPort.GetPin(), irqPort.GetPin());
 #else

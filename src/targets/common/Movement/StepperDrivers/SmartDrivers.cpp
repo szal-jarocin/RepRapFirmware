@@ -18,7 +18,10 @@ static size_t numDrivers;
 void SmartDrivers::Init(size_t numSmartDrivers) noexcept
 {
     numDrivers = min<size_t>(numSmartDrivers, MaxSmartDrivers);
-	driverStates = (TmcDriverState **)	Tasks::AllocPermanent(sizeof(TmcDriverState *)*numDrivers);
+	if (numDrivers == 0)
+		driverStates = nullptr;
+	else
+		driverStates = (TmcDriverState **)	Tasks::AllocPermanent(sizeof(TmcDriverState *)*numDrivers);
     size_t drive = 0;
     size_t first = 0;
 #if SUPPORT_TMC51xx
