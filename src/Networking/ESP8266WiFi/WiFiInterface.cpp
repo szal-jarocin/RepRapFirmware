@@ -581,7 +581,6 @@ void WiFiInterface::Stop() noexcept
 
 		digitalWrite(SamTfrReadyPin, false);		// tell the ESP we can't receive
 		pinMode(EspResetPin, OUTPUT_LOW);
-		//digitalWrite(EspResetPin, false);			// put the ESP back into reset
 #if defined(DUET_NG) || defined(DUET3MINI)
 		digitalWrite(EspEnablePin, false);
 #endif
@@ -1871,7 +1870,6 @@ int32_t WiFiInterface::SendCommand(NetworkCommand cmd, SocketNumber socketNum, u
 		{
 			debugPrintf("bad format version %02x\n", bufferIn->hdr.formatVersion);
 		}
-		debugPrintf("bad format version %02x\n", bufferIn->hdr.formatVersion);
 		// For some reason I don't understand when using the ESP32 with DMA seems to result in a very
 		// occasaional packet with formatVersion == 0. We check for that here and allow it if a second
 		// header field has the correct value. 
@@ -1908,8 +1906,7 @@ int32_t WiFiInterface::SendCommand(NetworkCommand cmd, SocketNumber socketNum, u
 		memcpy(dataIn, bufferIn->data, sizeToCopy);
 	}
 
-	//if (response < 0 && reprap.Debug(moduleNetwork))
-	if (response < 0)
+	if (response < 0 && reprap.Debug(moduleNetwork))
 	{
 		debugPrintf("Network command %d socket %u returned error: %s\n", (int)cmd, socketNum, TranslateWiFiResponse(response));
 	}
