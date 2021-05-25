@@ -864,7 +864,7 @@ void RepRap::Diagnostics(MessageType mtype) noexcept
 	platform->MessageF(mtype,
 		// Format string
 		"%s"											// firmware name
-#ifdef __LPC17xx__
+#if LPC17xx || STM32F4
 		" (%s)"											// lpcBoardName
 #endif
 		" version %s (%s%s) running on %s"				// firmware version, date, time, electronics
@@ -881,7 +881,7 @@ void RepRap::Diagnostics(MessageType mtype) noexcept
 
 		// Parameters to match format string
 		FIRMWARE_NAME,
-#ifdef __LPC17xx__
+#if LPC17xx || STM32F4
 		lpcBoardName,
 #endif
 		VERSION, DATE, TIME_SUFFIX, platform->GetElectronicsString()
