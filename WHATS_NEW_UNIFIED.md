@@ -1,3 +1,15 @@
+Version 3.3-RC3_1
+=================
+* Duet3D version 3.3-RC3
+* Fix firmware crash when using M574 with invalid S param
+* STM32F4: Include board name in M122 output
+* STM32F4: Fix null ptr reference when no Aux device
+* STM32F4: Fix ensure Step Timer is running before first use
+* STM32F4: Allow operation without bootloader
+* LPC: Fix drivers that used i2c current setting not set if the build had TMC drivers enabled
+
+
+
 Version 3.3-RC2+3_1
 ===================
 * Duet3D version 3.3-RC2+3
