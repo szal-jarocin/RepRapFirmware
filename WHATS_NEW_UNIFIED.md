@@ -1,3 +1,11 @@
+Version 3.3-RC3_2
+=================
+* STM32F4: Reduced interupt overhead for Step and Software PWM timers
+* STM32F4: Adjusted interrupt priority to reduce jitter on software PWM output
+* STM32F4: Removed pin definitions for BTT-EXP-MOT and SKR Pro
+
+
+
 Version 3.3-RC3_1
 =================
 * Duet3D version 3.3-RC3
