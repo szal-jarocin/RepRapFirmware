@@ -1706,7 +1706,7 @@ void Platform::InitialiseInterrupts() noexcept
 
 #if SUPPORT_TMC22xx && !SAME5x											// SAME5x uses a DMA interrupt instead of the UART interrupt
 # if TMC_SOFT_UART
-# if definedSTM32F4
+# if STM32F4
 	NVIC_SetPriority(DMA2_Stream5_IRQn, NvicPriorityDriversSerialTMC); // Software serial
 # endif
 # elif TMC22xx_HAS_MUX
@@ -1747,7 +1747,7 @@ void Platform::InitialiseInterrupts() noexcept
     NVIC_SetPriority(EXTI4_IRQn, NvicPriorityPins);
     NVIC_SetPriority(EXTI9_5_IRQn, NvicPriorityPins);
     NVIC_SetPriority(EXTI15_10_IRQn, NvicPriorityPins);
-    NVIC_SetPriority(TIM7_IRQn, NvicPriorityTimerPWM);  	//Timer 7 runs Software PWM	
+    NVIC_SetPriority(TIM7_IRQn, NvicPriorityTimerPWM);  	//Timer 7 runs Software PWM
 #elif SAME5x
 	SetInterruptPriority(EIC_0_IRQn, 16, NvicPriorityPins);				// SAME5x EXINT has 16 contiguous IRQ numbers
 #else
