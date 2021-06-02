@@ -314,7 +314,7 @@ extern SSPChannel AccelerometerSpiChannel;
 //Timer 5 is used for Step Generation
 #define STEP_TC             (TIM5)
 #define STEP_TC_IRQN        TIM5_IRQn
-#define STEP_TC_HANDLER     STEP_TC_IRQHandler
+#define STEP_TC_HANDLER     TIM5_IRQHandler
 
 extern volatile uint32_t BrownoutEvents;
 

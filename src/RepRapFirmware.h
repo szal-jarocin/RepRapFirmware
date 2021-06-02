@@ -562,10 +562,9 @@ const NvicPriority NvicPriorityTimerServo = 5;
 #  endif
 #elif STM32F4
 const NvicPriority NvicPriorityWatchdog = 0;		// the secondary watchdog has the highest priority
-const NvicPriority NvicPriorityDriversSerialTMC = 1;// STM uses a software UART, make this a very high priority
-const NvicPriority NvicPriorityTimerPWM = 2;		// Run PWM timing as high as we can to avoid jitter
-const NvicPriority NvicPriorityAuxUart = 3;			// UART is next we have a 16 byte FIFO so less critical than the Duet
-const NvicPriority NvicPriorityTimerServo = 5;
+const NvicPriority NvicPriorityTimerPWM = 1;		// Run PWM timing as high as we can to avoid jitter
+const NvicPriority NvicPriorityDriversSerialTMC = 2;// STM uses a software UART, make this a very high priority
+const NvicPriority NvicPriorityAuxUart = 3;			// UART is next
 const NvicPriority NvicPrioritySDIO = 9;
 #else
 const NvicPriority NvicPriorityAuxUart = 1;	// UART is highest to avoid character loss (it has only a 1-character receive buffer)
