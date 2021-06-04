@@ -71,6 +71,9 @@ Pin SPIPins[NumSPIDevices][NumSPIPins];                 //GPIO pins for hardware
     Pin APIN_Serial1_TXD = NoPin;
     Pin APIN_Serial1_RXD = NoPin;
     SSPChannel WiFiSpiChannel = SSP2;
+    Pin APIN_ESP_SPI_MOSI = NoPin;
+    Pin APIN_ESP_SPI_MISO = NoPin;
+    Pin APIN_ESP_SPI_SCK = NoPin;
 
     Pin WifiSerialRxTxPins[NumberSerialPins] = {NoPin, NoPin};
 #endif

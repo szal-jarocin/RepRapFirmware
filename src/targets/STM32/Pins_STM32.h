@@ -289,10 +289,10 @@ extern Pin AuxSerialRxTxPins[NumberSerialPins];
     extern Pin WifiSerialRxTxPins[NumberSerialPins];
     extern SSPChannel WiFiSpiChannel;
 
-    // Compatibility with existing RRF Code
-    constexpr Pin APIN_ESP_SPI_MISO = PB_15;
-    constexpr Pin APIN_ESP_SPI_SCK = PB_13;
-    constexpr SSPChannel ESP_SPI = SSP2;
+    extern Pin APIN_ESP_SPI_MOSI;
+    extern Pin APIN_ESP_SPI_MISO;
+    extern Pin APIN_ESP_SPI_SCK;
+    //extern SSPChannel ESP_SPI = SSP2;
 #endif
 
 #if SUPPORT_LED_STRIPS
@@ -390,6 +390,7 @@ struct BoardEntry
 #include "Boards/BIQU_SKR.h"
 #include "Boards/FLY.h"
 #include "Boards/Generic.h"
+#include "Boards/FYSETC.h"
 #undef HAS_SMART_DRIVERS
 
 
@@ -404,6 +405,7 @@ constexpr BoardEntry LPC_Boards[] =
     {"fly_cdyv2",      PinTable_FLY_CDYV2,    ARRAY_SIZE(PinTable_FLY_CDYV2),    fly_cdyv2_Defaults},
     {"biquskr_rrf_e3_1.1",      PinTable_BTT_RRF_E3_v1_1,    ARRAY_SIZE(PinTable_BTT_RRF_E3_v1_1),    btt_rrf_e3_1_1_Defaults},
     {"biquskr_2", PinTable_BTT_SKR_2, ARRAY_SIZE(PinTable_BTT_SKR_2), btt_skr_2_Defaults},
+    {"fysetc_spider", PinTable_FYSETC_SPIDER, ARRAY_SIZE(PinTable_FYSETC_SPIDER), fysetc_spider_Defaults},
     {"generic",      PinTable_Generic,    ARRAY_SIZE(PinTable_Generic),    Generic_Defaults},    
 };
 
