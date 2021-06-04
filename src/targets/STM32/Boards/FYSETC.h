@@ -87,7 +87,7 @@ constexpr PinEntry PinTable_FYSETC_SPIDER[] =
 };
 
 constexpr BoardDefaults fysetc_spider_Defaults = {
-    {0x6281a984},                               // Signature
+    {0x8479e19e},                               // Signature
     SD_SPI1_B,                                  // SD Card access
     {   //CLK, MISO, MOSI
         {PA_5, PA_6, PA_7},                     //SPI0
