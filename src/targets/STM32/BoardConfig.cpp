@@ -581,6 +581,9 @@ void BoardConfig::Init() noexcept
     #if HAS_WIFI_NETWORKING
         if(SamCsPin != NoPin) pinMode(SamCsPin, OUTPUT_LOW);
         if(EspResetPin != NoPin) pinMode(EspResetPin, OUTPUT_LOW);
+        APIN_ESP_SPI_MOSI = SPIPins[WiFiSpiChannel][2];
+        APIN_ESP_SPI_MISO = SPIPins[WiFiSpiChannel][1];
+        APIN_ESP_SPI_SCK = SPIPins[WiFiSpiChannel][0];
         
         if(WifiSerialRxTxPins[0] != NoPin && WifiSerialRxTxPins[1] != NoPin)
         {

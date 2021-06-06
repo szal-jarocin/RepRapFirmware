@@ -290,10 +290,10 @@ extern Pin AuxSerialRxTxPins[NumberSerialPins];
     extern Pin WifiSerialRxTxPins[NumberSerialPins];
     extern SSPChannel WiFiSpiChannel;
 
-    // Compatibility with existing RRF Code
-    constexpr Pin APIN_ESP_SPI_MISO = PB_15;
-    constexpr Pin APIN_ESP_SPI_SCK = PB_13;
-    constexpr SSPChannel ESP_SPI = SSP2;
+    extern Pin APIN_ESP_SPI_MOSI;
+    extern Pin APIN_ESP_SPI_MISO;
+    extern Pin APIN_ESP_SPI_SCK;
+    //extern SSPChannel ESP_SPI = SSP2;
 #endif
 
 #if SUPPORT_LED_STRIPS
