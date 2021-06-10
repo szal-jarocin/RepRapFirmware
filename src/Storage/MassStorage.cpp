@@ -331,7 +331,7 @@ void MassStorage::Init() noexcept
 # endif
 }
 
-#if STM32F4
+#if STM32F4 && HAS_MASS_STORAGE
 void MassStorage::Init2() noexcept
 {
 	// some things may have changed when we loaded the board config, update them.

@@ -69,6 +69,9 @@ bool NVMEmulationErase()
     eraseInfo.NbSectors = 1;
     eraseInfo.VoltageRange = FLASH_VOLTAGE_RANGE_3;
     HAL_FLASH_Unlock();
+    // Clear pending flags (if any)
+    __HAL_FLASH_CLEAR_FLAG(FLASH_FLAG_EOP    | FLASH_FLAG_OPERR | FLASH_FLAG_WRPERR |\
+                            FLASH_FLAG_PGAERR | FLASH_FLAG_PGPERR| FLASH_FLAG_PGSERR);
     if (HAL_FLASHEx_Erase(&eraseInfo, &SectorError) != HAL_OK)
     {
         debugPrintf("Flash erase failed sector %d\n", static_cast<int>(SectorError));
@@ -81,33 +84,6 @@ bool NVMEmulationErase()
     
 }
 
-
-bool WriteSoftwareResetData(uint8_t slot, const void *data, uint32_t dataLength)
-{
-    uint32_t *dst = GetSlotPtr(slot);
-    uint32_t *src = (uint32_t *) data;
-    uint32_t cnt = dataLength/sizeof(uint32_t);
-    if (cnt*sizeof(uint32_t) != dataLength)
-    {
-        debugPrintf("Warning flash data not 32 bit aligned len %d\n", static_cast<int>(dataLength));
-        cnt += 1;
-    }
-    bool ret = true;
-    HAL_FLASH_Unlock();
-    for(uint32_t i = 0; i < cnt; i++)
-    {
-        if (HAL_FLASH_Program(FLASH_TYPEPROGRAM_WORD, (uint32_t) dst, (uint64_t) *src) != HAL_OK)
-        {
-            debugPrintf("Flash write failed cnt %d\n", static_cast<int>(i));
-            ret = false;
-            break;
-        }
-        dst++;
-        src++;
-    }
-    HAL_FLASH_Lock();   
-    return ret;
-}
 
 bool NVMEmulationWrite(const void *data, uint32_t dataLength){
     if (dataLength != SlotSize*sizeof(uint32_t))
@@ -131,6 +107,9 @@ bool NVMEmulationWrite(const void *data, uint32_t dataLength){
     }
     bool ret = true;
     HAL_FLASH_Unlock();
+    // Clear pending flags (if any)
+    __HAL_FLASH_CLEAR_FLAG(FLASH_FLAG_EOP    | FLASH_FLAG_OPERR | FLASH_FLAG_WRPERR |\
+                            FLASH_FLAG_PGAERR | FLASH_FLAG_PGPERR| FLASH_FLAG_PGSERR);
     for(uint32_t i = 0; i < cnt; i++)
     {
         if (HAL_FLASH_Program(FLASH_TYPEPROGRAM_WORD, (uint32_t) dst, (uint64_t) *src) != HAL_OK)

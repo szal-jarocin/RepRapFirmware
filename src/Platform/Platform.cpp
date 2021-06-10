@@ -491,7 +491,7 @@ void Platform::Init() noexcept
 
 #if LPC17xx || STM32F4
 	// initialise the step pulse timer, need to do this early as it is used to time disk I/O
-	StepTimer::Init();
+	//StepTimer::Init();
 	// Load HW pin assignments from sdcard
 	BoardConfig::Init();
 #if HAS_NETWORKING
@@ -1706,7 +1706,7 @@ void Platform::InitialiseInterrupts() noexcept
 
 #if SUPPORT_TMC22xx && !SAME5x											// SAME5x uses a DMA interrupt instead of the UART interrupt
 # if TMC_SOFT_UART
-# if definedSTM32F4
+# if STM32F4
 	NVIC_SetPriority(DMA2_Stream5_IRQn, NvicPriorityDriversSerialTMC); // Software serial
 # endif
 # elif TMC22xx_HAS_MUX
@@ -1747,7 +1747,7 @@ void Platform::InitialiseInterrupts() noexcept
     NVIC_SetPriority(EXTI4_IRQn, NvicPriorityPins);
     NVIC_SetPriority(EXTI9_5_IRQn, NvicPriorityPins);
     NVIC_SetPriority(EXTI15_10_IRQn, NvicPriorityPins);
-    NVIC_SetPriority(TIM7_IRQn, NvicPriorityTimerPWM);  	//Timer 7 runs Software PWM	
+    NVIC_SetPriority(TIM7_IRQn, NvicPriorityTimerPWM);  	//Timer 7 runs Software PWM
 #elif SAME5x
 	SetInterruptPriority(EIC_0_IRQn, 16, NvicPriorityPins);				// SAME5x EXINT has 16 contiguous IRQ numbers
 #else
@@ -1808,11 +1808,7 @@ void Platform::InitialiseInterrupts() noexcept
 
 #endif
 
-#if !STM32F4 && !LPC17xx
-	StepTimer::Init();										// initialise the step pulse timer
-#endif
-
-   // Tick interrupt for ADC conversions
+    // Tick interrupt for ADC conversions
 	tickState = 0;
 	currentFilterNumber = 0;
 }
@@ -2232,6 +2228,7 @@ GCodeResult Platform::DiagnosticTest(GCodeBuffer& gb, const StringRef& reply, Ou
 #endif
 
 	case (unsigned int)DiagnosticTestType::TestWatchdog:
+
 		if (!gb.DoDwellTime(1000))								// wait a second to allow the response to be sent back to the web server, otherwise it may retry
 		{
 			return GCodeResult::notFinished;
@@ -2705,7 +2702,7 @@ bool Platform::WriteAxisLimits(FileStore *f, AxesBitmap axesProbed, const float 
 #if SUPPORT_CAN_EXPANSION
 
 // Function to identify and iterate through all drivers attached to an axis or extruder
-void Platform::IterateDrivers(size_t axisOrExtruder, stdext::inplace_function<void(uint8_t)> localFunc, stdext::inplace_function<void(DriverId)> remoteFunc) noexcept
+void Platform::IterateDrivers(size_t axisOrExtruder, function_ref<void(uint8_t)> localFunc, function_ref<void(DriverId)> remoteFunc) noexcept
 {
 	if (axisOrExtruder < reprap.GetGCodes().GetTotalAxes())
 	{
@@ -2739,7 +2736,7 @@ void Platform::IterateDrivers(size_t axisOrExtruder, stdext::inplace_function<vo
 #else
 
 // Function to identify and iterate through all drivers attached to an axis or extruder
-void Platform::IterateDrivers(size_t axisOrExtruder, stdext::inplace_function<void(uint8_t)> localFunc) noexcept
+void Platform::IterateDrivers(size_t axisOrExtruder, function_ref<void(uint8_t)> localFunc) noexcept
 {
 	if (axisOrExtruder < reprap.GetGCodes().GetTotalAxes())
 	{
@@ -3023,6 +3020,24 @@ void Platform::UpdateMotorCurrent(size_t driver, float current) noexcept
 {
 	if (driver < GetNumActualDirectDrivers())
 	{
+#if LPC17xx
+		if (hasDriverCurrentControl)
+		{
+			//Has digipots to set current control for drivers
+			//Current is in mA
+			const uint16_t pot = (unsigned short) (current * digipotFactor / 1000);
+			if (driver < 4)
+			{
+				mcp4451.setMCP4461Address(0x2C); //A0 and A1 Grounded. (001011 00)
+				mcp4451.setVolatileWiper(POT_WIPES[driver], pot);
+			}
+			else
+            {
+				mcp4451.setMCP4461Address(0x2D); //A0 Vcc, A1 Grounded. (001011 01)
+				mcp4451.setVolatileWiper(POT_WIPES[driver-4], pot);
+			}
+		}
+#endif
 #if HAS_SMART_DRIVERS
 		if (driver < numSmartDrivers)
 		{
@@ -3067,23 +3082,6 @@ void Platform::UpdateMotorCurrent(size_t driver, float current) noexcept
 		else // Piggy module DAC
 		{
 			dacPiggy.setChannel(7-driver, current * 0.102);
-		}
-#elif LPC17xx
-		if (hasDriverCurrentControl)
-		{
-			//Has digipots to set current control for drivers
-			//Current is in mA
-			const uint16_t pot = (unsigned short) (current * digipotFactor / 1000);
-			if (driver < 4)
-			{
-				mcp4451.setMCP4461Address(0x2C); //A0 and A1 Grounded. (001011 00)
-				mcp4451.setVolatileWiper(POT_WIPES[driver], pot);
-			}
-			else
-            {
-				mcp4451.setMCP4461Address(0x2D); //A0 Vcc, A1 Grounded. (001011 01)
-				mcp4451.setVolatileWiper(POT_WIPES[driver-4], pot);
-			}
 		}
 #else
 		// otherwise we can't set the motor current

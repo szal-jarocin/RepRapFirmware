@@ -1,3 +1,30 @@
+Version 3.3-RC3_2
+=================
+* STM32F4: Reduced interupt overhead for Step and Software PWM timers
+* STM32F4: Adjusted interrupt priority to reduce jitter on software PWM output
+* STM32F4: Removed pin definitions for BTT-EXP-MOT and SKR Pro
+
+
+
+Version 3.3-RC3_1
+=================
+* Duet3D version 3.3-RC3
+* Fix firmware crash when using M574 with invalid S param
+* STM32F4: Include board name in M122 output
+* STM32F4: Fix null ptr reference when no Aux device
+* STM32F4: Fix ensure Step Timer is running before first use
+* STM32F4: Allow operation without bootloader
+* LPC: Fix drivers that used i2c current setting not set if the build had TMC drivers enabled
+
+
+
+Version 3.3-RC2+3_1
+===================
+* Duet3D version 3.3-RC2+3
+* STM32F4: Add support for external SD cards
+* LPC: Fix for board not booting with zero smart drivers
+
+
 Version 3.3-RC2+1_1
 ===================
 * WiFi Access point fix from Duet3D
