@@ -1,3 +1,14 @@
+Version 3.3_1
+=============
+* Duet3d Version 3.3
+* STM32F4: Fix pin usage when using non default SPI device for WiFi
+* STM32F4: Initial support for Fysetc Spider (with STM32F407 mcu)
+* STM32F4: Remove duplicate set of board definitions
+
+
+
+
+
 Version 3.3-RC3_2
 =================
 * STM32F4: Reduced interupt overhead for Step and Software PWM timers
