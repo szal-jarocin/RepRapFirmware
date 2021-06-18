@@ -1,3 +1,8 @@
+Version 3.3_2
+=============
+* Fix problem with Spider UART pin
+
+
 Version 3.3_1
 =============
 * Duet3d Version 3.3

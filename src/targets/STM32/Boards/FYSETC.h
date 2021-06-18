@@ -102,7 +102,7 @@ constexpr BoardDefaults fysetc_spider_Defaults = {
     {PE_11, PD_8,  PD_14, PD_5, PE_6,  PE_2,  PE_8,  PC_5},	//stepPins
     {PE_10, PB_12, PD_13, PD_6, PC_13, PE_4,  PC_4,  PE_0},    	//dirPins
 #if HAS_SMART_DRIVERS
-    {PE_7,  PE_15, PD_10, PD_7, PC_14, PC_15, PE_15, PD_11},      //uartPins
+    {PE_7,  PE_15, PD_10, PD_7, PC_14, PC_15, PA_15, PD_11},      //uartPins
     8,                                      	// Smart drivers
 #endif
     0,                                       	//digiPot Factor
