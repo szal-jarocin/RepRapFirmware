@@ -1848,27 +1848,28 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeEx
 				{
 					const unsigned int type = (gb.Seen('P')) ? gb.GetIValue() : 0;
 					const MessageType mt = (MessageType)(gb.GetResponseMessageType() | PushFlag);	// set the Push flag to combine multiple messages into a single OutputBuffer chain
-	#if SUPPORT_CAN_EXPANSION
+#if SUPPORT_CAN_EXPANSION
 					const uint32_t board = (gb.Seen('B')) ? gb.GetUIValue() : CanInterface::GetCanAddress();
 					if (board != CanInterface::GetCanAddress())
 					{
 						result = CanInterface::RemoteDiagnostics(mt, board, type, gb, reply);
 						break;
 					}
-	#endif
+#endif
 					if (type == 0)
 					{
 						reprap.Diagnostics(mt);
 					}
-	#if LPC17xx || STM32F4
+#if LPC17xx || STM32F4
 					else if (type == (unsigned int)DiagnosticTestType::PrintBoardConfiguration)
 						BoardConfig::Diagnostics(mt);
-	#endif
+#endif
 					else
 					{
 						result = platform.DiagnosticTest(gb, reply, outBuf, type);
 					}
-					break;
+				}
+				break;
 
 			// M135 (set PID sample interval) is no longer supported
 
