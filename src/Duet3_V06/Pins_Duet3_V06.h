@@ -34,6 +34,7 @@ constexpr uint32_t IAP_IMAGE_START = 0x20458000;		// last 32kb of RAM
 #define HAS_VREF_MONITOR		1
 
 #define SUPPORT_CAN_EXPANSION	1
+#define DUAL_CAN				1					// support the second CAN interface as simple CAN (not FD)
 #define SUPPORT_LED_STRIPS		1
 #define SUPPORT_INKJET			0					// set nonzero to support inkjet control
 #define SUPPORT_ROLAND			0					// set nonzero to support Roland mill
@@ -64,6 +65,8 @@ constexpr size_t MaxCanBoards = 20;
 
 constexpr float MaxTmc5160Current = 6300.0;			// The maximum current we allow the TMC5160/5161 drivers to be set to
 constexpr float Tmc5160SenseResistor = 0.050;
+
+constexpr size_t MaxPortsPerHeater = 3;
 
 constexpr size_t MaxBedHeaters = 12;
 constexpr size_t MaxChamberHeaters = 4;
@@ -381,7 +384,11 @@ constexpr GpioPinFunction CAN1RXPinPeriphMode = GpioPinFunction::C;
 constexpr Pin APIN_CAN1_TX = PortDPin(12);
 constexpr GpioPinFunction CAN1TXPinPeriphMode = GpioPinFunction::B;
 
-constexpr unsigned int CanDeviceNumber = 1;							// we use CAN1
+constexpr unsigned int CanDeviceNumber = 1;				// CAN-FD device number
+
+#if defined(DUAL_CAN) && DUAL_CAN
+constexpr unsigned int SecondaryCanDeviceNumber = 0;	// plan CAN device number
+#endif
 
 constexpr Pin SbcTfrReadyPin = PortEPin(2);
 // Note, the DMAC peripheral IDs are hard-coded in DataTransfer

@@ -356,6 +356,8 @@ private:
 	void HandleReply(GCodeBuffer& gb, OutputBuffer *reply) noexcept;
 	void HandleReplyPreserveResult(GCodeBuffer& gb, GCodeResult rslt, const char *reply) noexcept;	// Handle G-Code replies
 
+	GCodeResult TryMacroFile(GCodeBuffer& gb) noexcept;								// Try to find a macro file that implements a G or M command
+
 	bool DoStraightMove(GCodeBuffer& gb, bool isCoordinated, const char *& err) SPEED_CRITICAL;	// Execute a straight move
 	bool DoArcMove(GCodeBuffer& gb, bool clockwise, const char *& err)				// Execute an arc move
 		pre(segmentsLeft == 0; resourceOwners[MoveResource] == &gb);
@@ -437,7 +439,6 @@ private:
 #endif
 
 	bool IsMappedFan(unsigned int fanNumber) noexcept;							// Return true if this fan number is currently being used as a print cooling fan
-	void SaveFanSpeeds() noexcept;												// Save the speeds of all fans
 
 	GCodeResult DefineGrid(GCodeBuffer& gb, const StringRef &reply) THROWS(GCodeException);	// Define the probing grid, returning true if error
 #if HAS_MASS_STORAGE
@@ -611,7 +612,6 @@ private:
 	AxesBitmap axesHomed;						// Bitmap of which axes have been homed
 	AxesBitmap axesVirtuallyHomed;				// same as axesHomed except all bits are set when simulating
 
-	float pausedFanSpeeds[MaxFans];				// Fan speeds when the print was paused or a tool change started
 	float lastDefaultFanSpeed;					// Last speed given in a M106 command with no fan number
 	float speedFactor;							// speed factor as a fraction (normally 1.0)
 	float extrusionFactors[MaxExtruders];		// extrusion factors (normally 1.0)

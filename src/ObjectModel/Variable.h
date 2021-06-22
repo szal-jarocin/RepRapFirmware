@@ -12,6 +12,7 @@
 #include <General/FreelistManager.h>
 #include <Platform/Heap.h>
 #include <ObjectModel/ObjectModel.h>
+#include <General/function_ref.h>
 
 // Class to represent a variable having a name and a value
 class Variable

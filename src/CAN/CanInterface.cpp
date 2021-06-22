@@ -128,7 +128,7 @@ static CanDevice *can0dev = nullptr;
 static unsigned int txTimeouts[Can0Config.numTxBuffers + 1] = { 0 };
 static uint32_t lastCancelledId = 0;
 
-#if SAME70 && defined(DUAL_CAN)
+#if DUAL_CAN
 
 constexpr CanDevice::Config Can1Config =
 {
@@ -138,8 +138,8 @@ constexpr CanDevice::Config Can1Config =
 	.numRxBuffers =  0,
 	.rxFifo0Size = 16,
 	.rxFifo1Size = 16,
-	.numShortFilterElements = 0,
-	.numExtendedFilterElements = 3,
+	.numShortFilterElements = 1,
+	.numExtendedFilterElements = 1,
 	.txEventFifoSize = 16
 };
 
@@ -251,12 +251,11 @@ void CanInterface::Init() noexcept
 	transactionMutex.Create("CanTrans");
 
 #if SAME70
-# ifdef USE_CAN0
-	SetPinFunction(APIN_CAN0_TX, CAN0PinPeriphMode);
-	SetPinFunction(APIN_CAN0_RX, CAN0PinPeriphMode);
-# else
 	SetPinFunction(APIN_CAN1_TX, CAN1TXPinPeriphMode);
 	SetPinFunction(APIN_CAN1_RX, CAN1RXPinPeriphMode);
+# if DUAL_CAN
+	SetPinFunction(APIN_CAN0_TX, CAN0PinPeriphMode);
+	SetPinFunction(APIN_CAN0_RX, CAN0PinPeriphMode);
 # endif
 	pmc_enable_upll_clock();			// configure_mcan sets up PCLK5 to be the UPLL divided by something, so make sure the UPLL is running
 #elif SAME5x
@@ -266,9 +265,9 @@ void CanInterface::Init() noexcept
 # error Unsupported MCU
 #endif
 
-// Initialise the CAN hardware
+	// Initialise the CAN hardware
 	CanTiming timing;
-	timing.SetDefaults();
+	timing.SetDefaults_1Mb();
 	can0dev = CanDevice::Init(0, CanDeviceNumber, Can0Config, can0Memory, timing, nullptr);
 	InitReceiveFilters();
 	can0dev->Enable();
@@ -279,6 +278,14 @@ void CanInterface::Init() noexcept
 	canClockTask.Create(CanClockLoop, "CanClock", nullptr, TaskPriority::CanClockPriority);
 	canSenderTask.Create(CanSenderLoop, "CanSender", nullptr, TaskPriority::CanSenderPriority);
 	canReceiverTask.Create(CanReceiverLoop, "CanReceiver", nullptr, TaskPriority::CanReceiverPriority);
+
+#if DUAL_CAN
+	timing.SetDefaults_250kb();
+	can1dev = CanDevice::Init(1, SecondaryCanDeviceNumber, Can1Config, can1Memory, timing, nullptr);
+	can1dev->SetShortFilterElement(0, CanDevice::RxBufferNumber::fifo0, 0, 0);			// set up a filter to receive all messages in FIFO 0
+	can1dev->SetExtendedFilterElement(0, CanDevice::RxBufferNumber::fifo0, 0, 0);
+	can1dev->Enable();
+#endif
 }
 
 void CanInterface::Shutdown() noexcept
@@ -788,6 +795,20 @@ void CanInterface::SendMessageNoReplyNoFree(CanMessageBuffer *buf) noexcept
 		SendCanMessage(TxBufferIndexBroadcast, MaxResponseSendWait, buf);
 	}
 }
+
+#if DUAL_CAN
+
+uint32_t CanInterface::SendPlainMessageNoFree(CanMessageBuffer *buf, uint32_t timeout) noexcept
+{
+	return (can1dev != nullptr) ? can1dev->SendMessage(CanDevice::TxBufferNumber::fifo, timeout, buf) : 0;
+}
+
+bool CanInterface::ReceivePlainMessage(CanMessageBuffer *buf, uint32_t timeout) noexcept
+{
+	return can1dev != nullptr && can1dev->ReceiveMessage(CanDevice::RxBufferNumber::fifo0, timeout, buf);
+}
+
+#endif
 
 // The CanReceiver task
 extern "C" [[noreturn]] void CanReceiverLoop(void *) noexcept
