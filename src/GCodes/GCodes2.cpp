@@ -1823,52 +1823,52 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeEx
 					}
 #endif
 
-				if (result != GCodeResult::error)
-				{
-					// Append newline and send the message to the destinations
-					message.cat('\n');
-					platform.Message(type, message.c_str());
-				}
-			}
-			break;
-
-		case 119:
-			platform.GetEndstops().GetM119report(reply);
-			break;
-
-		case 120:
-			Push(gb, true);
-			break;
-
-		case 121:
-			Pop(gb, true);
-			break;
-
-		case 122:
-			{
-				const unsigned int type = (gb.Seen('P')) ? gb.GetIValue() : 0;
-				const MessageType mt = (MessageType)(gb.GetResponseMessageType() | PushFlag);	// set the Push flag to combine multiple messages into a single OutputBuffer chain
-#if SUPPORT_CAN_EXPANSION
-				const uint32_t board = (gb.Seen('B')) ? gb.GetUIValue() : CanInterface::GetCanAddress();
-				if (board != CanInterface::GetCanAddress())
-				{
-					result = CanInterface::RemoteDiagnostics(mt, board, type, gb, reply);
-					break;
-				}
-#endif
-				if (type == 0)
-				{
-					reprap.Diagnostics(mt);
-				}
-#if LPC17xx || STM32F4
-				else if (type == (unsigned int)DiagnosticTestType::PrintBoardConfiguration)
-					BoardConfig::Diagnostics(mt);
-#endif
-				else
-				{
-					result = platform.DiagnosticTest(gb, reply, outBuf, type);
+					if (result != GCodeResult::error)
+					{
+						// Append newline and send the message to the destinations
+						message.cat('\n');
+						platform.Message(type, message.c_str());
+					}
 				}
 				break;
+
+			case 119:
+				platform.GetEndstops().GetM119report(reply);
+				break;
+
+			case 120:
+				Push(gb, true);
+				break;
+
+			case 121:
+				Pop(gb, true);
+				break;
+
+			case 122:
+				{
+					const unsigned int type = (gb.Seen('P')) ? gb.GetIValue() : 0;
+					const MessageType mt = (MessageType)(gb.GetResponseMessageType() | PushFlag);	// set the Push flag to combine multiple messages into a single OutputBuffer chain
+	#if SUPPORT_CAN_EXPANSION
+					const uint32_t board = (gb.Seen('B')) ? gb.GetUIValue() : CanInterface::GetCanAddress();
+					if (board != CanInterface::GetCanAddress())
+					{
+						result = CanInterface::RemoteDiagnostics(mt, board, type, gb, reply);
+						break;
+					}
+	#endif
+					if (type == 0)
+					{
+						reprap.Diagnostics(mt);
+					}
+	#if LPC17xx || STM32F4
+					else if (type == (unsigned int)DiagnosticTestType::PrintBoardConfiguration)
+						BoardConfig::Diagnostics(mt);
+	#endif
+					else
+					{
+						result = platform.DiagnosticTest(gb, reply, outBuf, type);
+					}
+					break;
 
 			// M135 (set PID sample interval) is no longer supported
 
