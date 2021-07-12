@@ -176,12 +176,16 @@ void LedStripDriver::Init() noexcept
 //	We buffer up incoming data until we get a command with the Following parameter missing or set to zero, then we DMA it all.
 GCodeResult LedStripDriver::SetColours(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeException)
 {
+#if 1
+if (needStartFrame) debugPrintf("wof %d now %d\n", whenOutputFinished, StepTimer::GetTimerTicks());
 	if (needStartFrame
-		&& StepTimer::GetTimerTicks() - whenOutputFinished < MinNeoPixelResetTicks
+		&& ((StepTimer::GetTimerTicks() - whenOutputFinished) < MinNeoPixelResetTicks)
 	   )
 	{
+		debugPrintf("adding delay len %d\n", MinNeoPixelResetTicks);
 		return GCodeResult::notFinished;									// give the NeoPixels time to reset
 	}
+#endif
 	needStartFrame = false;
 
 	// Deal with changing the LED type first
@@ -265,7 +269,7 @@ GCodeResult LedStripDriver::SetColours(GCodeBuffer& gb, const StringRef& reply) 
 		if (!seenType)
 		{
 			// Report the current configuration
-			reply.printf("Led type is %s, timing %ld:%ld:%ld:%ld", LedTypeNames[(unsigned int)ledType], PixelTimings[0], PixelTimings[1], PixelTimings[2], PixelTimings[3]);
+			reply.printf("Led type is %s, timing %ld:%ld:%ld:%ld delay %d", LedTypeNames[(unsigned int)ledType], PixelTimings[0], PixelTimings[1], PixelTimings[2], PixelTimings[3], MinNeoPixelResetTicks);
 		}
 		return GCodeResult::ok;
 	}
