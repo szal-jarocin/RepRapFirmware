@@ -1,3 +1,13 @@
+Version 3.3_3
+=============
+* Allow setting of Neopixel timings with M150 X2 Tt0:t1:tc:tr
+* Add support for RGBW Neopixels
+* STM32F4: Fix SDIO timeout problem
+* STM32F4: Enable support for 2 probes
+* LPC: Enabled support for object tracking names
+* STM32F4: Fix release of wrong external interrupt pin
+
+
 Version 3.3_2
 =============
 * Fix problem with Spider UART pin
