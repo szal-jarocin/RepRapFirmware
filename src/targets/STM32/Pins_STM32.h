@@ -92,7 +92,7 @@
     #define HAS_MASS_STORAGE             0
     #define HAS_LINUX_INTERFACE          1
     #define SUPPORT_TELNET               1
-    #define SUPPORT_ACCELEROMETERS       0
+    #define SUPPORT_ACCELEROMETERS       1
 
     #define BOARD_NAME          "STM32F4 SBC"
     #define BOARD_SHORT_NAME    "STMSBC"
@@ -155,7 +155,7 @@ constexpr int8_t DefaultE0Heater = 1;                // Index of the default fir
 
 constexpr size_t NumThermistorInputs = 9;
 
-constexpr size_t MaxZProbes = 1;
+constexpr size_t MaxZProbes = 2;
 constexpr size_t MaxGpInPorts = 10;
 constexpr size_t MaxGpOutPorts = 10;
 
