@@ -114,7 +114,7 @@ namespace LedStripDriver
 			const uint32_t T0H = NanosecondsToCycles(PixelTimings[0]);
 			const uint32_t T0L = NanosecondsToCycles(PixelTimings[2] - PixelTimings[0]);
 			const uint32_t T1H = NanosecondsToCycles(PixelTimings[1]);
-			const uint32_t T1L = NanosecondsToCycles(PixelTimings[2] - PixelTimings[0]);
+			const uint32_t T1L = NanosecondsToCycles(PixelTimings[2] - PixelTimings[1]);
 			const uint8_t *q = chunkBuffer;
 			uint32_t nextDelay = T0L;
 			IrqDisable();
