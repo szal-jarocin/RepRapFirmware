@@ -61,6 +61,7 @@
 #define SUPPORT_BITBANG_NEOPIXEL         1
 #define SUPPORT_ASYNC_MOVES		         0
 #define ALLOCATE_DEFAULT_PORTS           0
+#define TRACK_OBJECT_NAMES		         1
 
 #if defined(LPC_NETWORKING)
     //LPC Ethernet
