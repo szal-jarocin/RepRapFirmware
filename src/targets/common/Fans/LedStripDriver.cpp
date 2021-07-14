@@ -19,7 +19,6 @@
 
 namespace LedStripDriver
 {
-	constexpr uint32_t MinNeoPixelResetTicks = (250 * StepTimer::StepClockRate)/1000000;		// 250us minimum Neopixel reset time
 	constexpr size_t ChunkBufferSize = 180;								// the size of our buffer NeoPixels use 3 bytes per pixel
 	enum class LedType : unsigned int
 	{
@@ -70,7 +69,7 @@ namespace LedStripDriver
 	static uint8_t *chunkBuffer = nullptr;								// buffer for sending data to LEDs
 	static uint32_t whenOutputFinished = 0;								// the time in step clocks when we determined that the Output had finished
 	static bool needStartFrame;											// true if we need to send a start frame with the next command
-	static int32_t PixelTimings[4] = {300, 850, 850, 475};
+	static int32_t PixelTimings[4] = {350, 800, 1250, 250};
 
 	static size_t MaxLedsPerBuffer() noexcept
 	{
@@ -113,9 +112,9 @@ namespace LedStripDriver
 		if (!following)
 		{
 			const uint32_t T0H = NanosecondsToCycles(PixelTimings[0]);
-			const uint32_t T0L = NanosecondsToCycles(PixelTimings[1]);
-			const uint32_t T1H = NanosecondsToCycles(PixelTimings[2]);
-			const uint32_t T1L = NanosecondsToCycles(PixelTimings[3]);
+			const uint32_t T0L = NanosecondsToCycles(PixelTimings[2] - PixelTimings[0]);
+			const uint32_t T1H = NanosecondsToCycles(PixelTimings[1]);
+			const uint32_t T1L = NanosecondsToCycles(PixelTimings[2] - PixelTimings[0]);
 			const uint8_t *q = chunkBuffer;
 			uint32_t nextDelay = T0L;
 			IrqDisable();
@@ -177,7 +176,7 @@ void LedStripDriver::Init() noexcept
 GCodeResult LedStripDriver::SetColours(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeException)
 {
 	if (needStartFrame
-		&& StepTimer::GetTimerTicks() - whenOutputFinished < MinNeoPixelResetTicks
+		&& ((StepTimer::GetTimerTicks() - whenOutputFinished) < (uint32_t)PixelTimings[3])
 	   )
 	{
 		return GCodeResult::notFinished;									// give the NeoPixels time to reset
