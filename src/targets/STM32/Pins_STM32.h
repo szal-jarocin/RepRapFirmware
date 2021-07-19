@@ -43,7 +43,6 @@
 #define HAS_VOLTAGE_MONITOR		         1
 #define ACTIVE_LOW_HEAT_ON		         0
 #define HAS_VREF_MONITOR                 0
-#define HAS_WRITER_TASK                  1
 
 #define SUPPORT_INKJET		             0	// set nonzero to support inkjet control
 #define SUPPORT_ROLAND		             0	// set nonzero to support Roland mill
@@ -82,7 +81,7 @@
     #define HAS_MASS_STORAGE             1
     #define SUPPORT_TELNET               0
     #define SUPPORT_ACCELEROMETERS       1
-
+    #define HAS_WRITER_TASK              1
     #define BOARD_NAME          "STM32F4 WiFi"
     #define BOARD_SHORT_NAME    "STMWiFi"
 
@@ -93,7 +92,8 @@
     #define HAS_MASS_STORAGE             0
     #define HAS_LINUX_INTERFACE          1
     #define SUPPORT_TELNET               1
-    #define SUPPORT_ACCELEROMETERS       1
+    #define SUPPORT_ACCELEROMETERS       0
+    #define HAS_WRITER_TASK              0
 
     #define BOARD_NAME          "STM32F4 SBC"
     #define BOARD_SHORT_NAME    "STMSBC"
