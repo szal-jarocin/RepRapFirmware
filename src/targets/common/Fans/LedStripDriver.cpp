@@ -179,7 +179,6 @@ GCodeResult LedStripDriver::SetColours(GCodeBuffer& gb, const StringRef& reply) 
 		&& ((StepTimer::GetTimerTicks() - whenOutputFinished) < (uint32_t)PixelTimings[3])
 	   )
 	{
-		debugPrintf("adding delay len %d\n", MinNeoPixelResetTicks);
 		return GCodeResult::notFinished;									// give the NeoPixels time to reset
 	}
 	needStartFrame = false;
@@ -265,7 +264,7 @@ GCodeResult LedStripDriver::SetColours(GCodeBuffer& gb, const StringRef& reply) 
 		if (!seenType)
 		{
 			// Report the current configuration
-			reply.printf("Led type is %s, timing %ld:%ld:%ld:%ld delay %d", LedTypeNames[(unsigned int)ledType], PixelTimings[0], PixelTimings[1], PixelTimings[2], PixelTimings[3], MinNeoPixelResetTicks);
+			reply.printf("Led type is %s, timing %ld:%ld:%ld:%ld", LedTypeNames[(unsigned int)ledType], PixelTimings[0], PixelTimings[1], PixelTimings[2], PixelTimings[3]);
 		}
 		return GCodeResult::ok;
 	}
