@@ -276,7 +276,8 @@ enum Module : uint8_t
 	moduleDisplay = 15,
 	moduleLinuxInterface = 16,
 	moduleCan = 17,
-	numModules = 18,				// make this one greater than the last real module number
+	moduleDriver = 18,
+	numModules = 19,				// make this one greater than the last real module number
 	noModule = numModules
 };
 
