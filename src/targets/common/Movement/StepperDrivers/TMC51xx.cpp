@@ -48,7 +48,7 @@ const bool DefaultStallDetectFiltered = false;
 const unsigned int DefaultMinimumStepsPerSecond = 200;		// for stall detection: 1 rev per second assuming 1.8deg/step, as per the TMC5160 datasheet
 const uint32_t DefaultTcoolthrs = 2000;						// max interval between 1/256 microsteps for stall detection to be enabled
 const uint32_t DefaultThigh = 200;
-constexpr size_t TmcTaskStackWords = 100;
+constexpr size_t TmcTaskStackWords = 200;
 
 #if TMC_TYPE == 5130
 constexpr float SenseResistor = 0.11;						// 0.082R external + 0.03 internal
@@ -377,7 +377,7 @@ private:
 	uint32_t motorCurrent;									// the configured motor current in mA
 
 	uint16_t numReads, numWrites;							// how many successful reads and writes we had
-
+	uint16_t numWriteErrors;								// how many write errors do we have
 	uint8_t standstillCurrentFraction;						// divide this by 256 to get the motor current standstill fraction
 	uint8_t regIndexBeingUpdated;							// which register we are sending
 	uint8_t regIndexRequested;								// the register we asked to read in the previous transaction, or 0xFF
@@ -457,7 +457,7 @@ pre(!driversPowered)
 	accumulatedDriveStatus = 0;
 
 	regIndexBeingUpdated = regIndexRequested = previousRegIndexRequested = NoRegIndex;
-	numReads = numWrites = 0;
+	numReads = numWrites = numWriteErrors = 0;
 	ResetLoadRegisters();
 }
 
@@ -784,7 +784,9 @@ void Tmc51xxDriverState::AppendDriverStatus(const StringRef& reply) noexcept
 	}
 
 	reply.catf("reads %u, writes %u, ", numReads, numWrites);
-	numReads = numWrites = 0;
+	if (numWriteErrors > 0)
+		reply.catf("write errors %u, ", numWriteErrors);
+	numReads = numWrites = numWriteErrors = 0;
 
 	if (minSgLoadRegister <= maxSgLoadRegister)
 	{
@@ -929,6 +931,21 @@ void Tmc51xxDriverState::TransferSucceeded(const uint8_t *rcvDataBlock) noexcept
 			readRegisters[previousRegIndexRequested] = regVal;
 		}
 	}
+	else if (previousRegIndexRequested != NoRegIndex)
+	{
+		// we have read the result from a previous write, validate it
+		uint32_t regVal = LoadBE32(rcvDataBlock + 1);
+		previousRegIndexRequested -= NumReadRegisters;
+		if (writeRegisters[previousRegIndexRequested] != regVal)
+		{
+			if (reprap.Debug(moduleDriver))
+				debugPrintf("TMC5160: Write error driver %d register index %d expected %x got %x\n", driverNumber, previousRegIndexRequested, (unsigned)writeRegisters[previousRegIndexRequested], (unsigned)regVal); 
+			numWriteErrors++;
+			// retry the write
+			registersToUpdate |= (1u << previousRegIndexRequested);
+		}
+
+	}
 
 	// Deal with the stall status
 	if (   (rcvDataBlock[0] & (1u << 2)) != 0							// if the status indicates stalled
@@ -946,7 +963,7 @@ void Tmc51xxDriverState::TransferSucceeded(const uint8_t *rcvDataBlock) noexcept
 		EndstopOrZProbe::SetDriversNotStalled(driverBit);
 	}
 
-	previousRegIndexRequested = (regIndexBeingUpdated == NoRegIndex) ? regIndexRequested : NoRegIndex;
+	previousRegIndexRequested = (regIndexBeingUpdated == NoRegIndex) ? regIndexRequested : regIndexBeingUpdated + NumReadRegisters;
 }
 
 void Tmc51xxDriverState::TransferFailed() noexcept
@@ -970,28 +987,29 @@ DriversState Tmc51xxDriverState::SetupDriver(bool reset) noexcept
 			ready = false;
 		else
 		{
-			numReads = 0;
+			numReads = numWrites = numWriteErrors = 0;
 			ready = true;
 		}
 		return DriversState::initialising;
 	}
+	if (!ready)
+		return DriversState::notInitialised;
+	// check for errors
+	if (numWriteErrors > NumWriteRegisters)
+	{
+		if (reprap.Debug(moduleDriver))
+			debugPrintf("TMC5160: Too many write errors drive %d error cnt %d driver disabled\n", driverNumber, numWriteErrors);
+		// Too many write errors, probably means no driver or config error
+		accumulatedDriveStatus = 0;
+		for(size_t i = 0; i < NumReadRegisters; i++)
+			readRegisters[i] = 0;
+		ready = false;
+		return DriversState::notInitialised;
+	}
 	if (numReads < NumReadRegisters)
 		return 	DriversState::initialising;
 	else
-	{
-		// check for invalid registers
-		if (readRegisters[ReadGStat] == 0xffffffff && readRegisters[ReadMsCnt] == 0xffffffff && readRegisters[ReadPwmScale] == 0xffffffff &&
-		     readRegisters[ReadPwmAuto] == 0xffffffff)
-		{
-			accumulatedDriveStatus = 0;
-			for(size_t i = 0; i < NumReadRegisters; i++)
-				readRegisters[i] = 0;
-			ready = false;
-			return DriversState::notInitialised;
-		}
-		else
-			return DriversState::ready;
-	}
+		return DriversState::ready;
 }
 
 static SharedSpiClient *spiDevice;
@@ -1028,10 +1046,9 @@ extern "C" [[noreturn]] void TmcLoop(void *) noexcept
 					bool allInitialised = true;
 					for (size_t i = 0; i < numTmc51xxDrivers; ++i)
 					{
-						if (driverStates[i].UpdatePending() || driverStates[i].SetupDriver(false) == DriversState::initialising)
+						if (driverStates[i].SetupDriver(false) == DriversState::initialising)
 						{
 							allInitialised = false;
-							break;
 						}
 					}
 
