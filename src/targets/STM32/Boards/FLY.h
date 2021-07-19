@@ -203,7 +203,7 @@ constexpr BoardDefaults fly_e3_Defaults = {
         {NoPin, NoPin, NoPin},                  //SPI2
         {PC_2, PC_0, PC_1},                     //SPI3
         {PE_8, NoPin, PB_1},                    //SPI4
-        {PD_6, PD_5, PD_4},                     //SPI5
+        {PD_6, PD_4, PD_5},                     //SPI5
     },
 	4,											// Number of drivers
     {PC_15, PE_5, PE_1, PB_5},   	            //enablePins
@@ -404,7 +404,7 @@ constexpr BoardDefaults fly_e3_pro_Defaults = {
         {NoPin, NoPin, NoPin},                  //SPI2
         {PC_2, PC_0, PC_1},                     //SPI3
         {PE_8, NoPin, PB_1},                    //SPI4
-        {PD_6, PD_5, PD_4},                     //SPI5
+        {PD_6, PD_4, PD_6},                     //SPI5
     },
     5,											// Number of drivers
     {PE_5, PE_1, PB_5, PD_6 ,PC_15},   	    //enablePins
