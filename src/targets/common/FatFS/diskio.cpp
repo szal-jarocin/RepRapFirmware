@@ -89,6 +89,12 @@ DRESULT disk_read (BYTE drv, BYTE *buff, DWORD sector, BYTE count) noexcept
         ++retryNumber;
         if (retryNumber == MaxSdCardTries)
         {
+            delay(retryDelay);
+            _ffs[drv]->disk_initialize();
+        }           
+        if (retryNumber > MaxSdCardTries)
+        {
+            highestSdRetriesDone = MaxSdCardTries + 1;
             return RES_ERROR;
         }
         delay(retryDelay);
@@ -133,6 +139,12 @@ DRESULT disk_write (BYTE drv, const BYTE *buff, DWORD sector, BYTE count) noexce
         ++retryNumber;
         if (retryNumber == MaxSdCardTries)
         {
+            delay(retryDelay);
+            _ffs[drv]->disk_initialize();
+        }           
+        if (retryNumber > MaxSdCardTries)
+        {
+            highestSdRetriesDone = MaxSdCardTries + 1;
             return RES_ERROR;
         }
         delay(retryDelay);
