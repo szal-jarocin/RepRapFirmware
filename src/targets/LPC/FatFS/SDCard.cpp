@@ -516,19 +516,25 @@ DRESULT SDCard::disk_write (const uint8_t *buff, uint32_t sector, uint32_t count
             do {
                 if (!xmit_datablock(buff, 0xFC)) 
                 {
-                    debugPrintf("write data block failed cnt %d\n", count);
+#ifdef SD_DEBUG
+                    debugPrintf("write data block failed cnt %u\n", (unsigned)count);
+#endif
                     break;
                 }
                 buff += 512;
             } while (--count);
             if (!xmit_datablock(0, 0xFD))
             {
+#ifdef SD_DEBUG
                 debugPrintf("stop multiple block failed\n");
+#endif
                 count = 1;    /* STOP_TRAN token */
             }
         }
+#ifdef SD_DEBUG
         else
             debugPrintf("start multiple block failed\n");
+#endif
     }
     deselect();
 #ifdef SD_DEBUG
