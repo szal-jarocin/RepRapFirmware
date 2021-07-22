@@ -7,6 +7,7 @@ Version 3.3.0_4
 * STM32F4: Fix spurious UART interrupts at boot
 * Add new debug module for driver outputs
 * Improve software PWM rounding at higher frequencies
+* Improve revovery from SD card errors
 
 
 
