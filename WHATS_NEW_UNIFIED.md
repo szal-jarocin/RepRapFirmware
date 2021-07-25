@@ -1,3 +1,8 @@
+Version 3.3.0_5
+===============
+* Fix board sometimes resets after WiFi firmware upload
+* New firmware filenames
+
 Version 3.3.0_4
 ===============
 * STM32F4: Add support for esp32 WiFi modules
