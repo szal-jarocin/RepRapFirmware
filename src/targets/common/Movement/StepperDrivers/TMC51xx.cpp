@@ -1114,6 +1114,13 @@ void Tmc51xxDriver::Init(size_t firstDrive, size_t numDrivers) noexcept
 			pinMode(TMC_PINS[driver+baseDriveNo], OUTPUT_HIGH);
 		driverStates[driver].Init(driver+baseDriveNo);
 	}
+	if (SmartDriversSpiChannel == SSPNONE)
+	{
+		debugPrintf("TMC5160 stepper.spiChannel has not been configured\n");
+		numTmc51xxDrivers = 0;
+		driversState = DriversState::ready;
+		return;
+	}
 	spiDevice = new SharedSpiClient(SharedSpiDevice::GetSharedSpiDevice(SmartDriversSpiChannel), DriversSpiClockFrequency, SPI_MODE_3, NoPin, false);
 	tmcTask.Create(TmcLoop, "TMC", nullptr, TaskPriority::TmcPriority);
 }
