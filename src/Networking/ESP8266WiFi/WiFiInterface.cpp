@@ -87,7 +87,7 @@ constexpr IRQn ESP_SPI_IRQn = WiFiSpiSercomIRQn;
 
 const uint32_t WifiResponseTimeoutMillis = 200;
 const uint32_t WiFiWaitReadyMillis = 100;
-const uint32_t WiFiStartupMillis = 300;
+const uint32_t WiFiStartupMillis = 1000;
 const uint32_t WiFiStableMillis = 100;
 
 const unsigned int MaxHttpConnections = 4;
@@ -566,6 +566,7 @@ void WiFiInterface::Start() noexcept
 	spiTxUnderruns = spiRxOverruns = 0;
 	reconnectCount = 0;
 	transferAlreadyPendingCount = readyTimeoutCount = responseTimeoutCount = 0;
+	badHeaderCount = actualBadHeaderCount = 0;
 
 	lastTickMillis = millis();
 	SetState(NetworkState::starting1);
@@ -579,7 +580,7 @@ void WiFiInterface::Stop() noexcept
 		MutexLocker lock(interfaceMutex);
 
 		digitalWrite(SamTfrReadyPin, false);		// tell the ESP we can't receive
-		digitalWrite(EspResetPin, false);			// put the ESP back into reset
+		pinMode(EspResetPin, OUTPUT_LOW);
 #if defined(DUET_NG) || defined(DUET3MINI)
 		digitalWrite(EspEnablePin, false);
 #endif
@@ -858,6 +859,7 @@ void WiFiInterface::Diagnostics(MessageType mtype) noexcept
 	platform.MessageF(mtype, "- WiFi -\nNetwork state is %s\n", GetStateName());
 	platform.MessageF(mtype, "WiFi module is %s\n", TranslateWiFiState(currentMode));
 	platform.MessageF(mtype, "Failed messages: pending %u, notready %u, noresp %u\n", transferAlreadyPendingCount, readyTimeoutCount, responseTimeoutCount);
+	platform.MessageF(mtype, "Bad header: %u/%u\n", badHeaderCount, actualBadHeaderCount);
 
 #if 0
 	// The underrun/overrun counters don't work at present
@@ -1868,7 +1870,24 @@ int32_t WiFiInterface::SendCommand(NetworkCommand cmd, SocketNumber socketNum, u
 		{
 			debugPrintf("bad format version %02x\n", bufferIn->hdr.formatVersion);
 		}
-		return ResponseBadReplyFormatVersion;
+		// For some reason I don't understand when using the ESP32 with DMA seems to result in a very
+		// occasaional packet with formatVersion == 0. We check for that here and allow it if a second
+		// header field has the correct value. 
+		badHeaderCount++;
+		if (bufferIn->hdr.formatVersion != 0 || bufferIn->hdr.dummy32 != 0xdeadbeef || bufferIn->hdr.state > WiFiState::reconnecting)
+		{
+			debugPrintf("bad format version %02x %02x\n", bufferIn->hdr.formatVersion, MyFormatVersion);
+			uint8_t *p = (uint8_t *)bufferIn;
+			for(int i=0; i < 16; i++)
+				debugPrintf("byte %d val %02x\n", i, p[i]);
+			if (reprap.Debug(moduleNetwork))
+			{
+				debugPrintf("bad format version %02x\n", bufferIn->hdr.formatVersion);
+			}
+			debugPrintf("bad format version2 %02x %02x\n", bufferIn->hdr.formatVersion, MyFormatVersion);
+			actualBadHeaderCount++;
+			return ResponseBadReplyFormatVersion;
+		}
 	}
 
 	if (   (bufferIn->hdr.state == WiFiState::autoReconnecting || bufferIn->hdr.state == WiFiState::reconnecting)
@@ -2021,7 +2040,11 @@ void WiFiInterface::SpiInterrupt() noexcept
 // Start the ESP
 void WiFiInterface::StartWiFi() noexcept
 {
+#if STM32F4 || LPC17xx
+	pinMode(EspResetPin, INPUT_PULLUP);
+#else
 	digitalWrite(EspResetPin, true);
+#endif
 #if defined(DUET_NG) || defined(DUET_5LC)
 	delayMicroseconds(150);										// ESP8266 datasheet specifies minimum 100us from releasing reset to power up
 	digitalWrite(EspEnablePin, true);
@@ -2117,8 +2140,11 @@ void WiFiInterface::ResetWiFiForUpload(bool external) noexcept
 	}
 
 	// Release the reset on the ESP8266
+#if STM32F4 || LPC17xx
+	pinMode(EspResetPin, INPUT_PULLUP);
+#else
 	digitalWrite(EspResetPin, true);
-
+#endif
 #if defined(DUET_NG) || defined(DUET3MINI)
 	// Take the ESP8266 out of power down
 	delayMicroseconds(150);											// ESP8266 datasheet specifies minimum 100us from releasing reset to power up

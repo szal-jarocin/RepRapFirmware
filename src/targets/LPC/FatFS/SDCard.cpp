@@ -159,14 +159,14 @@ int SDCard::wait_ready (uint32_t wt) /* 1:Ready, 0:Timeout */
     uint8_t d;
     
     uint32_t now = millis();
-    
     do {
         d = xchg_spi(0xFF);
-        
         /* This loop takes a time. Insert rot_rdq() here for multitask envilonment. */
         
     } while (d != 0xFF && (millis() - now) < wt);    /* Wait for card goes ready or timeout */
-    
+#ifdef SD_DEBUG
+    if (d != 0xFF) debugPrintf("Card not ready timeout\n");
+#endif    
     return (d == 0xFF) ? 1 : 0;
 }
 
@@ -208,11 +208,12 @@ int SDCard::select (void)    /* 1:OK, 0:Timeout */
     selected = 1;
     xchg_spi(0xFF);    /* Dummy clock (force DO enabled) */
     
-    if (wait_ready(500)) return 1;    /* Leading busy check: Wait for card ready */
+    if (wait_ready(1500)) return 1;    /* Leading busy check: Wait for card ready */
 #ifdef SD_DEBUG
     debugPrintf("select timeout\n");
 #endif
     spi->Deselect();        /* Timeout */
+    selected = 0;
     return 0;
 }
 
@@ -233,6 +234,9 @@ int SDCard::rcvr_datablock (uint8_t *buff, uint32_t btr)/* 1:OK, 0:Error */
         /* This loop will take a time. Insert rot_rdq() here for multitask envilonment. */
         
     } while ((token == 0xFF) && (millis() - now) < 200 );
+#ifdef SD_DEBUG
+    if (token != 0xFE) debugPrintf("recv datablock failed\n");
+#endif
     if(token != 0xFE) return 0;        /* Function fails if invalid DataStart token or timeout */
     rcvr_spi_multi(buff, btr);        /* Store trailing data to the buffer */
     xchg_spi(0xFF); xchg_spi(0xFF);    /* Discard CRC */
@@ -251,7 +255,7 @@ int SDCard::rcvr_datablock (uint8_t *buff, uint32_t btr)/* 1:OK, 0:Error */
 
 int SDCard::xmit_datablock (const uint8_t *buff, uint8_t token) /* 1:OK, 0:Failed */
 {
-    if (!wait_ready(500)) return 0;        /* Leading busy check: Wait for card ready to accept data block */
+    if (!wait_ready(1500)) return 0;        /* Leading busy check: Wait for card ready to accept data block */
     
     xchg_spi(token);                    /* Send token */
     if (token == 0xFD) return 1;        /* Do not send data if token is StopTran */
@@ -260,7 +264,9 @@ int SDCard::xmit_datablock (const uint8_t *buff, uint8_t token) /* 1:OK, 0:Faile
     xchg_spi(0xFF); xchg_spi(0xFF);        /* Dummy CRC */
     
     uint8_t resp = xchg_spi(0xFF);                /* Receive data resp */
-    
+#ifdef SD_DEBUG
+    if ((resp & 0x1F) != 0x05) debugPrintf("xmit datablock failed\n");
+#endif
     return (resp & 0x1F) == 0x05 ? 1 : 0;    /* Data was accepted or not */
     
     /* Busy check is done at next transmission */
@@ -452,7 +458,7 @@ DRESULT SDCard::disk_read (uint8_t *buff, uint32_t sector, uint32_t count)
     if (!count) return RES_PARERR;        /* Check parameter */
     if (status & STA_NOINIT) return RES_NOTRDY;    /* Check if drive is ready */
     if (!(cardtype & CT_BLOCK)) sector *= 512;    /* LBA ot BA conversion (byte addressing cards) */
-    select(); 
+    if (!select()) return RES_ERROR; 
     cmd = count > 1 ? CMD18 : CMD17;            /*  READ_MULTIPLE_BLOCK : READ_SINGLE_BLOCK */
     if (send_cmd(cmd, sector) == 0) {
         do {
@@ -461,7 +467,14 @@ DRESULT SDCard::disk_read (uint8_t *buff, uint32_t sector, uint32_t count)
         } while (--count);
         if (cmd == CMD18) send_cmd(CMD12, 0);    /* STOP_TRANSMISSION */
     }
+#ifdef SD_DEBUG
+    else
+        debugPrintf("read failed 1\n");
+#endif
     deselect();
+#ifdef SD_DEBUG
+    if (count) debugPrintf("Read failed 2\n");
+#endif
     return count ? RES_ERROR : RES_OK;    /* Return result */
 }
 
@@ -486,7 +499,7 @@ DRESULT SDCard::disk_write (const uint8_t *buff, uint32_t sector, uint32_t count
     if (status & STA_PROTECT) return RES_WRPRT;    /* Check write protect */
     
     if (!(cardtype & CT_BLOCK)) sector *= 512;    /* LBA ==> BA conversion (byte addressing cards) */
-    select();
+    if (!select()) return RES_ERROR;
     if (count == 1) {    /* Single sector write */
         if ((send_cmd(CMD24, sector) == 0)    /* WRITE_BLOCK */
             && xmit_datablock(buff, 0xFE)) {
@@ -501,14 +514,32 @@ DRESULT SDCard::disk_write (const uint8_t *buff, uint32_t sector, uint32_t count
         if (cardtype & CT_SDC) send_cmd(ACMD23, count);    /* Predefine number of sectors */
         if (send_cmd(CMD25, sector) == 0) {    /* WRITE_MULTIPLE_BLOCK */
             do {
-                if (!xmit_datablock(buff, 0xFC)) break;
+                if (!xmit_datablock(buff, 0xFC)) 
+                {
+#ifdef SD_DEBUG
+                    debugPrintf("write data block failed cnt %u\n", (unsigned)count);
+#endif
+                    break;
+                }
                 buff += 512;
             } while (--count);
-            if (!xmit_datablock(0, 0xFD)) count = 1;    /* STOP_TRAN token */
+            if (!xmit_datablock(0, 0xFD))
+            {
+#ifdef SD_DEBUG
+                debugPrintf("stop multiple block failed\n");
+#endif
+                count = 1;    /* STOP_TRAN token */
+            }
         }
+#ifdef SD_DEBUG
+        else
+            debugPrintf("start multiple block failed\n");
+#endif
     }
     deselect();
-
+#ifdef SD_DEBUG
+    if (count) debugPrintf("write failed\n");
+#endif
     return count ? RES_ERROR : RES_OK;    /* Return result */
 }
 

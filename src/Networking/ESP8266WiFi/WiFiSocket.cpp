@@ -9,6 +9,7 @@
 #include <Platform/RepRap.h>
 #include "WiFiInterface.h"
 #include "WiFiSocket.h"
+#include "NetworkResponder.h"
 
 const unsigned int MaxBuffersPerSocket = 4;
 
@@ -22,6 +23,7 @@ void WiFiSocket::Init(SocketNumber n) noexcept
 	socketNum = n;
 	state = SocketState::inactive;
 	txBufferSpace = 0;
+	responder = nullptr;
 }
 
 // Close a connection when the last packet has been sent
@@ -201,7 +203,13 @@ void WiFiSocket::Poll() noexcept
 		if (state == SocketState::connected)
 		{
 			txBufferSpace = resp.Value().writeBufferSpace;
-			ReceiveData(resp.Value().bytesAvailable);
+			int32_t len = resp.Value().bytesAvailable;
+			while (len > 0)
+			{
+				uint16_t ret = ReceiveData(len);
+				if (ret == 0) break;
+				len -= ret;
+			}
 		}
 		break;
 
@@ -241,7 +249,7 @@ WiFiInterface *WiFiSocket::GetInterface() const noexcept
 }
 
 // Try to receive more incoming data from the socket.
-void WiFiSocket::ReceiveData(uint16_t bytesAvailable) noexcept
+uint16_t WiFiSocket::ReceiveData(uint16_t bytesAvailable) noexcept
 {
 	if (bytesAvailable != 0)
 	{
@@ -260,6 +268,8 @@ void WiFiSocket::ReceiveData(uint16_t bytesAvailable) noexcept
 				{
 					debugPrintf("Received %u bytes\n", (unsigned int)ret);
 				}
+				if (responder) responder->Spin();
+				return ret;
 			}
 		}
 		else if (NetworkBuffer::Count(receivedData) < MaxBuffersPerSocket)
@@ -277,15 +287,19 @@ void WiFiSocket::ReceiveData(uint16_t bytesAvailable) noexcept
 					{
 						debugPrintf("Received %u bytes\n", (unsigned int)ret);
 					}
+					if (responder) responder->Spin();
+					return ret;
 				}
 				else
 				{
 					buf->Release();
+					return 0;
 				}
 			}
 //			else debugPrintf("no buffer\n");
 		}
 	}
+	return 0;
 }
 
 // Discard any received data for this transaction

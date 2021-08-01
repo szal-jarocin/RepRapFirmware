@@ -1235,6 +1235,8 @@ void HttpResponder::ProcessRequest() noexcept
 							break;
 						}
 					}
+					// Allow us to be called directly during the upload
+					skt->SetResponder(this);
 					return;
 				}
 			}
@@ -1286,16 +1288,16 @@ void HttpResponder::DoUpload() noexcept
 {
 	const uint8_t *buffer;
 	size_t len;
-	if (skt->ReadBuffer(buffer, len))
+	bool dataRead = false;
+	while (skt->ReadBuffer(buffer, len))
 	{
-		skt->Taken(len);
-		uploadedBytes += len;
-
-		(void)CheckAuthenticated();							// uploading may take a long time, so make sure the requester IP is not timed out
-		timer = millis();									// reset the timer
-
 		if (!dummyUpload)
 		{
+			// Check to see how much we can write, this avaoid blocking when using a 
+			// writer task and provides better throughput
+			size_t canWrite = (size_t)fileBeingUploaded.CanWrite();
+			if (canWrite == 0) break;
+			if (len > canWrite) len = canWrite;
 			if (!fileBeingUploaded.Write(buffer, len))
 			{
 				uploadError = true;
@@ -1305,9 +1307,16 @@ void HttpResponder::DoUpload() noexcept
 				return;
 			}
 		}
+		skt->Taken(len);
+		uploadedBytes += len;
+
+		(void)CheckAuthenticated();							// uploading may take a long time, so make sure the requester IP is not timed out
+		timer = millis();									// reset the timer
+		dataRead = true;
 	}
-	else if (!skt->CanRead() || millis() - timer >= HttpSessionTimeout)
+	if (!dataRead && (!skt->CanRead() || millis() - timer >= HttpSessionTimeout))
 	{
+		debugPrintf("upload failed expected len %u actual %u\n", (unsigned)postFileLength, (unsigned)uploadedBytes);
 		// Sometimes uploads can get stuck; make sure they are cancelled when that happens
 		ConnectionLost();
 		return;
@@ -1499,6 +1508,8 @@ void HttpResponder::Diagnostics(MessageType mt) const noexcept
 /*static*/ void HttpResponder::CommonDiagnostics(MessageType mtype) noexcept
 {
 	GetPlatform().MessageF(mtype, "HTTP sessions: %u of %u\n", numSessions, MaxHttpSessions);
+	GetPlatform().MessageF(mtype, "Uploads/Errors: %u/%u\n", numUploads, numUploadErrors);
+	numUploads = numUploadErrors = 0;
 }
 
 void HttpResponder::AddCorsHeader() noexcept

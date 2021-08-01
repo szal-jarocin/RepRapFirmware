@@ -201,6 +201,7 @@ int SDCardSPI::select (void) noexcept    /* 1:OK, 0:Timeout */
     debugPrintf("select timeout\n");
 #endif
     spi->Deselect();        /* Timeout */
+    selected = 0;
     return 0;
 }
 

@@ -9,7 +9,11 @@ static volatile bool dmaActive;
 static inline void DisableSpi() noexcept
 {
     if (spiDevice != nullptr)
+    {
         spiDevice->disable();
+        detachInterrupt(SamCsPin);
+    }
+
 }
 
 static inline void spi_dma_disable() noexcept

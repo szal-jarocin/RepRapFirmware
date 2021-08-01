@@ -199,6 +199,7 @@ static const char * const moduleName[] =
 	"Display",
 	"LinuxInterface",
 	"CAN",
+  "Driver",
 	"none"
 };
 

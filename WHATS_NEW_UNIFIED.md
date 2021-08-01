@@ -1,3 +1,31 @@
+Version 3.3.0_5
+===============
+* Fix board sometimes resets after WiFi firmware upload
+* New firmware filenames
+
+Version 3.3.0_4
+===============
+* STM32F4: Add support for esp32 WiFi modules
+* STM32F4: Fix Fly E3 SPI5 defaults
+* STM32F4: Improve TMC5160 detection
+* STM32F4: Retry TMC5160 SPI writes on error
+* STM32F4: Fix spurious UART interrupts at boot
+* Add new debug module for driver outputs
+* Improve software PWM rounding at higher frequencies
+* Improve revovery from SD card errors
+
+
+
+Version 3.3_3
+=============
+* Allow setting of Neopixel timings with M150 X2 Tt0:t1:tc:tr
+* Add support for RGBW Neopixels
+* STM32F4: Fix SDIO timeout problem
+* STM32F4: Enable support for 2 probes
+* LPC: Enabled support for object tracking names
+* STM32F4: Fix release of wrong external interrupt pin
+
+
 Version 3.3_2
 =============
 * Fix problem with Spider UART pin
