@@ -2948,14 +2948,17 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeEx
 			}
 			break;
 
-		case 486: // number object or cancel object
-			result = buildObjects.HandleM486(gb, reply, outBuf);
-			break;
+//		case 486: // number object or cancel object
+//			result = buildObjects.HandleM486(gb, reply, outBuf);
+//			break;
 
 		case 500: // Store parameters in config-override.g
 			result = WriteConfigOverrideFile(gb, reply);
 			break;
 #endif
+		case 486: // number object or cancel object
+			result = buildObjects.HandleM486(gb, reply, outBuf);
+			break;
 
 		case 501: // Load parameters from config-override.g
 			if (!gb.LatestMachineState().runningM502 && !gb.LatestMachineState().runningM501)		// when running M502 we ignore config-override.g
