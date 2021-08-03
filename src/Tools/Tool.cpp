@@ -100,6 +100,7 @@ constexpr ObjectModelTableEntry Tool::objectModelTable[] =
 	{ "fans",				OBJECT_MODEL_FUNC(self->fanMapping), 							ObjectModelEntryFlags::none },
 	{ "filamentExtruder",	OBJECT_MODEL_FUNC((int32_t)self->filamentExtruder),				ObjectModelEntryFlags::none },
 	{ "heaters",			OBJECT_MODEL_FUNC_NOSELF(&heatersArrayDescriptor), 				ObjectModelEntryFlags::none },
+	{ "isRetracted",		OBJECT_MODEL_FUNC(self->IsRetracted()), 						ObjectModelEntryFlags::live },
 	{ "mix",				OBJECT_MODEL_FUNC_NOSELF(&mixArrayDescriptor), 					ObjectModelEntryFlags::none },
 	{ "name",				OBJECT_MODEL_FUNC(self->name),						 			ObjectModelEntryFlags::none },
 	{ "number",				OBJECT_MODEL_FUNC((int32_t)self->myNumber),						ObjectModelEntryFlags::none },
@@ -119,7 +120,7 @@ constexpr ObjectModelTableEntry Tool::objectModelTable[] =
 	{ "zHop",				OBJECT_MODEL_FUNC(self->retractHop, 2),							ObjectModelEntryFlags::none },
 };
 
-constexpr uint8_t Tool::objectModelTableDescriptor[] = { 2, 16, 5 };
+constexpr uint8_t Tool::objectModelTableDescriptor[] = { 2, 17, 5 };
 
 DEFINE_GET_OBJECT_MODEL_TABLE(Tool)
 
@@ -571,7 +572,7 @@ void Tool::DefineMix(const float m[]) noexcept
 	reprap.ToolsUpdated();
 }
 
-#if HAS_MASS_STORAGE
+#if HAS_MASS_STORAGE || HAS_LINUX_INTERFACE
 
 // Write the tool's settings to file returning true if successful. The settings written leave the tool selected unless it is off.
 bool Tool::WriteSettings(FileStore *f) const noexcept

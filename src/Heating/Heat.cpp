@@ -407,9 +407,7 @@ GCodeResult Heat::ConfigureHeater(GCodeBuffer& gb, const StringRef& reply) THROW
 		{
 			// Setting the pin name to "nil" deletes the heater
 			WriteLocker lock(heatersLock);
-			Heater *oldHeater = nullptr;
-			std::swap(oldHeater, heaters[heater]);
-			delete oldHeater;
+			DeleteObject(heaters[heater]);
 			reprap.HeatUpdated();
 			return GCodeResult::ok;
 		}
@@ -418,10 +416,7 @@ GCodeResult Heat::ConfigureHeater(GCodeBuffer& gb, const StringRef& reply) THROW
 		const unsigned int sensorNumber = gb.GetUIValue();
 
 		WriteLocker lock(heatersLock);
-
-		Heater *oldHeater = nullptr;
-		std::swap(oldHeater, heaters[heater]);
-		delete oldHeater;
+		DeleteObject(heaters[heater]);
 
 		const PwmFrequency freq = (gb.Seen('Q')) ? min<PwmFrequency>(gb.GetPwmFrequency(), MaxHeaterPwmFrequency) : DefaultHeaterPwmFreq;
 
@@ -667,6 +662,22 @@ void Heat::SwitchOffAll(bool includingChamberAndBed) noexcept
 	}
 }
 
+// Turn off all local heaters. Safe to call from an ISR. Called only from the tick ISR.
+void Heat::SwitchOffAllLocalFromISR() noexcept
+{
+	for (Heater* h : heaters)
+	{
+		if (h != nullptr
+#if SUPPORT_CAN_EXPANSION
+			&& h->IsLocal()
+#endif
+		   )
+		{
+			h->SwitchOff();
+		}
+	}
+}
+
 void Heat::Standby(int heater, const Tool *tool) noexcept
 {
 	const auto h = FindHeater(heater);
@@ -723,7 +734,7 @@ float Heat::GetHighestTemperatureLimit() const noexcept
 	return limit;
 }
 
-#if HAS_MASS_STORAGE
+#if HAS_MASS_STORAGE || HAS_LINUX_INTERFACE
 
 // Write heater model parameters to file returning true if no error
 bool Heat::WriteModelParameters(FileStore *f) const noexcept
@@ -1089,7 +1100,7 @@ void Heat::InsertSensor(TemperatureSensor *newSensor) noexcept
 	}
 }
 
-#if HAS_MASS_STORAGE
+#if HAS_MASS_STORAGE || HAS_LINUX_INTERFACE
 
 // Save some resume information returning true if successful.
 // We assume that the bed and chamber heaters are either on and active, or off (not on standby).

@@ -47,8 +47,6 @@ const unsigned int InitialNumDms = (InitialDdaRingLength/2 * 4) + AuxDdaRingLeng
 
 #endif
 
-constexpr uint32_t MovementStartDelayClocks = StepTimer::StepClockRate/100;		// 10ms delay between preparing the first move and starting it
-
 // This is the master movement class.  It controls all movement in the machine.
 class Move INHERIT_OBJECT_MODEL
 {
@@ -162,7 +160,7 @@ public:
 
 	int32_t GetAccumulatedExtrusion(size_t extruder, bool& isPrinting) noexcept;			// Return and reset the accumulated commanded extrusion amount
 
-#if HAS_MASS_STORAGE
+#if HAS_MASS_STORAGE || HAS_LINUX_INTERFACE
 	bool WriteResumeSettings(FileStore *f) const noexcept;									// Write settings for resuming the print
 #endif
 

@@ -124,7 +124,6 @@ using AnalogIn::AdcBits;
 #endif
 
 #include <climits>
-#include <utility>					// for std::swap
 
 #if !defined(HAS_LWIP_NETWORKING) || !defined(HAS_WIFI_NETWORKING) || !defined(HAS_CPU_TEMP_SENSOR) || !defined(HAS_HIGH_SPEED_SD) \
  || !defined(HAS_SMART_DRIVERS) || !defined(HAS_STALL_DETECT) || !defined(HAS_VOLTAGE_MONITOR) || !defined(HAS_12V_MONITOR) || !defined(HAS_VREF_MONITOR) \
@@ -899,6 +898,8 @@ void Platform::ResetVoltageMonitors() noexcept
 #if HAS_12V_MONITOR
 	lowestV12 = highestV12 = currentV12;
 #endif
+
+	reprap.BoardsUpdated();
 }
 #endif
 #if MCU_HAS_UNIQUE_ID
@@ -1148,7 +1149,7 @@ void Platform::Spin() noexcept
 	}
 #endif
 
-#if HAS_MASS_STORAGE
+#if HAS_MASS_STORAGE || HAS_LINUX_INTERFACE
 	MassStorage::Spin();
 #endif
 
@@ -1178,10 +1179,12 @@ void Platform::Spin() noexcept
 		if (currentMcuTemperature > highestMcuTemperature)
 		{
 			highestMcuTemperature= currentMcuTemperature;
+			reprap.BoardsUpdated();
 		}
 		if (currentMcuTemperature < lowestMcuTemperature)
 		{
 			lowestMcuTemperature = currentMcuTemperature;
+			reprap.BoardsUpdated();
 		}
 	}
 #endif
@@ -1939,6 +1942,12 @@ void Platform::Diagnostics(MessageType mtype) noexcept
 	MessageF(mtype, "MCU temperature: min %.1f, current %.1f, max %.1f\n",
 		(double)lowestMcuTemperature, (double)currentMcuTemperature, (double)highestMcuTemperature);
 	lowestMcuTemperature = highestMcuTemperature = currentMcuTemperature;
+
+# if HAS_VOLTAGE_MONITOR
+	// No need to call reprap.BoardsUpdated() here because that is done in ResetVoltageMonitors which is called later
+# else
+	reprap.BoardsUpdated();
+# endif
 #endif
 
 #if HAS_VOLTAGE_MONITOR
@@ -2556,6 +2565,12 @@ GCodeResult Platform::DiagnosticTest(GCodeBuffer& gb, const StringRef& reply, Ou
 		}
 #endif
 		break;
+
+#if HAS_VOLTAGE_MONITOR
+	case (unsigned int)DiagnosticTestType::UndervoltageEvent:
+		reprap.GetGCodes().LowVoltagePause();
+		break;
+#endif
 
 #ifdef DUET_NG
 	case (unsigned int)DiagnosticTestType::PrintExpanderStatus:
@@ -4248,10 +4263,6 @@ bool Platform::FileExists(const char* folder, const char *filename) const noexce
 	return MassStorage::CombineName(location.GetRef(), folder, filename) && MassStorage::FileExists(location.c_str());
 }
 
-#endif
-
-#if HAS_MASS_STORAGE
-
 // Return a pointer to a string holding the directory where the system files are. Lock the sysdir lock before calling this.
 const char* Platform::InternalGetSysDir() const noexcept
 {
@@ -4262,12 +4273,6 @@ bool Platform::Delete(const char* folder, const char *filename) const noexcept
 {
 	String<MaxFilenameLength> location;
 	return MassStorage::CombineName(location.GetRef(), folder, filename) && MassStorage::Delete(location.c_str(), true);
-}
-
-bool Platform::DirectoryExists(const char *folder, const char *dir) const noexcept
-{
-	String<MaxFilenameLength> location;
-	return MassStorage::CombineName(location.GetRef(), folder, dir) && MassStorage::DirectoryExists(location.c_str());
 }
 
 // Set the system files path
@@ -4285,9 +4290,7 @@ GCodeResult Platform::SetSysDir(const char* dir, const StringRef& reply) noexcep
 	const size_t len = newSysDir.strlen() + 1;
 	char* const nsd = new char[len];
 	memcpy(nsd, newSysDir.c_str(), len);
-	const char *nsd2 = nsd;
-	std::swap(sysDir, nsd2);
-	delete nsd2;
+	ReplaceObject(sysDir, nsd);
 	reprap.DirectoriesUpdated();
 	return GCodeResult::ok;
 }
@@ -5327,10 +5330,12 @@ void Platform::Tick() noexcept
 		if (currentVin > highestVin)
 		{
 			highestVin = currentVin;
+			reprap.BoardsUpdated();
 		}
 		if (currentVin < lowestVin)
 		{
 			lowestVin = currentVin;
+			reprap.BoardsUpdated();
 		}
 # endif
 
@@ -5339,10 +5344,12 @@ void Platform::Tick() noexcept
 		if (currentV12 > highestV12)
 		{
 			highestV12 = currentV12;
+			reprap.BoardsUpdated();
 		}
 		if (currentV12 < lowestV12)
 		{
 			lowestV12 = currentV12;
+			reprap.BoardsUpdated();
 		}
 # endif
 

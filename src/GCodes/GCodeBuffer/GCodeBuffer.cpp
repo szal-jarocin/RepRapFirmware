@@ -344,6 +344,12 @@ bool GCodeBuffer::Seen(char c) noexcept
 	return PARSER_OPERATION(Seen(c));
 }
 
+// Return true if any of the parameter letters in the bitmap were seen
+bool GCodeBuffer::SeenAny(Bitmap<uint32_t> bm) const noexcept
+{
+	return PARSER_OPERATION(SeenAny(bm));
+}
+
 // Test for character present, throw error if not
 void GCodeBuffer::MustSee(char c) THROWS(GCodeException)
 {
@@ -482,19 +488,46 @@ void GCodeBuffer::GetReducedString(const StringRef& str) THROWS(GCodeException)
 // Get a colon-separated list of floats after a key letter
 void GCodeBuffer::GetFloatArray(float arr[], size_t& length, bool doPad) THROWS(GCodeException)
 {
-	PARSER_OPERATION(GetFloatArray(arr, length, doPad));
+	const size_t maxLength = length;
+	PARSER_OPERATION(GetFloatArray(arr, length));
+	// If there is one entry and doPad is true, fill the rest of the array with the first entry.
+	if (doPad && length == 1)
+	{
+		while (length < maxLength)
+		{
+			arr[length++] = arr[0];
+		}
+	}
 }
 
 // Get a :-separated list of ints after a key letter
 void GCodeBuffer::GetIntArray(int32_t arr[], size_t& length, bool doPad) THROWS(GCodeException)
 {
-	PARSER_OPERATION(GetIntArray(arr, length, doPad));
+	const size_t maxLength = length;
+	PARSER_OPERATION(GetIntArray(arr, length));
+	// If there is one entry and doPad is true, fill the rest of the array with the first entry.
+	if (doPad && length == 1)
+	{
+		while (length < maxLength)
+		{
+			arr[length++] = arr[0];
+		}
+	}
 }
 
 // Get a :-separated list of unsigned ints after a key letter
 void GCodeBuffer::GetUnsignedArray(uint32_t arr[], size_t& length, bool doPad) THROWS(GCodeException)
 {
-	PARSER_OPERATION(GetUnsignedArray(arr, length, doPad));
+	const size_t maxLength = length;
+	PARSER_OPERATION(GetUnsignedArray(arr, length));
+	// If there is one entry and doPad is true, fill the rest of the array with the first entry.
+	if (doPad && length == 1)
+	{
+		while (length < maxLength)
+		{
+			arr[length++] = arr[0];
+		}
+	}
 }
 
 // Get a :-separated list of drivers after a key letter
@@ -839,7 +872,11 @@ void GCodeBuffer::SetFileFinished() noexcept
 
 	if (macroFileId == NoFileId)
 	{
-		reprap.GetPlatform().Message(WarningMessage, "Cannot set macro file finished because there is no file ID\n");
+		reprap.GetPlatform().MessageF(WarningMessage, "Cannot set macro file finished because there is no file ID (channel %s)\n", GetChannel().ToString());
+	}
+	else
+	{
+		reprap.GetLinuxInterface().EventOccurred();
 	}
 }
 
@@ -856,10 +893,11 @@ void GCodeBuffer::SetPrintFinished() noexcept
 				ms->fileFinished = true;
 			}
 		}
+		reprap.GetLinuxInterface().EventOccurred();
 	}
 	else
 	{
-		reprap.GetPlatform().Message(WarningMessage, "Cannot set print file finished because there is no file ID\n");
+		reprap.GetPlatform().MessageF(WarningMessage, "Cannot set print file finished because there is no file ID (channel %s)\n", GetChannel().ToString());
 	}
 }
 
@@ -882,6 +920,7 @@ bool GCodeBuffer::RequestMacroFile(const char *filename, bool fromCode) noexcept
 	{
 		// Wait for a response (but not forever)
 		isWaitingForMacro = true;
+		reprap.GetLinuxInterface().EventOccurred(true);
 		if (!macroSemaphore.Take(SpiMacroRequestTimeout))
 		{
 			isWaitingForMacro = false;
@@ -912,6 +951,7 @@ void GCodeBuffer::MacroFileClosed() noexcept
 	machineState->CloseFile();
 	macroJustStarted = false;
 	macroFileClosed = true;
+	reprap.GetLinuxInterface().EventOccurred();
 }
 
 #endif
@@ -929,6 +969,7 @@ void GCodeBuffer::MessageAcknowledged(bool cancelled) noexcept
 			ms->messageCancelled = cancelled;
 #if HAS_LINUX_INTERFACE
 			messageAcknowledged = !cancelled;
+			reprap.GetLinuxInterface().EventOccurred();
 #endif
 		}
 	}

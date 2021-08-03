@@ -196,7 +196,7 @@ GCodeResult GCodes::GetSetWorkplaceCoordinates(GCodeBuffer& gb, const StringRef&
 	return GCodeResult::badOrMissingParameter;
 }
 
-# if HAS_MASS_STORAGE
+# if HAS_MASS_STORAGE || HAS_LINUX_INTERFACE
 
 // Save all the workplace coordinate offsets to file returning true if successful. Used by M500 and by SaveResumeInfo.
 bool GCodes::WriteWorkplaceCoordinates(FileStore *f) const noexcept
@@ -432,13 +432,7 @@ GCodeResult GCodes::SimulateFile(GCodeBuffer& gb, const StringRef &reply, const 
 		simulationMode = 1;
 		reprap.GetMove().Simulate(simulationMode);
 		reprap.GetPrintMonitor().StartingPrint(file.c_str());
-# if HAS_LINUX_INTERFACE
-		if (!reprap.UsingLinuxInterface())
-# endif
-		{
-			// If using a SBC, this is already called when the print file info is set
-			StartPrinting(true);
-		}
+		StartPrinting(true);
 		reply.printf("Simulating print of file %s", file.c_str());
 		return GCodeResult::ok;
 	}
@@ -1384,22 +1378,22 @@ GCodeResult GCodes::ConfigureLocalDriver(GCodeBuffer& gb, const StringRef& reply
 {
 	if (drive < platform.GetNumActualDirectDrivers())
 	{
-		bool seen = false;
-		if (gb.Seen('S'))
+		if (gb.SeenAny("RS"))
 		{
 			if (!LockMovementAndWaitForStandstill(gb))
 			{
 				return GCodeResult::notFinished;
 			}
+		}
+
+		bool seen = false;
+		if (gb.Seen('S'))
+		{
 			seen = true;
 			platform.SetDirectionValue(drive, gb.GetIValue() != 0);
 		}
 		if (gb.Seen('R'))
 		{
-			if (!LockMovementAndWaitForStandstill(gb))
-			{
-				return GCodeResult::notFinished;
-			}
 			seen = true;
 			platform.SetEnableValue(drive, (int8_t)gb.GetIValue());
 		}

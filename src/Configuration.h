@@ -233,7 +233,7 @@ constexpr size_t GCodeReplyLength = StringLength256;	// Maximum number of charac
 constexpr size_t MachineNameLength = StringLength50;
 constexpr size_t RepRapPasswordLength = StringLength20;
 constexpr size_t MediumStringLength = MaxFilenameLength;
-constexpr size_t StringBufferLength = StringLength256;	// Length of the string buffer used by the expression parser
+constexpr size_t M117StringLength = MediumStringLength;
 constexpr size_t StringLengthLoggedCommand = StringLength100;	// Length of a string buffer for a command to be logged
 
 #if SAM4E || SAM4S || SAME70 || SAME5x || defined(ESP_NETWORKING) || LPC17xx || STM32F4
@@ -369,6 +369,7 @@ static_assert(MaxExpectedWebDirFilenameLength + strlen(WEB_DIR) + strlen(".gz") 
 #define EOF_STRING "<!-- **EoF** -->"
 
 // List defaults
+constexpr char EXPRESSION_LIST_SEPARATOR = ',';
 constexpr char LIST_SEPARATOR = ':';
 
 #endif

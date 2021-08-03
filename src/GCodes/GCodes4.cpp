@@ -278,7 +278,7 @@ void GCodes::RunStateMachine(GCodeBuffer& gb, const StringRef& reply) noexcept
 			else
 			{
 				gb.SetState(GCodeState::homing2);
-				if (!DoFileMacro(gb, nextHomingFileName.c_str(), false, 28))
+				if (!DoFileMacro(gb, nextHomingFileName.c_str(), false, SystemHelperMacroCode))
 				{
 					reply.printf("Homing file %s not found", nextHomingFileName.c_str());
 					stateMachineResult = GCodeResult::error;
@@ -618,6 +618,7 @@ void GCodes::RunStateMachine(GCodeBuffer& gb, const StringRef& reply) noexcept
 	case GCodeState::stoppingWithHeatersOn:		// M0 H1 or M1 H1 after executing stop.g/sleep.g if present
 		if (LockMovementAndWaitForStandstill(gb))
 		{
+			pauseState = PauseState::notPaused;
 			platform.SetDriversIdle();
 			gb.SetState(GCodeState::normal);
 		}
@@ -639,14 +640,14 @@ void GCodes::RunStateMachine(GCodeBuffer& gb, const StringRef& reply) noexcept
 				axes.SetBit(axis0Num);
 				axes.SetBit(axis1Num);
 				float axesCoords[MaxAxes];
-				axesCoords[axis0Num] = axis0Coord;
-				axesCoords[axis1Num] = axis1Coord;
+				const auto zp = platform.GetZProbeOrDefault(currentZProbeNumber);
+				axesCoords[axis0Num] = axis0Coord - zp->GetOffset(axis0Num);
+				axesCoords[axis1Num] = axis1Coord - zp->GetOffset(axis1Num);
 				if (move.IsAccessibleProbePoint(axesCoords, axes))
 				{
 					SetMoveBufferDefaults();
-					const auto zp = platform.GetZProbeOrDefault(currentZProbeNumber);
-					moveBuffer.coords[axis0Num] = axis0Coord - zp->GetOffset(axis0Num);
-					moveBuffer.coords[axis1Num] = axis1Coord - zp->GetOffset(axis1Num);
+					moveBuffer.coords[axis0Num] = axesCoords[axis0Num];
+					moveBuffer.coords[axis1Num] = axesCoords[axis1Num];
 					moveBuffer.coords[Z_AXIS] = zp->GetStartingHeight();
 					moveBuffer.feedRate = zp->GetTravelSpeed();
 					NewMoveAvailable(1);
@@ -1421,7 +1422,7 @@ void GCodes::RunStateMachine(GCodeBuffer& gb, const StringRef& reply) noexcept
 		}
 		else
 		{
-# if HAS_MASS_STORAGE
+# if HAS_MASS_STORAGE || HAS_LINUX_INTERFACE
 			SaveResumeInfo(true);											// create the resume file so that we can resume after power down
 # endif
 			platform.Message(LoggedGenericMessage, "Print auto-paused due to low voltage\n");

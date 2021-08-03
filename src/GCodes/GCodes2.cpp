@@ -66,8 +66,6 @@
 # include <Platform/Logger.h>
 #endif
 
-#include <utility>			// for std::swap
-
 // If the code to act on is completed, this returns true, otherwise false.
 // It is called repeatedly for a given code until it returns true for that code.
 bool GCodes::ActOnCode(GCodeBuffer& gb, const StringRef& reply) noexcept
@@ -538,6 +536,7 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeEx
 						// If we are cancelling a paused print with M0 and we are homed and cancel.g exists then run it and do nothing else
 						if (oldPauseState != PauseState::notPaused && code == 0 && AllAxesAreHomed() && DoFileMacro(gb, CANCEL_G, false, SystemHelperMacroCode))
 						{
+							pauseState = PauseState::cancelling;
 							break;
 						}
 
@@ -835,7 +834,9 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeEx
 					result = MassStorage::Unmount(card, reply);
 				}
 				break;
+#endif
 
+#if HAS_MASS_STORAGE || HAS_LINUX_INTERFACE
 			case 23: // Set file to print
 			case 32: // Select file and start SD print
 				// We now allow a file that is being printed to chain to another file. This is required for the resume-after-power-fail functionality.
@@ -853,7 +854,17 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeEx
 				{
 					String<MaxFilenameLength> filename;
 					gb.GetUnprecedentedString(filename.GetRef());
-					if (QueueFileToPrint(filename.c_str(), reply))
+					if (
+#if HAS_LINUX_INTERFACE
+						reprap.UsingLinuxInterface()
+# if HAS_MASS_STORAGE
+						||
+# endif
+#endif
+#if HAS_MASS_STORAGE
+						QueueFileToPrint(filename.c_str(), reply)
+#endif
+					   )
 					{
 						reprap.GetPrintMonitor().StartingPrint(filename.c_str());
 						if (gb.LatestMachineState().compatibility == Compatibility::Marlin)
@@ -910,8 +921,17 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeEx
 							}
 						}
 					}
-#if HAS_MASS_STORAGE
-					else if (!fileToPrint.IsLive())
+#if HAS_MASS_STORAGE || HAS_LINUX_INTERFACE
+					else if (
+# if HAS_MASS_STORAGE
+								!fileToPrint.IsLive()
+# else
+								true
+# endif
+# if HAS_LINUX_INTERFACE
+								&& !reprap.UsingLinuxInterface()
+# endif
+							)
 					{
 						reply.copy("Cannot print, because no file is selected!");
 						result = GCodeResult::error;
@@ -933,7 +953,14 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeEx
 								// We executed M26 to set the file offset, which normally means that we are executing resurrect.g.
 								// We need to copy the absolute/relative and volumetric extrusion flags over
 								fileGCode->OriginalMachineState().CopyStateFrom(gb.LatestMachineState());
-								fileToPrint.Seek(fileOffsetToPrint);
+# if HAS_LINUX_INTERFACE
+								if (!reprap.UsingLinuxInterface())
+# endif
+# if HAS_MASS_STORAGE
+								{
+									fileToPrint.Seek(fileOffsetToPrint);
+								}
+# endif
 								moveFractionToSkip = restartMoveFractionDone;
 							}
 							StartPrinting(fromStart);
@@ -1019,7 +1046,7 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeEx
 				}
 				break;
 
-#if HAS_MASS_STORAGE
+#if HAS_MASS_STORAGE || HAS_LINUX_INTERFACE
 			case 26: // Set SD position
 				// This is used between executing M23 to set up the file to print, and M25 to print it
 				gb.MustSee('S');
@@ -1033,7 +1060,9 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeEx
 					restartInitialUserC1 = (gb.Seen(c1)) ? gb.GetFValue() : 0.0;
 				}
 				break;
+#endif
 
+#if HAS_MASS_STORAGE
 			case 27: // Report print status - Deprecated
 				if (reprap.GetPrintMonitor().IsPrinting())
 				{
@@ -1744,7 +1773,7 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeEx
 
 			case 117:	// Display message
 				{
-					String<MediumStringLength> msg;
+					String<M117StringLength> msg;
 					gb.GetUnprecedentedString(msg.GetRef(), true);
 					reprap.SetMessage(msg.c_str());
 				}
@@ -3549,6 +3578,20 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeEx
 				}
 				break;
 
+#if HAS_LINUX_INTERFACE
+			case 576: // Set SPI communication parameters
+				if (reprap.UsingLinuxInterface())
+				{
+					result = reprap.GetLinuxInterface().HandleM576(gb, reply);
+				}
+				else
+				{
+					reply.copy("Board is running in standalone mode");
+					result = GCodeResult::error;
+				}
+				break;
+#endif
+
 			case 577: // Wait until endstop input is triggered
 				result = WaitForPin(gb, reply);
 				break;
@@ -4332,8 +4375,7 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeEx
 							// Replace the power fail script atomically
 							char *newPowerFailScript = new char[powerFailString.strlen() + 1];
 							strcpy(newPowerFailScript, powerFailString.c_str());
-							std::swap(newPowerFailScript, powerFailScript);
-							delete[] newPowerFailScript;
+							ReplaceObject(powerFailScript, newPowerFailScript);
 							reprap.StateUpdated();
 						}
 						else if (powerFailScript == nullptr)
@@ -4408,7 +4450,7 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeEx
 				break;
 #endif
 
-#if HAS_MASS_STORAGE
+#if HAS_MASS_STORAGE || HAS_LINUX_INTERFACE
 			case 916:
 				if (!platform.SysFileExists(RESUME_AFTER_POWER_FAIL_G))
 				{

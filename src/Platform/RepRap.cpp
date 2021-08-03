@@ -595,8 +595,9 @@ void RepRap::Init() noexcept
 	platform->MessageF(UsbMessage, "%s\n", VersionText);
 
 #if HAS_LINUX_INTERFACE && !HAS_MASS_STORAGE
-	linuxInterface->Init();
 	usingLinuxInterface = true;
+	linuxInterface->Init();
+	FileWriteBuffer::UsingSbcMode();
 #endif
 
 #if HAS_MASS_STORAGE
@@ -613,10 +614,6 @@ void RepRap::Init() noexcept
 
 		if (rslt == GCodeResult::ok)
 		{
-# if HAS_LINUX_INTERFACE
-			delete linuxInterface;						// free up the RAM for more tools etc.
-			linuxInterface = nullptr;
-# endif
 			// Run the configuration file
 			if (!RunStartupFile(GCodes::CONFIG_FILE) && !RunStartupFile(GCodes::CONFIG_BACKUP_FILE))
 			{
@@ -626,19 +623,18 @@ void RepRap::Init() noexcept
 # if HAS_LINUX_INTERFACE
 		else if (!MassStorage::IsCardDetected(0))		// if we failed to mount the SD card because there was no card in the slot
 		{
-			linuxInterface->Init();
 			usingLinuxInterface = true;
+			FileWriteBuffer::UsingSbcMode();
 		}
 # endif
 		else
 		{
-# if HAS_LINUX_INTERFACE
-			delete linuxInterface;						// free up the RAM for more tools etc.
-			linuxInterface = nullptr;
-# endif
 			delay(3000);								// Wait a few seconds so users have a chance to see this
 			platform->MessageF(AddWarning(UsbMessage), "%s\n", reply.c_str());
 		}
+# if HAS_LINUX_INTERFACE
+		linuxInterface->Init();
+# endif
 	}
 #endif
 
@@ -771,6 +767,16 @@ void RepRap::Spin() noexcept
 	ticksInSpinState = 0;
 	spinningModule = moduleDisplay;
 	display->Spin();
+#endif
+
+#if HAS_LINUX_INTERFACE
+	// Keep the Linux task spinning from the main task in standalone mode to respond to a SBC if necessary
+	if (!UsingLinuxInterface())
+	{
+		ticksInSpinState = 0;
+		spinningModule = moduleLinuxInterface;
+		linuxInterface->Spin();
+	}
 #endif
 
 	ticksInSpinState = 0;
@@ -1300,7 +1306,7 @@ void RepRap::Tick() noexcept
 			if (heatTaskStuck || ticksInSpinState >= MaxTicksInSpinState)		// if we stall for 20 seconds, save diagnostic data and reset
 			{
 				stopped = true;
-				heat->SwitchOffAll(true);
+				heat->SwitchOffAllLocalFromISR();								// can't call SwitchOffAll because remote heaters can't be turned off from inside a ISR
 				platform->EmergencyDisableDrivers();
 
 				// We now save the stack when we get stuck in a spin loop
@@ -2286,8 +2292,7 @@ GCodeResult RepRap::GetFileInfoResponse(const char *filename, OutputBuffer *&res
 					timeInfo.tm_year + 1900, timeInfo.tm_mon + 1, timeInfo.tm_mday, timeInfo.tm_hour, timeInfo.tm_min, timeInfo.tm_sec);
 		}
 
-		response->catf("\"height\":%.2f,\"firstLayerHeight\":%.2f,\"layerHeight\":%.2f,",
-					(double)info.objectHeight, (double)info.firstLayerHeight, (double)info.layerHeight);
+		response->catf("\"height\":%.2f,\"layerHeight\":%.2f,", (double)info.objectHeight, (double)info.layerHeight);
 		if (info.printTime != 0)
 		{
 			response->catf("\"printTime\":%" PRIu32 ",", info.printTime);
@@ -2510,21 +2515,22 @@ size_t RepRap::GetStatusIndex() const noexcept
 			: (gCodes->GetPauseState() == PauseState::pausing)			? 4		// Pausing
 			: (gCodes->GetPauseState() == PauseState::resuming)			? 5		// Resuming
 			: (gCodes->GetPauseState() == PauseState::paused)			? 6		// Paused
+			: (gCodes->GetPauseState() == PauseState::cancelling)		? 7		// Paused
 			: (printMonitor->IsPrinting())
-			  	  ? ((gCodes->IsSimulating())							? 7		// Simulating
-			: 														  	  8		// Printing
+			  	  ? ((gCodes->IsSimulating())							? 8		// Simulating
+			: 														  	  9		// Printing
 			  	  	)
-			: (gCodes->IsDoingToolChange())								? 9		// Changing tool
+			: (gCodes->IsDoingToolChange())								? 10		// Changing tool
 			: (gCodes->DoingFileMacro() || !move->NoLiveMovement() ||
-			   gCodes->WaitingForAcknowledgement()) 					? 10	// Busy
-			:															  11;	// Idle
+			   gCodes->WaitingForAcknowledgement()) 					? 11	// Busy
+			:															  12;	// Idle
 
 }
 
 // Get the status character for the new-style status response
 char RepRap::GetStatusCharacter() const noexcept
 {
-	return "CFHODRSMPTBI"[GetStatusIndex()];
+	return "CFHODRSAMPTBI"[GetStatusIndex()];
 }
 
 const char* RepRap::GetStatusString() const noexcept
@@ -2538,6 +2544,7 @@ const char* RepRap::GetStatusString() const noexcept
 		"pausing",
 		"resuming",
 		"paused",
+		"cancelling",
 		"simulating",
 		"processing",
 		"changingTool",
@@ -2639,7 +2646,7 @@ GCodeResult RepRap::ClearTemperatureFault(int8_t wasDudHeater, const StringRef& 
 	return rslt;
 }
 
-#if HAS_MASS_STORAGE
+#if HAS_MASS_STORAGE || HAS_LINUX_INTERFACE
 
 // Save some resume information, returning true if successful
 // We assume that the tool configuration doesn't change, only the temperatures and the mix

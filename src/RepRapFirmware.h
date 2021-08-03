@@ -169,7 +169,7 @@ struct DriverId
 
 	DriverId() noexcept : localDriver(0), boardAddress(CanInterface::GetCanAddress())  { }
 
-	// Constructor used by ATE configurations
+	// Constructor used by ATE configurations and object model
 	DriverId(CanAddress addr, uint8_t drv) noexcept : localDriver(drv), boardAddress(addr) { }
 
 	void SetFromBinary(uint32_t val) noexcept
@@ -211,6 +211,9 @@ struct DriverId
 #else
 
 	DriverId() noexcept : localDriver(0)  { }
+
+	// Constructor used by object model
+	DriverId(uint8_t drv) noexcept : localDriver(drv) { }
 
 	// Set the driver ID from the binary value, returning true if there was a nonzero board number so that the caller knows the address is not valid
 	bool SetFromBinary(uint32_t val) noexcept
@@ -449,6 +452,22 @@ private:
 	bool running;
 };
 
+// Function to delete an object and clear the pointer. Safe to call even if the pointer is already null.
+template <typename T> void DeleteObject(T*& ptr) noexcept
+{
+	T* p2 = nullptr;
+	std::swap(ptr, p2);
+	delete p2;
+}
+
+// Function to make a pointer point to a new object and delete the existing object, if any. T2 must be the same as T or derived from it.
+template <typename T, typename T2> void ReplaceObject(T*& ptr, T2* pNew) noexcept
+{
+	T* p2 = pNew;
+	std::swap(ptr, p2);
+	delete p2;
+}
+
 // Common definitions used by more than one module
 
 constexpr size_t XY_AXES = 2;										// The number of Cartesian axes
@@ -498,6 +517,11 @@ constexpr size_t NumCoordinateSystems = 1;
 #endif
 
 #define DEGREE_SYMBOL	"\xC2\xB0"									// degree-symbol encoding in UTF8
+
+#if HAS_LINUX_INTERFACE
+typedef uint32_t FileHandle;
+const FileHandle noFileHandle = 0;
+#endif
 
 // Type of an offset in a file
 typedef uint32_t FilePosition;

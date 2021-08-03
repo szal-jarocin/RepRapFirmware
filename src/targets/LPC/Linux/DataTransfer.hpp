@@ -18,6 +18,10 @@ void SpiInterrupt(HardwareSPI *spi) noexcept
     TaskBase::GiveFromISR(linuxTaskHandle);
 }
 
+static inline bool spi_dma_check_rx_complete() noexcept
+{
+    return digitalRead(SbcCsPin); // transfer is complete if SS is high
+}
 
 
 void setup_spi(void *inBuffer, const void *outBuffer, size_t bytesToTransfer)
