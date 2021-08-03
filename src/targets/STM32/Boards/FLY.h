@@ -441,7 +441,7 @@ constexpr PinEntry PinTable_FLY_SUPER8[] =
     {PD_6, "zmax,zstopmax,io5"},
     {PA_8, "io6"},
     {PF_8, "in7,pwm1"},
-
+    {PF_3, "hvin"},
 	// Servo
     {PC_6,  "pwm0" },
 
