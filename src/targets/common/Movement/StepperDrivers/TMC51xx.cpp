@@ -823,7 +823,7 @@ void Tmc51xxDriverState::SetStallDetectFilter(bool sgFilter) noexcept
 void Tmc51xxDriverState::SetStallMinimumStepsPerSecond(unsigned int stepsPerSecond) noexcept
 {
 	//TODO use hardware facility instead
-	maxStallStepInterval = StepTimer::StepClockRate/max<unsigned int>(stepsPerSecond, 1);
+	maxStallStepInterval = StepClockRate/max<unsigned int>(stepsPerSecond, 1);
 }
 
 void Tmc51xxDriverState::AppendStallConfig(const StringRef& reply) const noexcept
@@ -834,7 +834,7 @@ void Tmc51xxDriverState::AppendStallConfig(const StringRef& reply) const noexcep
 	{
 		threshold -= 128;
 	}
-	const uint32_t fullstepsPerSecond = StepTimer::StepClockRate/maxStallStepInterval;
+	const uint32_t fullstepsPerSecond = StepClockRate/maxStallStepInterval;
 	const float speed1 = ((fullstepsPerSecond << microstepShiftFactor)/reprap.GetPlatform().DriveStepsPerUnit(axisNumber));
 	const uint32_t tcoolthrs = writeRegisters[WriteTcoolthrs] & ((1ul << 20) - 1u);
 	bool bdummy;
@@ -912,7 +912,7 @@ void Tmc51xxDriverState::TransferSucceeded(const uint8_t *rcvDataBlock) noexcept
 			{
 				if (   (regVal & TMC51xx_RR_STST) != 0
 					|| interval == 0
-					|| interval > StepTimer::StepClockRate/MinimumOpenLoadFullStepsPerSec
+					|| interval > StepClockRate/MinimumOpenLoadFullStepsPerSec
 					|| motorCurrent < MinimumOpenLoadMotorCurrent
 				   )
 				{
