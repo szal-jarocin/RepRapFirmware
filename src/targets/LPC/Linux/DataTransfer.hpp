@@ -20,9 +20,17 @@ void SpiInterrupt(HardwareSPI *spi) noexcept
 
 static inline bool spi_dma_check_rx_complete() noexcept
 {
-    return digitalRead(SbcCsPin); // transfer is complete if SS is high
+    uint32_t startTime = millis();
+    while (!digitalRead(SbcCsPin))			// transfer is complete if CS is high
+    {
+        RTOSIface::Yield();
+        if (millis() - startTime > SpiTransferTimeout)
+        {
+            return false;
+        }
+    }
+    return true;
 }
-
 
 void setup_spi(void *inBuffer, const void *outBuffer, size_t bytesToTransfer)
 {
