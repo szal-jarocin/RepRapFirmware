@@ -58,7 +58,7 @@
 
 #define SUPPORT_LED_STRIPS               1
 #define SUPPORT_BITBANG_NEOPIXEL         1
-#define SUPPORT_ASYNC_MOVES		         0
+#define SUPPORT_ASYNC_MOVES		         1
 #define ALLOCATE_DEFAULT_PORTS           0
 #define TRACK_OBJECT_NAMES		         1
 
