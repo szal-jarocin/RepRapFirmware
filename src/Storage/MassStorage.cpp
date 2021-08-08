@@ -291,7 +291,7 @@ void MassStorage::Init() noexcept
 	}
 
 #if HAS_WRITER_TASK
-	FileStore::InitWriterTask();
+	FileWriteBuffer::InitWriterTask();
 #endif
 # if HAS_MASS_STORAGE
 	static const char * const VolMutexNames[] = { "SD0", "SD1" };

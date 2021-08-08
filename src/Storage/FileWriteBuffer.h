@@ -9,6 +9,9 @@
 #define SRC_STORAGE_FILEWRITEBUFFER_H_
 
 #include "RepRapFirmware.h"
+#if HAS_WRITER_TASK
+#include <RTOSIface/RTOSIface.h>
+#endif
 
 #if SAM4E || SAM4S || SAME70 || SAME5x || STM32F4
 const size_t NumFileWriteBuffers = 2;					// Number of write buffers
@@ -55,6 +58,13 @@ public:
 	size_t Store(const char *data, size_t length) noexcept;				// Stores some data and returns how much could be stored
 	void DataTaken() noexcept { index = 0; }							// Called to indicate that the buffer has been written to the SD card
 	void DataStored(size_t numBytes) noexcept { index += numBytes; }	// Called when more data has been stored directly in the buffer
+#if HAS_WRITER_TASK
+	void BindToFile(FileStore *fs) noexcept;
+	static void Spin() noexcept;
+	static void InitWriterTask() noexcept;
+	bool StartFlushBuffer() noexcept;
+	bool WaitFlushComplete() noexcept;
+#endif
 
 private:
 	static size_t fileWriteBufLen;
@@ -65,6 +75,11 @@ private:
 	char *buf;
 #else
 	alignas(4) char buf[FileWriteBufLen];								// 32-bit aligned buffer for better HSMCI performance
+#endif
+#if HAS_WRITER_TASK
+	volatile bool writePending;
+	volatile TaskHandle waitingTask;
+	FileStore *fileToWrite;
 #endif
 };
 

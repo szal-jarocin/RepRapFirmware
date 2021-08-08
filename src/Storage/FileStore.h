@@ -10,7 +10,9 @@
 #if HAS_MASS_STORAGE || HAS_LINUX_INTERFACE
 # include "CRC32.h"
 #endif
-
+#if HAS_WRITER_TASK
+#include "FileWriteBuffer.h"
+#endif
 class Platform;
 class FileWriteBuffer;
 
@@ -73,6 +75,7 @@ public:
 	bool Invalidate(const FATFS *fs, bool doClose) noexcept;	// Invalidate the file if it uses the specified FATFS object
 	bool IsOpenOn(const FATFS *fs) const noexcept;				// Return true if the file is open on the specified file system
 	bool IsSameFile(const FIL& otherFile) const noexcept;		// Return true if the passed file is the same as ours
+	friend void FileWriteBuffer::Spin();
 #endif
 	uint32_t GetCRC32() const noexcept;
 	bool IsCloseRequested() const noexcept { return closeRequested; }
@@ -83,14 +86,9 @@ public:
 #endif
 
 #endif
-#if HAS_WRITER_TASK
-	static void Spin() noexcept;
-	static void InitWriterTask() noexcept;
-#endif
 private:
 	void Init() noexcept;
 	bool Store(const char *s, size_t len, size_t *bytesWritten) noexcept;	// Write data to the non-volatile storage
-
 	volatile bool closeRequested;
 	bool calcCrc;
 	FileUseMode usageMode;
@@ -107,13 +105,6 @@ private:
 	FileHandle handle;
 	FilePosition length;
 	FilePosition offset;
-#endif
-#if HAS_WRITER_TASK
-	bool FlushWriteBuffer(FileWriteBuffer *buffer) noexcept;
-	bool WaitWriteBufferEmpty(FileWriteBuffer *buffer) noexcept;
-	static FileWriteBuffer * volatile bufferToWrite;
-	static FileStore * volatile fileToWrite;
-	static Mutex writerMutex;
 #endif
 };
 

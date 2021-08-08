@@ -68,6 +68,12 @@ bool FileStore::Open(const char* filePath, OpenMode mode, uint32_t preAllocSize)
 		if (mode == OpenMode::write || mode == OpenMode::writeWithCrc)
 		{
 			writeBuffer = MassStorage::AllocateWriteBuffer();
+#if HAS_WRITER_TASK
+			if (writeBuffer != nullptr)
+			{
+				writeBuffer->BindToFile(this);
+			}
+#endif
 		}
 	}
 
@@ -510,14 +516,13 @@ bool FileStore::Write(const char *s, size_t len) noexcept
 				{
 #if HAS_WRITER_TASK
 					// If the buffer is currently being written we need to wait for it to complete
-					if (writeBuffer == bufferToWrite)
-						WaitWriteBufferEmpty(writeBuffer);
+					writeBuffer->WaitFlushComplete();
 #endif				
 					const size_t bytesStored = writeBuffer->Store(s + totalBytesWritten, len - totalBytesWritten);
 					if (writeBuffer->BytesLeft() == 0)
 					{
 #if HAS_WRITER_TASK
-						writeOk = FlushWriteBuffer(writeBuffer);
+						writeOk = writeBuffer->StartFlushBuffer();
 #else
 						const size_t bytesToWrite = writeBuffer->BytesStored();
 						size_t bytesWritten;
@@ -551,11 +556,7 @@ bool FileStore::Write(const char *s, size_t len) noexcept
 
 int FileStore::CanWrite() noexcept
 {
-#if HAS_WRITER_TASK
-	return writeBuffer == nullptr ? 0x7fffffff : writeBuffer == bufferToWrite ? 0 : writeBuffer->BytesLeft();
-#else
 	return writeBuffer == nullptr ? 0x7fffffff : writeBuffer->BytesLeft();
-#endif
 }
 
 bool FileStore::Flush() noexcept
@@ -573,9 +574,9 @@ bool FileStore::Flush() noexcept
 		if (writeBuffer != nullptr)
 		{
 #if HAS_WRITER_TASK
-			if (bufferToWrite != writeBuffer)
-				FlushWriteBuffer(writeBuffer);
-			WaitWriteBufferEmpty(writeBuffer);
+			writeBuffer->WaitFlushComplete();
+			writeBuffer->StartFlushBuffer();
+			writeBuffer->WaitFlushComplete();
 #else
 			const size_t bytesToWrite = writeBuffer->BytesStored();
 			if (bytesToWrite != 0)
@@ -729,78 +730,99 @@ bool FileStore::SetClusterMap(uint32_t tbl[]) noexcept
 
 #if HAS_WRITER_TASK
 constexpr size_t WriterStackWords = 600;
+constexpr uint32_t FileIoTimeout = 2000;
 
-static TASKMEM Task<WriterStackWords> writerTask;
-
+static TASKMEM Task<WriterStackWords> WriterTask;
+static FileWriteBuffer * volatile WriteQueue[NumFileWriteBuffers];
+static volatile uint32_t CurrentWrite, AddWrite; 
 extern "C" [[noreturn]]void WriterLoop(void *) noexcept
 {
 	for(;;)
-		FileStore::Spin();
+		FileWriteBuffer::Spin();
 }
 
-FileWriteBuffer * volatile FileStore::bufferToWrite;
-FileStore * volatile FileStore::fileToWrite;
-Mutex FileStore::writerMutex;
-
-void FileStore::InitWriterTask() noexcept
+void FileWriteBuffer::InitWriterTask() noexcept
 {
-	writerMutex.Create("FileWriter");
-	bufferToWrite = nullptr;
-	fileToWrite = nullptr;
-	writerTask.Create(WriterLoop, "FSWRITE", nullptr, TaskPriority::SpinPriority+1);
+	WriterTask.Create(WriterLoop, "FSWRITE", nullptr, TaskPriority::SpinPriority+1);
+	for(uint32_t i = 0; i < NumFileWriteBuffers; i++)
+		WriteQueue[i] = nullptr;
+	CurrentWrite = AddWrite = 0;
 }
 
-void FileStore::Spin() noexcept
+void FileWriteBuffer::Spin() noexcept
 {
 	for(;;)
 	{
 		TaskBase::Take();
+		FileWriteBuffer *fb = WriteQueue[CurrentWrite];
+		if (fb != nullptr && fb->writePending)
 		{
-			MutexLocker lock(writerMutex);
-			if (bufferToWrite != nullptr)
+			const size_t bytesToWrite = fb->BytesStored();
+			size_t bytesWritten;
+			const bool writeStatus = fb->fileToWrite->Store(fb->Data(), bytesToWrite, &bytesWritten);
+			fb->DataTaken();
+
+			if (!writeStatus || (bytesToWrite != bytesWritten))
 			{
-				const size_t bytesToWrite = bufferToWrite->BytesStored();
-				size_t bytesWritten;
-				const bool writeStatus = fileToWrite->Store(bufferToWrite->Data(), bytesToWrite, &bytesWritten);
-				bufferToWrite->DataTaken();
-
-				if (!writeStatus || (bytesToWrite != bytesWritten))
-				{
-					reprap.GetPlatform().MessageF(ErrorMessage, "Failed to write data to file, error code %d. Card may be full.\n", (int)writeStatus);
-				}
-				bufferToWrite = nullptr;
-				fileToWrite = nullptr;
+				reprap.GetPlatform().MessageF(ErrorMessage, "Failed to write data to file, error code %d. Card may be full.\n", (int)writeStatus);
 			}
+			WriteQueue[CurrentWrite] = nullptr;
+			fb->writePending = false;
+			TaskHandle t = fb->waitingTask;
+			if (t != nullptr) t->Give();
+			CurrentWrite = (CurrentWrite + 1) % NumFileWriteBuffers;
 		}
 	}
 }
 
 
-bool FileStore::FlushWriteBuffer(FileWriteBuffer *buffer) noexcept
+bool FileWriteBuffer::StartFlushBuffer() noexcept
 {
-	if (buffer->BytesStored() == 0) return true;
-	for (;;)
+	// Anything to do?
+	if (BytesStored() == 0) return true;
 	{
-		MutexLocker lock(writerMutex);
-		if (bufferToWrite == nullptr)
+		TaskCriticalSectionLocker lock;
+		if (WriteQueue[AddWrite] != nullptr)
 		{
-			bufferToWrite = buffer;
-			fileToWrite = this;
-			writerTask.Give();
-			return true;
+			// This should never happen!
+			debugPrintf("Error: Write queue entry is in use\n");
+			return false;
 		}
+		writePending = true;
+		WriteQueue[AddWrite] = this;
+		AddWrite = (AddWrite+1) % NumFileWriteBuffers;
 	}
+	WriterTask.Give();
+	return true;
 }
 
-bool FileStore::WaitWriteBufferEmpty(FileWriteBuffer *buffer) noexcept
+
+bool FileWriteBuffer::WaitFlushComplete() noexcept
 {
-	if (buffer != bufferToWrite) return true;
-	for(;;)
+	if (!writePending) return true;
 	{
-		MutexLocker lock(writerMutex);
-		if (buffer->BytesStored() == 0) return true;
-	}	
+		TaskCriticalSectionLocker lock;
+		if (!writePending) return true;
+		waitingTask = TaskBase::GetCallerTaskHandle();
+	}
+	TaskBase::Take(FileIoTimeout);
+	waitingTask = nullptr;
+	if (writePending)	
+	{
+		// timeout should not ever happen
+		debugPrintf("Failed to flush write buffer\n");
+		return false;
+	}
+	return true;
 }
+
+void FileWriteBuffer::BindToFile(FileStore *fs) noexcept
+{
+	writePending = false;
+	waitingTask = nullptr;
+	fileToWrite = fs;
+}
+
 #endif // HAS_WRITER_TASK
 
 #endif
