@@ -52,6 +52,8 @@
 
 TASKMEM Task<Move::MoveTaskStackWords> Move::moveTask;
 
+static const uint32_t AddMoveTimeout = 20;
+
 // Object model table and functions
 // Note: if using GCC version 7.3.1 20180622 and lambda functions are used in this table, you must compile this file with option -std=gnu++17.
 // Otherwise the table will be allocated in RAM instead of flash, which wastes too much RAM.
@@ -346,6 +348,17 @@ void Move::Exit() noexcept
 
 		if (!moveRead && nextPrepareDelay != 0)
 		{
+#if 0
+			if (nextPrepareDelay == TaskBase::TimeoutUnlimited && reprap.GetGCodes().GetSegmentsLeft() != 0)
+			{
+				debugPrintf("About to wait forever segs %d canAddMove %d\n", reprap.GetGCodes().GetSegmentsLeft(), canAddMove);
+			}
+#endif
+			if (nextPrepareDelay == TaskBase::TimeoutUnlimited && !canAddMove)
+			{
+				nextPrepareDelay = AddMoveTimeout;
+				//debugPrintf("Adjusting wait forever segs %d canAddMove %d\n", reprap.GetGCodes().GetSegmentsLeft(), canAddMove);
+			}
 			TaskBase::Take(nextPrepareDelay);
 		}
 	}
