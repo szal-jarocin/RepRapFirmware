@@ -753,7 +753,6 @@ void FileWriteBuffer::Spin() noexcept
 {
 	for(;;)
 	{
-		TaskBase::Take();
 		FileWriteBuffer *fb = WriteQueue[CurrentWrite];
 		if (fb != nullptr && fb->writePending)
 		{
@@ -772,6 +771,9 @@ void FileWriteBuffer::Spin() noexcept
 			if (t != nullptr) t->Give();
 			CurrentWrite = (CurrentWrite + 1) % NumFileWriteBuffers;
 		}
+		else
+			TaskBase::Take();
+
 	}
 }
 
