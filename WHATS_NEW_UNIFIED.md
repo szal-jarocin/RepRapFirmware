@@ -1,3 +1,12 @@
+Version 3.3.0_6
+===============
+* STM32F4: Fix occassional deadlock when writing accelerometer data to file
+* STM32F4: Update BTT RRF E3 board definitions
+* STM32F4: Fix crash when TMC5160 SPI channel not configured
+* Allow use of named objects when using SBC build
+* STM32F4: Initial support for Fly Super8
+* STM32F4: Initial support for BTT Octopus (STM32429 MCU)
+
 Version 3.3.0_5
 ===============
 * Fix board sometimes resets after WiFi firmware upload
