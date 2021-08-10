@@ -740,7 +740,7 @@ FRESULT FileStore::WaitWriteBufferEmpty(FileWriteBuffer *buffer) noexcept
 			MutexLocker lock(writerMutex);
 			if (buffer->BytesStored() == 0) return FR_OK;
 		}
-		delay(1);		
+		delay(1);
 	}
 }	
 
