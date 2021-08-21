@@ -106,7 +106,14 @@ void LinuxInterface::Spin() noexcept
 	{
 		if (hadReset)
 		{
+#if STM32F$ || LPC17xx
+			// Forcing isReady here when it is not true results in starting a new transfer
+			// even though we have one already in progress, this can result in the connection
+			// being dropped. I don't see any good reaso to do this.
+			isReady = transfer.IsReady();
+#else
 			isReady = true;
+#endif
 			hadReset = false;
 		}
 		else if (transfer.IsReady())
@@ -1135,6 +1142,8 @@ void LinuxInterface::Spin() noexcept
 			{
 				numTimeouts++;
 			}
+			// Turn off all the heaters as soon as we can.
+			reprap.GetHeat().SwitchOffAll(true);
 			reprap.GetPlatform().Message(NetworkInfoMessage, "Lost connection to Linux\n");
 
 			rxPointer = txPointer = txEnd = 0;
@@ -1183,10 +1192,6 @@ void LinuxInterface::Spin() noexcept
 			// Stop the print (if applicable)
 			printStopReason = StopPrintReason::abort;
 			printStopped = true;
-
-			// Turn off all the heaters
-			reprap.GetHeat().SwitchOffAll(true);
-
 			// Reset the SPI connection
 			transfer.ResetConnection();
 
