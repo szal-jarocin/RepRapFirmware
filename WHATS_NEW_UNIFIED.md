@@ -1,11 +1,20 @@
 Version 3.4beta2_2
 ==================
+* Improve SBC reobustness when connection is dropped and reconnects
+* Pick up changes from 3.3.0_7
+
+
+Version 3.3.0_7
+===============
+* STM32F4 Fix occasional bad memory access when using software PWM
+
+Version 3.4beta2_2
+==================
 * Duet3d V3.4beta2 with input shaping
 * Disable support for LPC build
 * STM32F4: Improved writer task interface (handle multiple buffers/tasks)
 * STM32F4: Fix print sometimes stalls
-* STM32F$: Fix deleting sys files when mass storage is not enabled, but linux is
-
+* STM32F4: Fix deleting sys files when mass storage is not enabled, but linux is
 
 Version 3.3.0_6
 ===============
