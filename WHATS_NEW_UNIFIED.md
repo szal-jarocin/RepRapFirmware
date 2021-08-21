@@ -1,3 +1,8 @@
+Version 3.3.0_7
+===============
+* STM32F4 Fix occasional bad memory access when using software PWM
+
+
 Version 3.3.0_6
 ===============
 * STM32F4: Fix occassional deadlock when writing accelerometer data to file
