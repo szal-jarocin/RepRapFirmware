@@ -787,7 +787,6 @@ void DataTransfer::StatefulTransferReset(bool ownRequest) noexcept
 	{
 		debugPrintf(ownRequest ? "Resetting transfer\n" : "Resetting transfer due to Linux request\n");
 	}
-
 	if (ownRequest)
 	{
 		// Invalidate the data to send
@@ -1002,26 +1001,6 @@ bool DataTransfer::IsReady() noexcept
 	{
 		// Reset failed transfers automatically after a certain period of time
 		ResetTransfer();
-	}
-	else if (!IsConnected() && (lastTransferNumber != 0 || (millis() - lastTransferTime > SpiConnectionTimeout*2)))
-	{
-		// The Linux interface is no longer connected...
-		disable_spi();
-
-		// Reset the sequence numbers and clear the data to send
-		lastTransferNumber = 0;
-		rxHeader.sequenceNumber = 0;
-		txHeader.sequenceNumber = 0;
-		lastTransferTime = millis();
-		rxPointer = txPointer = 0;
-		packetId = 0;
-
-		// Kick off a new transfer
-		if (transferReadyHigh)
-		{
-			transferReadyHigh = false;
-		}
-		StartNextTransfer();
 	}
 	return false;
 }
