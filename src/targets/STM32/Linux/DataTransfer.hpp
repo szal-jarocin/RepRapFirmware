@@ -7,7 +7,8 @@ static HardwareSPI *spiDevice;
 
 volatile bool dataReceived = false, transferReadyHigh = false;
 volatile unsigned int spiTxUnderruns = 0, spiRxOverruns = 0;
-bool needInit = true;
+enum SpiState {Disabled, Ready, Busy};
+static volatile enum SpiState status = Disabled;
 
 void InitSpi() noexcept;
 
@@ -15,6 +16,7 @@ void InitSpi() noexcept;
 void SpiInterrupt(HardwareSPI *spi) noexcept
 {
     dataReceived = true;
+    status = Ready;
     TaskBase::GiveFromISR(linuxTaskHandle);
 }
 
@@ -32,30 +34,31 @@ static inline bool spi_dma_check_rx_complete() noexcept
     return true;
 }
 
+void disable_spi()
+{
+    spiDevice->disable();
+    status = Disabled;
+}
+
 void setup_spi(void *inBuffer, const void *outBuffer, size_t bytesToTransfer)
 {
-    if (needInit)
+    if (status == Busy) disable_spi();
+    if (status == Disabled)
     {
         InitSpi();
     }
+    status = Busy;
     spiDevice->flushRx();
     spiDevice->startTransfer((const uint8_t *)outBuffer, (uint8_t *)inBuffer, bytesToTransfer, SpiInterrupt);
-   
     // Begin transfer
     transferReadyHigh = !transferReadyHigh;
     digitalWrite(SbcTfrReadyPin, transferReadyHigh);
 }
 
-void disable_spi()
-{
-    spiDevice->disable();
-    needInit = true;
-}
-    
 // Set up the SPI system
 void InitSpi() noexcept
 {
     spiDevice = (HardwareSPI *) SPI::getSSPDevice(SbcSpiChannel);
     spiDevice->configureDevice(SPI_MODE_SLAVE, 8, (uint8_t)SPI_MODE_0, 100000000, false);
-    needInit = false;
+    status = Ready;
 }
