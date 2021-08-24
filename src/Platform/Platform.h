@@ -399,10 +399,12 @@ public:
 #endif
 
 	// File functions
-#if HAS_MASS_STORAGE || HAS_LINUX_INTERFACE
+#if HAS_MASS_STORAGE || HAS_LINUX_INTERFACE || HAS_EMBEDDED_FILES
 	FileStore* OpenFile(const char* folder, const char* fileName, OpenMode mode, uint32_t preAllocSize = 0) const noexcept;
 	bool FileExists(const char* folder, const char *filename) const noexcept;
+# if HAS_MASS_STORAGE || HAS_LINUX_INTERFACE
 	bool Delete(const char* folder, const char *filename) const noexcept;
+#endif
 
 	const char* GetWebDir() const noexcept; 					// Where the html etc files are
 	const char* GetGCodeDir() const noexcept; 					// Where the gcodes are
@@ -412,7 +414,9 @@ public:
 	GCodeResult SetSysDir(const char* dir, const StringRef& reply) noexcept;				// Set the system files path
 	bool SysFileExists(const char *filename) const noexcept;
 	FileStore* OpenSysFile(const char *filename, OpenMode mode) const noexcept;
+# if HAS_MASS_STORAGE || HAS_LINUX_INTERFACE
 	bool DeleteSysFile(const char *filename) const noexcept;
+# endif
 	bool MakeSysFileName(const StringRef& result, const char *filename) const noexcept;
 	void AppendSysDir(const StringRef & path) const noexcept;
 	ReadLockedPointer<const char> GetSysDir() const noexcept;	// where the system files are
@@ -549,7 +553,7 @@ public:
 
 	// MCU temperature
 #if HAS_CPU_TEMP_SENSOR
-	MinMaxCurrent GetMcuTemperatures() const noexcept;
+	MinCurMax GetMcuTemperatures() const noexcept;
 	void SetMcuTemperatureAdjust(float v) noexcept { mcuTemperatureAdjust = v; }
 	float GetMcuTemperatureAdjust() const noexcept { return mcuTemperatureAdjust; }
 #elif LPC17xx
@@ -560,7 +564,7 @@ public:
 
 #if HAS_VOLTAGE_MONITOR
 	// Power in voltage
-	MinMaxCurrent GetPowerVoltages() const noexcept;
+	MinCurMax GetPowerVoltages() const noexcept;
 	float GetCurrentPowerVoltage() const noexcept;
 	bool IsPowerOk() const noexcept;
 	void DisableAutoSave() noexcept;
@@ -575,7 +579,7 @@ public:
 
 #if HAS_12V_MONITOR
 	// 12V rail voltage
-	MinMaxCurrent GetV12Voltages() const noexcept;
+	MinCurMax GetV12Voltages() const noexcept;
 	float GetCurrentV12Voltage() const noexcept;
 #endif
 
@@ -644,10 +648,15 @@ public:
 	GCodeResult EutSetStepsPerMmAndMicrostepping(const CanMessageMultipleDrivesRequest<StepsPerUnitAndMicrostepping>& msg, size_t dataLength, const StringRef& reply) noexcept;
 	GCodeResult EutHandleSetDriverStates(const CanMessageMultipleDrivesRequest<DriverStateControl>& msg, const StringRef& reply) noexcept;
 	GCodeResult EutProcessM569(const CanMessageGeneric& msg, const StringRef& reply) noexcept;
+	void SendDriversStatus(CanMessageBuffer& buf) noexcept;
 #endif
 
 #if VARIABLE_NUM_DRIVERS
 	void AdjustNumDrivers(size_t numDriversNotAvailable) noexcept;
+#endif
+
+#if SUPPORT_CAN_EXPANSION
+	void OnProcessingCanMessage();										// called when we start processing any CAN message except for regular messages e.g. time sync
 #endif
 
 protected:
@@ -823,7 +832,7 @@ private:
 #endif
 
 	// Files
-#if HAS_MASS_STORAGE || HAS_LINUX_INTERFACE
+#if HAS_MASS_STORAGE || HAS_LINUX_INTERFACE || HAS_EMBEDDED_FILES
 	const char *sysDir;
 	mutable ReadWriteLock sysDirLock;
 #endif
@@ -870,6 +879,10 @@ private:
 
 	uint32_t lastWarningMillis;							// When we last sent a warning message
 
+#ifdef DUET3MINI
+	uint32_t whenLastCanMessageProcessed;
+#endif
+
 	// RTC
 	time_t realTime;									// the current date/time, or zero if never set
 	uint32_t timeLastUpdatedMillis;						// the milliseconds counter when we last incremented the time
@@ -894,7 +907,7 @@ private:
 #endif
 };
 
-#if HAS_MASS_STORAGE
+#if HAS_MASS_STORAGE || HAS_EMBEDDED_FILES
 
 // Where the htm etc files are
 inline const char* Platform::GetWebDir() const noexcept

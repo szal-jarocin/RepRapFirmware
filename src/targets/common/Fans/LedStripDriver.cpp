@@ -164,6 +164,24 @@ void LedStripDriver::Init() noexcept
 	needStartFrame = true;
 }
 
+// Return true if we must stop movement before we handle this command
+bool LedStripDriver::MustStopMovement(GCodeBuffer& gb) noexcept
+{
+#if SUPPORT_BITBANG_NEOPIXEL
+	try
+	{
+		const LedType lt = (gb.Seen('X')) ? (LedType)gb.GetLimitedUIValue('X', 0, ARRAY_SIZE(LedTypeNames)) : ledType;
+		return (lt == LedType::neopixelRGBBitBang || lt == LedType::neopixelRGBWBitBang) & gb.SeenAny("RUBWPYSF");
+	}
+	catch (const GCodeException&)
+	{
+		return true;
+	}
+#else
+	return false;
+#endif
+}
+
 // This function handles M150
 // For DotStar LEDs:
 // 	We can handle an unlimited length LED strip, because we can send the data in multiple chunks.
@@ -175,6 +193,16 @@ void LedStripDriver::Init() noexcept
 //	We buffer up incoming data until we get a command with the Following parameter missing or set to zero, then we DMA it all.
 GCodeResult LedStripDriver::SetColours(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeException)
 {
+#if SUPPORT_BITBANG_NEOPIXEL
+	// Interrupts are disabled while bit-banging data, so make sure movement has stopped if we are going to use bit-banging
+	if (MustStopMovement(gb))
+	{
+		if (!reprap.GetGCodes().LockMovementAndWaitForStandstill(gb))
+		{
+			return GCodeResult::notFinished;
+		}
+	}
+#endif
 	if (needStartFrame
 		&& ((StepTimer::GetTimerTicks() - whenOutputFinished) < (uint32_t)PixelTimings[3])
 	   )
@@ -287,12 +315,6 @@ GCodeResult LedStripDriver::SetColours(GCodeBuffer& gb, const StringRef& reply) 
 	case LedType::neopixelRGBBitBang:
 	case LedType::neopixelRGBWBitBang:
 #if SUPPORT_BITBANG_NEOPIXEL
-		// Interrupts are disabled while bit-banging the data, so make sure movement has stopped
-		if (!reprap.GetGCodes().LockMovementAndWaitForStandstill(gb))
-		{
-			return GCodeResult::notFinished;
-		}
-
 		// Scale RGB by the brightness
 		return BitBangNeoPixelData(	(uint8_t)((red * brightness + 255) >> 8),
 									(uint8_t)((green * brightness + 255) >> 8),

@@ -336,7 +336,7 @@ private:
 			static_assert(MaxAxesPlusExtruders <= DriversBitmap::MaxBits());
 #endif
 			// These are used only in delta calculations
-#if !DM_USE_FPU
+#if !MS_USE_FPU
 			int32_t cKc;							// The Z movement fraction multiplied by Kc and converted to integer
 #endif
 		} afterPrepare;

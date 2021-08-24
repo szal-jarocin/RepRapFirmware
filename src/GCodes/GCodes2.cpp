@@ -737,7 +737,7 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeEx
 				}
 				break;
 
-#if HAS_MASS_STORAGE
+#if HAS_MASS_STORAGE || HAS_EMBEDDED_FILES
 			case 20:		// List files on SD card
 				if (!LockFileSystem(gb))		// don't allow more than one at a time to avoid contention on output buffers
 				{
@@ -838,7 +838,7 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeEx
 				break;
 #endif
 
-#if HAS_MASS_STORAGE || HAS_LINUX_INTERFACE
+#if HAS_MASS_STORAGE || HAS_LINUX_INTERFACE || HAS_EMBEDDED_FILES
 			case 23: // Set file to print
 			case 32: // Select file and start SD print
 				// We now allow a file that is being printed to chain to another file. This is required for the resume-after-power-fail functionality.
@@ -863,7 +863,7 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeEx
 						||
 # endif
 #endif
-#if HAS_MASS_STORAGE
+#if HAS_MASS_STORAGE || HAS_EMBEDDED_FILES
 						QueueFileToPrint(filename.c_str(), reply)
 #endif
 					   )
@@ -923,9 +923,9 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeEx
 							}
 						}
 					}
-#if HAS_MASS_STORAGE || HAS_LINUX_INTERFACE
+#if HAS_MASS_STORAGE || HAS_LINUX_INTERFACE || HAS_EMBEDDED_FILES
 					else if (
-# if HAS_MASS_STORAGE
+# if HAS_MASS_STORAGE || HAS_EMBEDDED_FILES
 								!fileToPrint.IsLive()
 # else
 								true
@@ -958,7 +958,7 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeEx
 # if HAS_LINUX_INTERFACE
 								if (!reprap.UsingLinuxInterface())
 # endif
-# if HAS_MASS_STORAGE
+# if HAS_MASS_STORAGE || HAS_EMBEDDED_FILES
 								{
 									fileToPrint.Seek(fileOffsetToPrint);
 								}
@@ -1048,7 +1048,7 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeEx
 				}
 				break;
 
-#if HAS_MASS_STORAGE || HAS_LINUX_INTERFACE
+#if HAS_MASS_STORAGE || HAS_LINUX_INTERFACE || HAS_EMBEDDED_FILES
 			case 26: // Set SD position
 				// This is used between executing M23 to set up the file to print, and M25 to print it
 				gb.MustSee('S');
@@ -1064,7 +1064,7 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeEx
 				break;
 #endif
 
-#if HAS_MASS_STORAGE
+#if HAS_MASS_STORAGE || HAS_EMBEDDED_FILES
 			case 27: // Report print status - Deprecated
 				if (reprap.GetPrintMonitor().IsPrinting())
 				{
@@ -1079,7 +1079,9 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeEx
 				}
 				reply.copy("Not SD printing.");
 				break;
+#endif
 
+#if HAS_MASS_STORAGE
 			case 28: // Write to file
 				{
 					String<MaxFilenameLength> filename;
@@ -1112,7 +1114,7 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeEx
 
 			// For case 32, see case 23
 
-#if HAS_MASS_STORAGE || HAS_LINUX_INTERFACE
+#if HAS_MASS_STORAGE || HAS_LINUX_INTERFACE || HAS_EMBEDDED_FILES
 			case 36:	// Return file information
 # if HAS_LINUX_INTERFACE
 				if (reprap.UsingLinuxInterface())
@@ -1122,7 +1124,7 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeEx
 				else
 # endif
 				{
-# if HAS_MASS_STORAGE
+# if HAS_MASS_STORAGE || HAS_EMBEDDED_FILES
 					if (!LockFileSystem(gb))									// getting file info takes several calls and isn't reentrant
 					{
 						return false;
@@ -1172,7 +1174,7 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeEx
 				break;
 #endif
 
-#if HAS_MASS_STORAGE
+#if HAS_MASS_STORAGE || HAS_EMBEDDED_FILES
 			case 38: // Report SHA1 of file
 				if (!LockFileSystem(gb))								// getting file hash takes several calls and isn't reentrant
 				{
@@ -1200,7 +1202,9 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeEx
 					result = AdvanceHash(reply);
 				}
 				break;
+#endif
 
+#if HAS_MASS_STORAGE
 			case 39:	// Return SD card info
 				{
 					uint32_t slot = 0;
@@ -1675,7 +1679,11 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeEx
 						reply.catf(" + %s", additionalExpansionName);
 					}
 #endif
+#ifdef DUET3_ATE
+					reply.lcatf("ATE firmware version %s date %s %s", Duet3Ate::GetFirmwareVersionString(), Duet3Ate::GetFirmwareDateString(), Duet3Ate::GetFirmwareTimeString());
+#else
 					reply.catf(" FIRMWARE_DATE: %s%s", DATE, TIME_SUFFIX);
+#endif
 				}
 				break;
 
@@ -2957,6 +2965,7 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeEx
 				result = buildObjects.HandleM486(gb, reply, outBuf);
 				break;
 
+#if HAS_MASS_STORAGE || HAS_EMBEDDED_FILES
 			case 501: // Load parameters from config-override.g
 				if (!gb.LatestMachineState().runningM502 && !gb.LatestMachineState().runningM501)		// when running M502 we ignore config-override.g
 				{
@@ -2983,7 +2992,6 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeEx
 				}
 				break;
 
-#if HAS_MASS_STORAGE
 			case 503: // List variable settings
 				{
 					if (!LockFileSystem(gb))
@@ -3380,11 +3388,30 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeEx
 				break;
 
 			case 567: // Set/report tool mix ratios
-				if (gb.Seen('P'))
 				{
-					const int8_t tNumber = gb.GetIValue();
+					int tNumber;
+					if (gb.Seen('P'))
+					{
+						tNumber = (int)gb.GetUIValue();
+					}
+					else
+					{
+						tNumber = reprap.GetCurrentToolNumber();
+						if (tNumber < 0)
+						{
+							reply.copy("No tool number given and no current tool");
+							result = GCodeResult::error;
+							break;
+						}
+					}
+
 					ReadLockedPointer<Tool> const tool = reprap.GetTool(tNumber);
-					if (tool.IsNotNull())
+					if (tool.IsNull())
+					{
+						reply.copy("Invalid tool number");
+						result = GCodeResult::error;
+					}
+					else
 					{
 						if (gb.Seen(extrudeLetter))
 						{
@@ -3416,19 +3443,8 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeEx
 				break;
 
 			case 568: // Tool Settings
+				if (simulationMode == 0)
 				{
-					const unsigned int toolNumber = gb.GetLimitedUIValue('P', MaxTools);
-					if (reprap.GetTool(toolNumber).IsNull())
-					{
-						reply.cat("Tool settings can only be set for existing tools");
-						result = GCodeResult::error;
-						break;
-					}
-
-					if (simulationMode != 0)
-					{
-						break;
-					}
 					result = SetOrReportOffsets(gb, reply, 568);
 				}
 				break;

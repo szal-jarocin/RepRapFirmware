@@ -400,7 +400,7 @@ GCodeResult GCodes::DefineGrid(GCodeBuffer& gb, const StringRef &reply) THROWS(G
 }
 
 
-#if HAS_MASS_STORAGE || HAS_LINUX_INTERFACE
+#if HAS_MASS_STORAGE || HAS_LINUX_INTERFACE || HAS_EMBEDDED_FILES
 
 // Handle M37 to simulate a whole file
 GCodeResult GCodes::SimulateFile(GCodeBuffer& gb, const StringRef &reply, const StringRef& file, bool updateFile)
@@ -411,7 +411,7 @@ GCodeResult GCodes::SimulateFile(GCodeBuffer& gb, const StringRef &reply, const 
 		return GCodeResult::error;
 	}
 
-# if HAS_MASS_STORAGE
+# if HAS_MASS_STORAGE || HAS_EMBEDDED_FILES
 	if (
 #  if HAS_LINUX_INTERFACE
 		reprap.UsingLinuxInterface() ||

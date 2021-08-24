@@ -789,6 +789,7 @@ void LinuxInterface::Spin() noexcept
 					if (fileOperation == FileOperation::checkFileExists)
 					{
 						fileSuccess = transfer.ReadBoolean();
+						fileOperation = FileOperation::none;
 						fileSemaphore.Give();
 					}
 					else
@@ -803,6 +804,7 @@ void LinuxInterface::Spin() noexcept
 					if (fileOperation == FileOperation::deleteFileOrDirectory)
 					{
 						fileSuccess = transfer.ReadBoolean();
+						fileOperation = FileOperation::none;
 						fileSemaphore.Give();
 					}
 					else
@@ -819,6 +821,7 @@ void LinuxInterface::Spin() noexcept
 					{
 						fileHandle = transfer.ReadOpenFileResult(fileOffset);
 						fileSuccess = (fileHandle != noFileHandle);
+						fileOperation = FileOperation::none;
 						fileSemaphore.Give();
 					}
 					else
@@ -834,6 +837,7 @@ void LinuxInterface::Spin() noexcept
 						int bytesRead = transfer.ReadFileData(fileReadBuffer, fileBufferLength);
 						fileSuccess = bytesRead >= 0;
 						fileOffset = fileSuccess ? bytesRead : 0;
+						fileOperation = FileOperation::none;
 						fileSemaphore.Give();
 					}
 					else
@@ -847,9 +851,10 @@ void LinuxInterface::Spin() noexcept
 					if (fileOperation == FileOperation::write)
 					{
 						fileSuccess = transfer.ReadBoolean();
-						if (!fileSuccess || --numFileWriteRequests == 0)
+						if (!fileSuccess || fileBufferLength == 0)
 						{
 							fileOperationPending = false;
+							fileOperation = FileOperation::none;
 							fileSemaphore.Give();
 						}
 					}
@@ -864,6 +869,7 @@ void LinuxInterface::Spin() noexcept
 					if (fileOperation == FileOperation::seek)
 					{
 						fileSuccess = transfer.ReadBoolean();
+						fileOperation = FileOperation::none;
 						fileSemaphore.Give();
 					}
 					else
@@ -877,6 +883,7 @@ void LinuxInterface::Spin() noexcept
 					if (fileOperation == FileOperation::truncate)
 					{
 						fileSuccess = transfer.ReadBoolean();
+						fileOperation = FileOperation::none;
 						fileSemaphore.Give();
 					}
 					else
@@ -899,8 +906,8 @@ void LinuxInterface::Spin() noexcept
 			}
 
 			// Check if we can wait a short moment to reduce CPU load on the SBC
-			if (!writingIap && !skipNextDelay && numEvents < numMaxEvents && !waitingForFileChunk &&
-				!fileOperationPending && (fileOperation != FileOperation::write || numFileWriteRequests == 0))
+			if (!writingIap && !skipNextDelay && numEvents < numMaxEvents &&
+				!waitingForFileChunk && !fileOperationPending && fileOperation == FileOperation::none)
 			{
 				delaying = true;
 				if (!TaskBase::Take(maxDelayBetweenTransfers))
@@ -973,7 +980,6 @@ void LinuxInterface::Spin() noexcept
 						size_t bytesNotWritten = fileBufferLength;
 						if (transfer.WriteFileData(fileHandle, fileWriteBuffer, fileBufferLength))
 						{
-							++numFileWriteRequests;
 							fileWriteBuffer += bytesNotWritten - fileBufferLength;
 							if (fileBufferLength == 0)
 							{
@@ -996,7 +1002,8 @@ void LinuxInterface::Spin() noexcept
 						if (!fileOperationPending)
 						{
 							// Close requests don't get a result back, so they can be resolved as soon as they are sent to the SBC
-							(void)fileSemaphore.Give();
+							fileOperation = FileOperation::none;
+							fileSemaphore.Give();
 						}
 						break;
 
@@ -1119,15 +1126,9 @@ void LinuxInterface::Spin() noexcept
 				}
 
 				// Send pause notification on demand
-				if (reportPause)
+				if (reportPause && transfer.WritePrintPaused(pauseFilePosition, pauseReason))
 				{
-					GCodeBuffer * const fileGCode = reprap.GetGCodes().GetGCodeBuffer(GCodeChannel::File);
-					MutexLocker locker(fileGCode->mutex, LinuxYieldTimeout);
-					if (locker && transfer.WritePrintPaused(pauseFilePosition, pauseReason))
-					{
-						fileGCode->Invalidate();
-						reportPause = false;
-					}
+					reportPause = false;
 				}
 			}
 
@@ -1156,11 +1157,10 @@ void LinuxInterface::Spin() noexcept
 				requestedFileSemaphore.Give();
 			}
 
-			if ((!fileOperationPending && fileOperation != FileOperation::none) ||
-				(fileOperation == FileOperation::write && numFileWriteRequests != 0))
+			if (fileOperation != FileOperation::none)
 			{
 				fileOperation = FileOperation::none;
-				(void)fileSemaphore.Give();
+				fileSemaphore.Give();
 			}
 			MassStorage::InvalidateAllFiles();
 
@@ -1511,7 +1511,6 @@ bool LinuxInterface::WriteFile(FileHandle handle, const char *buffer, size_t buf
 	fileHandle = handle;
 	fileWriteBuffer = buffer;
 	fileBufferLength = bufferLength;
-	numFileWriteRequests = 0;
 	fileOperation = FileOperation::write;
 	fileOperationPending = true;
 
