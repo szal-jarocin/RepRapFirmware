@@ -59,10 +59,7 @@ public:
 	bool IsCloseRequested() const noexcept { return closeRequested; }
 	bool IsFree() const noexcept { return usageMode == FileUseMode::free; }
 	FilePosition Position() const noexcept;						// Return the current position in the file, assuming we are reading the file
-
-#if HAS_MASS_STORAGE || HAS_EMBEDDED_FILES
 	void Duplicate() noexcept;									// Create a second reference to this file
-#endif
 
 #if HAS_MASS_STORAGE || HAS_LINUX_INTERFACE
 	FileWriteBuffer *GetWriteBuffer() const noexcept;			// Return a pointer to the remaining space for writing
@@ -85,7 +82,9 @@ public:
 	bool Invalidate(const FATFS *fs, bool doClose) noexcept;	// Invalidate the file if it uses the specified FATFS object
 	bool IsOpenOn(const FATFS *fs) const noexcept;				// Return true if the file is open on the specified file system
 	bool IsSameFile(const FIL& otherFile) const noexcept;		// Return true if the passed file is the same as ours
+#if HAS_WRITER_TASK
 	friend void FileWriteBuffer::Spin();
+#endif
 # if 0	// not currently used
 	bool SetClusterMap(uint32_t[]) noexcept;					// Provide a cluster map for fast seeking
 # endif

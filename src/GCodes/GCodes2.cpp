@@ -2965,7 +2965,7 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeEx
 				result = buildObjects.HandleM486(gb, reply, outBuf);
 				break;
 
-#if HAS_MASS_STORAGE || HAS_EMBEDDED_FILES
+#if HAS_MASS_STORAGE || HAS_EMBEDDED_FILES || HAS_LINUX_INTERFACE
 			case 501: // Load parameters from config-override.g
 				if (!gb.LatestMachineState().runningM502 && !gb.LatestMachineState().runningM501)		// when running M502 we ignore config-override.g
 				{
@@ -2991,7 +2991,9 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeEx
 					DoFileMacro(gb, CONFIG_FILE, true, code);
 				}
 				break;
+#endif
 
+#if HAS_MASS_STORAGE || HAS_EMBEDDED_FILES
 			case 503: // List variable settings
 				{
 					if (!LockFileSystem(gb))
@@ -4313,7 +4315,11 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeEx
 						platform.SetIdleCurrentFactor(gb.GetFValue()/100.0);
 					}
 
-					if (!seen)
+					if (seen)
+					{
+						reprap.MoveUpdated();
+					}
+					else
 					{
 						reply.copy(	(code == 913) ? "Motor current % of normal - "
 #if HAS_SMART_DRIVERS
@@ -4323,12 +4329,12 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeEx
 								);
 						for (size_t axis = 0; axis < numTotalAxes; ++axis)
 						{
-							reply.catf("%c:%d, ", axisLetters[axis], (int)platform.GetMotorCurrent(axis, code));
+							reply.catf("%c:%d, ", axisLetters[axis], platform.GetMotorCurrent(axis, code));
 						}
 						reply.cat("E");
 						for (size_t extruder = 0; extruder < numExtruders; extruder++)
 						{
-							reply.catf(":%d", (int)platform.GetMotorCurrent(ExtruderToLogicalDrive(extruder), code));
+							reply.catf(":%d", platform.GetMotorCurrent(ExtruderToLogicalDrive(extruder), code));
 						}
 						if (code == 906)
 						{

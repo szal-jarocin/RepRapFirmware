@@ -306,7 +306,7 @@ bool StringParser::CheckMetaCommand(const StringRef& reply) THROWS(GCodeExceptio
 {
 	if (overflowed)
 	{
-		throw GCodeException(gb.GetLineNumber(), ARRAY_SIZE(gb.buffer) - 1, "GCode command too long");
+		throw GCodeException(gb.GetLineNumber(), ARRAY_SIZE(gb.buffer) + commandIndent - 1, "GCode command too long");
 	}
 
 	const bool doingFile = gb.IsDoingFile();
@@ -742,14 +742,48 @@ void StringParser::ProcessAbortCommand(const StringRef& reply) noexcept
 	reprap.GetGCodes().AbortPrint(gb);
 }
 
-void StringParser::ProcessEchoCommand(const StringRef& reply)
+void StringParser::ProcessEchoCommand(const StringRef& reply) THROWS(GCodeException)
 {
+	SkipWhiteSpace();
+
+#if HAS_MASS_STORAGE || HAS_LINUX_INTERFACE
+	FileData outputFile;
+#endif
+
+	if (gb.buffer[readPointer] == '>')
+	{
+#if HAS_MASS_STORAGE || HAS_LINUX_INTERFACE
+		// Redirect the line to file
+		++readPointer;
+		OpenMode openMode;
+		if (gb.buffer[readPointer] == '>')
+		{
+			openMode = OpenMode::append;
+			++readPointer;
+		}
+		else
+		{
+			openMode = OpenMode::write;
+		}
+		String<MaxFilenameLength> filename;
+		GetQuotedString(filename.GetRef(), false);
+		FileStore * const f = reprap.GetPlatform().OpenSysFile(filename.c_str(), openMode);
+		if (f == nullptr)
+		{
+			throw GCodeException(gb.GetLineNumber(), readPointer + commandIndent, "Failed to create or open file");
+		}
+		outputFile.Set(f);
+#else
+		throw GCodeException(gb.GetLineNumber(), readPointer + commandIndent, "Can't write to this file system");
+#endif
+	}
+
 	while (true)
 	{
 		SkipWhiteSpace();
 		if (gb.buffer[readPointer] == 0)
 		{
-			return;
+			break;
 		}
 		ExpressionParser parser(gb, gb.buffer + readPointer, gb.buffer + ARRAY_SIZE(gb.buffer), commandIndent + readPointer);
 		const ExpressionValue val = parser.Parse();
@@ -769,10 +803,24 @@ void StringParser::ProcessEchoCommand(const StringRef& reply)
 			throw ConstructParseException("expected ','");
 		}
 	}
+
+#if HAS_MASS_STORAGE || HAS_LINUX_INTERFACE
+	if (outputFile.IsLive())
+	{
+		reply.cat('\n');
+		const bool ok = outputFile.Write(reply.c_str());
+		outputFile.Close();
+		reply.Clear();
+		if (!ok)
+		{
+			throw GCodeException(gb.GetLineNumber(), -1, "Failed to write to redirect file");
+		}
+	}
+#endif
 }
 
 // Evaluate the condition that should follow 'if' or 'while'
-bool StringParser::EvaluateCondition()
+bool StringParser::EvaluateCondition() THROWS(GCodeException)
 {
 	ExpressionParser parser(gb, gb.buffer + readPointer, gb.buffer + ARRAY_SIZE(gb.buffer), commandIndent + readPointer);
 	const bool b = parser.ParseBoolean();
@@ -1222,7 +1270,7 @@ void StringParser::CheckArrayLength(size_t actualLength, size_t maxLength) THROW
 	}
 }
 
-// Get and copy a quoted string returning true if successful
+// Get and copy a quoted string returning true if successful, leaving the read pointer just after the string
 void StringParser::GetQuotedString(const StringRef& str, bool allowEmpty) THROWS(GCodeException)
 {
 	if (readPointer <= 0)
@@ -1256,7 +1304,7 @@ void StringParser::GetQuotedString(const StringRef& str, bool allowEmpty) THROWS
 	}
 }
 
-// Given that the current character is double-quote, fetch the quoted string
+// Given that the current character is double-quote, fetch the quoted string, leaving the read pointer just after the string
 void StringParser::InternalGetQuotedString(const StringRef& str) THROWS(GCodeException)
 {
 	str.Clear();
@@ -1617,9 +1665,12 @@ void StringParser::FinishWritingBinary() noexcept
 	}
 }
 
+#endif
+
 // This is called when we reach the end of the file we are reading from. Return true if there is a line waiting to be processed.
 bool StringParser::FileEnded() noexcept
 {
+#if HAS_MASS_STORAGE
 	if (IsWritingBinary())
 	{
 		// We are in the middle of writing a binary file but the input stream has ended
@@ -1627,6 +1678,7 @@ bool StringParser::FileEnded() noexcept
 		Init();
 		return false;
 	}
+#endif
 
 	bool commandCompleted = false;
 	if (gcodeLineEnd != 0)				// if there is something in the buffer
@@ -1635,6 +1687,7 @@ bool StringParser::FileEnded() noexcept
 		commandCompleted = true;
 	}
 
+#if HAS_MASS_STORAGE
 	if (IsWritingFile())
 	{
 		if (commandCompleted)
@@ -1659,6 +1712,7 @@ bool StringParser::FileEnded() noexcept
 		reprap.GetGCodes().HandleReply(gb, GCodeResult::ok, r);
 		return false;
 	}
+#endif
 
 	if (!commandCompleted && gb.CurrentFileMachineState().GetIterations() >= 0)
 	{
@@ -1669,8 +1723,6 @@ bool StringParser::FileEnded() noexcept
 	}
 	return commandCompleted;
 }
-
-#endif
 
 // Check that a number was found. If it was, advance readPointer past it. Otherwise throw an exception.
 void StringParser::CheckNumberFound(const char *endptr) THROWS(GCodeException)

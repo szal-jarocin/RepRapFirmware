@@ -390,7 +390,7 @@ bool GCodes::IsTriggerBusy() const noexcept
 // Copy the feed rate etc. from the channel that was running config.g to the input channels
 void GCodes::CheckFinishedRunningConfigFile(GCodeBuffer& gb) noexcept
 {
-	if (runningConfigFile)
+	if (runningConfigFile && gb.GetChannel() == GCodeChannel::Trigger)
 	{
 		gb.LatestMachineState().GetPrevious()->CopyStateFrom(gb.LatestMachineState());	// so that M83 etc. in  nested file don't get forgotten
 		if (gb.LatestMachineState().GetPrevious()->GetPrevious() == nullptr)
@@ -481,9 +481,9 @@ void GCodes::Spin() noexcept
 
 #if HAS_LINUX_INTERFACE
 	// Need to check if the print has been stopped by the SBC
-	if (reprap.UsingLinuxInterface() && reprap.GetLinuxInterface().HasPrintStopped())
+	if (reprap.UsingLinuxInterface() && reprap.GetLinuxInterface().IsPrintAborted())
 	{
-		StopPrint(reprap.GetLinuxInterface().GetPrintStopReason());
+		StopPrint(StopPrintReason::abort);
 	}
 #endif
 
@@ -3465,41 +3465,55 @@ GCodeResult GCodes::SetOrReportOffsets(GCodeBuffer &gb, const StringRef& reply, 
 	if (!settingOffset && !settingTemps && !settingOther)
 	{
 		// Print offsets and temperatures
-		reply.printf("Tool %d offsets:", tool->Number());
-		for (size_t axis = 0; axis < numVisibleAxes; ++axis)
+		reply.printf("Tool %d", tool->Number());
+		char c;
+
+		// Print the tool offsets if we are executing G10
+		if (code == 10)
 		{
-			reply.catf(" %c%.3f", axisLetters[axis], (double)tool->GetOffset(axis));
+			reply.cat(": offsets");
+			for (size_t axis = 0; axis < numVisibleAxes; ++axis)
+			{
+				reply.catf(" %c%.3f", axisLetters[axis], (double)tool->GetOffset(axis));
+			}
+			c = ',';
 		}
+		else
+		{
+			c = ':';
+		}
+
+		// Print the heater active/standby temperatures whichever code we are executing
 		if (hCount != 0)
 		{
-			reply.cat(", active/standby temperature(s):");
+			reply.catf("%c active/standby temperature(s)", c);
+			c = ',';
 			for (size_t heater = 0; heater < hCount; heater++)
 			{
 				reply.catf(" %.1f/%.1f", (double)tool->GetToolHeaterActiveTemperature(heater), (double)tool->GetToolHeaterStandbyTemperature(heater));
 			}
 		}
+
+		// Print the spindle number if we are executing M568
 		if (code == 568 && tool->GetSpindleNumber() > -1)
 		{
-			reply.catf(", spindle: %d@%" PRIu32 "RPM", tool->GetSpindleNumber(), tool->GetSpindleRpm());
+			reply.catf("%c spindle %d@%" PRIu32 "rpm", c, tool->GetSpindleNumber(), tool->GetSpindleRpm());
 		}
 	}
 	else
 	{
+#if 0 // Do not warn about deprecation for now
+		if (code == 10 && settingTemps)
+		{
+			reply.lcat("This use of G10 is deprecated. Please use M568 to set tool temperatures.");
+			return GCodeResult::warning;
+		}
+#endif
 		String<StringLengthLoggedCommand> scratch;
 		gb.AppendFullCommand(scratch.GetRef());
 		platform.Message(MessageType::LogInfo, scratch.c_str());
 	}
-#if 0 // Do not warn about deprecation for now
-	if (code == 10)
-	{
-		if (reply.strlen() > 0)
-		{
-			reply.cat('\n');
-		}
-		reply.cat("Tool settings (offsets, heater temps, spindle RPM) have been moved to M568");
-		return GCodeResult::warning;
-	}
-#endif
+
 	return GCodeResult::ok;
 }
 
@@ -4210,8 +4224,9 @@ void GCodes::StopPrint(StopPrintReason reason) noexcept
 	}
 
 	updateFileWhenSimulationComplete = false;
-	reprap.GetPrintMonitor().StoppedPrint();		// must do this after printing the simulation details not before, because it clears the filename and pause time
+	reprap.GetPrintMonitor().StoppedPrint();			// must do this after printing the simulation details not before, because it clears the filename and pause time
 	buildObjects.Init();
+	fileGCode->LatestMachineState().variables.Clear();	// delete any local variables that the file created
 }
 
 // Return true if all the heaters for the specified tool are at their set temperatures

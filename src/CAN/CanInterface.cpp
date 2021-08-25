@@ -13,6 +13,7 @@
 #include "CommandProcessor.h"
 #include "CanMessageGenericConstructor.h"
 #include <CanMessageBuffer.h>
+#include <CanMessageGenericTables.h>
 #include <Movement/DDA.h>
 #include <Movement/DriveMovement.h>
 #include <Movement/StepTimer.h>
@@ -21,6 +22,7 @@
 #include <Platform/TaskPriorities.h>
 #include <GCodes/GCodeException.h>
 #include <GCodes/GCodeBuffer/GCodeBuffer.h>
+#include <ClosedLoop/ClosedLoop.h>
 
 #if HAS_LINUX_INTERFACE
 # include "Linux/LinuxInterface.h"
@@ -929,6 +931,44 @@ pre(driver.IsRemote())
 			return cons.SendAndGetResponse(CanMessageType::m569p2, driver.boardAddress, reply);
 		}
 
+	case 5:
+		return ClosedLoop::StartDataCollection(driver, gb, reply);
+
+	case 6:
+		{
+			GCodeResult rslt;
+			{
+				CanMessageGenericConstructor cons(M569Point6Params);
+				cons.PopulateFromCommand(gb);
+				rslt = cons.SendAndGetResponse(CanMessageType::m569p6, driver.boardAddress, reply);
+			}
+			while (rslt == GCodeResult::notFinished)
+			{
+				delay(100);							// give it some time to do the tuning move
+				CanMessageGenericConstructor cons(M569Point6Params_StatusOnly);
+				rslt = cons.SendAndGetResponse(CanMessageType::m569p6, driver.boardAddress, reply);
+			}
+			return rslt;
+		}
+
+	case 7:
+		if (gb.Seen('C'))
+		{
+			// If a port name if provided, it must match the board ID
+			String<StringLength20> portName;
+			gb.GetQuotedString(portName.GetRef(), false);
+			if (isdigit(portName[0]) && IoPort::RemoveBoardAddress(portName.GetRef()) != driver.boardAddress)
+			{
+				reply.copy("Brake port must be on same board as driver");
+				return GCodeResult::error;
+			}
+		}
+		{
+			CanMessageGenericConstructor cons(M569Point7Params);
+			cons.PopulateFromCommand(gb);
+			return cons.SendAndGetResponse(CanMessageType::m569p7, driver.boardAddress, reply);
+		}
+
 	default:
 		return GCodeResult::errorNotSupported;
 	}
@@ -1366,6 +1406,20 @@ GCodeResult CanInterface::StartAccelerometer(DriverId device, uint8_t axes, uint
 }
 
 # endif
+
+GCodeResult CanInterface::StartClosedLoopDataCollection(DriverId device, uint16_t filter, uint16_t numSamples, uint16_t rateRequested, uint8_t movementRequested, uint8_t mode, const GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeException)
+{
+	CanMessageBuffer* const buf = AllocateBuffer(&gb);
+	const CanRequestId rid = CanInterface::AllocateRequestId(device.boardAddress);
+	auto msg = buf->SetupRequestMessage<CanMessageStartClosedLoopDataCollection>(rid, GetCanAddress(), device.boardAddress);
+	msg->mode = mode;
+	msg->filter = filter;
+	msg->rate = rateRequested;
+	msg->numSamples = numSamples;
+	msg->movement = movementRequested;
+	msg->deviceNumber = device.localDriver;
+	return SendRequestAndGetStandardReply(buf, rid, reply);
+}
 
 #endif
 

@@ -448,8 +448,10 @@ public:
 	void DisableOneLocalDriver(size_t driver) noexcept;
 	void EmergencyDisableDrivers() noexcept;
 	void SetDriversIdle() noexcept;
+	GCodeResult ConfigureDriverBrakePort(GCodeBuffer& gb, const StringRef& reply, size_t driver) noexcept
+		pre(drive < GetNumActualDirectDrivers());
 	GCodeResult SetMotorCurrent(size_t axisOrExtruder, float current, int code, const StringRef& reply) noexcept;
-	float GetMotorCurrent(size_t axisOrExtruder, int code) const noexcept;
+	int GetMotorCurrent(size_t axisOrExtruder, int code) const noexcept;
 	void SetIdleCurrentFactor(float f) noexcept;
 	float GetIdleCurrentFactor() const noexcept { return idleCurrentFactor; }
 	bool SetDriverMicrostepping(size_t driver, unsigned int microsteps, int mode) noexcept;
@@ -556,10 +558,6 @@ public:
 	MinCurMax GetMcuTemperatures() const noexcept;
 	void SetMcuTemperatureAdjust(float v) noexcept { mcuTemperatureAdjust = v; }
 	float GetMcuTemperatureAdjust() const noexcept { return mcuTemperatureAdjust; }
-#elif LPC17xx
-// FIXME is this still needed
-    //Temporary to keep object model happy (return 0's) when no CPU temp is supported
-    MinMaxCurrent GetMcuTemperatures() const noexcept {MinMaxCurrent m={0.0}; return m;}
 #endif
 
 #if HAS_VOLTAGE_MONITOR
@@ -570,11 +568,6 @@ public:
 	void DisableAutoSave() noexcept;
 	void EnableAutoSave(float saveVoltage, float resumeVoltage) noexcept;
 	bool GetAutoSaveSettings(float& saveVoltage, float&resumeVoltage) noexcept;
-#elif LPC17xx
-// FIXME is this still needed
-    //Temporary to keep object model happy (return 0's) when no voltage monitor supported
-    MinMaxCurrent GetPowerVoltages() const noexcept {MinMaxCurrent m={0.0}; return m;}
-    float GetCurrentPowerVoltage() const noexcept {return 0;}
 #endif
 
 #if HAS_12V_MONITOR
@@ -648,6 +641,7 @@ public:
 	GCodeResult EutSetStepsPerMmAndMicrostepping(const CanMessageMultipleDrivesRequest<StepsPerUnitAndMicrostepping>& msg, size_t dataLength, const StringRef& reply) noexcept;
 	GCodeResult EutHandleSetDriverStates(const CanMessageMultipleDrivesRequest<DriverStateControl>& msg, const StringRef& reply) noexcept;
 	GCodeResult EutProcessM569(const CanMessageGeneric& msg, const StringRef& reply) noexcept;
+	GCodeResult EutProcessM569Point7(const CanMessageGeneric& msg, const StringRef& reply) noexcept;
 	void SendDriversStatus(CanMessageBuffer& buf) noexcept;
 #endif
 
@@ -724,6 +718,7 @@ private:
 
 	bool directions[NumDirectDrivers];
 	int8_t enableValues[NumDirectDrivers];
+	IoPort brakePorts[NumDirectDrivers];
 
 	float motorCurrents[MaxAxesPlusExtruders];				// the normal motor current for each stepper driver
 	float motorCurrentFraction[MaxAxesPlusExtruders];		// the percentages of normal motor current that each driver is set to

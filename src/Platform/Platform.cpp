@@ -118,6 +118,7 @@ using AnalogIn::AdcBits;
 #if SUPPORT_CAN_EXPANSION
 # include "CAN/CanMessageGenericConstructor.h"
 # include "CAN/CanInterface.h"
+# include <CanMessageGenericTables.h>
 #endif
 
 #if SUPPORT_REMOTE_COMMANDS
@@ -295,7 +296,7 @@ constexpr ObjectModelTableEntry Platform::objectModelTable[] =
 	// 3. move.axes[] members
 	{ "acceleration",		OBJECT_MODEL_FUNC(InverseConvertAcceleration(self->Acceleration(context.GetLastIndex())), 1),					ObjectModelEntryFlags::none },
 	{ "babystep",			OBJECT_MODEL_FUNC_NOSELF(reprap.GetGCodes().GetTotalBabyStepOffset(context.GetLastIndex()), 3),					ObjectModelEntryFlags::none },
-	{ "current",			OBJECT_MODEL_FUNC((int32_t)lrintf(self->GetMotorCurrent(context.GetLastIndex(), 906))),							ObjectModelEntryFlags::none },
+	{ "current",			OBJECT_MODEL_FUNC((int32_t)(self->GetMotorCurrent(context.GetLastIndex(), 906))),								ObjectModelEntryFlags::none },
 	{ "drivers",			OBJECT_MODEL_FUNC_NOSELF(&axisDriversArrayDescriptor),															ObjectModelEntryFlags::none },
 	{ "homed",				OBJECT_MODEL_FUNC_NOSELF(reprap.GetGCodes().IsAxisHomed(context.GetLastIndex())),								ObjectModelEntryFlags::none },
 	{ "jerk",				OBJECT_MODEL_FUNC(InverseConvertSpeedToMmPerMin(self->GetInstantDv(context.GetLastIndex())), 1),				ObjectModelEntryFlags::none },
@@ -306,6 +307,10 @@ constexpr ObjectModelTableEntry Platform::objectModelTable[] =
 	{ "microstepping",		OBJECT_MODEL_FUNC(self, 7),																						ObjectModelEntryFlags::none },
 	{ "min",				OBJECT_MODEL_FUNC(self->AxisMinimum(context.GetLastIndex()), 2),												ObjectModelEntryFlags::none },
 	{ "minProbed",			OBJECT_MODEL_FUNC(self->axisMinimaProbed.IsBitSet(context.GetLastIndex())),										ObjectModelEntryFlags::none },
+	{ "percentCurrent",		OBJECT_MODEL_FUNC((int32_t)(self->GetMotorCurrent(context.GetLastIndex(), 913))),								ObjectModelEntryFlags::none },
+#ifndef DUET_NG
+	{ "percentStstCurrent",	OBJECT_MODEL_FUNC((int32_t)(self->GetMotorCurrent(context.GetLastIndex(), 917))),								ObjectModelEntryFlags::none },
+#endif
 	{ "speed",				OBJECT_MODEL_FUNC(InverseConvertSpeedToMmPerMin(self->MaxFeedrate(context.GetLastIndex())), 1),					ObjectModelEntryFlags::none },
 	{ "stepsPerMm",			OBJECT_MODEL_FUNC(self->driveStepsPerUnit[context.GetLastIndex()], 2),											ObjectModelEntryFlags::none },
 	{ "userPosition",		OBJECT_MODEL_FUNC_NOSELF(reprap.GetGCodes().GetUserCoordinate(context.GetLastIndex()), 3),						ObjectModelEntryFlags::live },
@@ -314,13 +319,17 @@ constexpr ObjectModelTableEntry Platform::objectModelTable[] =
 
 	// 4. move.extruders[] members
 	{ "acceleration",		OBJECT_MODEL_FUNC(InverseConvertAcceleration(self->Acceleration(ExtruderToLogicalDrive(context.GetLastIndex()))), 1),					ObjectModelEntryFlags::none },
-	{ "current",			OBJECT_MODEL_FUNC((int32_t)lrintf(self->GetMotorCurrent(ExtruderToLogicalDrive(context.GetLastIndex()), 906))),							ObjectModelEntryFlags::none },
+	{ "current",			OBJECT_MODEL_FUNC((int32_t)(self->GetMotorCurrent(ExtruderToLogicalDrive(context.GetLastIndex()), 906))),								ObjectModelEntryFlags::none },
 	{ "driver",				OBJECT_MODEL_FUNC(self->extruderDrivers[context.GetLastIndex()]),																		ObjectModelEntryFlags::none },
 	{ "factor",				OBJECT_MODEL_FUNC_NOSELF(reprap.GetGCodes().GetExtrusionFactor(context.GetLastIndex()), 2),												ObjectModelEntryFlags::none },
 	{ "filament",			OBJECT_MODEL_FUNC_NOSELF(GetFilamentName(context.GetLastIndex())),																		ObjectModelEntryFlags::none },
 	{ "jerk",				OBJECT_MODEL_FUNC(InverseConvertSpeedToMmPerMin(self->GetInstantDv(ExtruderToLogicalDrive(context.GetLastIndex()))), 1),				ObjectModelEntryFlags::none },
 	{ "microstepping",		OBJECT_MODEL_FUNC(self, 8),																												ObjectModelEntryFlags::none },
 	{ "nonlinear",			OBJECT_MODEL_FUNC(self, 5),																												ObjectModelEntryFlags::none },
+	{ "percentCurrent",		OBJECT_MODEL_FUNC((int32_t)(self->GetMotorCurrent(context.GetLastIndex(), 913))),														ObjectModelEntryFlags::none },
+#ifndef DUET_NG
+	{ "percentStstCurrent",	OBJECT_MODEL_FUNC((int32_t)(self->GetMotorCurrent(context.GetLastIndex(), 917))),														ObjectModelEntryFlags::none },
+#endif
 	{ "position",			OBJECT_MODEL_FUNC_NOSELF(ExpressionValue(reprap.GetMove().LiveCoordinate(ExtruderToLogicalDrive(context.GetLastIndex()), reprap.GetCurrentTool()), 1)),	ObjectModelEntryFlags::live },
 	{ "pressureAdvance",	OBJECT_MODEL_FUNC_NOSELF(reprap.GetMove().GetPressureAdvanceClocks(context.GetLastIndex())/StepClockRate, 2),							ObjectModelEntryFlags::none },
 	{ "rawPosition",		OBJECT_MODEL_FUNC_NOSELF(ExpressionValue(reprap.GetGCodes().GetRawExtruderTotalByDrive(context.GetLastIndex()), 1)), 					ObjectModelEntryFlags::live },
@@ -368,8 +377,13 @@ constexpr uint8_t Platform::objectModelTableDescriptor[] =
 #else
 	0,																		// section 2: vIn
 #endif
-	18,																		// section 3: move.axes[]
-	13,																		// section 4: move.extruders[]
+#ifdef DUET_NG	// Duet WiFi/Ethernet doesn't have settable standstill current
+	19,																		// section 3: move.axes[]
+	14,																		// section 4: move.extruders[]
+#else
+	20,																		// section 3: move.axes[]
+	15,																		// section 4: move.extruders[]
+#endif
 	3,																		// section 5: move.extruders[].nonlinear
 #if HAS_12V_MONITOR
 	3,																		// section 6: v12
@@ -2005,7 +2019,7 @@ void Platform::Diagnostics(MessageType mtype) noexcept
 	for (size_t drive = 0; drive < NumDirectDrivers; ++drive)
 	{
 		String<StringLength256> driverStatus;
-		driverStatus.printf("Driver %u: position %" PRIi32, drive, reprap.GetMove().GetEndPoint(drive));
+		driverStatus.printf("Driver %u: pos %" PRIi32, drive, reprap.GetMove().GetEndPoint(drive));
 #if HAS_SMART_DRIVERS
 		if (drive < numSmartDrivers)
 		{
@@ -2831,35 +2845,39 @@ void Platform::SetDirection(size_t axisOrExtruder, bool direction) noexcept
 // Enable a driver. Must not be called from an ISR, or with interrupts disabled.
 void Platform::EnableOneLocalDriver(size_t driver, float requiredCurrent) noexcept
 {
+	if (driver < GetNumActualDirectDrivers())
+	{
 #if HAS_SMART_DRIVERS && (HAS_VOLTAGE_MONITOR || HAS_12V_MONITOR)
-	if (driver < numSmartDrivers && !driversPowered)
-	{
-		warnDriversNotPowered = true;
-	}
-	else
-	{
-#endif
-		UpdateMotorCurrent(driver, requiredCurrent);
-
-#if defined(DUET3) && HAS_SMART_DRIVERS
-		SmartDrivers::EnableDrive(driver, true);		// all drivers driven directly by the main board are smart
-#elif HAS_SMART_DRIVERS
-		if (driver < numSmartDrivers)
+		if (driver < numSmartDrivers && !driversPowered)
 		{
-			SmartDrivers::EnableDrive(driver, true);
+			warnDriversNotPowered = true;
 		}
-# if !defined(DUET3MINI)		// no enable pins on 5LC
 		else
 		{
-			digitalWrite(ENABLE_PINS[driver], enableValues[driver] > 0);
-		}
+#endif
+			UpdateMotorCurrent(driver, requiredCurrent);
+
+#if defined(DUET3) && HAS_SMART_DRIVERS
+			SmartDrivers::EnableDrive(driver, true);	// all drivers driven directly by the main board are smart
+#elif HAS_SMART_DRIVERS
+			if (driver < numSmartDrivers)
+			{
+				SmartDrivers::EnableDrive(driver, true);
+			}
+# if !defined(DUET3MINI)		// no enable pins on 5LC
+			else
+			{
+				digitalWrite(ENABLE_PINS[driver], enableValues[driver] > 0);
+			}
 # endif
 #else
-		digitalWrite(ENABLE_PINS[driver], enableValues[driver] > 0);
+			digitalWrite(ENABLE_PINS[driver], enableValues[driver] > 0);
 #endif
 #if HAS_SMART_DRIVERS && (HAS_VOLTAGE_MONITOR || HAS_12V_MONITOR)
-	}
+		}
 #endif
+		brakePorts[driver].WriteDigital(true);			// turn the brake solenoid on to disengage the brake
+	}
 }
 
 // Disable a driver
@@ -2867,6 +2885,7 @@ void Platform::DisableOneLocalDriver(size_t driver) noexcept
 {
 	if (driver < GetNumActualDirectDrivers())
 	{
+		brakePorts[driver].WriteDigital(false);			// turn the brake solenoid off to engage the brake
 #if defined(DUET3) && HAS_SMART_DRIVERS
 		SmartDrivers::EnableDrive(driver, false);		// all drivers driven directly by the main board are smart
 #elif HAS_SMART_DRIVERS
@@ -2981,6 +3000,18 @@ void Platform::SetDriversIdle() noexcept
 		CanInterface::SetRemoteDriversIdle(canDriversToSetIdle, idleCurrentFactor);
 #endif
 	}
+}
+
+// Configure the brake port for a driver
+GCodeResult Platform::ConfigureDriverBrakePort(GCodeBuffer& gb, const StringRef& reply, size_t driver) noexcept
+{
+	if (gb.Seen('C'))
+	{
+		return GetGCodeResultFromSuccess(brakePorts[driver].AssignPort(gb, reply, PinUsedBy::gpout, PinAccess::write0));
+	}
+	reply.printf("Driver %u uses brake port ", driver);
+	brakePorts[driver].AppendPinName(reply);
+	return GCodeResult::ok;
 }
 
 // Set the current for all drivers on an axis or extruder. Current is in mA.
@@ -3138,23 +3169,30 @@ void Platform::UpdateMotorCurrent(size_t driver, float current) noexcept
 }
 
 // Get the configured motor current for an axis or extruder
-float Platform::GetMotorCurrent(size_t drive, int code) const noexcept
+int Platform::GetMotorCurrent(size_t drive, int code) const noexcept
 {
+	float rslt;
 	switch (code)
 	{
 	case 906:
-		return motorCurrents[drive];
+		rslt = motorCurrents[drive];
+		break;
 
 	case 913:
-		return motorCurrentFraction[drive] * 100.0;
+		rslt = motorCurrentFraction[drive] * 100.0;
+		break;
 
 #if HAS_SMART_DRIVERS
 	case 917:
-		return standstillCurrentPercent[drive];
+		rslt = standstillCurrentPercent[drive];
+		break;
 #endif
 	default:
-		return 0.0;
+		rslt = 0.0;
+		break;
 	}
+
+	return lrintf(rslt);
 }
 
 // Set the motor idle current factor
@@ -4250,33 +4288,6 @@ const char* Platform::InternalGetSysDir() const noexcept
 	return (sysDir != nullptr) ? sysDir : DEFAULT_SYS_DIR;
 }
 
-// Set the system files path
-GCodeResult Platform::SetSysDir(const char* dir, const StringRef& reply) noexcept
-{
-	String<MaxFilenameLength> newSysDir;
-	WriteLocker lock(sysDirLock);
-
-	if (!MassStorage::CombineName(newSysDir.GetRef(), InternalGetSysDir(), dir) || (!newSysDir.EndsWith('/') && newSysDir.cat('/')))
-	{
-		reply.copy("Path name too long");
-		return GCodeResult::error;
-	}
-
-	if (!MassStorage::DirectoryExists(newSysDir.GetRef()))
-	{
-		reply.copy("Path not found");
-		return GCodeResult::error;
-	}
-
-	newSysDir.cat('/');								// the call to DirectoryExists removed the trailing '/'
-	const size_t len = newSysDir.strlen() + 1;
-	char* const nsd = new char[len];
-	memcpy(nsd, newSysDir.c_str(), len);
-	ReplaceObject(sysDir, nsd);
-	reprap.DirectoriesUpdated();
-	return GCodeResult::ok;
-}
-
 bool Platform::SysFileExists(const char *filename) const noexcept
 {
 	String<MaxFilenameLength> location;
@@ -4305,6 +4316,37 @@ ReadLockedPointer<const char> Platform::GetSysDir() const noexcept
 {
 	ReadLocker lock(sysDirLock);
 	return ReadLockedPointer<const char>(lock, InternalGetSysDir());
+}
+
+#endif
+
+#if HAS_MASS_STORAGE || HAS_EMBEDDED_FILES
+
+// Set the system files path
+GCodeResult Platform::SetSysDir(const char* dir, const StringRef& reply) noexcept
+{
+	String<MaxFilenameLength> newSysDir;
+	WriteLocker lock(sysDirLock);
+
+	if (!MassStorage::CombineName(newSysDir.GetRef(), InternalGetSysDir(), dir) || (!newSysDir.EndsWith('/') && newSysDir.cat('/')))
+	{
+		reply.copy("Path name too long");
+		return GCodeResult::error;
+	}
+
+	if (!MassStorage::DirectoryExists(newSysDir.GetRef()))
+	{
+		reply.copy("Path not found");
+		return GCodeResult::error;
+	}
+
+	newSysDir.cat('/');								// the call to DirectoryExists removed the trailing '/'
+	const size_t len = newSysDir.strlen() + 1;
+	char* const nsd = new char[len];
+	memcpy(nsd, newSysDir.c_str(), len);
+	ReplaceObject(sysDir, nsd);
+	reprap.DirectoriesUpdated();
+	return GCodeResult::ok;
 }
 
 #endif
@@ -5232,6 +5274,34 @@ GCodeResult Platform::EutProcessM569(const CanMessageGeneric& msg, const StringR
 #endif
 
 	}
+	return GCodeResult::ok;
+}
+
+GCodeResult Platform::EutProcessM569Point7(const CanMessageGeneric& msg, const StringRef& reply) noexcept
+{
+	CanMessageGenericParser parser(msg, M569Point7Params);
+	uint8_t drive;
+	if (!parser.GetUintParam('P', drive))
+	{
+		reply.copy("Missing P parameter in CAN message");
+		return GCodeResult::error;
+	}
+
+	if (drive >= NumDirectDrivers)
+	{
+		reply.printf("Driver number %u.%u out of range", CanInterface::GetCanAddress(), drive);
+		return GCodeResult::error;
+	}
+
+	if (parser.HasParameter('C'))
+	{
+		String<StringLength20> portName;
+		parser.GetStringParam('C', portName.GetRef());
+		return GetGCodeResultFromSuccess(brakePorts[drive].AssignPort(portName.c_str(), reply, PinUsedBy::gpout, PinAccess::write0));
+	}
+
+	reply.printf("Driver %u.%u uses brake port ", CanInterface::GetCanAddress(), drive);
+	brakePorts[drive].AppendPinName(reply);
 	return GCodeResult::ok;
 }
 

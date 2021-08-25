@@ -10,8 +10,6 @@
 
 #include "FileStore.h"
 
-#if HAS_MASS_STORAGE || HAS_EMBEDDED_FILES
-
 class FileGCodeInput;
 
 // Small class to hold an open file and data relating to it.
@@ -23,6 +21,8 @@ public:
 
 	FileData() noexcept : f(nullptr) {}
 
+	~FileData() { (void)Close(); }
+
 	FileData(const FileData& other) noexcept
 	{
 		f = other.f;
@@ -31,6 +31,15 @@ public:
 			f->Duplicate();
 		}
 	}
+
+	FileData(FileData&& other) noexcept
+	{
+		f = other.f;
+		other.f = nullptr;
+	}
+
+	// Make sure we don't assign these objects
+	FileData& operator=(const FileData&) = delete;
 
 	// Set this to refer to a newly-opened file
 	void Set(FileStore* pfile) noexcept
@@ -62,7 +71,7 @@ public:
 		return f->Read(buf, nBytes);
 	}
 
-# if HAS_MASS_STORAGE
+# if HAS_MASS_STORAGE || HAS_LINUX_INTERFACE
 	bool Write(char b) noexcept
 	{
 		return f->Write(b);
@@ -130,11 +139,6 @@ private:
 	{
 		f = nullptr;
 	}
-
-	// Private assignment operator to prevent us assigning these objects
-	FileData& operator=(const FileData&) noexcept;
 };
-
-#endif
 
 #endif
