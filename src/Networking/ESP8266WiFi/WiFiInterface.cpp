@@ -810,7 +810,7 @@ void WiFiInterface::Spin() noexcept
 			{
 				debugPrintPending = true;
 			}
-			else if (c != '\r')
+			else if (((int)c & 0xff) >= (int)' ')
 			{
 				debugMessageBuffer[debugMessageChars++] = c;
 				if (debugMessageChars == ARRAY_SIZE(debugMessageBuffer) - 1)
