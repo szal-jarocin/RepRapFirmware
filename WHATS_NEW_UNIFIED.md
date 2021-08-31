@@ -1,3 +1,10 @@
+Version 3.3.0_8
+===============
+* STM32F4 update Fly Super8 pins
+* STM32F4 update Spider pins
+* Filter WiFi module debug output to remove garbage characters
+
+
 Version 3.3.0_7
 ===============
 * STM32F4 Fix occasional bad memory access when using software PWM
