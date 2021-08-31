@@ -424,38 +424,38 @@ constexpr BoardDefaults fly_e3_pro_Defaults = {
 constexpr PinEntry PinTable_FLY_SUPER8[] =
 {
     //Thermistors
-    {PF_4, "e0temp,t0,ADC0"},
-    {PF_5, "e1temp,ADC1"},
-    {PF_9, "e2temp,ADC2,pwm2"},
-    {PF_10, "e3temp,ADC3"},
-    {PC_0, "e4temp,ADC4"},
-    {PC_1, "bedtemp,ADC5"},
+    {PF_4, "ADC_0,out0"},
+    {PF_5, "ADC_1,out1"},
+    {PF_9, "ADC_2,pwm_out2,pwm2,out2"},
+    {PF_10, "ADC_3,out3"},
+    {PC_0, "ADC_4,out4"},
+    {PC_1, "ADC_5,out5"},
  
 
     //Endstops
-    {PG_12, "xmin,xstop,io0"},
-    {PG_11, "xmax,xstopmax,io1"},
-    {PG_10, "ymin,ystop,io2"},
-    {PG_9, "ymax,ystopmax,io3"},
-    {PD_7, "zmin,zstop,io4"},
-    {PD_6, "zmax,zstopmax,io5"},
+    {PG_12, "io0"},
+    {PG_11, "io1"},
+    {PG_10, "io2"},
+    {PG_9, "io3"},
+    {PD_7, "io4"},
+    {PD_6, "io5"},
     {PA_8, "io6"},
-    {PF_8, "in7,pwm1"},
+    {PF_8, "in7,pwm_out1,pwm1,out1"},
     {PF_3, "hvin"},
-	// Servo
-    {PC_6,  "pwm0" },
+    // Servo
+    {PC_6,  "pwm_out0,pwm0,servo,out0" },
 
    // Probe
     {PC_3, "probe"},
-	
+
     //Heaters and Fans (Big and Small Mosfets}
     {PB_0,  "heat0" },
     {PB_1,  "heat1" },
     {PC_7,  "heat2" },
     {PF_7,  "heat3" },
-    {PF_6,  "heat4" },   
-    {PE_5,  "bedout" }, 
-    {PA_0,  "fan0,fan" },
+    {PF_6,  "heat4" },
+    {PE_5,  "bedout,bed" }, 
+    {PA_0,  "fan0" },
     {PA_1,  "fan1" },
     {PA_2,  "fan2" },
     {PA_3,  "fan3" },
@@ -465,7 +465,6 @@ constexpr PinEntry PinTable_FLY_SUPER8[] =
     {PD_12,  "fan7" },
     {PD_14,  "fan8" },
     {PD_15,  "fan9" },
-
     
 
     //EXP1
@@ -489,13 +488,13 @@ constexpr PinEntry PinTable_FLY_SUPER8[] =
 	{PA_10, "RX1"},
 
     // WIFI UART	
-	{PD_8, "PD8"},
-	{PD_9, "PD9"},	
+//	{PD_8, "PD8"},
+//	{PD_9, "PD9"},	
 	
     //WIFI
-    {PD_10, "PD10"},
-    {PD_11, "PDE11"},
-    {PD_13, "PD13"},
+//    {PD_10, "PD10"},
+//    {PD_11, "PDE11"},
+//    {PD_13, "PD13"},
 
  
 

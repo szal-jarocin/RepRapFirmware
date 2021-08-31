@@ -18,12 +18,12 @@ constexpr PinEntry PinTable_FYSETC_SPIDER[] =
     {PC_3, "bedtemp,t3"},
 
     //Endstops
-    {PB_14,   "xstop,x-stop"},
-    {PB_13,   "ystop,y-stop"},
-    {PA_0,   "zstop,z-stop"},
-    {PA_1,   "e0stop,e0det"},
-    {PA_2,   "probe"},
-	
+    {PB_14,   "xstop,x-"},
+    {PB_13,   "ystop,y-"},
+    {PA_0,   "zstop,z-"},
+    {PA_1,   "xstopmax,x+"},
+    {PA_2,   "ystopmax,y+"},
+    
     //Heaters and Fans (Big and Small Mosfets}
     {PB_4,    "bed,hbed" },
     {PB_15,    "e0heat,he0" },
@@ -34,7 +34,7 @@ constexpr PinEntry PinTable_FYSETC_SPIDER[] =
     {PB_2,    "fan2" },
 
     //Servos
-    {PA_3,    "servo0" },
+    {PA_3,    "servo0,z+,zstopmax" },
 	
     //EXP1
 //    {PD_1,   "PD1"},
