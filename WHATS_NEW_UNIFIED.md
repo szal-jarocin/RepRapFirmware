@@ -1,8 +1,18 @@
+Version 3.4.0beta3+1_2
+======================
+* Duet3D 3.3beta3+1 changes
+* pickup up changes from 3.3.0_8
+
 Version 3.4beta2_2
 ==================
-* Improve SBC reobustness when connection is dropped and reconnects
+* Improve SBC robustness when connection is dropped and reconnects
 * Pick up changes from 3.3.0_7
 
+Version 3.3.0_8
+===============
+* STM32F4 update Fly Super8 pins
+* STM32F4 update Spider pins
+* Filter WiFi module debug output to remove garbage characters
 
 Version 3.3.0_7
 ===============
