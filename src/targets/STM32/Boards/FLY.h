@@ -35,7 +35,7 @@ constexpr PinEntry PinTable_FLY_F407ZG[] =
     {PE_4,  "e4heat,he4" },
     {PE_3,  "e5heat,he5" },
     
-    {PE_8,  "fan0,fan" },
+    {PF_8,  "fan0,fan" },
     {PF_9,  "fan1" },
     {PA_2,  "fan2" },
     {PA_1,  "fan3" },
