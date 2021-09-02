@@ -2,6 +2,7 @@ Version 3.3.0_8
 ===============
 * STM32F4 update Fly Super8 pins
 * STM32F4 update Spider pins
+* STM32F4 update Fly 407ZG pins
 * Filter WiFi module debug output to remove garbage characters
 
 
