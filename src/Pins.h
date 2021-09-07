@@ -17,7 +17,7 @@
 #  define PLATFORM DuetM
 # elif defined(PCCB)
 #  define PLATFORM Pccb
-# elif defined(DUET3MINI_V02) || defined(DUET3MINI_V04)
+# elif defined(DUET3MINI_V04)
 #  define DUET3MINI		1
 #  define PLATFORM Duet3Mini
 # elif defined(__LPC17xx__)
@@ -124,12 +124,16 @@
 # define ENFORCE_MIN_V12		0
 #endif
 
-#ifndef HAS_ATX_POWER_MONITOR
-# define HAS_ATX_POWER_MONITOR  0
+#ifndef HAS_DEFAULT_PSON_PIN
+# define HAS_DEFAULT_PSON_PIN	0
 #endif
 
 #if !HAS_VOLTAGE_MONITOR
 # define ENFORCE_MAX_VIN		0
+#endif
+
+#ifndef HAS_ATX_POWER_MONITOR
+# define HAS_ATX_POWER_MONITOR  0
 #endif
 
 // HAS_LWIP_NETWORKING refers to Lwip 2 support in the Networking folder, not legacy SAM3XA networking using Lwip 1
@@ -204,12 +208,6 @@
 
 #ifndef SUPPORT_ACCELEROMETERS
 # define SUPPORT_ACCELEROMETERS	0
-#endif
-
-#if !STM32F4 && !LPC17xx
-#ifndef ATX_POWER_INVERTED
-# define ATX_POWER_INVERTED		false
-#endif
 #endif
 
 // We must define MCU_HAS_UNIQUE_ID as either 0 or 1 so we can use it in maths

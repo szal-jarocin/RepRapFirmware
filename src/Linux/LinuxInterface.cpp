@@ -52,8 +52,8 @@ extern "C" [[noreturn]] void SBCTaskStart(void * pvParameters) noexcept
 }
 
 LinuxInterface::LinuxInterface() noexcept : isConnected(false), numDisconnects(0), numTimeouts(0),
-	maxDelayBetweenTransfers(SpiTransferDelay), numMaxEvents(SpiEventsRequired), delaying(false), numEvents(0),
-	reportPause(false), reportPauseWritten(false), printAborted(false),
+	maxDelayBetweenTransfers(SpiTransferDelay), maxFileOpenDelay(SpiFileOpenDelay), numMaxEvents(SpiEventsRequired),
+	delaying(false), numEvents(0), reportPause(false), reportPauseWritten(false), printAborted(false),
 	codeBuffer(nullptr), rxPointer(0), txPointer(0), txEnd(0), sendBufferUpdate(true), iapWritePointer(IAP_IMAGE_START),
 	waitingForFileChunk(false), fileMutex(), fileSemaphore(), fileOperation(FileOperation::none), fileOperationPending(false)
 #ifdef TRACK_FILE_CODES
@@ -314,7 +314,7 @@ void LinuxInterface::Spin() noexcept
 						// Just mark the print file as finished
 						GCodeBuffer * const gb = reprap.GetGCodes().GetGCodeBuffer(GCodeChannel::File);
 						MutexLocker locker(gb->mutex, LinuxYieldTimeout);
-						if (locker)
+						if (locker.IsAcquired())
 						{
 							gb->SetPrintFinished();
 						}
@@ -345,7 +345,7 @@ void LinuxInterface::Spin() noexcept
 						else
 						{
 							MutexLocker locker(gb->mutex, LinuxYieldTimeout);
-							if (locker)
+							if (locker.IsAcquired())
 							{
 								if (error)
 								{
@@ -423,7 +423,7 @@ void LinuxInterface::Spin() noexcept
 					{
 						GCodeBuffer * const gb = reprap.GetGCodes().GetGCodeBuffer(channel);
 						MutexLocker locker(gb->mutex, LinuxYieldTimeout);
-						if (locker && reprap.GetGCodes().LockMovementAndWaitForStandstill(*gb))
+						if (locker.IsAcquired() && reprap.GetGCodes().LockMovementAndWaitForStandstill(*gb))
 						{
 							transfer.WriteLocked(channel);
 						}
@@ -447,7 +447,7 @@ void LinuxInterface::Spin() noexcept
 					{
 						GCodeBuffer * const gb = reprap.GetGCodes().GetGCodeBuffer(channel);
 						MutexLocker locker(gb->mutex, LinuxYieldTimeout);
-						if (locker)
+						if (locker.IsAcquired())
 						{
 							reprap.GetGCodes().UnlockAll(*gb);
 						}
@@ -560,7 +560,7 @@ void LinuxInterface::Spin() noexcept
 						{
 							// Evaluate the expression and send the result to DSF
 							MutexLocker lock(gb->mutex, LinuxYieldTimeout);
-							if (lock)
+							if (lock.IsAcquired())
 							{
 								ExpressionParser parser(*gb, expression.c_str(), expression.c_str() + expression.strlen());
 								const ExpressionValue val = parser.Parse();
@@ -657,7 +657,7 @@ void LinuxInterface::Spin() noexcept
 						}
 
 						MutexLocker locker(gb->mutex, LinuxYieldTimeout);
-						if (locker)
+						if (locker.IsAcquired())
 						{
 							// Note that we do not call StopPrint here or set any other variables; DSF already does that
 							gb->AbortFile(true, false);
@@ -692,7 +692,7 @@ void LinuxInterface::Spin() noexcept
 
 					GCodeBuffer * const gb = reprap.GetGCodes().GetGCodeBuffer(channel);
 					MutexLocker lock(gb->mutex, LinuxYieldTimeout);
-					if (!lock)
+					if (!lock.IsAcquired())
 					{
 						packetAcknowledged = false;
 						break;
@@ -772,7 +772,7 @@ void LinuxInterface::Spin() noexcept
 
 					GCodeBuffer * const gb = reprap.GetGCodes().GetGCodeBuffer(channel);
 					MutexLocker lock(gb->mutex, LinuxYieldTimeout);
-					if (!lock)
+					if (!lock.IsAcquired())
 					{
 						packetAcknowledged = false;
 						break;
@@ -910,7 +910,7 @@ void LinuxInterface::Spin() noexcept
 				!waitingForFileChunk && !fileOperationPending && fileOperation == FileOperation::none)
 			{
 				delaying = true;
-				if (!TaskBase::Take(maxDelayBetweenTransfers))
+				if (!TaskBase::Take(MassStorage::AnyFileOpen() ? maxFileOpenDelay : maxDelayBetweenTransfers))
 				{
 					delaying = false;
 				}
@@ -1060,7 +1060,7 @@ void LinuxInterface::Spin() noexcept
 					if (!gb->IsWaitingForMacro())
 					{
 						MutexLocker gbLock(gb->mutex, LinuxYieldTimeout);
-						if (gbLock)
+						if (gbLock.IsAcquired())
 						{
 							if (gb->GetChannel() != GCodeChannel::Daemon)
 							{
@@ -1246,6 +1246,18 @@ GCodeResult LinuxInterface::HandleM576(GCodeBuffer& gb, const StringRef& reply) 
 			return GCodeResult::error;
 		}
 		maxDelayBetweenTransfers = sParam;
+		seen = true;
+	}
+
+	if (gb.Seen('F'))
+	{
+		uint32_t fParam = gb.GetUIValue();
+		if (fParam > SpiConnectionTimeout)
+		{
+			reply.printf("SPI transfer delay must not exceed %" PRIu32 "ms", SpiConnectionTimeout);
+			return GCodeResult::error;
+		}
+		maxFileOpenDelay = fParam;
 		seen = true;
 	}
 

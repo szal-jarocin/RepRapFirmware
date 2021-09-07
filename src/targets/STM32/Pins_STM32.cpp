@@ -243,7 +243,7 @@ bool LookupPinName(const char*pn, LogicalPin& lpin, bool& hardwareInverted) noex
         hardwareInverted = false;
         return true;
     }
-    
+
     for (size_t lp = 0; lp < NumNamedLPCPins; ++lp)
     {
         const char *q = PinTable[lp].names;
@@ -264,7 +264,7 @@ bool LookupPinName(const char*pn, LogicalPin& lpin, bool& hardwareInverted) noex
                 ++p;
                 ++q;
             }
-            if (*p == 0 && (*q == 0 || *q == ','))
+            if ((*p == 0 || *p == ',') && (*q == 0 || *q == ','))
             {
                 // Found a match
                 lpin = (LogicalPin)PinTable[lp].pin;

@@ -1274,17 +1274,15 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeEx
 				break;
 
 			case 80:	// ATX power on
-				atxPowerControlled = true;
-				platform.AtxPowerOn();
+				result = platform.HandleM80(gb, reply);
 				break;
 
 			case 81:	// ATX power off
-				atxPowerControlled = true;
 				if (!LockMovementAndWaitForStandstill(gb))
 				{
 					return false;
 				}
-				platform.AtxPowerOff(gb.Seen('S') && gb.GetUIValue() != 0);
+				result = platform.HandleM81(gb, reply);
 				break;
 
 			case 82:	// Use absolute extruder positioning
@@ -2413,13 +2411,18 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeEx
 			case 290:	// Baby stepping
 				{
 					const bool absolute = (gb.Seen('R') && gb.GetIValue() == 0);
-					bool seen = false;
 					float differences[MaxAxes];
+					AxesBitmap axesMentioned;
 					for (size_t axis = 0; axis < numVisibleAxes; ++axis)
 					{
 						if (gb.Seen(axisLetters[axis]) || (axis == 2 && gb.Seen('S')))			// S is a synonym for Z
 						{
-							seen = true;
+							if (!LockMovement(gb))
+							{
+								return false;
+							}
+
+							axesMentioned.SetBit(axis);
 							const float fval = gb.GetFValue();
 							if (absolute)
 							{
@@ -2436,11 +2439,13 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeEx
 						}
 					}
 
-					if (seen)
+					if (axesMentioned.IsNonEmpty())
 					{
-						if (!LockMovement(gb))
+						if (CheckEnoughAxesHomed(axesMentioned))
 						{
-							return false;
+							reply.copy("insufficient axes homed");
+							result = GCodeResult::error;
+							break;
 						}
 
 						// Perform babystepping synchronously with moves
@@ -2952,11 +2957,13 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeEx
 					result = (MassStorage::Rename(oldVal.c_str(), newVal.c_str(), deleteExisting, true)) ? GCodeResult::ok : GCodeResult::error;
 				}
 				break;
+#endif
 
 			//case 486: // number object or cancel object
 				//result = buildObjects.HandleM486(gb, reply, outBuf);
 				//break;
 
+#if HAS_MASS_STORAGE
 			case 500: // Store parameters in config-override.g
 				result = WriteConfigOverrideFile(gb, reply);
 				break;
@@ -3105,11 +3112,10 @@ bool GCodes::HandleMcode(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeEx
 
 			case 551: // Set password (no option to report it)
 				{
-					String<RepRapPasswordLength> password;
-					bool seen = false;
-					gb.TryGetPossiblyQuotedString('P', password.GetRef(), seen);
-					if (seen)
+					if (gb.Seen('P'))
 					{
+						String<RepRapPasswordLength> password;
+						gb.GetPossiblyQuotedString(password.GetRef(), true);
 						reprap.SetPassword(password.c_str());
 					}
 				}

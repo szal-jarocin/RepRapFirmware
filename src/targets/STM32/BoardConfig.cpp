@@ -223,10 +223,9 @@ static void ConfigureGPIOPins() noexcept
     pinMode(DiagPin, OUTPUT_LOW);
 
     // Configure ATX power control
-    if (ATX_POWER_PIN != NoPin)
-        pinMode(ATX_POWER_PIN, (ATX_INITIAL_POWER_ON ^ ATX_POWER_INVERTED ? OUTPUT_HIGH : OUTPUT_LOW));
+    ATX_POWER_STATE = ATX_INITIAL_POWER_ON;
     if (StepperPowerEnablePin != NoPin)
-        pinMode(StepperPowerEnablePin, OUTPUT_LOW);
+        pinMode(StepperPowerEnablePin, (ATX_POWER_STATE ? OUTPUT_HIGH : OUTPUT_LOW));
 }
 
 static void ConfigureSPIPins(SSPChannel dev, Pin clk, Pin miso, Pin mosi)

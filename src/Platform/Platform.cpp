@@ -18,7 +18,6 @@
  Licence: GPL
 
  ****************************************************************************************************/
-
 #include "Platform.h"
 
 #include <Heating/Heat.h>
@@ -449,6 +448,7 @@ Platform::Platform() noexcept :
 #if SUPPORT_LASER
 	lastLaserPwm(0.0),
 #endif
+	atxPowerControlled(false),
 	deferredPowerDown(false)
 {
 }
@@ -458,11 +458,6 @@ void Platform::Init() noexcept
 {
 #if defined(DUET3) || defined(DUET3MINI)
 	pinMode(EthernetPhyResetPin, OUTPUT_LOW);			// hold the Ethernet Phy chip in reset, hopefully this will prevent it being too noisy if Ethernet is not enabled
-#endif
-
-#ifndef __LPC17xx__
-	// Deal with power first (we assume this doesn't depend on identifying the board type)
-	pinMode(ATX_POWER_PIN, OUTPUT_LOW);
 #endif
 
 	// Make sure the on-board drivers are disabled
@@ -526,14 +521,28 @@ void Platform::Init() noexcept
 #endif
 
 #if LPC17xx || STM32F4
-	// initialise the step pulse timer, need to do this early as it is used to time disk I/O
-	//StepTimer::Init();
-	// Load HW pin assignments from sdcard
+	// Load HW pin assignments from sdcard, note this also sorts out the pson pin state for LPC/STM boards, so they will
+	// not usually have HAS_DEFAULT_PSON_PIN set
 	BoardConfig::Init();
 #if HAS_NETWORKING
 	// Set default Mac address
 	defaultMacAddress.SetDefault();
 #endif
+#endif
+
+#if HAS_DEFAULT_PSON_PIN
+	// Set up the default PS_ON port. Initialise it to off in case it is being used for something else or is inverted.
+	String<1> dummy;
+	PsOnPort.AssignPort("pson", dummy.GetRef(), PinUsedBy::gpout, PinAccess::write0);
+#elif STM32F4 || LPC17xx
+	// Setup default PS_ON port based on board.txt config
+    if (ATX_POWER_PIN != NoPin)
+    {
+        String<1> dummy;
+        PsOnPort.AssignPort(GetPinNames(ATX_POWER_PIN), dummy.GetRef(), PinUsedBy::gpout, PinAccess::read);
+        PsOnPort.SetInvert(ATX_POWER_INVERTED);
+        PsOnPort.SetMode(ATX_POWER_STATE ? PinAccess::write1 : PinAccess::write0);
+    }
 #endif
 
     // Ethernet networking defaults
@@ -889,7 +898,7 @@ void Platform::Init() noexcept
 	lowestVin = 9999;
 	numVinUnderVoltageEvents = previousVinUnderVoltageEvents = numVinOverVoltageEvents = previousVinOverVoltageEvents = 0;
 # if STM32F4
-	dummyVoltageAdcReading = PowerVoltageToAdcReading(VInDummyReading);		// voltages above this cause driver shutdown
+	dummyVoltageAdcReading = PowerVoltageToAdcReading(VInDummyReading);
 # endif
 #endif
 
@@ -903,12 +912,6 @@ void Platform::Init() noexcept
 	numV12UnderVoltageEvents = previousV12UnderVoltageEvents = 0;
 #endif
 
-#if LPC17xx || STM32F4
-	if (ATX_INITIAL_POWER_ON)
-		AtxPowerOn();
-	else
-		AtxPowerOff(false);
-#endif
 	// Kick everything off
 	InitialiseInterrupts();
 
@@ -1260,7 +1263,7 @@ void Platform::Spin() noexcept
 # endif
 		else
 #elif HAS_ATX_POWER_MONITOR
-		if (!AtxPower())
+		if (!GetAtxPowerState())
 		{
 			driversPowered = false;
 			reprap.GetGCodes().SetAllAxesNotHomed();
@@ -1411,7 +1414,7 @@ void Platform::Spin() noexcept
 #elif HAS_12V_MONITOR
 	else if (currentV12 >= driverV12OnAdcReading)
 #elif HAS_ATX_POWER_MONITOR
-	else if (AtxPower())
+	else if (GetAtxPowerState())
 #else
 	else
 #endif
@@ -1453,7 +1456,7 @@ void Platform::Spin() noexcept
 
 		if (deferredPowerDown && !thermostaticFanRunning)
 		{
-			AtxPowerOff(false);
+			AtxPowerOff();
 		}
 
 		// Check whether it is time to report any faults (do this after checking fans in case driver cooling fans are turned on)
@@ -2737,7 +2740,7 @@ bool Platform::WritePlatformParameters(FileStore *f, bool includingG31) const no
 		ok = true;
 	}
 
-	if (ok && includingG31)
+	if (ok)
 	{
 		ok = endstops.WriteZProbeParameters(f, includingG31);
 	}
@@ -3911,49 +3914,92 @@ void Platform::StopLogging() noexcept
 #endif
 }
 
-bool Platform::AtxPower() const noexcept
+bool Platform::GetAtxPowerState() const noexcept
 {
 #if LPC17xx || STM32F4
 	return ATX_POWER_STATE;
 #else
-	const bool val = IoPort::ReadPin(ATX_POWER_PIN);
-	return (ATX_POWER_INVERTED) ? !val : val;
+	const bool val = PsOnPort.ReadDigital();
+	return (PsOnPort.IsHardwareInverted()) ? !val : val;
 #endif
 }
 
-void Platform::AtxPowerOn() noexcept
+GCodeResult Platform::HandleM80(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeException)
 {
-	deferredPowerDown = false;
-	IoPort::WriteDigital(ATX_POWER_PIN, !ATX_POWER_INVERTED);
 #if LPC17xx || STM32F4
 	ATX_POWER_STATE = true;
 # if STM32F4
 	IoPort::WriteDigital(StepperPowerEnablePin, true);
 # endif
 #endif
+	deferredPowerDown = false;				// cancel any pending power down
+
+	GCodeResult rslt;
+	if (gb.Seen('C'))
+	{
+		rslt = GetGCodeResultFromSuccess(PsOnPort.AssignPort(gb, reply, PinUsedBy::gpout, PinAccess::write1));
+		atxPowerControlled = PsOnPort.IsValid();
+	}
+	else if (PsOnPort.IsValid())
+	{
+		PsOnPort.WriteDigital(true);
+		atxPowerControlled = true;
+		rslt = GCodeResult::ok;
+	}
+	else
+	{
+// on STM/LPC port we allow use of M80/M81 to control "virtual power", so it is not an error to have no pin defined
+#if STM32F4 || LPC17xx
+		rslt = GCodeResult::ok;
+#else
+		reply.copy("No PS_ON port defined");
+		rslt = GCodeResult::error;
+#endif
+	}
+
+	reprap.StateUpdated();
+	return rslt;
 }
 
-void Platform::AtxPowerOff(bool defer) noexcept
+GCodeResult Platform::HandleM81(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeException)
 {
-	deferredPowerDown = defer;
-	if (!defer)
+	deferredPowerDown = gb.Seen('S') && gb.GetUIValue() != 0;
+	atxPowerControlled = true;				// set this before calling AtxPowerOff
+	if (!deferredPowerDown)
 	{
+		AtxPowerOff();
+	}
+	reprap.StateUpdated();
+	return GCodeResult::ok;
+}
+
+void Platform::AtxPowerOff() noexcept
+{
 #if HAS_MASS_STORAGE
-		if (logger != nullptr)
-		{
-			logger->LogMessage(realTime, "Power off commanded", LogWarn);
-			logger->Flush(true);
-			// We don't call logger->Stop() here because we don't know whether turning off the power will work
-		}
+	if (logger != nullptr)
+	{
+		logger->LogMessage(realTime, "Power off commanded", LogWarn);
+		logger->Flush(true);
+		// We don't call logger->Stop() here because we don't know whether turning off the power will work
+	}
 #endif
-		IoPort::WriteDigital(ATX_POWER_PIN, ATX_POWER_INVERTED);
 #if LPC17xx || STM32F4
 		ATX_POWER_STATE = false;
 # if STM32F4
 		IoPort::WriteDigital(StepperPowerEnablePin, false);
 # endif
 #endif
+
+	// The PS_ON pin on Duet 3 is shared with another pin, so only try to turn off ATX power if we know that power is being controlled
+	if (atxPowerControlled)
+	{
+		PsOnPort.WriteDigital(false);
+		reprap.StateUpdated();
 	}
+#if LPC17xx || STM32F4
+	else
+		reprap.StateUpdated();
+#endif
 }
 
 #if SUPPORT_NONLINEAR_EXTRUSION
@@ -4036,15 +4082,7 @@ void Platform::SetBoardType(BoardType bt) noexcept
 {
 	if (bt == BoardType::Auto)
 	{
-#if defined(DUET3MINI_V02)
-		// Test whether this is a WiFi or an Ethernet board. Currently we do this based on the processor type.
-		const uint16_t deviceId = DSU->DID.reg >> 16;
-		board = (deviceId == 0x6184)							// if SAME54P20A
-				? BoardType::Duet3Mini_Ethernet
-				: (deviceId == 0x6006)							// SAMD51P20A rev D
-				  ? BoardType::Duet3Mini_WiFi
-					: BoardType::Duet3Mini_Unknown;
-#elif defined(DUET3MINI_V04)
+#if defined(DUET3MINI_V04)
 		// Test whether this is a WiFi or an Ethernet board by testing for a pulldown resistor on Dir1
 		pinMode(DIRECTION_PINS[1], INPUT_PULLUP);
 		delayMicroseconds(20);									// give the pullup resistor time to work
@@ -5354,7 +5392,7 @@ void Platform::Tick() noexcept
 			currentVin = AnalogInReadChannel(vInMonitorAdcChannel)*vRefCorrection/VRefCorrectionScale;
 #   if HAS_ATX_POWER_MONITOR
 			// Allow voltage to be turned "off" by "virtual ATX control"
-			if (!ATX_POWER_STATE && ATX_POWER_PIN == NoPin)
+			if (!ATX_POWER_STATE)
 				currentVin = 0;
 #   endif
 		}

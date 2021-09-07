@@ -322,7 +322,8 @@ constexpr ObjectModelTableEntry RepRap::objectModelTable[] =
 	{ "zProbes",				OBJECT_MODEL_FUNC_NOSELF((int32_t)MaxZProbes),							ObjectModelEntryFlags::verbose },
 
 	// 3. MachineModel.state
-	{ "atxPower",				OBJECT_MODEL_FUNC_IF(self->gCodes->AtxPowerControlled(), self->platform->AtxPower()),	ObjectModelEntryFlags::live },
+	{ "atxPower",				OBJECT_MODEL_FUNC_IF(self->platform->IsAtxPowerControlled(), self->platform->GetAtxPowerState()),	ObjectModelEntryFlags::none },
+	{ "atxPowerPort",			OBJECT_MODEL_FUNC_IF(self->platform->IsAtxPowerControlled(), self->platform->GetAtxPowerPort()),	ObjectModelEntryFlags::none },
 	{ "beep",					OBJECT_MODEL_FUNC_IF(self->beepDuration != 0, self, 4),					ObjectModelEntryFlags::none },
 	{ "currentTool",			OBJECT_MODEL_FUNC((int32_t)self->GetCurrentToolNumber()),				ObjectModelEntryFlags::live },
 	{ "displayMessage",			OBJECT_MODEL_FUNC(self->message.c_str()),								ObjectModelEntryFlags::none },
@@ -402,7 +403,7 @@ constexpr uint8_t RepRap::objectModelTableDescriptor[] =
 	0,																		// directories
 #endif
 	25,																		// limits
-	16 + HAS_VOLTAGE_MONITOR + SUPPORT_LASER,								// state
+	17 + HAS_VOLTAGE_MONITOR + SUPPORT_LASER,								// state
 	2,																		// state.beep
 	6,																		// state.messageBox
 	12 + HAS_NETWORKING + SUPPORT_SCANNER + 3 * HAS_MASS_STORAGE			// seqs
@@ -578,7 +579,7 @@ void RepRap::Init() noexcept
 
 	active = true;										// must do this before we start the network or call Spin(), else the watchdog may time out
 #if (LPC17xx || STM32F4) && SUPPORT_TMC22xx
-	if (platform->AtxPower())
+	if (platform->GetAtxPowerState())
 	{
 		// ensure smart drivers are up and running
 		platform->MessageF(UsbMessage, "Checking drivers...\n");
@@ -954,10 +955,12 @@ void RepRap::Diagnostics(MessageType mtype) noexcept
 // Turn off the heaters, disable the motors, and deactivate the Heat and Move classes. Leave everything else working.
 void RepRap::EmergencyStop() noexcept
 {
-	stopped = true;				// a useful side effect of setting this is that it prevents Platform::Tick being called, which is needed when loading IAP into RAM
+	stopped = true;								// a useful side effect of setting this is that it prevents Platform::Tick being called, which is needed when loading IAP into RAM
 
 	// Do not turn off ATX power here. If the nozzles are still hot, don't risk melting any surrounding parts by turning fans off.
 	//platform->SetAtxPower(false);
+
+	platform->DisableAllDrivers();				// need to do this to ensure that any motor brakes are re-engaged
 
 	switch (gCodes->GetMachineType())
 	{
@@ -1422,7 +1425,7 @@ OutputBuffer *RepRap::GetStatusResponse(uint8_t type, ResponseSource source) con
 	}
 
 	// ATX power
-	response->catf(",\"params\":{\"atxPower\":%d", gCodes->AtxPowerControlled() ? (platform->AtxPower() ? 1 : 0) : -1);
+	response->catf(",\"params\":{\"atxPower\":%d", platform->IsAtxPowerControlled() ? (platform->GetAtxPowerState() ? 1 : 0) : -1);
 
 	// Parameters
 	{
