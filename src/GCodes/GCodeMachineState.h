@@ -122,7 +122,7 @@ enum class GCodeState : uint8_t
 #endif
 
 #if HAS_VOLTAGE_MONITOR
-	powerFailPausing1
+	powerFailPausing1,
 #endif
 };
 
@@ -195,6 +195,9 @@ public:
 	GCodeMachineState *Pop() const noexcept;
 	uint8_t GetBlockNesting() const noexcept { return blockNesting; }
 
+	void SetMacroRestartable(bool b) noexcept { macroRestartable = b; }
+	bool CanRestartMacro() const noexcept;
+
 	VariableSet variables;											// local variables and parameters
 	float feedRate;
 #if HAS_MASS_STORAGE || HAS_EMBEDDED_FILES
@@ -222,7 +225,10 @@ public:
 		waitingForAcknowledgement : 1,
 		messageAcknowledged : 1,
 		messageCancelled : 1,
-		localPush : 1							// true if this stack frame was created by M120, so we use the parent variables
+		localPush : 1,							// true if this stack frame was created by M120, so we use the parent variables
+		macroRestartable : 1,					// true if the current macro has used M98 R1 to say that it can be interrupted and restarted
+		firstCommandAfterRestart : 1,			// true if this is the first command after restarting a macro that was interrupted
+		commandRepeated : 1						// true if the current command is being repeated because it returned GCodeResult::notFinished the first time
 #if HAS_LINUX_INTERFACE
 		, lastCodeFromSbc : 1,
 		macroStartedByCode : 1,

@@ -350,7 +350,7 @@ void LinuxInterface::Spin() noexcept
 								if (error)
 								{
 									gb->CurrentFileMachineState().CloseFile();
-									gb->PopState(false);
+									gb->PopState();
 									gb->Init();
 								}
 								else
@@ -734,7 +734,7 @@ void LinuxInterface::Spin() noexcept
 						if (v == nullptr)
 						{
 							// DSF doesn't provide indent values but instructs RRF to delete local variables when the current block ends
-							vset->Insert(new Variable(shortVarName, ev, 0));
+							vset->InsertNew(shortVarName, ev, 0);
 						}
 						else
 						{

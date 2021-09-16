@@ -25,7 +25,7 @@ static constexpr char eofString[] = EOF_STRING;		// What's at the end of an HTML
 #endif
 
 StringParser::StringParser(GCodeBuffer& gcodeBuffer) noexcept
-	: gb(gcodeBuffer), fileBeingWritten(nullptr), writingFileSize(0), eofStringCounter(0), indentToSkipTo(NoIndentSkip),
+	: gb(gcodeBuffer), fileBeingWritten(nullptr), writingFileSize(0), indentToSkipTo(NoIndentSkip), eofStringCounter(0),
 	  hasCommandNumber(false), commandLetter('Q'), checksumRequired(false), binaryWriting(false)
 {
 	StartNewFile();
@@ -49,12 +49,17 @@ void StringParser::Init() noexcept
 
 inline void StringParser::AddToChecksum(char c) noexcept
 {
-	computedChecksum ^= (uint8_t)c;
+	// As computing the CRC takes several cycles, we only do it if we had a line number
+	if (hadLineNumber)
+	{
+		computedChecksum ^= (uint8_t)c;
+		crc16.Update(c);
+	}
 }
 
 inline void StringParser::StoreAndAddToChecksum(char c) noexcept
 {
-	computedChecksum ^= (uint8_t)c;
+	AddToChecksum(c);
 	if (gcodeLineEnd + 1 < ARRAY_SIZE(gb.buffer))					// if there is space for this character and a trailing null
 	{
 		gb.buffer[gcodeLineEnd++] = c;
@@ -101,6 +106,7 @@ bool StringParser::Put(char c) noexcept
 			case 'N':
 			case 'n':
 				hadLineNumber = true;
+				crc16.Reset(0);
 				AddToChecksum(c);
 				gb.bufferState = GCodeBufferState::parsingLineNumber;
 				receivedLineNumber = 0;
@@ -163,6 +169,7 @@ bool StringParser::Put(char c) noexcept
 				if (hadLineNumber && braceCount == 0)
 				{
 					declaredChecksum = 0;
+					checksumCharsReceived = 0;
 					hadChecksum = true;
 					gb.bufferState = GCodeBufferState::parsingChecksum;
 				}
@@ -246,6 +253,7 @@ bool StringParser::Put(char c) noexcept
 			if (isDigit(c))
 			{
 				declaredChecksum = (10 * declaredChecksum) + (c - '0');
+				++checksumCharsReceived;
 			}
 			else
 			{
@@ -286,13 +294,44 @@ bool StringParser::LineFinished() noexcept
 
 	gb.buffer[gcodeLineEnd] = 0;
 
-	if (gb.bufferState != GCodeBufferState::parsingComment)			// we don't checksum comment lines
+	if (gb.bufferState != GCodeBufferState::parsingComment)			// we don't checksum or echo comment lines, but we still need to process them
 	{
-		const bool badChecksum = (hadChecksum && computedChecksum != declaredChecksum);
-		const bool missingChecksum = (checksumRequired && !hadChecksum && gb.LatestMachineState().GetPrevious() == nullptr);
+		bool badChecksum, missingChecksum;
+		if (hadChecksum)
+		{
+			missingChecksum = false;
+			switch (checksumCharsReceived)
+			{
+			case 1:
+			case 2:
+			case 3:
+				badChecksum = (computedChecksum != declaredChecksum);
+				break;
+
+			case 5:
+				badChecksum = (crc16.Get() != declaredChecksum);
+				break;
+
+			default:
+				badChecksum = true;
+				break;
+			}
+		}
+		else
+		{
+			badChecksum = false;
+			missingChecksum = (checksumRequired && gb.LatestMachineState().GetPrevious() == nullptr);
+		}
+
 		if (reprap.GetDebugFlags(moduleGcodes).IsBitSet(gb.GetChannel().ToBaseType()) && fileBeingWritten == nullptr)
 		{
 			debugPrintf("%s%s: %s\n", gb.GetChannel().ToString(), ((badChecksum) ? "(bad-csum)" : (missingChecksum) ? "(no-csum)" : ""), gb.buffer);
+		}
+
+		if (badChecksum || missingChecksum)
+		{
+			Init();
+			return false;
 		}
 	}
 
@@ -657,7 +696,7 @@ void StringParser::ProcessVarOrGlobalCommand(bool isGlobal) THROWS(GCodeExceptio
 	SkipWhiteSpace();
 	ExpressionParser parser(gb, gb.buffer + readPointer, gb.buffer + ARRAY_SIZE(gb.buffer), commandIndent + readPointer);
 	ExpressionValue ev = parser.Parse();
-	vset->Insert(new Variable(varName.c_str(), ev, (isGlobal) ? 0 : gb.CurrentFileMachineState().GetBlockNesting()));
+	vset->InsertNew(varName.c_str(), ev, (isGlobal) ? 0 : gb.CurrentFileMachineState().GetBlockNesting());
 	if (isGlobal)
 	{
 		reprap.GlobalUpdated();
@@ -1875,7 +1914,7 @@ void StringParser::AddParameters(VariableSet& vs, int codeRunning) noexcept
 											ev.Set(nullptr);
 										}
 										char paramName[2] = { letter, 0 };
-										vs.Insert(new Variable(paramName, ev, -1));
+										vs.InsertNew(paramName, ev, -1);
 									}
 								}
 							  );

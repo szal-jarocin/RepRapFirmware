@@ -879,7 +879,6 @@ void Platform::Init() noexcept
 	}
 
 	// Hotend configuration
-	nozzleDiameter = NOZZLE_DIAMETER;
 	filamentWidth = FILAMENT_WIDTH;
 
 #if HAS_CPU_TEMP_SENSOR

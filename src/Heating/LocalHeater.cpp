@@ -58,7 +58,7 @@ void LocalHeater::ResetHeater() noexcept
 	mode = HeaterMode::off;
 	previousTemperaturesGood = 0;
 	previousTemperatureIndex = 0;
-	iAccumulator = 0.0;
+	iAccumulator = extrusionBoost = 0.0;
 	badTemperatureCount = 0;
 	averagePWM = lastPwm = 0.0;
 	heatingFaultCount = 0;
@@ -227,7 +227,7 @@ void LocalHeater::Spin() noexcept
 		float derivative = 0.0;
 		bool gotDerivative = false;
 		badTemperatureCount = 0;
-		if ((previousTemperaturesGood & (1 << (NumPreviousTemperatures - 1))) != 0)
+		if ((previousTemperaturesGood & (1u << (NumPreviousTemperatures - 1))) != 0)
 		{
 			const float tentativeDerivative = (SecondsToMillis/(float)HeatSampleIntervalMillis) * (temperature - previousTemperatures[previousTemperatureIndex])
 							/ (float)(NumPreviousTemperatures);
@@ -239,7 +239,8 @@ void LocalHeater::Spin() noexcept
 			}
 		}
 		previousTemperatures[previousTemperatureIndex] = temperature;
-		previousTemperaturesGood = (previousTemperaturesGood << 1) | 1;
+		previousTemperaturesGood = (previousTemperaturesGood << 1) | 1u;
+		previousTemperatureIndex = (previousTemperatureIndex + 1) % NumPreviousTemperatures;
 
 		if (GetModel().IsEnabled())
 		{
@@ -260,7 +261,7 @@ void LocalHeater::Spin() noexcept
 					else if (gotDerivative)
 					{
 						const float expectedRate = GetExpectedHeatingRate();
-						if (derivative + AllowedTemperatureDerivativeNoise < expectedRate * 0.75
+						if (derivative + AllowedTemperatureDerivativeNoise < expectedRate * 0.7
 							&& (float)(millis() - timeSetHeating) > GetModel().GetDeadTime() * SecondsToMillis * 2)
 						{
 							++heatingFaultCount;
@@ -359,7 +360,7 @@ void LocalHeater::Spin() noexcept
 							iAccumulator = constrain<float>
 											(iAccumulator + (errorToUse * params.kP * params.recipTi * (HeatSampleIntervalMillis * MillisToSeconds)),
 												0.0, GetModel().GetMaxPwm());
-							lastPwm = constrain<float>(pPlusD + iAccumulator, 0.0, GetModel().GetMaxPwm());
+							lastPwm = constrain<float>(pPlusD + iAccumulator + extrusionBoost, 0.0, GetModel().GetMaxPwm());
 						}
 #if HAS_VOLTAGE_MONITOR
 						// Scale the PID based on the current voltage vs. the calibration voltage
@@ -430,7 +431,6 @@ void LocalHeater::Spin() noexcept
 		// Set the heater power and update the average PWM
 		SetHeater(lastPwm);
 		averagePWM = averagePWM * (1.0 - HeatSampleIntervalMillis/(HeatPwmAverageTime * SecondsToMillis)) + lastPwm;
-		previousTemperatureIndex = (previousTemperatureIndex + 1) % NumPreviousTemperatures;
 
 		// For temperature sensors which do not require frequent sampling and averaging,
 		// their temperature is read here and error/safety handling performed.  However,
@@ -463,7 +463,7 @@ float LocalHeater::GetAveragePWM() const noexcept
 // Get a conservative estimate of the expected heating rate at the current temperature and average PWM. The result may be negative.
 float LocalHeater::GetExpectedHeatingRate() const noexcept
 {
-	const float initialHeatingRate = GetModel().GetHeatingRate() * GetAveragePWM();
+	const float initialHeatingRate = GetModel().GetHeatingRate() * min<float>(GetAveragePWM(), lastPwm);
 	return (temperature > LowAmbientTemperature)
 				? initialHeatingRate - (temperature - LowAmbientTemperature) * GetModel().GetCoolingRateFanOn()
 					: initialHeatingRate;
@@ -516,9 +516,15 @@ void LocalHeater::FeedForwardAdjustment(float fanPwmChange, float extrusionChang
 			debugPrintf("iacc=%.3f, applying boost %.3f\n", (double)iAccumulator, (double)boost);
 		}
 #endif
-		TaskCriticalSectionLocker lock;
+		InterruptCriticalSectionLocker lock;
 		iAccumulator += boost;
 	}
+}
+
+// Set extrusion feedforward. This is called from an ISR.
+void LocalHeater::SetExtrusionFeedForward(float pwm) noexcept
+{
+	extrusionBoost = pwm;
 }
 
 /* Notes on the auto tune algorithm

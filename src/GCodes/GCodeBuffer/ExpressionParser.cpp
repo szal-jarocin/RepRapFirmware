@@ -32,7 +32,7 @@ namespace StackUsage
 
 // These can't be declared locally inside ParseIdentifierExpression because NamedEnum includes static data
 NamedEnum(NamedConstant, unsigned int, _false, iterations, line, _null, pi, _result, _true);
-NamedEnum(Function, unsigned int, abs, acos, asin, atan, atan2, cos, degrees, exists, floor, isnan, max, min, mod, radians, random, sin, sqrt, tan);
+NamedEnum(Function, unsigned int, abs, acos, asin, atan, atan2, cos, datetime, degrees, exists, floor, isnan, max, min, mod, radians, random, sin, sqrt, tan);
 
 const char * const InvalidExistsMessage = "invalid 'exists' expression";
 
@@ -118,6 +118,11 @@ void ExpressionParser::ParseInternal(ExpressionValue& val, bool evaluate, uint8_
 
 		case TypeCode::Int32:
 		case TypeCode::Float:
+			break;
+
+		case TypeCode::DateTime_tc:					// unary + converts a DateTime to a seconds count
+			val.iVal = (uint32_t)val.Get56BitValue();
+			val.SetType(TypeCode::Int32);
 			break;
 
 		default:
@@ -294,7 +299,7 @@ void ExpressionParser::ParseInternal(ExpressionValue& val, bool evaluate, uint8_
 				switch(opChar)
 				{
 				case '+':
-					if (val.GetType() == TypeCode::DateTime)
+					if (val.GetType() == TypeCode::DateTime_tc)
 					{
 						if (val2.GetType() == TypeCode::Uint32)
 						{
@@ -325,9 +330,9 @@ void ExpressionParser::ParseInternal(ExpressionValue& val, bool evaluate, uint8_
 					break;
 
 				case '-':
-					if (val.GetType() == TypeCode::DateTime)
+					if (val.GetType() == TypeCode::DateTime_tc)
 					{
-						if (val2.GetType() == TypeCode::DateTime)
+						if (val2.GetType() == TypeCode::DateTime_tc)
 						{
 							// Difference of two data/times
 							val.SetType(TypeCode::Int32);
@@ -393,7 +398,7 @@ void ExpressionParser::ParseInternal(ExpressionValue& val, bool evaluate, uint8_
 						val.bVal = (val.fVal > val2.fVal);
 						break;
 
-					case TypeCode::DateTime:
+					case TypeCode::DateTime_tc:
 						val.bVal = val.Get56BitValue() > val2.Get56BitValue();
 						break;
 
@@ -428,7 +433,7 @@ void ExpressionParser::ParseInternal(ExpressionValue& val, bool evaluate, uint8_
 						val.bVal = (val.fVal < val2.fVal);
 						break;
 
-					case TypeCode::DateTime:
+					case TypeCode::DateTime_tc:
 						val.bVal = val.Get56BitValue() < val2.Get56BitValue();
 						break;
 
@@ -466,7 +471,7 @@ void ExpressionParser::ParseInternal(ExpressionValue& val, bool evaluate, uint8_
 						BalanceTypes(val, val2, evaluate);
 						switch (val.GetType())
 						{
-						case TypeCode::ObjectModel:
+						case TypeCode::ObjectModel_tc:
 							ThrowParseException("cannot compare objects");
 
 						case TypeCode::Int32:
@@ -481,7 +486,7 @@ void ExpressionParser::ParseInternal(ExpressionValue& val, bool evaluate, uint8_
 							val.bVal = (val.fVal == val2.fVal);
 							break;
 
-						case TypeCode::DateTime:
+						case TypeCode::DateTime_tc:
 							val.bVal = val.Get56BitValue() == val2.Get56BitValue();
 							break;
 
@@ -674,7 +679,7 @@ void ExpressionParser::BalanceNumericTypes(ExpressionValue& val1, ExpressionValu
 
 /*static*/ bool ExpressionParser::TypeHasNoLiterals(TypeCode t) noexcept
 {
-	return t == TypeCode::Char || t == TypeCode::DateTime || t == TypeCode::IPAddress || t == TypeCode::MacAddress || t == TypeCode::DriverId;
+	return t == TypeCode::Char || t == TypeCode::DateTime_tc || t == TypeCode::IPAddress_tc || t == TypeCode::MacAddress_tc || t == TypeCode::DriverId_tc;
 }
 
 // Balance types for a comparison operator
@@ -799,7 +804,7 @@ void ExpressionParser::ConvertToDriverId(ExpressionValue& val, bool evaluate) co
 {
 	switch (val.GetType())
 	{
-	case TypeCode::DriverId:
+	case TypeCode::DriverId_tc:
 		break;
 
 	case TypeCode::Int32:
@@ -1225,6 +1230,54 @@ void ExpressionParser::ParseIdentifierExpression(ExpressionValue& rslt, bool eva
 						ThrowParseException("expected positive integer");
 					}
 					rslt.Set((int32_t)random(limit));
+				}
+				break;
+
+			case Function::datetime:
+				{
+					uint64_t val;
+					switch (rslt.GetType())
+					{
+					case TypeCode::Int32:
+						val = (uint64_t)max<uint32_t>(rslt.iVal, 0);
+						break;
+
+					case TypeCode::Uint32:
+						val = (uint64_t)rslt.uVal;
+						break;
+
+					case TypeCode::Uint64:
+					case TypeCode::DateTime_tc:
+						val = rslt.Get56BitValue();
+						break;
+
+					case TypeCode::CString:
+						{
+							tm timeInfo;
+							if (SafeStrptime(rslt.sVal, "%Y-%m-%dT%H:%M:%S", &timeInfo) == nullptr)
+							{
+								ThrowParseException("string is not a valid date and time");
+							}
+							val = mktime(&timeInfo);
+						}
+						break;
+
+					case TypeCode::HeapString:
+						{
+							tm timeInfo;
+							if (SafeStrptime(rslt.shVal.Get().Ptr(), "%Y-%m-%dT%H:%M:%S", &timeInfo) == nullptr)
+							{
+								ThrowParseException("string is not a valid date and time");
+							}
+							val = mktime(&timeInfo);
+						}
+						break;
+
+					default:
+						ThrowParseException("can't convert value to DateTime");
+					}
+					rslt.SetType(TypeCode::DateTime_tc);
+					rslt.Set56BitValue(val);
 				}
 				break;
 

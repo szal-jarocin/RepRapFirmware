@@ -147,7 +147,7 @@ namespace CanInterface
 #define THROW_INTERNAL_ERROR	throw GCodeException(-1, -1, "internal error at file " __FILE__ "(%d)", (int32_t)__LINE__)
 
 // Assertion mechanism
-extern "C" [[noreturn]] void vAssertCalled(uint32_t line, const char *file) noexcept __attribute((naked));
+extern "C" [[noreturn]] void vAssertCalled(uint32_t line, const char *file) noexcept __attribute__((naked));
 #define RRF_ASSERT(_expr) do { if (!(_expr)) { vAssertCalled(__LINE__, __FILE__); } } while (false)
 
 #if !SUPPORT_CAN_EXPANSION
@@ -420,7 +420,7 @@ public:
 	SimpleRangeIterator(T value_) noexcept : val(value_) {}
     bool operator != (SimpleRangeIterator<T> const& other) const noexcept { return val != other.val;     }
     T const& operator*() const noexcept { return val; }
-    SimpleRangeIterator& operator++() noexcept { ++val; return *this; }
+    SimpleRangeIterator<T>& operator++() noexcept { ++val; return *this; }
 
 private:
     T val;

@@ -107,6 +107,7 @@ public:
 	void SetToolHeaterActiveTemperature(size_t heaterNumber, float temp) THROWS(GCodeException);
 	void SetToolHeaterStandbyTemperature(size_t heaterNumber, float temp) THROWS(GCodeException);
 	GCodeResult SetFirmwareRetraction(GCodeBuffer& gb, const StringRef& reply, OutputBuffer*& outBuf) THROWS(GCodeException);
+	GCodeResult GetSetFeedForward(GCodeBuffer& gb, const StringRef& reply) THROWS(GCodeException);
 
 	bool HasTemperatureFault() const noexcept { return heaterFault; }
 
@@ -120,6 +121,9 @@ public:
 	void HeatersToActive() const noexcept;
 	void HeatersToStandby() const noexcept;
 
+	void ApplyFeedForward(float extrusionSpeed) const noexcept;
+	void StopFeedForward() const noexcept;
+
 protected:
 	DECLARE_OBJECT_MODEL
 	OBJECT_MODEL_ARRAY(activeTemps)
@@ -129,6 +133,7 @@ protected:
 	OBJECT_MODEL_ARRAY(mix)
 	OBJECT_MODEL_ARRAY(offsets)
 	OBJECT_MODEL_ARRAY(standbyTemps)
+	OBJECT_MODEL_ARRAY(feedForward)
 
 	void Activate() noexcept;
 	void Standby() noexcept;
@@ -154,6 +159,7 @@ private:
 	float mix[MaxExtrudersPerTool];
 	float activeTemperatures[MaxHeatersPerTool];
 	float standbyTemperatures[MaxHeatersPerTool];
+	float heaterFeedForward[MaxHeatersPerTool];
 
 	// Firmware retraction settings
 	float retractLength, retractExtra;			// retraction length and extra length to un-retract
