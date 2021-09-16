@@ -26,6 +26,7 @@
 #include "TMCSoftUART.h"
 #include "TMC22xxDriver.h"
 #include <functional>
+
 // TMC22xx DRV_STATUS register bit assignments
 const uint32_t TMC22xx_RR_OT = 1u << 1;			// over temperature shutdown
 const uint32_t TMC22xx_RR_OTPW = 1u << 0;		// over temperature warning
@@ -277,33 +278,70 @@ constexpr uint8_t REGNUM_PWM_AUTO = 0x72;
 // Bytes 3-6 32-bit data, MSB first
 // Byte 7 8-bit CRC
 
-// Add 1 bit to a CRC
-static inline constexpr uint8_t CRCAddBit(uint8_t crc, uint8_t currentByte, uint8_t bit) noexcept
+// Fast table-driven CRC-8. The result after we have taken the CRC of all bytes needs to be reflected.
+// The CRC polynomial used by the TMC drivers is: X^8 + X^2 + X + 1 which is CRC-8-CCITT
+static constexpr uint8_t crc_table[256] =
 {
-	return (((crc ^ (currentByte << (7 - bit))) & 0x80) != 0)
-			? (crc << 1) ^ 0x07
-				: (crc << 1);
-}
+	0x00, 0x91, 0xE3, 0x72, 0x07, 0x96, 0xE4, 0x75, 0x0E, 0x9F, 0xED, 0x7C, 0x09, 0x98, 0xEA, 0x7B,
+	0x1C, 0x8D, 0xFF, 0x6E, 0x1B, 0x8A, 0xF8, 0x69, 0x12, 0x83, 0xF1, 0x60, 0x15, 0x84, 0xF6, 0x67,
+	0x38, 0xA9, 0xDB, 0x4A, 0x3F, 0xAE, 0xDC, 0x4D, 0x36, 0xA7, 0xD5, 0x44, 0x31, 0xA0, 0xD2, 0x43,
+	0x24, 0xB5, 0xC7, 0x56, 0x23, 0xB2, 0xC0, 0x51, 0x2A, 0xBB, 0xC9, 0x58, 0x2D, 0xBC, 0xCE, 0x5F,
+	0x70, 0xE1, 0x93, 0x02, 0x77, 0xE6, 0x94, 0x05, 0x7E, 0xEF, 0x9D, 0x0C, 0x79, 0xE8, 0x9A, 0x0B,
+	0x6C, 0xFD, 0x8F, 0x1E, 0x6B, 0xFA, 0x88, 0x19, 0x62, 0xF3, 0x81, 0x10, 0x65, 0xF4, 0x86, 0x17,
+	0x48, 0xD9, 0xAB, 0x3A, 0x4F, 0xDE, 0xAC, 0x3D, 0x46, 0xD7, 0xA5, 0x34, 0x41, 0xD0, 0xA2, 0x33,
+	0x54, 0xC5, 0xB7, 0x26, 0x53, 0xC2, 0xB0, 0x21, 0x5A, 0xCB, 0xB9, 0x28, 0x5D, 0xCC, 0xBE, 0x2F,
+	0xE0, 0x71, 0x03, 0x92, 0xE7, 0x76, 0x04, 0x95, 0xEE, 0x7F, 0x0D, 0x9C, 0xE9, 0x78, 0x0A, 0x9B,
+	0xFC, 0x6D, 0x1F, 0x8E, 0xFB, 0x6A, 0x18, 0x89, 0xF2, 0x63, 0x11, 0x80, 0xF5, 0x64, 0x16, 0x87,
+	0xD8, 0x49, 0x3B, 0xAA, 0xDF, 0x4E, 0x3C, 0xAD, 0xD6, 0x47, 0x35, 0xA4, 0xD1, 0x40, 0x32, 0xA3,
+	0xC4, 0x55, 0x27, 0xB6, 0xC3, 0x52, 0x20, 0xB1, 0xCA, 0x5B, 0x29, 0xB8, 0xCD, 0x5C, 0x2E, 0xBF,
+	0x90, 0x01, 0x73, 0xE2, 0x97, 0x06, 0x74, 0xE5, 0x9E, 0x0F, 0x7D, 0xEC, 0x99, 0x08, 0x7A, 0xEB,
+	0x8C, 0x1D, 0x6F, 0xFE, 0x8B, 0x1A, 0x68, 0xF9, 0x82, 0x13, 0x61, 0xF0, 0x85, 0x14, 0x66, 0xF7,
+	0xA8, 0x39, 0x4B, 0xDA, 0xAF, 0x3E, 0x4C, 0xDD, 0xA6, 0x37, 0x45, 0xD4, 0xA1, 0x30, 0x42, 0xD3,
+	0xB4, 0x25, 0x57, 0xC6, 0xB3, 0x22, 0x50, 0xC1, 0xBA, 0x2B, 0x59, 0xC8, 0xBD, 0x2C, 0x5E, 0xCF
+};
 
 // Add a byte to a CRC
 static inline constexpr uint8_t CRCAddByte(uint8_t crc, uint8_t currentByte) noexcept
 {
-	crc = CRCAddBit(crc, currentByte, 0);
-	crc = CRCAddBit(crc, currentByte, 1);
-	crc = CRCAddBit(crc, currentByte, 2);
-	crc = CRCAddBit(crc, currentByte, 3);
-	crc = CRCAddBit(crc, currentByte, 4);
-	crc = CRCAddBit(crc, currentByte, 5);
-	crc = CRCAddBit(crc, currentByte, 6);
-	crc = CRCAddBit(crc, currentByte, 7);
-	return crc;
+	return crc_table[crc ^ currentByte];
 }
+
+// Version of Reflect that can be declared constexpr so that we can use it in a static_assert
+static inline constexpr uint8_t SlowReflect(uint8_t b) noexcept
+{
+	b = (b & 0b11110000) >> 4 | (b & 0b00001111) << 4;
+	b = (b & 0b11001100) >> 2 | (b & 0b00110011) << 2;
+	b = (b & 0b10101010) >> 1 | (b & 0b01010101) << 1;
+	return b;
+}
+
+// Reverse the order of the bits
+static inline uint8_t Reflect(uint8_t b) noexcept
+{
+#if SAMC21
+	return SlowReflect(b);
+#else
+	uint32_t temp = b;
+	asm("rbit %0,%1" : "=r" (temp) : "r" (temp));
+	return temp >> 24;
+#endif
+}
+
+static inline constexpr uint8_t CRCAddFinalByte(uint8_t crc, uint8_t finalByte) noexcept
+{
+	return SlowReflect(CRCAddByte(crc, finalByte));
+}
+
+static_assert(CRCAddFinalByte(CRCAddByte(CRCAddByte(0, 1), 2), 3) == 0x1E);
 
 // CRC of the first 2 bytes we send in any request
 static constexpr uint8_t InitialSendCRC = CRCAddByte(CRCAddByte(0, 0x05), 0x00);
 
 // CRC of a request to read the IFCOUNT register
-static constexpr uint8_t ReadIfcountCRC = CRCAddByte(InitialSendCRC, REGNUM_IFCOUNT);
+static constexpr uint8_t ReadIfcountCRC = CRCAddFinalByte(InitialSendCRC, REGNUM_IFCOUNT);
+
+// CRC of the first two bytes we receive in any reply
+static constexpr uint8_t InitialReceiveCrc = CRCAddByte(CRCAddByte(0, 0x05), 0xFF);
 
 //----------------------------------------------------------------------------------------------------------------------------------
 // Private types and methods
@@ -466,27 +504,6 @@ private:
 
 // Static data members of class Tmc22xxDriverState
 
-// When using a soft UART other interrupts or disabling interrupts for a length of time can easily
-// create errors. Because of this it is likely that we will read corrupt data from time to time. 
-// We add an extra layer of data validation by always checking the CRC of the entire packet as
-// well as the normal checks.
-uint8_t static calcCRC(volatile uint8_t *datagram, uint8_t len) {
-	uint8_t crc = 0;
-	for (uint8_t i = 0; i < len; i++) {
-		uint8_t currentByte = datagram[i];
-		for (uint8_t j = 0; j < 8; j++) {
-			if ((crc >> 7) ^ (currentByte & 0x01)) {
-				crc = (crc << 1) ^ 0x07;
-			} else {
-				crc = (crc << 1);
-			}
-			crc &= 0xff;
-			currentByte = currentByte >> 1;
-		}
-	}
-	return crc;
-}
-
 // To write a register, we send one 8-byte packet to write it, then a 4-byte packet to ask for the IFCOUNT register, then we receive an 8-byte packet containing IFCOUNT.
 // This is the message we send - volatile because we care about when it is written
 volatile uint8_t Tmc22xxDriverState::sendData[12] =
@@ -534,14 +551,14 @@ constexpr uint8_t Tmc22xxDriverState::ReadRegNumbers[NumReadRegisters] =
 
 constexpr uint8_t Tmc22xxDriverState::ReadRegCRCs[NumReadRegisters] =
 {
-	CRCAddByte(InitialSendCRC, ReadRegNumbers[0]),
-	CRCAddByte(InitialSendCRC, ReadRegNumbers[1]),
-	CRCAddByte(InitialSendCRC, ReadRegNumbers[2]),
-	CRCAddByte(InitialSendCRC, ReadRegNumbers[3]),
-	CRCAddByte(InitialSendCRC, ReadRegNumbers[4]),
-	CRCAddByte(InitialSendCRC, ReadRegNumbers[5]),
+	CRCAddFinalByte(InitialSendCRC, ReadRegNumbers[0]),
+	CRCAddFinalByte(InitialSendCRC, ReadRegNumbers[1]),
+	CRCAddFinalByte(InitialSendCRC, ReadRegNumbers[2]),
+	CRCAddFinalByte(InitialSendCRC, ReadRegNumbers[3]),
+	CRCAddFinalByte(InitialSendCRC, ReadRegNumbers[4]),
+	CRCAddFinalByte(InitialSendCRC, ReadRegNumbers[5]),
 #if HAS_STALL_DETECT
-	CRCAddByte(InitialSendCRC, ReadRegNumbers[6])
+	CRCAddFinalByte(InitialSendCRC, ReadRegNumbers[6])
 #endif
 };
 
@@ -614,7 +631,7 @@ void Tmc22xxDriverState::UpdateRegister(size_t regIndex, uint32_t regVal) noexce
 	crc = CRCAddByte(crc, (uint8_t)regVal);
 	const irqflags_t flags = IrqSave();
 	writeRegisters[regIndex] = regVal;
-	writeRegCRCs[regIndex] = crc;
+	writeRegCRCs[regIndex] = Reflect(crc);
 	registersToUpdate |= (1u << regIndex);								// flag it for sending
 	IrqRestore(flags);
 	if (regIndex == WriteGConf || regIndex == WriteTpwmthrs)
@@ -1024,8 +1041,11 @@ inline void Tmc22xxDriverState::TransferDone() noexcept
 	if (sendData[2] & 0x80)								// if we were writing a register
 	{
 		const uint8_t currentIfCount = receiveData[18];
-		if (regnumBeingUpdated < NumWriteRegisters && currentIfCount == (uint8_t)(lastIfCount + 1) && (sendData[2] & 0x7F) == WriteRegNumbers[regnumBeingUpdated]
-				&& calcCRC(receiveData+12, 7) == receiveData[19])
+		if (regnumBeingUpdated < NumWriteRegisters 
+		    && currentIfCount == (uint8_t)(lastIfCount + 1)
+			&& (sendData[2] & 0x7F) == WriteRegNumbers[regnumBeingUpdated]
+			&& Reflect(CRCAddByte(CRCAddByte(CRCAddByte(CRCAddByte(CRCAddByte(InitialReceiveCrc, receiveData[14]), receiveData[15]), receiveData[16]), receiveData[17]), receiveData[18])) == receiveData[19]
+		   )
 		{
 			++numWrites;
 		}
@@ -1040,7 +1060,12 @@ inline void Tmc22xxDriverState::TransferDone() noexcept
 	}
 	else if (driversState != DriversState::noPower)		// we don't check the CRC, so only accept the result if power is still good
 	{
-		if (sendData[2] == ReadRegNumbers[registerToRead] && ReadRegNumbers[registerToRead] == receiveData[6] && receiveData[4] == 0x05 && receiveData[5] == 0xFF && calcCRC(receiveData+4, 7) == receiveData[11])
+		if (sendData[2] == ReadRegNumbers[registerToRead]
+		    && ReadRegNumbers[registerToRead] == receiveData[6]
+			&& receiveData[4] == 0x05
+			&& receiveData[5] == 0xFF
+			&& Reflect(CRCAddByte(CRCAddByte(CRCAddByte(CRCAddByte(CRCAddByte(InitialReceiveCrc, receiveData[6]), receiveData[7]), receiveData[8]), receiveData[9]), receiveData[10])) == receiveData[11]
+		   )
 		{
 			// We asked to read the scheduled read register, and the sync byte, slave address and register number in the received message match
 			//TODO here we could check the CRC of the received message, but for now we assume that we won't get any corruption in the 32-bit received data
