@@ -25,7 +25,7 @@
 #include "TmcDriverState.h"
 #include "TMCSoftUART.h"
 #include "TMC22xxDriver.h"
-
+#include <functional>
 // TMC22xx DRV_STATUS register bit assignments
 const uint32_t TMC22xx_RR_OT = 1u << 1;			// over temperature shutdown
 const uint32_t TMC22xx_RR_OTPW = 1u << 0;		// over temperature warning
