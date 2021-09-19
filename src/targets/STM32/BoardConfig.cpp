@@ -627,15 +627,15 @@ void BoardConfig::Init() noexcept
 
 
 //Convert a pin string into a RRF Pin
-//Handle formats such as A.23, A_23, PA_23 or PA.23
+//Handle formats such as A.13, A_13, PA_13 or PA.13
 Pin BoardConfig::StringToPin(const char *strvalue) noexcept
 {
     if(strvalue == nullptr) return NoPin;
     
     if(tolower(*strvalue) == 'p') strvalue++; //skip P
-    //check size.. should be 3chars or 4 chars i.e. 0.1, 2.25, 1_23. 2nd char should be . or _
+    //check size.. should be 2, 3 or 4 chars i.e. A1 A.1, A.16, A_16.
     uint8_t len = strlen(strvalue);
-    if(((len == 3 || len == 4) && (*(strvalue+1) == '.' || *(strvalue+1) == '_')) || (len == 2 || len == 3))
+    if(len >= 2 && len <= 4)
     {
         const char *ptr = nullptr;
         const char ch = toupper(*strvalue);
