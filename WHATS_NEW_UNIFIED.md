@@ -1,3 +1,9 @@
+Version 3.3.0_9
+===============
+* STM32F4 remove "_" from Fly Super 8 pin names
+* Fix problem with spaces in board.txt pin arrays
+
+
 Version 3.3.0_8
 ===============
 * STM32F4 update Fly Super8 pins
