@@ -1,12 +1,19 @@
 Version 3.4.0beta3+1_2
 ======================
 * Duet3D 3.3beta3+1 changes
-* pickup up changes from 3.3.0_8
+* pickup up changes from 3.3.0_8 and 3.3.0_9
 
 Version 3.4beta2_2
 ==================
 * Improve SBC robustness when connection is dropped and reconnects
 * Pick up changes from 3.3.0_7
+
+Version 3.3.0_9
+===============
+* Remove "_" from pin name definitions
+* Fix problem with spaces in board.txt pin arrays
+* Ignore "_" in pin names used in board.txt
+* Output RAW ADC readings in M308 output when heat debug is enabled
 
 Version 3.3.0_8
 ===============

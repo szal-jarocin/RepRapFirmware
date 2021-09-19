@@ -1054,9 +1054,17 @@ bool BoardConfig::GetConfigKeys(FIL *configFile, const boardConfigEntry_t *board
                                         {
                                             pos++;
                                         }
+                                        // Skip trailing whitespace
+                                        if (pos < maxLineLength && isSpaceOrTab(line[pos]))
+                                        {
+                                            // make sure we do not include trailing whitespace in string
+                                            line[pos++] = 0; // null terminate the string
+                                            while (pos < maxLineLength && isSpaceOrTab(line[pos]))
+                                                pos++;
+                                        }
 
-                                        //see if we ended due to comment, ;, or null
-                                        if(pos == maxLineLength || line[pos] == 0 || line[pos] == '/' || line[pos] == '#' || line[pos]==';')
+                                        // make sure we ended on a valid character
+                                        if(pos >= maxLineLength || (line[pos] != '}' && line[pos] != ','))
                                         {
                                             debugPrintf("Error: Array ended without Closing Brace?\n");
                                             searching = false;
