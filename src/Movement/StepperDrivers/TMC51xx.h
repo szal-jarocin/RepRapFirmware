@@ -11,10 +11,11 @@
 #ifndef SRC_MOVEMENT_STEPPERDRIVERS_TMC51XX_H_
 #define SRC_MOVEMENT_STEPPERDRIVERS_TMC51XX_H_
 
-#include "RepRapFirmware.h"
+#include <RepRapFirmware.h>
 
 #if SUPPORT_TMC51xx
 
+#include <GCodes/GCodeResult.h>
 #include "DriverMode.h"
 
 // TMC51xx DRV_STATUS register bit assignments

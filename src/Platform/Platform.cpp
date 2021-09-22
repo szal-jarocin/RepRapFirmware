@@ -2025,7 +2025,7 @@ void Platform::Diagnostics(MessageType mtype) noexcept
 #if HAS_SMART_DRIVERS
 		if (drive < numSmartDrivers)
 		{
-			driverStatus.cat(", ");
+			driverStatus.cat(',');
 			SmartDrivers::AppendDriverStatus(drive, driverStatus.GetRef());
 		}
 #endif
@@ -4425,6 +4425,12 @@ bool Platform::AssignLaserPin(GCodeBuffer& gb, const StringRef& reply)
 	return true;
 }
 
+void Platform::ReleaseLaserPin() noexcept
+{
+	SetLaserPwm(0.0);
+	laserPort.Release();
+}
+
 void Platform::SetLaserPwmFrequency(PwmFrequency freq) noexcept
 {
 	laserPort.SetFrequency(freq);
@@ -5312,6 +5318,47 @@ GCodeResult Platform::EutProcessM569(const CanMessageGeneric& msg, const StringR
 
 	}
 	return GCodeResult::ok;
+}
+
+GCodeResult Platform::EutProcessM569Point2(const CanMessageGeneric& msg, const StringRef& reply) noexcept
+{
+#if SUPPORT_TMC22xx || SUPPORT_TMC51xx
+	CanMessageGenericParser parser(msg, M569Point2Params);
+	uint8_t drive;
+	uint8_t regNum;
+	if (!parser.GetUintParam('P', drive) || !parser.GetUintParam('R', regNum))
+	{
+		reply.copy("Missing P or R parameter in CAN message");
+		return GCodeResult::error;
+	}
+
+	if (drive >= NumDirectDrivers)
+	{
+		reply.printf("Driver number %u.%u out of range", CanInterface::GetCanAddress(), drive);
+		return GCodeResult::error;
+	}
+
+	uint32_t regVal;
+	if (parser.GetUintParam('V', regVal))
+	{
+		return SmartDrivers::SetAnyRegister(drive, reply, regNum, regVal);
+	}
+
+	const uint32_t startTime = millis();
+	GCodeResult rslt;
+	while ((rslt = SmartDrivers::GetAnyRegister(drive, reply, regNum)) == GCodeResult::notFinished)
+	{
+		if (millis() - startTime >= 50)
+		{
+			reply.copy("Failed to read register");
+			return GCodeResult::error;
+		}
+	}
+
+	return rslt;
+#else
+	return GCodeResult::errorNotSupported;
+#endif
 }
 
 GCodeResult Platform::EutProcessM569Point7(const CanMessageGeneric& msg, const StringRef& reply) noexcept

@@ -814,7 +814,7 @@ bool DataTransfer::IsReady() noexcept
 			RTOSIface::Yield();
 			if (millis() - startTime > SpiTransferTimeout)
 			{
-				ResetTransfer();
+				StatefulTransferReset(true);
 				return false;
 			}
 		}
