@@ -914,7 +914,9 @@ void Tmc22xxDriverState::UpdateCurrent() noexcept
 	}
 	//debugPrintf("TMC current iMax %d %d, set I %d IH %d csBits 0x%x 0x%x vsense 0x%x\n", (int)iMax_VS0, (int)iMax_VS1, (int)motorCurrent, (int)iHoldCurrent, (unsigned)iRunCsBits, (unsigned)iHoldCsBits, (unsigned)vsense);
 	UpdateRegister(WriteIholdIrun,
-					(writeRegisters[WriteIholdIrun] & ~(IHOLDIRUN_IRUN_MASK | IHOLDIRUN_IHOLD_MASK)) | (iRunCsBits << IHOLDIRUN_IRUN_SHIFT) | (iHoldCsBits << IHOLDIRUN_IHOLD_SHIFT));
+					(writeRegisters[WriteIholdIrun] & ~(IHOLDIRUN_IRUN_MASK | IHOLDIRUN_IHOLD_MASK))
+					| (iRunCsBits << IHOLDIRUN_IRUN_SHIFT) 
+					| (iHoldCsBits << IHOLDIRUN_IHOLD_SHIFT));
 	configuredChopConfReg = (configuredChopConfReg & ~CHOPCONF_VSENSE_HIGH) | vsense;
 	UpdateChopConfRegister();
 }
@@ -974,62 +976,62 @@ void Tmc22xxDriverState::AppendDriverStatus(const StringRef& reply) noexcept
 {
 	if (maxReadCount == 0)
 	{
-		reply.cat("no-driver-detected");
+		reply.cat(" no-driver-detected");
 		return;
 	}
 	if (IsTmc2209())
-		reply.cat("2209 ");
+		reply.cat(" 2209");
 	else
-		reply.cat("2208 ");
+		reply.cat(" 2208");
 	const uint32_t lastReadStatus = readRegisters[ReadDrvStat];
 	if (lastReadStatus & TMC22xx_RR_OT)
 	{
-		reply.cat("temperature-shutdown! ");
+		reply.cat(" temperature-shutdown!");
 	}
 	else if (lastReadStatus & TMC22xx_RR_OTPW)
 	{
-		reply.cat("temperature-warning, ");
+		reply.cat(" temperature-warning");
 	}
 	if (lastReadStatus & TMC22xx_RR_S2G)
 	{
-		reply.cat("short-to-ground, ");
+		reply.cat(" short-to-ground");
 	}
 	if (lastReadStatus & TMC22xx_RR_OLA)
 	{
-		reply.cat("open-load-A, ");
+		reply.cat(" open-load-A");
 	}
 	if (lastReadStatus & TMC22xx_RR_OLB)
 	{
-		reply.cat("open-load-B, ");
+		reply.cat(" open-load-B");
 	}
 	if (lastReadStatus & TMC22xx_RR_STST)
 	{
-		reply.cat("standstill, ");
+		reply.cat(" standstill");
 	}
 	else if ((lastReadStatus & (TMC22xx_RR_OT | TMC22xx_RR_OTPW | TMC22xx_RR_S2G | TMC22xx_RR_OLA | TMC22xx_RR_OLB)) == 0)
 	{
-		reply.cat("ok, ");
+		reply.cat(" ok");
 	}
-	reply.catf("reads %u, writes %u, ", numReads, numWrites);
-	if(readErrors != 0 || writeErrors != 0 || numTimeouts != 0)
-		reply.catf("error r/w %u/%u, ifcnt %u, timeout %u, ",
-						readErrors, writeErrors, lastIfCount, numTimeouts);
-	if (failedOp != 0xff)
-		reply.catf("failedOp 0x%02x, ", failedOp);
 #if HAS_STALL_DETECT
 	if (IsTmc2209())
 	{
 		if (maxSgLoadRegister != 0 && minSgLoadRegister <= maxSgLoadRegister)
 		{
-			reply.catf("SG min/max %" PRIu32 "/%" PRIu32, minSgLoadRegister, maxSgLoadRegister);
+			reply.catf(", SG min/max %" PRIu32 "/%" PRIu32, minSgLoadRegister, maxSgLoadRegister);
 		}
 		else
 		{
-			reply.cat("SG min/max n/a");
+			reply.cat(", SG min/max n/a");
 		}
 	}
 	ResetLoadRegisters();
 #endif
+	reply.catf(", reads %u, writes %u", numReads, numWrites);
+	if(readErrors != 0 || writeErrors != 0 || numTimeouts != 0)
+		reply.catf(", error r/w %u/%u, ifcnt %u, timeout %u",
+						readErrors, writeErrors, lastIfCount, numTimeouts);
+	if (failedOp != 0xff)
+		reply.catf(", failedOp 0x%02x", failedOp);
 
 	readErrors = writeErrors = numReads = numWrites = numTimeouts = numDmaErrors = 0;
 	failedOp = 0xFF;

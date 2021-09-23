@@ -43,11 +43,11 @@ constexpr float MinimumOpenLoadMotorCurrent = 500;			// minimum current in mA fo
 constexpr uint32_t DefaultMicrosteppingShift = 4;			// x16 microstepping
 constexpr bool DefaultInterpolation = true;					// interpolation enabled
 constexpr uint32_t DefaultTpwmthrsReg = 2000;				// low values (high changeover speed) give horrible jerk at the changeover from stealthChop to spreadCycle
-const int DefaultStallDetectThreshold = 1;
-const bool DefaultStallDetectFiltered = false;
-const unsigned int DefaultMinimumStepsPerSecond = 200;		// for stall detection: 1 rev per second assuming 1.8deg/step, as per the TMC5160 datasheet
-const uint32_t DefaultTcoolthrs = 2000;						// max interval between 1/256 microsteps for stall detection to be enabled
-const uint32_t DefaultThigh = 200;
+constexpr int DefaultStallDetectThreshold = 1;
+constexpr bool DefaultStallDetectFiltered = false;
+constexpr unsigned int DefaultMinimumStepsPerSecond = 200;	// for stall detection: 1 rev per second assuming 1.8deg/step, as per the TMC5160 datasheet
+constexpr uint32_t DefaultTcoolthrs = 2000;					// max interval between 1/256 microsteps for stall detection to be enabled
+constexpr uint32_t DefaultThigh = 200;
 constexpr size_t TmcTaskStackWords = 200;
 
 #if TMC_TYPE == 5130
@@ -64,14 +64,10 @@ constexpr float RecipFullScaleCurrent = SenseResistor/325.0;		// 1.0 divided by 
 #endif
 
 // The SPI clock speed is a compromise:
-// - too high and polling the driver chips take too much of the CPU time
+// - too high and polling the driver chips takes too much of the CPU time
 // - too low and we won't detect stalls quickly enough
-// With a 4MHz SPI clock:
-// - polling the drivers makes calculations take ??% longer, so it is taking about ??% of the CPU time
-// - we poll all ?? drivers in about ??us
-// With a 2MHz SPI clock:
-// - polling the drivers makes calculations take ??% longer, so it is taking about ??% of the CPU time
-// - we poll all ?? drivers in about ??us
+// TODO use the DIAG outputs to detect stalls instead (may not be possible with some TMC driver modules)
+
 const uint32_t DriversSpiClockFrequency = 2000000;			// 2MHz SPI clock
 const uint32_t TransferTimeout = 2;							// any transfer should complete within 2 ticks @ 1ms/tick
 
@@ -306,7 +302,7 @@ public:
 	uint32_t ReadLiveStatus() const noexcept;
 	uint32_t ReadAccumulatedStatus(uint32_t bitsToKeep) noexcept;
 
-	void GetSpiCommand(uint8_t *sendDdataBlock) noexcept;
+	void GetSpiCommand(uint8_t *sendDataBlock) noexcept;
 	void TransferSucceeded(const uint8_t *rcvDataBlock) noexcept;
 	void TransferFailed() noexcept;
 	DriversState SetupDriver(bool reset) noexcept;
@@ -371,7 +367,7 @@ private:
 
 	volatile uint32_t newRegistersToUpdate;					// bitmap of register indices whose values need to be sent to the driver chip
 	uint32_t registersToUpdate;								// bitmap of register indices whose values need to be sent to the driver chip
-	DriversBitmap driverBit;								// bitmap of just this driver number
+	DriversBitmap driverBit;								// a bitmap containing just this driver number
 	uint32_t axisNumber;									// the axis number of this driver as used to index the DriveMovements in the DDA
 	uint32_t microstepShiftFactor;							// how much we need to shift 1 left by to get the current microstepping
 	uint32_t motorCurrent;									// the configured motor current in mA
@@ -696,7 +692,7 @@ void Tmc51xxDriverState::UpdateCurrent() noexcept
 		gs = 32;
 	}
 
-	// At high motor currents, limit the standstill current fraction to avoid overheating particular pairs of mosfets
+	// At high motor currents, limit the standstill current fraction to avoid overheating particular pairs of mosfets. Avoid dividing by zero if motorCurrent is zero.
 	constexpr uint32_t MaxStandstillCurrentTimes256 = 256 * (uint32_t)MaximumStandstillCurrent;
 	const uint8_t limitedStandstillCurrentFraction = (motorCurrent * standstillCurrentFraction <= MaxStandstillCurrentTimes256)
 														? standstillCurrentFraction
@@ -749,54 +745,54 @@ void Tmc51xxDriverState::AppendDriverStatus(const StringRef& reply) noexcept
 {
 	if (!ready)
 	{
-		reply.cat("no-driver-detected");
+		reply.cat(" no-driver-detected");
 		return;
 	}
 	reply.catf("5160 ");
 	const uint32_t lastReadStatus = readRegisters[ReadDrvStat];
 	if (lastReadStatus & TMC51xx_RR_OT)
 	{
-		reply.cat("temperature-shutdown! ");
+		reply.cat(" temperature-shutdown!");
 	}
 	else if (lastReadStatus & TMC51xx_RR_OTPW)
 	{
-		reply.cat("temperature-warning, ");
+		reply.cat(" temperature-warning");
 	}
 	if (lastReadStatus & TMC51xx_RR_S2G)
 	{
-		reply.cat("short-to-ground, ");
+		reply.cat(" short-to-ground");
 	}
 	if ((lastReadStatus & TMC51xx_RR_OLA) && !(lastReadStatus & TMC51xx_RR_STST))
 	{
-		reply.cat("open-load-A, ");
+		reply.cat(" open-load-A");
 	}
 	if ((lastReadStatus & TMC51xx_RR_OLB) && !(lastReadStatus & TMC51xx_RR_STST))
 	{
-		reply.cat("open-load-B, ");
+		reply.cat(" open-load-B");
 	}
 	if (lastReadStatus & TMC51xx_RR_STST)
 	{
-		reply.cat("standstill, ");
+		reply.cat(" standstill");
 	}
 	else if ((lastReadStatus & (TMC51xx_RR_OT | TMC51xx_RR_OTPW | TMC51xx_RR_S2G | TMC51xx_RR_OLA | TMC51xx_RR_OLB)) == 0)
 	{
-		reply.cat("ok, ");
+		reply.cat(" ok");
 	}
-
-	reply.catf("reads %u, writes %u, ", numReads, numWrites);
-	if (numWriteErrors > 0)
-		reply.catf("write errors %u, ", numWriteErrors);
-	numReads = numWrites = numWriteErrors = 0;
 
 	if (minSgLoadRegister <= maxSgLoadRegister)
 	{
-		reply.catf("SG min/max %" PRIu32 "/%" PRIu32, minSgLoadRegister, maxSgLoadRegister);
+		reply.catf(", SG min/max %" PRIu32 "/%" PRIu32, minSgLoadRegister, maxSgLoadRegister);
 	}
 	else
 	{
-		reply.cat("SG min/max n/a");
+		reply.cat(", SG min/max n/a");
 	}
 	ResetLoadRegisters();
+
+	reply.catf(", reads %u, writes %u", numReads, numWrites);
+	if (numWriteErrors > 0)
+		reply.catf(", write errors %u", numWriteErrors);
+	numReads = numWrites = numWriteErrors = 0;
 }
 
 #if HAS_STALL_DETECT
@@ -824,6 +820,7 @@ void Tmc51xxDriverState::SetStallMinimumStepsPerSecond(unsigned int stepsPerSeco
 {
 	//TODO use hardware facility instead
 	maxStallStepInterval = StepClockRate/max<unsigned int>(stepsPerSecond, 1);
+	UpdateRegister(WriteTcoolthrs, (12000000 + (128 * stepsPerSecond))/(256 * stepsPerSecond));
 }
 
 void Tmc51xxDriverState::AppendStallConfig(const StringRef& reply) const noexcept
