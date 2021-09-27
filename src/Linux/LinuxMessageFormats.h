@@ -274,7 +274,7 @@ enum class LinuxRequest : uint16_t
 	Unlock = 11,								// Unlock occupied resources
 	WriteIap = 12,								// Write another chunk of the IAP binary
 	StartIap = 13,								// Launch the IAP binary
-	AssignFilament = 14,						// Assign filament to an extruder
+	AssignFilament_deprecated = 14,				// Assign filament to an extruder (no longer used)
 	FileChunk = 15,								// Response to a file chunk request from a CAN-connected board
 	EvaluateExpression = 16,					// Evaluate an arbitrary expression
 	Message = 17,								// Send an arbitrary message
@@ -291,12 +291,6 @@ enum class LinuxRequest : uint16_t
 	FileTruncateResult = 28,					// Result of a file truncate request
 
 	InvalidRequest = 29
-};
-
-struct AssignFilamentHeader
-{
-	int32_t extruder;
-	uint32_t filamentLength;
 };
 
 struct BooleanHeader
