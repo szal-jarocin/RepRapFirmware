@@ -40,7 +40,7 @@ constexpr size_t SBCTaskStackWords = 820;
 #elif defined(DEBUG)
 constexpr size_t SBCTaskStackWords = 1000;			// debug builds use more stack
 #else
-constexpr size_t SBCTaskStackWords = 820;
+constexpr size_t SBCTaskStackWords = 1000;
 #endif
 constexpr uint32_t LinuxYieldTimeout = 10;
 
@@ -576,6 +576,7 @@ void LinuxInterface::Spin() noexcept
 							// Get the error message and send it back to DSF
 							String<StringLength100> errorMessage;
 							e.GetMessage(errorMessage.GetRef(), nullptr);
+							debugPrintf("Had eval exception exp %s err %s\n", expression.c_str(), errorMessage.c_str());
 							packetAcknowledged = transfer.WriteEvaluationError(expression.c_str(), errorMessage.c_str());
 						}
 					}
@@ -751,6 +752,7 @@ void LinuxInterface::Spin() noexcept
 					{
 						// Get the error message and send it back to DSF
 						// Save memory by re-using 'expression' to capture the error message
+						debugPrintf("Error during assignment\n");
 						e.GetMessage(expression.GetRef(), nullptr);
 						packetAcknowledged = transfer.WriteSetVariableError(varName.c_str(), expression.c_str());
 					}
