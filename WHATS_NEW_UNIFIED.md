@@ -1,3 +1,9 @@
+Version 3.4.0beta4_1
+====================
+* Duet3D 3.4beta4
+* SBC Increase stack space to allow more complex expressions
+* 
+
 Version 3.4.0beta3+1_2
 ======================
 * Duet3D 3.3beta3+1 changes
