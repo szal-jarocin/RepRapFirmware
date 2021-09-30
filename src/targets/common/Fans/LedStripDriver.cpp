@@ -204,7 +204,7 @@ GCodeResult LedStripDriver::SetColours(GCodeBuffer& gb, const StringRef& reply) 
 	}
 #endif
 	if (needStartFrame
-		&& ((StepTimer::GetTimerTicks() - whenOutputFinished) < (uint32_t)PixelTimings[3])
+		&& ((StepTimer::GetTimerTicks() - whenOutputFinished) < (((uint32_t)PixelTimings[3] * StepClockRate)/1000000))
 	   )
 	{
 		return GCodeResult::notFinished;									// give the NeoPixels time to reset
