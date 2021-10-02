@@ -1667,7 +1667,7 @@ float Platform::GetCpuTemperature() const noexcept
 # elif STM32F4
 	// VSENSE_CORRECTED = VSENSE*VRef/3.3
 	// TMCU = ((TSCAL2_TEMP - TSCAL1_TEMP)/(TSCAL2 - TSCAL1))*(VSENSE_CORRECTED - TSCAL1) + TSCAL1_TEMP
-	return ((110.0f - 30.0f)/(((float)(GET_ADC_CAL(TEMPSENSOR_CAL2_ADDR, TEMPSENSOR_CAL2_DEF))) - ((float)(GET_ADC_CAL(TEMPSENSOR_CAL1_ADDR, TEMPSENSOR_CAL1_DEF))))) * ((voltage*((float)(1u << 12))/3.3f)*vRefCorrection/VRefCorrectionScale - ((float)(GET_ADC_CAL(TEMPSENSOR_CAL1_ADDR, TEMPSENSOR_CAL1_DEF)))) + 30.0f; 
+	return ((110.0f - 30.0f)/(((float)(GET_ADC_CAL(TEMPSENSOR_CAL2_ADDR, TEMPSENSOR_CAL2_DEF))) - ((float)(GET_ADC_CAL(TEMPSENSOR_CAL1_ADDR, TEMPSENSOR_CAL1_DEF))))) * ((voltage*((float)(1u << 12))/3.3f)*vRefCorrection/VRefCorrectionScale - ((float)(GET_ADC_CAL(TEMPSENSOR_CAL1_ADDR, TEMPSENSOR_CAL1_DEF)))) + 30.0f + mcuTemperatureAdjust; 
 # else
 #  error undefined CPU temp conversion
 # endif
