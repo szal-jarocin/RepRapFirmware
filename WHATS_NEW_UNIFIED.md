@@ -1,3 +1,11 @@
+Version 3.3.0_11
+================
+* STM32F4 Allow multiple names for same board configuration
+* STM32F4 Added support for Fly CDYv3
+* STM32F4 Added support for Fly E3 Pro v2
+* STM32F4 Added support for BTT Octopus Pro v1 (STM32429 MCU)
+
+
 Verison 3.3.0_10
 ===============
 * LPC Fix bug that can leave software PWM running when it should be off
