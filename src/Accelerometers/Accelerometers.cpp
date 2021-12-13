@@ -424,6 +424,11 @@ GCodeResult Accelerometers::ConfigureAccelerometer(GCodeBuffer& gb, const String
 		}
 		const uint32_t spiFrequency = (gb.Seen('Q')) ? gb.GetLimitedUIValue('Q', 500000, 10000001) : DefaultAccelerometerSpiFrequency;
 #if STM32F4 || LPC17xx
+		if (AccelerometerSpiChannel == SSPNONE)
+		{
+			reply.copy("Accelerometer SPI channel has not been configured");
+			return GCodeResult::error;
+		}
 		temp = new LIS3DH(SharedSpiDevice::GetSharedSpiDevice(AccelerometerSpiChannel), spiFrequency, spiCsPort.GetPin(), irqPort.GetPin());
 #else
 		temp = new LIS3DH(SharedSpiDevice::GetMainSharedSpiDevice(), spiFrequency, spiCsPort.GetPin(), irqPort.GetPin());

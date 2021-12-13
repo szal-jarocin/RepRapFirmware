@@ -1,5 +1,10 @@
 Version 3.3.0_11
 ================
+* STM32F4 Add support for Fly Gemini
+* STM32F4 Report usage of SPI device when channel has not been defined (avoid board reset)
+
+Version 3.3.0_11
+================
 * STM32F4 Allow multiple names for same board configuration
 * STM32F4 Added support for Fly CDYv3
 * STM32F4 Added support for Fly E3 Pro v2
