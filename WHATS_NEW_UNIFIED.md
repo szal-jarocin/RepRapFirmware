@@ -1,4 +1,14 @@
-Version 3.3.0_11
+Version 3.3.0_14
+================
+* STM32F4 Update Fly Gemini board signature
+
+
+Version 3.3.0_13
+================
+* STM32F4 Fix problems with using SDIO based SD cards in SBC mode
+
+
+Version 3.3.0_12
 ================
 * STM32F4 Add support for Fly Gemini
 * STM32F4 Report usage of SPI device when channel has not been defined (avoid board reset)
